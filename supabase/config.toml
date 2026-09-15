@@ -135,3 +135,6 @@ verify_jwt = false
 
 [functions.together-email-dispatch]
 verify_jwt = false
+
+[functions.together-scenario]
+verify_jwt = false

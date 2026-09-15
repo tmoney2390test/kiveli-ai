@@ -28,6 +28,7 @@ export async function progressStoryArcs(input: { db: SupabaseClient; userId: str
   const active = activeResult.data ?? [];
   const output: Row[] = [];
   for (const arc of active) {
+    if (arc.together_story_arc_templates?.prerequisites?.scenarioDriven) continue;
     if (arc.next_eligible_at && new Date(arc.next_eligible_at) > now) continue;
     const template = arc.together_story_arc_templates as Row;
     if(template.world_scope==='specific'&&String(template.specific_world_id)!==String(currentWorldId))continue;
@@ -45,7 +46,7 @@ export async function progressStoryArcs(input: { db: SupabaseClient; userId: str
   const activeMajor = active.some((arc) => arc.priority === 'major');
   const activeMinor = active.filter((arc) => arc.priority === 'minor').length;
   if (activeMajor || activeMinor >= 2) return output;
-  const eligible = (templatesResult.data ?? []).filter((template) => arcEligible(template, relationship)&&!(template.world_scope==='specific'&&String(template.specific_world_id)!==String(currentWorldId)));
+  const eligible = (templatesResult.data ?? []).filter((template) => !template.prerequisites?.scenarioDriven&&arcEligible(template, relationship)&&!(template.world_scope==='specific'&&String(template.specific_world_id)!==String(currentWorldId)));
   const selected = eligible.sort((a, b) => stableUnit(`${seed}:${now.toISOString().slice(0, 10)}:${a.slug}`) - stableUnit(`${seed}:${now.toISOString().slice(0, 10)}:${b.slug}`)).find((template) => stableUnit(`${seed}:arc:${template.slug}:${now.toISOString().slice(0, 10)}`) < (template.priority === 'major' ? .015 : .035));
   if (!selected) return output;
   const chapters = Array.isArray(selected.chapters) ? selected.chapters as Row[] : [];

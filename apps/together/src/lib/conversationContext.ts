@@ -30,15 +30,16 @@ export function buildClientConversationContext(snapshot:Snapshot,character:Chara
   const conversation=conversationId
     ? snapshot.conversations.find((item)=>item.id===conversationId&&item.character_instance_id===character.id&&!item.archived_at)
     : snapshot.conversations.find((item)=>item.character_instance_id===character.id&&!item.archived_at);
+  const scenarioHere=character.scenario_state?.conversationId===conversation?.id?character.scenario_state:null;
   const storedScene=readSceneMetadata(conversation?.metadata?.activeScene);
   const storedValid=Boolean(storedScene?.interactionMode==='co_present'&&(!storedScene.validUntil||new Date(storedScene.validUntil)>now));
   const activeSceneActivity=activeSceneRow?sceneActivity(activeSceneRow):storedValid?storedScene?.activityLabel??humanizeActivity(storedScene?.activityKey):undefined;
   const activeEvent=snapshot.lifeEvents.filter((event)=>event.character_instance_id===character.id&&event.metadata?.planStatus!=='cancelled'&&Boolean(event.ends_at)&&new Date(event.starts_at).getTime()<=now.getTime()&&new Date(event.ends_at!).getTime()>=now.getTime()).sort((a,b)=>Number(b.significance??0)-Number(a.significance??0))[0];
-  const higherPriorityPresence=Boolean(activeSceneRow||storedValid||activeDateRow||planUserPresent);
+  const higherPriorityPresence=Boolean(scenarioHere||activeSceneRow||storedValid||activeDateRow||planUserPresent);
   const scheduleDeclaresHome=!higherPriorityPresence&&scheduleStatus?.location?.trim().toLowerCase()==='home';
   const homeLocationId=characterHomeLocationId(snapshot,character);
   const passiveLocationId=scheduleStatus?.locationId??(scheduleDeclaresHome?homeLocationId:character.current_location_id);
-  const activeLocationId=activeSceneRow?.location_id??(storedValid?storedScene?.locationId:undefined)??activeDateRow?.together_date_templates.location_id??(planUserPresent?activePlanRow?.location_id:undefined)??passiveLocationId;
+  const activeLocationId=scenarioHere?.locationId??activeSceneRow?.location_id??(storedValid?storedScene?.locationId:undefined)??activeDateRow?.together_date_templates.location_id??(planUserPresent?activePlanRow?.location_id:undefined)??passiveLocationId;
   const atHome=!higherPriorityPresence&&(scheduleDeclaresHome||isCharacterHomeLocation(snapshot,character,activeLocationId));
   const sceneLocation=atHome?'Home':snapshot.locations.find((item)=>item.id===activeLocationId)?.name??scheduleStatus?.location??location;
   const sceneWorld=worldForLocation(snapshot,activeLocationId);
@@ -59,12 +60,12 @@ export function buildClientConversationContext(snapshot:Snapshot,character:Chara
   const subject=openThread?.display_subject??openThread?.subject??String(openThread?.topic??'').match(/user's\s+([a-z ]+)/i)?.[1]?.replace(/\s+went.*$/i,'')??'something important';
   const thread=openThread?{label:subject,prompt:openThread.followup_prompt??`I should tell you how my ${subject.toLowerCase()} went.`}:undefined;
   const activeCommitment=activeDate??(planUserPresent?activePlan:undefined);
-  const interactionMode:InteractionMode=activeSceneRow||storedValid||activeDate||planUserPresent?'co_present':'remote';
+  const interactionMode:InteractionMode=scenarioHere||activeSceneRow||storedValid||activeDate||planUserPresent?'co_present':'remote';
   const entryReason:SceneEntryReason=activeSceneRow?(storedScene?.entryReason??sceneEntryReason(activeSceneRow.source)):storedValid?(storedScene?.entryReason??'continued_scene'):activeDate?'active_date':planUserPresent?'shared_plan':'direct_chat';
   const acknowledgeArrival=interactionMode==='co_present'&&entryReason==='user_drop_in'&&!storedScene?.arrivalAcknowledgedAt;
   const departureAt=activeSceneRow?.expected_end_at??storedScene?.validUntil??activeCommitment?.endsAt;
-  const departurePressure=Boolean(departureAt&&new Date(departureAt).getTime()-now.getTime()<20*60000);
-  const sceneActivityLabel=naturalizeCharacterActivity(activeSceneActivity??activeDate?.title??(planUserPresent?activePlan?.title:undefined)??scheduleStatus?.activity??character.current_activity,{occupation:character.together_character_templates.occupation});
+  const departurePressure=!scenarioHere&&Boolean(departureAt&&new Date(departureAt).getTime()-now.getTime()<20*60000);
+  const sceneActivityLabel=naturalizeCharacterActivity(scenarioHere?.title??activeSceneActivity??activeDate?.title??(planUserPresent?activePlan?.title:undefined)??scheduleStatus?.activity??character.current_activity,{occupation:character.together_character_templates.occupation});
   const sceneActivityClause=characterActivityClause(sceneActivityLabel,{occupation:character.together_character_templates.occupation});
   const eventEstablishesPresence=Boolean(!scheduleStatus&&activeEvent?.location_id&&activeEvent.location_id===character.current_location_id&&['life_event','active_event'].includes(String(character.current_presence_source)));
   const sceneSource:ClientConversationContext['scene']['source']=activeSceneRow||storedValid?'scene':activeDate?'active_date':planUserPresent?'active_plan':scheduleStatus?'life_engine':character.current_presence_source==='life_event'||character.current_presence_source==='active_event'?'life_engine':'character_state';

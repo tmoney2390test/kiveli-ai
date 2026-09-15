@@ -1,3 +1,4 @@
+import {confirmScenarioEventTransition} from './scenarioEventTransition';
 import { rememberVideoCatalog } from './videoCatalog';
 import { batchReplyText, type ReplyDelta } from './replyStreaming';
 import type { DialogueContextQuote } from '@together/domain/src/chat-context';
@@ -22,6 +23,8 @@ import { scheduleForegroundTimeout } from './webPageLifecycle';
 import { ensureAiConsent, invalidateAiConsent, isAiFeatureRequest } from './aiConsent';
 import { installationIdentity } from './installationIdentity';
 import { runMediaRequest } from './mediaRequestTransport';
+
+export const manageScenario = <T=unknown>(input:Record<string,unknown>):Promise<T> => withIdempotentRetry(()=>invoke<T>('together-scenario',input));
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false,readonly correlationId?:string) { super(message); if(code==='CONSENT_REQUIRED')invalidateAiConsent(); } }
 type Envelope<T> = { data: T; correlationId: string };
@@ -68,6 +71,10 @@ export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POS
     response = await fetch(`${supabaseUrl}/functions/v1/${name}`, { method, headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json','x-kivelle-timezone':deviceTimezone() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),...(options.signal?{signal:options.signal}:{}) });
     const payload = await response.json().catch(() => ({})) as Envelope<T> & { error?: {message?:string;code?:string;retryable?:boolean;correlationId?:string} };
     if (!response.ok) {
+      if(payload.error?.code==='SCENARIO_PAUSE_REQUIRED'&&body&&typeof body==='object'&&'action'in body&&((name==='together-plan'&&body.action==='join')||(name==='together-date'&&body.action==='start'))&&!('pauseScenario'in body&&body.pauseScenario===true)){
+        if(await confirmScenarioEventTransition())return invoke<T>(name,{...body,pauseScenario:true},method,options);
+        throw new ApiError('Your scenario is still running.','SCENARIO_CONTINUED');
+      }
       await clearSessionForApiFailure(supabase.auth,response.status,payload.error?.code);
       throw new ApiError(payload.error?.message ?? 'Something went wrong.', payload.error?.code, payload.error?.retryable ?? (response.status === 408 || response.status === 429 || response.status >= 500),payload.error?.correlationId??payload.correlationId);
     }

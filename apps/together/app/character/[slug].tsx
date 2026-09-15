@@ -1,3 +1,4 @@
+import {ScenarioScheduleNotice} from '../../src/components/ScenarioScheduleNotice';
 import { styles } from '../../src/styles/characterProfileStyles';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -569,6 +570,7 @@ function CharacterScheduleCard({snapshot,instance,characterVersionId,characterNa
     const world=location?snapshot.worlds.find((item)=>item.id===location.world_id):undefined;
     if(location)router.push(`/location/${location.slug}${world?`?world=${encodeURIComponent(world.slug)}`:''}` as never);
   };
+  if(instance?.scenario_state)return <ScenarioScheduleNotice character={instance} locationName={snapshot.locations.find(l=>l.id===instance.scenario_state?.locationId)?.name}/>;
   return <View style={styles.schedule}>
     <View style={styles.scheduleHeader}><View style={styles.scheduleIcon}><CalendarDays size={17} color={colors.rose}/></View><View style={styles.flex}><Text style={styles.scheduleTitle}>Today</Text><Text style={styles.scheduleDate}>{daySchedule.dateLabel}</Text></View>{canToggle?<Pressable accessibilityRole="button" accessibilityLabel={expanded?'Show schedule summary':'Show full day schedule'} accessibilityState={{expanded}} onPress={()=>setExpanded((value)=>!value)} style={({pressed})=>[styles.scheduleToggle,pressed&&styles.pressed]}><Text style={styles.scheduleToggleText}>{expanded?'Summary':`Full day · ${daySchedule.entries.length}`}</Text>{expanded?<ChevronUp size={15} color={colors.rose}/>:<ChevronDown size={15} color={colors.rose}/>}</Pressable>:null}</View>
     {daySchedule.entries.length?<View style={styles.scheduleList}>{visibleEntries.map((entry)=><ScheduleRow key={entry.id} entry={entry} summary={!expanded} onLocation={entry.locationId?()=>openLocation(entry):undefined}/>)}</View>

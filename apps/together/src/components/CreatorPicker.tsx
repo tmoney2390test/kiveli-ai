@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Image, type ImageSource } from 'expo-image';
 import { ArrowLeft, Check, ChevronDown, X } from 'lucide-react-native';
 import { colors } from '../theme';
@@ -7,7 +7,7 @@ import { colors } from '../theme';
 export const creatorGenders = [{ value: 'woman', label: 'Woman' }, { value: 'man', label: 'Man' }, { value: 'nonbinary', label: 'Nonbinary' }];
 export const creatorPronouns = ['she/her', 'he/him', 'they/them', 'she/they', 'he/they'].map((value) => ({ value, label: value }));
 
-export function CreatorModal({ visible, title, onClose, children, large = false }: { visible: boolean; title: string; onClose: () => void; children: ReactNode; large?: boolean }) {
+export function CreatorModal({ visible, title, onClose, children, footer, large = false }: { visible: boolean; title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; large?: boolean }) {
   const { width, height } = useWindowDimensions();
   const close = useRef(onClose); close.current = onClose;
   useEffect(() => {
@@ -19,13 +19,13 @@ export function CreatorModal({ visible, title, onClose, children, large = false 
   }, [visible]);
   if (!visible) return null;
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-    <View style={styles.backdrop}>
+    <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':Platform.OS==='android'?'height':undefined} style={styles.backdrop}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={StyleSheet.absoluteFill} />
       <View accessibilityViewIsModal style={[styles.modal, { width: Math.min(width - 24, large ? 1200 : 640), maxHeight: height - 32 }, width < 600 && styles.mobile]}>
         <View style={styles.header}>{large ? <Pressable accessibilityRole="button" accessibilityLabel="Back to portrait" onPress={onClose} style={styles.close}><ArrowLeft size={23} color={colors.text} /></Pressable> : null}<Text accessibilityRole="header" style={[styles.title, large && { textAlign: 'center' }]}>{title}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={styles.close}><X size={23} color={colors.text} /></Pressable></View>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>{children}</ScrollView>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>{children}{footer?<View style={{gap:12,paddingTop:20}}>{footer}</View>:null}</ScrollView>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   </Modal>;
 }
 

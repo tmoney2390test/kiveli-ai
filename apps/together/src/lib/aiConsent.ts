@@ -46,6 +46,7 @@ export function isAiFeatureRequest(name:string,body:unknown):boolean {
   const surface=name.split('?')[0];
   if(['together-dialogue','together-group-dialogue','together-story-dialogue','together-scene-reaction','together-dialogue-suggestion'].includes(surface??''))return true;
   const actions:Record<string,string[]>={
+    'together-scenario':['start'],
     'together-media':['request','accept_offer','retry','edit','animate','video_direct_generate','enhance_video_prompt'],
     'together-multimodal':['confirm_user_image','request_voice_note','preview_voice'],
     'together-creator':['create_draft','regenerate_draft_section','generate_draft_appearance','quick_create','generate_appearance','update_draft_section','complete_draft_appearance_upload','finalize_draft','update'],

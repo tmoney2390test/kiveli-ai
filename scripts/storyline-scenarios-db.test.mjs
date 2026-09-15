@@ -1,0 +1,67 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {PGlite} from '@electric-sql/pglite';
+const sql=fs.readFileSync('supabase/migrations/20260914233719_storyline_scenarios.sql','utf8');
+const uuid=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+test('Checkpoint transaction: ownership, retries, concurrency, restart, completion and legacy workers',async()=>{
+ const db=new PGlite();
+ try{
+ await db.exec(`
+ create role anon;create role authenticated;create role service_role;
+ create table together_character_instances(id uuid primary key,user_id uuid,continuity_id uuid);
+ create table together_conversations(id uuid primary key,user_id uuid,continuity_id uuid,character_instance_id uuid,archived_at timestamptz,user_archived_at timestamptz,kind text default 'direct',updated_at timestamptz default now());
+ create table together_scenario_definitions(id text primary key,character_template_id uuid,world_id uuid,location_id uuid,title text);
+ create table together_story_arc_templates(slug text primary key,prerequisites jsonb default '{}');
+ create table together_story_arc_instances(id uuid primary key,template_slug text,current_chapter_id text);
+ create table together_dialogue_turns(conversation_id uuid,state text,lease_expires_at timestamptz);
+ create table together_life_events(id uuid default gen_random_uuid(),event_type text,metadata jsonb);
+ create table together_messages(id uuid default gen_random_uuid(),user_id uuid,conversation_id uuid,character_instance_id uuid,role text,content text,delivery_status text,provider_metadata jsonb default '{}',content_rating text,visibility_scope text,moderation_version text,created_at timestamptz default clock_timestamp());
+ create table together_scenario_sessions(id uuid primary key,user_id uuid,continuity_id uuid,conversation_id uuid,character_instance_id uuid,scenario_id text constraint together_scenario_sessions_scenario_id_check check(scenario_id ~ '^(jun|por|neo|ves|nor|eos|vha|cal)-[0-9]{2}$'),status text default 'active',started_at timestamptz default now(),updated_at timestamptz default now(),current_location_id uuid);
+ insert into together_story_arc_templates(slug) values('eos-missing-seventeen-hours'),('creative-burnout');
+ `);
+ await db.exec(fs.readFileSync('supabase/migrations/20260909210553_scenario_context_revision.sql','utf8'));
+ await db.exec(sql);
+ const u=uuid(1),life=uuid(2),char=uuid(3),chat=uuid(4),session=uuid(5),place=uuid(6);
+ await db.query('insert into together_character_instances values($1,$2,$3)',[char,u,life]);
+ await db.query('insert into together_conversations(id,user_id,continuity_id,character_instance_id) values($1,$2,$3,$4)',[chat,u,life,char]);
+ await db.query("insert into together_scenario_sessions(id,user_id,continuity_id,conversation_id,character_instance_id,scenario_id,current_location_id) values($1,$2,$3,$4,$5,'story-eos-missing-seventeen-hours',$6)",[session,u,life,chat,char,place]);
+ const get=async()=>(await db.query('select * from together_scenario_sessions where id=$1',[session])).rows[0];
+ const checkpoint=(who,scope,rev,request,note='We compared the records and chose to keep the witness private.')=>db.query('select together_scenario_checkpoint($1,$2,$3,$4,$5,$6,3) as result',[who,scope,session,request,rev,note]);
+ await assert.rejects(checkpoint(uuid(99),life,0,uuid(10)),/Scenario unavailable/);
+ await assert.rejects(checkpoint(u,uuid(99),0,uuid(10)),/Scenario unavailable/);
+ await assert.rejects(checkpoint(u,life,0,uuid(10)),/PLAY_CHAPTER_FIRST/);
+ assert.equal((await get()).revision,0);
+ const play=()=>db.query("insert into together_messages(user_id,conversation_id,character_instance_id,role,content) values($1,$2,$3,'user','Let us examine the original record together.')",[u,chat,char]);
+ await play();
+ await db.query("insert into together_dialogue_turns values($1,'generating',now()+interval '2 minutes')",[chat]);
+ await assert.rejects(checkpoint(u,life,0,uuid(10)),/WAIT_FOR_REPLY/);
+ await db.exec("update together_dialogue_turns set state='completed'");
+ const first=(await checkpoint(u,life,0,uuid(10))).rows[0].result;
+ assert.equal(first.revision,1);assert.equal(first.story_progress.chapterIndex,1);assert.equal(first.story_progress.checkpoints.length,1);assert.equal(first.current_location_id,place);
+ const retry=(await checkpoint(u,life,0,uuid(10))).rows[0].result;
+ assert.equal(retry.revision,1);assert.equal(retry.story_progress.checkpoints.length,1);
+ await assert.rejects(checkpoint(u,life,0,uuid(10),'A different request must never reuse the same receipt.'),/request mismatch/);
+ await assert.rejects(checkpoint(u,life,0,uuid(11)),/SCENARIO_CHANGED/);
+ await assert.rejects(checkpoint(u,life,1,uuid(12)),/PLAY_CHAPTER_FIRST/);
+ await play();await checkpoint(u,life,1,uuid(12));await play();
+ const final=(await checkpoint(u,life,2,uuid(13),'We chose an attributed correction, keeping the wider mystery unresolved.')).rows[0].result;
+ assert.equal(final.status,'completed');assert.equal(final.story_progress.checkpoints.length,3);
+ await assert.rejects(checkpoint(u,life,3,uuid(14)),/SCENARIO_CHANGED/);
+ assert.equal((await db.query("select count(*)::int as n from together_messages where provider_metadata->>'source'='scenario_checkpoint'")).rows[0].n,3);
+ // Existing reset code renews started_at; the new trigger must drop old endings.
+ await db.query("update together_scenario_sessions set status='active',started_at=clock_timestamp() where id=$1",[session]);
+ const restarted=await get();assert.equal(restarted.story_progress.chapterIndex,0);assert.equal(restarted.story_progress.checkpoints.length,0);
+ assert.equal((await checkpoint(u,life,0,uuid(10))).rows[0].result.story_progress.checkpoints.length,0,'Old retries never restore a prior ending');
+ await db.query("insert into together_story_arc_instances values($1,'eos-missing-seventeen-hours','chapter-2')",[uuid(30)]);
+ assert.equal((await db.query('select count(*)::int as n from together_story_arc_instances')).rows[0].n,0);
+ await db.query("insert into together_story_arc_instances values($1,'creative-burnout','pressure')",[uuid(31)]);
+ assert.equal((await db.query('select count(*)::int as n from together_story_arc_instances')).rows[0].n,1,'Unconverted legacy history remains available');
+ await db.exec(`insert into together_life_events(event_type,metadata) values('story_arc','{"arc_slug":"eos-missing-seventeen-hours"}');`);
+ assert.equal((await db.query('select count(*)::int as n from together_life_events')).rows[0].n,0);
+ await db.exec('set role authenticated');
+ await assert.rejects(checkpoint(u,life,restarted.revision,uuid(40)),/permission denied/);
+ await assert.rejects(db.query("update together_scenario_sessions set status='completed'"),/permission denied/);
+ await db.exec('reset role');
+ }finally{await db.close();}
+});

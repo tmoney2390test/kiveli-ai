@@ -1,3 +1,4 @@
+import {ScenarioBrowser} from '../src/components/ScenarioBrowser';
 import { OnboardingProgress } from '../src/components/OnboardingProgress';
 import { companionOnboardingHref } from '../src/lib/onboardingNavigation';
 import { isComingSoonWorld } from '../src/lib/comingSoonWorlds';
@@ -37,6 +38,7 @@ export default function ChooseCompanion() {
   const screenRef = useRef<ScrollView | null>(null);
   const { snapshot, setSnapshot, setBrowsedWorldId, refresh, loading } = useTogether();
   const catalogError=useTogether((state)=>state.error);
+  const [scenarioTab,setScenarioTab]=useState(false);
   const [step, setStep] = useState<OnboardingStep>(params.step==='character'?'character':'world');
   const [selectedWorldId, setSelectedWorldId] = useState('');
   const [selectedCompanionId, setSelectedCompanionId] = useState(params.companion??'');
@@ -173,8 +175,8 @@ export default function ChooseCompanion() {
         </View>
 
         <View accessibilityRole="tablist" style={styles.tabs}>
-          <Pressable accessibilityRole="tab" accessibilityState={{ selected: true }} style={[styles.tab, styles.tabActive]}><Text style={[styles.tabText, styles.tabTextActive]}>Characters</Text></Pressable>
-          <Pressable accessibilityRole="tab" accessibilityLabel="Scenarios. Not available yet." accessibilityState={{ disabled: true, selected: false }} disabled style={[styles.tab, styles.tabDisabled]}><Text style={styles.tabText}>Scenarios</Text></Pressable>
+          <Pressable accessibilityRole="tab" accessibilityState={{ selected: !scenarioTab }} onPress={()=>setScenarioTab(false)} style={[styles.tab, !scenarioTab&&styles.tabActive]}><Text style={[styles.tabText, styles.tabTextActive]}>Characters</Text></Pressable>
+          <Pressable accessibilityRole="tab" accessibilityLabel="Scenarios" accessibilityState={{ selected: scenarioTab }} onPress={()=>setScenarioTab(true)} style={[styles.tab,scenarioTab&&styles.tabActive]}><Text style={styles.tabText}>Scenarios</Text></Pressable>
         </View>
 
         <View style={styles.peopleHeading}>
@@ -182,7 +184,7 @@ export default function ChooseCompanion() {
           <CompanionGenderToggle value={gender} onChange={setGender} />
         </View>
 
-        {visibleCompanions.length ? <View style={styles.peopleGrid} accessibilityRole="radiogroup" accessibilityLabel={`Characters in ${selectedWorld?.name ?? 'this world'}`}>
+        {scenarioTab&&selectedWorld?<ScenarioBrowser worldId={selectedWorld.id} gender={gender} onboarding/>:<>{visibleCompanions.length ? <View style={styles.peopleGrid} accessibilityRole="radiogroup" accessibilityLabel={`Characters in ${selectedWorld?.name ?? 'this world'}`}>
           {visibleCompanions.map((person) => <CompanionCard key={person.id} person={person} desktop={desktop} selected={person.id === selectedCompanionId} busy={busy && person.id === selectedCompanionId} onPress={() => { if (!busy) { setSelectedCompanionId(person.id); nav.setParams({step:'character',companion:person.id}); setError(''); } }} />)}
         </View> : <FrostedSurface intensity={70} style={styles.emptyState}><Sparkles size={20} color={colors.violet} /><Text style={styles.emptyTitle}>No characters match this filter</Text><Text style={styles.emptyBody}>Choose All or try another gender.</Text></FrostedSurface>}
 
@@ -192,7 +194,7 @@ export default function ChooseCompanion() {
           label={loading ? 'Checking access…' : busy && selectedCompanion ? `Opening chat with ${selectedCompanion.name}…` : selectedCompanion ? `Start a conversation with ${firstName(selectedCompanion.name)}` : 'Choose a character'}
           disabled={!selectedCompanion || busy || loading}
           onPress={() => void startMeeting()}
-        />
+        /></>}
       </>}
     </Screen>
   </View>;
