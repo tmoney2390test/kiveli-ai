@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { ChevronRight, Plus, RefreshCw, Trash2 } from "lucide-react-native";
+import { ChevronRight, MapPin } from "lucide-react-native";
+import { CatalogImage } from "./CatalogImage";
+import { mappedLocationAsset } from "../location-assets";
 import { CreatorModal, CreatorPicker } from "./CreatorPicker";
 import {
   buildCreatorWeek,
@@ -71,6 +73,7 @@ type Props = {
 export function CreatorDailyLifeEditor(
   { draft, identity, life, routine, onLife, onRoutine }: Props,
 ) {
+  const [workplaceOpen, setWorkplaceOpen] = useState(false);
   const [week, setWeek] = useState(0),
     [activity, setActivity] = useState(""),
     [preview, setPreview] = useState<CreatorRoutineBlock[] | null>(null);
@@ -100,6 +103,9 @@ export function CreatorDailyLifeEditor(
       l.location_type,
     )
   );
+  const workplace = locations.find(location => location.id === life.workLocationId);
+  const workplaceImage = mappedLocationAsset(draft.world?.slug, workplace?.slug);
+  const workplaceArea = locations.find(location => location.id === workplace?.parent_location_id);
   const preset = routinePreset(life.scheduleStyle);
   const mismatch = signature !== builtFrom.current[week] ||
     (preset === "home" &&
@@ -252,6 +258,7 @@ export function CreatorDailyLifeEditor(
           options={homes.map((l) => ({ value: l.id, label: l.name }))}
           onChange={(homeLocationId) => setLife({ homeLocationId })}
         />
+        <View style={s.workplaceField}>
         <CreatorPicker
           label="Workplace"
           value={life.workLocationId ?? ""}
@@ -262,7 +269,16 @@ export function CreatorDailyLifeEditor(
           onChange={(workLocationId) =>
             setLife({ workLocationId: workLocationId || null })}
         />
+        {workplace ? <Pressable accessibilityRole="button" accessibilityLabel={`View ${workplace.name}`} accessibilityState={{expanded:workplaceOpen}} aria-expanded={workplaceOpen} onPress={()=>setWorkplaceOpen(true)} style={s.placeButton}><MapPin size={19} color={colors.rose}/></Pressable> : null}
+        </View>
       </View>
+      <CreatorModal visible={workplaceOpen && Boolean(workplace)} title={workplace?.name ?? 'Workplace'} onClose={()=>setWorkplaceOpen(false)}>
+        {workplace ? <View style={s.form}>
+          {workplaceImage ? <CatalogImage source={workplaceImage} accessibilityLabel={workplace.name} style={s.placeImage} contentFit="cover"/> : null}
+          <Text style={s.help}>{[workplaceArea?.name,draft.world?.name].filter(Boolean).join(' · ')}</Text>
+          <Text style={[s.text,{lineHeight:23}]}>{workplace.description || 'No description is available for this place yet.'}</Text>
+        </View> : null}
+      </CreatorModal>
       <Text style={s.label}>What does a typical week look like?</Text>
       <TextInput
         accessibilityLabel="Typical week"
@@ -630,6 +646,9 @@ function Action(
 }
 const s = StyleSheet.create({
   form: { gap: 12 },
+  workplaceField: { flexDirection: "row", alignItems: "flex-end", gap: 4, flexGrow: 1, flexShrink: 1, minWidth: 180 },
+  placeButton: { width: 44, height: 56, justifyContent: "center", alignItems: "center" },
+  placeImage: { width: "100%", aspectRatio: 16 / 9, borderRadius: 14 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
   label: { color: colors.text, fontSize: 14, fontWeight: "700" },
   heading: { color: colors.text, fontSize: 19, fontWeight: "700", flex: 1 },
