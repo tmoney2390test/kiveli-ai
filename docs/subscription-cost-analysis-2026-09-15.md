@@ -2,7 +2,7 @@
 
 ## Decision
 
-DeepSeek Pro is deployed as the default eligible NSFW text route. Essential calls now cost 5 credits per started minute; Immersive calls cost 20. Subscription prices and grants remain $19.99/500 credits for Plus and $39.99/1,200 credits for Max. The agreed 250/700/1,750/4,500 credit packs are analyzed as a proposed future catalog; live packs remain 100/300/800/2,000. This release did not change those purchases.
+DeepSeek Pro is deployed as the default eligible NSFW text route. Essential calls now cost 5 credits per started minute; Immersive calls cost 20. Subscription prices and grants remain $19.99/500 credits for Plus and $39.99/1,200 credits for Max. The agreed 250/700/1,750/4,500 credit packs were initially modeled as a proposed catalog and subsequently deployed with user approval on September 15. See pricing-apple-testing-2026-09-15.md for that follow-up release.
 
 Subscriptions can work for light and moderate usage. Heavy mixed use and unrestricted high-volume adult chat can still be loss-making. Annual discounts and low-margin credit redemptions amplify that risk. These are contribution estimates, not verified profit or forecasts of the customer mix.
 
@@ -98,3 +98,4 @@ NSFW-only changes were applied to the downloaded live source, preserving unrelat
 Voice prices were set in both production configuration variables and live call/subscription source defaults; call v172 and subscription v143 were active after deployment. There were no open call sessions before changing prices. Authenticated `together-call` options returned 5 and 20 and matching remaining-minute arithmetic. Thirteen voice tests passed. Existing apps receive those prices from the server; the immediate local loading-shell defaults were updated in source for the next client release, without building new mobile binaries.
 
 An authenticated ordinary-chat quote returned HTTP 200 and zero included-context credits. Its model remained SFW Luna, confirming ordinary chat was not redirected. No new successful production NSFW generation was observed during verification; the deployed NSFW routing/streaming change has local test coverage, not a claimed completed live NSFW conversation.
+
