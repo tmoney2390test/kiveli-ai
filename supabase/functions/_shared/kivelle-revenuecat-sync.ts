@@ -32,7 +32,7 @@ async function reconcileRevenueCatUser(db:Db,userId:string,event:RevenueCatWebho
       await cancelRevenueCatRow(db,userId,event,row);
     }
     if(applied&&['INITIAL_PURCHASE','RENEWAL','PRODUCT_CHANGE','UNCANCELLATION','TEMPORARY_ENTITLEMENT_GRANT','RECONCILE'].includes(event.type)&&current.periodStart){
-      await grantSubscriptionCreditsForPeriod(db,{userId,tier:current.tier,periodStart:current.periodStart,sourceProvider:'revenuecat',sourceEventId:event.id,subscriptionId:stableId});
+      await grantSubscriptionCreditsForPeriod(db,{userId,tier:current.tier,periodStart:current.periodStart,...(current.billingInterval==='annual'?{targetMonth:new Date()}:{}),sourceProvider:'revenuecat',sourceEventId:event.id,subscriptionId:stableId});
     }
   }else{
     for(const row of(stored??[]) as StoredSubscription[])applied=(await cancelRevenueCatRow(db,userId,event,row))||applied;
