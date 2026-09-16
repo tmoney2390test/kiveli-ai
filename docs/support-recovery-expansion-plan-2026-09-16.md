@@ -1,6 +1,6 @@
 # Support and recovery expansion
 
-Status: proposed follow-up; this release implements the account popup and membership layout fixes only. Existing settings, profile/gallery, billing behavior, memory categories, and recovery rules are preserved.
+Status: Help recovery links, structured support requests, persistent drafts/retries, and the Ops case workspace are implemented. Server-validated recovery now covers retained chat restoration, existing media delivery refresh/provider polling, and administrator store-membership reconciliation. Existing exact-ledger refund and native credit-pack verification flows remain authoritative. Device lifecycle exercises, a full isolated backup restore, reservation-specific repair tooling, and optional reset undo remain follow-up work; they are not promised recovery guarantees.
 
 ## Existing foundation
 

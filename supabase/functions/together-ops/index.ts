@@ -1,3 +1,5 @@
+import {supportRecoveryContext,recoveryError} from '../_shared/support-recovery.ts';
+import {recoverSupportMembership} from '../_shared/support-membership-recovery.ts';
 import {customerSupportDetail,replySupport,supportReplies} from '../_shared/support-portal.ts';
 import { monitorVideoPrices, videoCostsDashboard } from '../_shared/kivelle-video-prices.ts';
 import { waitUntil } from '../_shared/background.ts';
@@ -84,11 +86,15 @@ const schema = z.discriminatedUnion("action", [
     message: z.string().trim().min(10).max(5000),
     correlationId: z.string().max(128).optional(),
     conversationId: z.string().uuid().optional(),
+    mediaId: z.string().uuid().optional(),
+    purchaseReference: z.string().trim().max(120).optional(),
+    diagnostics: z.object({platform:z.string().max(30),appVersion:z.string().max(40),buildId:z.string().max(120).optional(),topic:z.enum(['purchase','conversation','media','login']).optional()}).optional(),
   }),
   z.object({ action: z.literal("my_tickets") }),
   z.object({action:z.literal('my_ticket_detail'),ticketId:z.string().uuid()}),
   z.object({action:z.literal('reply_support_ticket'),ticketId:z.string().uuid(),message:z.string().trim().min(2).max(5000),requestId:z.string().uuid()}),
   z.object({action:z.literal('reply_to_customer'),ticketId:z.string().uuid(),message:z.string().trim().min(2).max(5000),requestId:z.string().uuid()}),
+  z.object({action:z.literal('recover_ticket'),ticketId:z.string().uuid(),requestId:z.string().uuid(),recoveryAction:z.enum(['restore_chat','refresh_delivery','poll_media','reconcile_membership']),targetId:z.string().uuid(),confirmTarget:z.string().uuid(),reason:z.string().trim().min(8).max(500)}),
   z.object({ action: z.literal("dashboard") }),
   z.object({action:z.literal("video_costs")}),
   z.object({action:z.literal("refresh_video_prices")}),
@@ -268,71 +274,21 @@ serve(async (request, correlationId) => {
     return json({ data: { accepted: input.events.length }, correlationId }, 202, correlationId);
   }
   if (input.action === "create_support_ticket") {
-    await enforceRateLimit(db, user.id, "support_ticket", 8, 86400);
-    if (input.conversationId) {
-      const { data } = await db.from("together_conversations").select("id").eq(
-        "id",
-        input.conversationId,
-      ).eq("user_id", user.id).maybeSingle();
-      if (!data) {
-        throw new AppError(
-          "NOT_FOUND",
-          "That conversation is unavailable.",
-          404,
-        );
-      }
-    }
-    if(input.requestId){
-      const existing=await db.from('together_support_tickets').select('id,ticket_number,status,created_at,subject,message,category,metadata').eq('user_id',user.id).eq('request_id',input.requestId).maybeSingle();
-      if(existing.error)throw new AppError('INTERNAL_ERROR','Your support request could not be checked.',500,true);
-      if(existing.data){
-        if(existing.data.subject!==input.subject||existing.data.message!==input.message||existing.data.category!==input.category)throw new AppError('VALIDATION_ERROR','This request was already submitted with different details.',409);
-        const {subject,message,category,metadata,...ticket}=existing.data;
-        return json({data:{ticket,emailDelivery:metadata.support_email_status??'failed'},correlationId},200,correlationId);
-      }
-    }
-    const ticketCorrelationId = input.correlationId ?? correlationId;
-    const { data, error } = await db.from("together_support_tickets").insert({
-      user_id: user.id,
-      request_id: input.requestId??null,
-      category: input.category,
-      subject: input.subject,
-      message: input.message,
-      correlation_id: ticketCorrelationId,
-      conversation_id: input.conversationId ?? null,
-    }).select("id,ticket_number,status,created_at").single();
-    if (error || !data) {
-      throw new AppError(
-        "INTERNAL_ERROR",
-        "Your support request could not be created.",
-        500,
-        true,
-      );
-    }
-    await db.from("together_ops_ticket_events").insert({
-      ticket_id: data.id,
-      actor_user_id: user.id,
-      event_type: "created",
-      next_state: { status: data.status, ticketNumber: data.ticket_number },
+    const requestId = input.requestId ?? crypto.randomUUID();
+    const existing = await db.from('together_support_tickets').select('id').eq('user_id',user.id).eq('request_id',requestId).maybeSingle();
+    if (existing.error) throw new AppError('INTERNAL_ERROR','Your support request could not be checked.',500,true);
+    if (!existing.data) await enforceRateLimit(db,user.id,'support_ticket',8,86400);
+    const {data,error}=await db.rpc('kivelle_create_support_ticket',{
+      p_user_id:user.id,p_request_id:requestId,p_category:input.category,p_subject:input.subject,p_message:input.message,
+      p_correlation_id:input.correlationId??correlationId,p_conversation_id:input.conversationId??null,
+      p_metadata:{...(input.mediaId?{mediaId:input.mediaId}:{}),...(input.purchaseReference?{purchaseReference:input.purchaseReference}:{}),...(input.diagnostics?{diagnostics:input.diagnostics}:{})},
     });
-    // The insert trigger atomically queues inbox and customer notifications.
-    const emailDelivery = { status: 'queued' };
-    const deliveryMetadata = { support_email_status: 'queued', support_email_attempted_at: null };
-    const { error: deliveryUpdateError } = await db.from("together_support_tickets")
-      .update({ metadata: deliveryMetadata }).eq("id", data.id).eq("user_id", user.id);
-    if (deliveryUpdateError) {
-      console.warn(JSON.stringify({
-        level: "warning",
-        operation: "support_email_status_update",
-        ticketId: data.id,
-        correlationId,
-      }));
+    if(error){
+      if(error.message.includes('SUPPORT_REQUEST_CONFLICT'))throw new AppError('CONFLICT','This request was already submitted with different details.',409);
+      if(error.message.includes('SUPPORT_TARGET_UNAVAILABLE'))throw new AppError('NOT_FOUND','That request or conversation is unavailable for this account.',404);
+      throw new AppError('INTERNAL_ERROR','Your request could not be confirmed. Retry to check the same request.',500,true);
     }
-    return json(
-      { data: { ticket: data, emailDelivery: emailDelivery.status }, correlationId },
-      201,
-      correlationId,
-    );
+    return json({data,correlationId},existing.data?200:201,correlationId);
   }
   if (input.action === "my_tickets") {
     const { data, error } = await db.from("together_support_tickets").select(
@@ -363,6 +319,16 @@ serve(async (request, correlationId) => {
     return json({data:await replySupport(db,user.id,input,isSupport),correlationId},200,correlationId);
   }
   const role = requireOperationsRole(user, "viewer");
+  if(input.action==='recover_ticket'){
+    requireMinimumRole(role,'support');
+    confirmTarget(input.confirmTarget,input.targetId);
+    await enforceRateLimit(db,user.id,'ops_recovery',30,3600);
+    if(input.recoveryAction==='reconcile_membership')return json({data:await recoverSupportMembership(db,user.id,role,{...input,reason:sanitizeOperationsText(input.reason,500)}),correlationId},200,correlationId);
+    const {data,error}=await db.rpc('kivelle_ops_recover_ticket',{p_actor_id:user.id,p_role:role,p_ticket_id:input.ticketId,p_request_id:input.requestId,p_action:input.recoveryAction,p_target_id:input.targetId,p_reason:sanitizeOperationsText(input.reason,500)});
+    if(error)throw recoveryError(error.message);
+    if(input.recoveryAction==='poll_media')waitUntil(kickMediaDispatcher());
+    return json({data,correlationId},200,correlationId);
+  }
   if(input.action==='video_costs')return json({data:await videoCostsDashboard(db),correlationId},200,correlationId);
   if(input.action==='refresh_video_prices'){
     requireMinimumRole(role,'admin');
@@ -471,7 +437,7 @@ serve(async (request, correlationId) => {
     });
     return json(
       {
-        data: { ticket: ticket.data, events: events.data ?? [], replies:await supportReplies(db,input.ticketId) },
+        data: { ticket: ticket.data, events: events.data ?? [], replies:await supportReplies(db,input.ticketId), recovery:await supportRecoveryContext(db,input.ticketId) },
         correlationId,
       },
       200,
@@ -638,7 +604,9 @@ serve(async (request, correlationId) => {
         404,
       );
     }
-    if (media.status !== "failed") {
+    const jobs = await db.from('together_media_provider_jobs').select('id').eq('generated_media_id',input.mediaId).limit(1);
+    if(jobs.error)throw new AppError('INTERNAL_ERROR','The original provider request could not be checked.',500,true);
+    if(media.provider_request_id || jobs.data?.length || Number((media.metadata??{}).creditCost??0)>0)throw new AppError('CONFLICT','Use the linked support case to inspect and recover the original request. Requeueing could duplicate generation or charges.',409);    if (media.status !== "failed") {
       throw new AppError(
         "CONFLICT",
         "Only a failed media request can be requeued.",

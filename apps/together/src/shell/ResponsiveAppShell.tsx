@@ -7,6 +7,7 @@ import {
 import { colors } from '../theme';
 import { AppShellContext, mobileAppShellState } from './AppShellContext';
 import { DesktopSidebar } from './DesktopSidebar';
+import { usePathname } from 'expo-router';
 
 // Expo Router can remount the authenticated shell while swapping route trees.
 // Keep pointer intent outside the component so a click inside the expanded rail
@@ -15,7 +16,8 @@ let desktopSidebarHoverIntent = false;
 
 export function ResponsiveAppShell({ children, enabled }: PropsWithChildren<{ enabled: boolean }>) {
   const { width } = useWindowDimensions();
-  const desktop = enabled && isDesktopShellViewport(Platform.OS,width);
+  const pathname = usePathname();
+  const desktop = enabled && pathname !== '/ops' && isDesktopShellViewport(Platform.OS,width);
   const [sidebarHovered, setSidebarHovered] = useState(() => desktopSidebarHoverIntent);
   const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 

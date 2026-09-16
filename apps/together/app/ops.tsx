@@ -1,9 +1,12 @@
+import {OperationsFrame} from '../src/components/ops/OperationsFrame';
+import {SupportWorkspace as Support} from '../src/components/ops/SupportWorkspace';
+import type {SupportRecoveryContext} from '../src/lib/operations';
 import {SupportReplies} from '../src/components/ops/SupportReplies';
 import type {SupportReply} from '../src/lib/operations';
 import { IncidentLine, Panel, SectionHeader, RecordLine, StatusPill, Stat, StatCard, SmallAction, Loading, date, duration } from '../src/components/ops/OperationsPrimitives';
 import { styles } from '../src/styles/opsStyles';
 import { VideoCostsPanel } from '../src/components/VideoCostsPanel';
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -52,7 +55,6 @@ import {
   type SafetyReport,
   type SafetyReportDetail,
   refundOperationsCredit,
-  retryOperationsMedia,
   updateOperationsAlertRule,
   updateOperationsIncident,
   updateOperationsWorldStatus,
@@ -165,10 +167,12 @@ export default function Operations() {
         ticket: Record<string, unknown>;
         events: Array<Record<string, unknown>>;
     replies?:SupportReply[];
+    recovery?:SupportRecoveryContext;
       } | null
     >(null),
     [note, setNote] = useState(""),
     [busyKey, setBusyKey] = useState("");
+  const ticketSequence=useRef(0),lookupSequence=useRef(0),mutationLock=useRef(false);
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -192,6 +196,8 @@ export default function Operations() {
     run: () => Promise<unknown>,
     refresh = true,
   ) => {
+    if(mutationLock.current){setError('An operation is already running.');return;}
+    mutationLock.current=true;
     setBusyKey(key);
     setError("");
     try {
@@ -204,39 +210,51 @@ export default function Operations() {
           : "That operation could not be completed.",
       );
     } finally {
+      mutationLock.current=false;
       setBusyKey("");
     }
   };
   const searchUser = async () => {
     if (!userQuery.trim()) return;
+    const version=++lookupSequence.current;
+    setUserResult(null);
     setBusyKey("lookup");
     setError("");
     try {
-      setUserResult(await lookupOperationsUser(userQuery.trim()));
+      const result=await lookupOperationsUser(userQuery.trim());
+      if(version!==lookupSequence.current)return;
+      setUserResult(result);
       setConfirmed(false);
       setReason("");
     } catch (caught) {
+      if(version!==lookupSequence.current)return;
       setUserResult(null);
       setError(
         caught instanceof Error ? caught.message : "Account lookup failed.",
       );
     } finally {
-      setBusyKey("");
+      if(version===lookupSequence.current)setBusyKey("");
     }
   };
   const openTicket = async (id: string) => {
+    const version=++ticketSequence.current;
+    setError('');
+    setTicketDetail(current=>current?.ticket.id===id?current:null);
     setBusyKey(`ticket:${id}`);
     try {
-      setTicketDetail(await loadSupportTicket(id));
+      const result=await loadSupportTicket(id);
+      if(version!==ticketSequence.current)return;
+      setTicketDetail(result);
       setNote("");
     } catch (caught) {
+      if(version!==ticketSequence.current)return;
       setError(
         caught instanceof Error
           ? caught.message
           : "Ticket could not be opened.",
       );
     } finally {
-      setBusyKey("");
+      if(version===ticketSequence.current)setBusyKey("");
     }
   };
   const sensitive = (key: string, run: () => Promise<unknown>) => {
@@ -248,7 +266,9 @@ export default function Operations() {
       setError("Add a support reason with at least 8 characters.");
       return;
     }
-    void mutate(key, run).then(() => {
+    let saved=false;
+    void mutate(key, async()=>{const result=await run();saved=true;return result;}).then(() => {
+      if(!saved)return;
       setConfirmed(false);
       setReason("");
       if (userQuery) void searchUser();
@@ -264,71 +284,11 @@ export default function Operations() {
     );
   }
   const visibleTabs = tabs.filter((item) =>
-      !["audit", "worlds"].includes(item.key) || data.access.permissions.admin
+      (!["audit", "worlds", "alerts"].includes(item.key) || data.access.permissions.admin) && (!["support", "users", "safety"].includes(item.key) || data.access.permissions.support)
     ),
     compact = width < 840;
   return (
-    <View style={styles.page}>
-      <View style={styles.glow} />
-      <View style={styles.header}>
-        <Pressable
-          accessibilityLabel="Go back"
-          onPress={() => router.canGoBack() ? router.back() : router.replace('/settings')}
-          style={styles.iconButton}
-        >
-          <ArrowLeft color={colors.text} />
-        </Pressable>
-        <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>
-            PRIVATE OPERATIONS · {data.access.role.toUpperCase()}
-          </Text>
-          <Text accessibilityRole="header" style={styles.title}>
-            Kivelle control room
-          </Text>
-          <Text style={styles.subtitle}>
-            Reliability, incidents, support, and safe recovery—without
-            conversation content.
-          </Text>
-        </View>
-        <Pressable
-          accessibilityLabel="Refresh"
-          disabled={loading}
-          onPress={() => void load()}
-          style={styles.iconButton}
-        >
-          {loading
-            ? <ActivityIndicator size="small" color={colors.violet} />
-            : <RefreshCw size={18} color={colors.text} />}
-        </Pressable>
-      </View>
-      <View style={styles.tabShell}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabs}
-        >
-          {visibleTabs.map((item) => (
-            <Pressable
-              key={item.key}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: tab === item.key }}
-              aria-selected={tab === item.key}
-              onPress={() => setTab(item.key)}
-              style={[styles.tab, tab === item.key && styles.tabActive]}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  tab === item.key && styles.tabTextActive,
-                ]}
-              >
-                {item.label}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-      <ScrollView contentContainerStyle={styles.content}>
+    <OperationsFrame contentKey={width<1250?String(ticketDetail?.ticket.id??'queue'):undefined} tabs={visibleTabs} active={tab} onSelect={key=>setTab(key as Tab)} role={data.access.role} updatedAt={data.generatedAt} loading={loading} onRefresh={()=>void load()}>
         {error
           ? (
             <View style={styles.errorBanner}>
@@ -364,7 +324,7 @@ export default function Operations() {
               setNote={setNote}
               busyKey={busyKey}
               openTicket={openTicket}
-              closeDetail={() => setTicketDetail(null)}
+              closeDetail={() => {ticketSequence.current++;setTicketDetail(null);}}
               mutate={mutate}
               actorId={session?.user.id ?? null}
             />
@@ -408,8 +368,7 @@ export default function Operations() {
         {tab === "releases" ? <Releases data={data} /> : null}
         {tab === "audit" ? <Audit rows={data.audit} /> : null}
         <Text style={styles.note}>{data.note}</Text>
-      </ScrollView>
-    </View>
+    </OperationsFrame>
   );
 }
 
@@ -738,160 +697,6 @@ function Incidents({
   );
 }
 
-function Support({
-  data,
-  detail,
-  note,
-  setNote,
-  busyKey,
-  openTicket,
-  closeDetail,
-  mutate,
-  actorId,
-}: {
-  data: OperationsDashboard;
-  detail: {
-    ticket: Record<string, unknown>;
-    events: Array<Record<string, unknown>>;
-    replies?:SupportReply[];
-  } | null;
-  note: string;
-  setNote: (value: string) => void;
-  busyKey: string;
-  openTicket: (id: string) => Promise<void>;
-  closeDetail: () => void;
-  mutate: (key: string, run: () => Promise<unknown>) => Promise<void>;
-  actorId: string | null;
-}) {
-  if (detail) {
-    const ticket = detail.ticket, id = String(ticket.id);
-    const update = (
-      patch: Partial<{
-        status: string;
-        priority: string;
-        assignedTo: string | null;
-        tags: string[];
-        note: string;
-      }>,
-    ) => {
-      let saved=false;
-      return mutate(
-        `ticket:${id}`,
-        async () => {const result=await updateSupportTicket({ticketId:id,...patch});saved=true;return result;},
-      ).then(async () => {
-        if(saved)await openTicket(id);
-        return saved;
-      });
-    };
-    return (
-      <>
-        <SectionHeader
-          icon={<MessageSquareWarning color={colors.violet} />}
-          title={String(ticket.subject)}
-          body={`${String(ticket.category)} · ${String(ticket.priority)} · ${String(ticket.status)}`}
-        />
-        <Pressable onPress={closeDetail}>
-          <Text style={styles.link}>← Back to support queue</Text>
-        </Pressable>
-        <Panel
-          title="Customer request"
-          hint={`${date(ticket.created_at)} · correlation ${
-            String(ticket.correlation_id ?? "none")
-          }`}
-        >
-          <Text style={styles.ticketMessage}>{String(ticket.message)}</Text>
-          <Text style={styles.note}>Email notification: {String((ticket.metadata as Record<string,unknown>|undefined)?.support_email_status??'Not recorded').replace(/_/g,' ')}. Replies below are delivered through the support portal.</Text>
-          <View style={styles.actionRow}>
-            <SmallAction
-              label="Assign to me"
-              busy={busyKey === `ticket:${id}`}
-              disabled={!actorId}
-              onPress={() => void update({ assignedTo: actorId })}
-            />
-            <SmallAction
-              label="In progress"
-              busy={busyKey === `ticket:${id}`}
-              onPress={() => void update({ status: "in_progress" })}
-            />
-            <SmallAction
-              label="Waiting"
-              busy={busyKey === `ticket:${id}`}
-              onPress={() => void update({ status: "waiting" })}
-            />
-            <SmallAction
-              label="Resolve"
-              busy={busyKey === `ticket:${id}`}
-              onPress={() => void update({ status: "resolved" })}
-            />
-          </View>
-          <TextInput
-            value={note}
-            onChangeText={setNote}
-            multiline
-            placeholder="Add a private support note…"
-            placeholderTextColor={colors.dimmed}
-            style={[styles.input, styles.noteInput]}
-          />
-          <SmallAction
-            label="Save note"
-            busy={busyKey === `ticket:${id}`}
-            disabled={note.trim().length < 2}
-            onPress={() => void update({ note }).then(saved => {if(saved)setNote("");})}
-          />
-        </Panel>
-        <SupportReplies key={id} ticketId={id} replies={detail.replies??[]} onSent={()=>openTicket(id)}/>
-        <Panel
-          title="Ticket history"
-          hint="Status, assignment, and note audit trail."
-        >
-          {detail.events.map((event) => (
-            <RecordLine
-              key={String(event.id)}
-              title={String(event.event_type)}
-              body={event.note_safe ? String(event.note_safe) : undefined}
-              meta={date(event.created_at)}
-            />
-          ))}
-        </Panel>
-      </>
-    );
-  }
-  return (
-    <>
-      <SectionHeader
-        icon={<MessageSquareWarning color={colors.violet} />}
-        title="Support workflow"
-        body="Priorities, assignment, notes, status, and incident linkage."
-      />
-      <Panel
-        title="Support queue"
-        hint="Conversation history is never attached automatically."
-      >
-        {data.supportTickets.map((row) => (
-          <Pressable
-            key={String(row.id)}
-            disabled={busyKey === `ticket:${String(row.id)}`}
-            onPress={() => void openTicket(String(row.id))}
-            style={styles.clickRecord}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.recordTitle}>{String(row.subject)}</Text>
-              <Text style={styles.recordBody} numberOfLines={2}>
-                {String(row.message)}
-              </Text>
-              <Text style={styles.recordMeta}>
-                {String(row.category)} · {String(row.priority)} · {String(row.status)} ·{" "}
-                {date(row.updated_at)}
-              </Text>
-            </View>
-            <Text style={styles.link}>Open</Text>
-          </Pressable>
-        ))}
-      </Panel>
-    </>
-  );
-}
-
 function UsersPanel({
   result,
   query,
@@ -998,16 +803,7 @@ function UsersPanel({
                   </View>
                   {media.status === "failed"
                     ? (
-                      <SmallAction
-                        label="Requeue"
-                        busy={busyKey === `media:${String(media.id)}`}
-                        onPress={() =>
-                          sensitive(
-                            `media:${String(media.id)}`,
-                            () =>
-                              retryOperationsMedia(String(media.id), reason),
-                          )}
-                      />
+                      <Text style={[styles.recordMeta,{maxWidth:160}]}>Review recovery in a linked support case.</Text>
                     )
                     : null}
                 </View>
@@ -1107,6 +903,7 @@ function Alerts({
   rules: OperationsAlertRule[];
   events: Array<Record<string, unknown>>;
     replies?:SupportReply[];
+    recovery?:SupportRecoveryContext;
   configuration: { webhook: boolean; email: boolean };
   admin: boolean;
   busyKey: string;
