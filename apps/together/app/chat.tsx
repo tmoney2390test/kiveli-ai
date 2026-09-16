@@ -1,3 +1,4 @@
+import { canPreviewCharacterBlueprint } from '@together/domain/src/character-blueprint';
 import { createRealtimeChannel } from '../src/lib/realtimeChannel';
 import { SchedulePauseControl } from '../src/components/settings/SchedulePauseControl';
 import {ScenarioConversationBanner} from '../src/components/ScenarioConversationBanner';
@@ -1244,6 +1245,7 @@ function ChatSession() {
           onPin={()=>void togglePinned()}
           onDetails={()=>{setShowConversationMenu(false);navigateChatSurface(`/character/${slug}`);}}
           onMemory={()=>{setShowConversationMenu(false);navigateChatSurface(`/memories?character=${slug}`);}}
+          onBlueprint={canPreviewCharacterBlueprint(session?.user.id)?()=>{setShowConversationMenu(false);navigateChatSurface(`/memories?character=${slug}&blueprint=1`);}:undefined}
           onHistory={()=>{setShowConversationMenu(false);navigateChatSurface(`/conversations/${character.id}`);}}
           onCreatePlan={()=>{openPlanPicker();setShowConversationMenu(false);}}
           onChangePlan={()=>{if(activeSharedPlan)openPlanPicker();setShowConversationMenu(false);}}

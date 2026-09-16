@@ -38,6 +38,7 @@ type Props = {
   onFavorite: () => void;
   onPin: () => void;
   onDetails: () => void;
+  onBlueprint?: () => void;
   onMemory?: () => void;
   memoryLocked?: boolean;
   onHistory?: () => void;
@@ -65,6 +66,7 @@ export function ConversationOverflowMenu({
   onPin,
   onDetails,
   onMemory,
+  onBlueprint,
   memoryLocked,
   onHistory,
   onCreatePlan,
@@ -117,6 +119,7 @@ export function ConversationOverflowMenu({
       onPress: onMemory,
     }] : []),
   ];
+  if(onBlueprint)identity.push({label:'Character blueprint',icon:<Brain size={16} color={colors.violet}/>,onPress:onBlueprint});
   const conversation: MenuAction[] = [
     { label: pinned ? 'Unpin chat' : 'Pin chat', icon: <Pin size={16} color={pinned ? colors.violet : colors.textSecondary} fill={pinned ? colors.violet : 'transparent'} />, onPress: onPin, selected: pinned, disabled: pinBusy },
     { label: 'Chat settings', icon: <Settings size={16} color={colors.textSecondary} />, onPress: onSettings },

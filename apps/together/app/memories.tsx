@@ -1,3 +1,6 @@
+import { canPreviewCharacterBlueprint } from '@together/domain/src/character-blueprint';
+import { useAuth } from '../src/hooks/useAuth';
+import { CharacterBlueprintSheet } from '../src/components/memory/CharacterBlueprintSheet';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -29,9 +32,13 @@ function cacheMemoryPage(cache:Map<string,MemoryCenterResponse>,key:string,page:
 }
 
 export default function Memories(){
-  const params=useLocalSearchParams<{character?:string;privacy?:string}>(),privacyMode=params.privacy==='1';
+  const params=useLocalSearchParams<{character?:string;privacy?:string;blueprint?:string}>(),privacyMode=params.privacy==='1';
   const{width}=useWindowDimensions(),desktop=width>=820,compact=width<430,insets=useSafeAreaInsets();
   const{snapshot,refresh}=useTogether();
+  const {session}=useAuth();
+  const canPreview=canPreviewCharacterBlueprint(session?.user.id);
+  const [blueprintOpen,setBlueprintOpen]=useState(params.blueprint==='1');
+  useEffect(()=>{setBlueprintOpen(params.blueprint==='1');},[params.blueprint]);
   const companion=params.character?snapshot?.characters.find((item)=>item.together_character_templates.slug===params.character||item.together_character_templates.public_handle===params.character||item.character_template_id===params.character||item.id===params.character):snapshot?activeCompanion(snapshot):undefined;
   const connections=useMemo(()=>(snapshot?.characters??[]).filter((item)=>item.contact_added_at||item.introduced_at||(snapshot?.memoryCounts?.[item.id]??0)>0).sort((a,b)=>a.together_character_templates.name.localeCompare(b.together_character_templates.name)),[snapshot?.characters,snapshot?.memoryCounts]);
   const name=companion?.together_character_templates.name??'Your companion';
@@ -131,6 +138,7 @@ export default function Memories(){
       contentContainerStyle={[styles.listContent,{paddingBottom:Math.max(40,insets.bottom+24)},!memories.length&&styles.emptyContent]}
       ListHeaderComponent={<View>
         {hero}
+        {canPreview&&companion?<Pressable accessibilityRole="button" onPress={()=>setBlueprintOpen(true)} style={styles.filterTrigger}><Brain size={17} color={colors.rose}/><Text style={styles.filterTriggerText}>Character blueprint · Preview</Text></Pressable>:null}
         {result?.access.manualControl&&!privacyMode?<Pressable accessibilityRole="button" onPress={()=>setEditor({mode:'create'})} style={({pressed})=>[styles.addMemory,pressed&&styles.addMemoryPressed]}><Plus size={22} strokeWidth={2.5} color="#100A12"/><Text style={styles.addMemoryText}>Add a memory</Text></Pressable>:null}
         {errorCard}
         <View style={styles.listHeader}><Text numberOfLines={1} style={styles.listTitle}>Remembered moments</Text></View>
@@ -153,6 +161,7 @@ export default function Memories(){
       <Pressable accessibilityRole="button" accessibilityLabel={`Choose companion. ${name} selected`} accessibilityState={{expanded:companionOpen,disabled:connections.length<2}} disabled={connections.length<2} onPress={()=>setCompanionOpen(true)} style={({pressed})=>[styles.topCompanion,connections.length<2&&styles.topCompanionSingle,pressed&&styles.pressed]}><Text numberOfLines={1} style={styles.topCompanionText}>{compact?firstName:name}</Text>{connections.length>1?<ChevronDown size={17} color={colors.textSecondary}/>:null}</Pressable>
     </View>
     {result&&!result.access.inspector&&!privacyMode?<ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.lockedScroll}>{hero}{errorCard}<LockedMemoryCenter name={name} count={result.count} onUpgrade={()=>router.push(subscriptionHref({intent:'memory',returnTo:params.character?`/memories?character=${encodeURIComponent(params.character)}`:'/memories'}) as never)} onPrivacy={()=>setPrivacyOpen(true)}/></ScrollView>:journal}
+    <CharacterBlueprintSheet key={`${session?.user.id}:${companion?.id}`} instanceId={canPreview&&blueprintOpen?companion?.id??null:null} onClose={()=>setBlueprintOpen(false)}/>
     <MemoryJournalControls visible={controlsOpen} desktop={desktop} query={query} canSelect={Boolean(result?.access.inspector||privacyMode)} onClose={()=>setControlsOpen(false)} onQuery={setQuery} onSelect={()=>{setControlsOpen(false);beginSelection();}} onPrivacy={()=>{setControlsOpen(false);setPrivacyOpen(true);}}/>
     <MemoryOptionPicker visible={filterOpen} desktop={desktop} title="Filter memories" eyebrow="REMEMBERED MOMENTS" options={MEMORY_CATEGORY_OPTIONS.map((option)=>({key:option.key,label:option.label,count:memoryCategoryCount(option.key,result?.categories??{},result?.count??0)}))} value={category} onClose={()=>setFilterOpen(false)} onChoose={(value)=>{setCategory(value as MemoryCenterCategory);setFilterOpen(false);}}/>
     <MemoryOptionPicker visible={sortOpen} desktop={desktop} title="Sort memories" eyebrow="REMEMBERED MOMENTS" options={SORTS} value={sort} onClose={()=>setSortOpen(false)} onChoose={(value)=>{setSort(value as MemoryCenterSort);setSortOpen(false);}}/>
