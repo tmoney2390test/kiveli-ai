@@ -83,6 +83,12 @@ export type SafetyReportDetail = {
   events: Array<Record<string, unknown>>;
 };
 export type OperationsDashboard = {
+  retention?: {
+    attention:boolean; unavailable?:boolean; holds?:number;
+    storage?:{objects:Array<{status:string;objects:number;bytes:number}>;lastCheckedAt:string|null}|null;
+    policies:Array<{key:string;label:string;enabled:boolean;note:string;lastSuccessAt:string|null;lastError:string|null;lastCandidates:number;lastProcessed:number;totalProcessed:number}>;
+    rollups:Array<{kind:string;records:number;cost_usd:number;oldest:string;newest:string}>;
+  } | null;
   generatedAt: string;
   access: {
     role: OperationsRole;

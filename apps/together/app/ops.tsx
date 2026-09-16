@@ -1,4 +1,5 @@
 import {OperationsFrame} from '../src/components/ops/OperationsFrame';
+import {RetentionPanel} from '../src/components/ops/RetentionPanel';
 import {SupportWorkspace as Support} from '../src/components/ops/SupportWorkspace';
 import type {SupportRecoveryContext} from '../src/lib/operations';
 import {SupportReplies} from '../src/components/ops/SupportReplies';
@@ -449,6 +450,7 @@ function Overview(
 ) {
   return (
     <>
+      {data.retention ? <RetentionPanel retention={data.retention} /> : null}
       <View style={styles.health}>
         <View
           style={[
