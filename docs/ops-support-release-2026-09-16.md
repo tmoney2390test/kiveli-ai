@@ -32,4 +32,12 @@ Physical-device purchase interruption/callback tests and an isolated backup rest
 
 ## Deployment
 
-Migration: `20260916170616_support_recovery_actions.sql` applied to Kivelli. Backend and web identifiers are recorded after final publication. The backend bundle preserves previously deployed shared dependencies, overlaying only this release's changes and newly required membership helpers.
+Migration: `20260916170616_support_recovery_actions.sql` applied to Kivelli. Implementation commit: `7726ec1`.
+
+- `together-ops` v111 is active; prior backend version was v109.
+- Web Worker: `b41003bc-6c24-491b-8ce5-ddab8dee897a`; previous version: `37b8a529-b635-4f03-b91f-23533974dd86`.
+- Shared web bundle: `5ec89a4541af71cb8e006275f25ba69f`.
+- Production auth configuration verified; route audit passed 423 page routes and 63 critical assets.
+- Published Support page loaded successfully with the new recovery entries, optional diagnostics and draft handling.
+
+The backend bundle preserves previously deployed shared dependencies, overlaying only this release's changes and newly required membership helpers. Expo export completed; its chained environment-dependent verifier was rerun successfully with the production `.env.local` explicitly loaded.
