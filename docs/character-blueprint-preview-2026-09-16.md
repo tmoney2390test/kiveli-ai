@@ -1,0 +1,9 @@
+# Character blueprint account preview
+
+Available only to the verified Kivelli account requested by the owner (stable user ID allowlist, checked on the server). Added directly beneath Memory Center in the direct-chat overflow menu and inside Memory Center. Searchable, expandable, selectable text; read-only.
+
+Loads the version attached to the user's character instance, scoped to the active Life. Only pre-created templates (creator_id null) qualify. Includes identity/first meeting, personality/core character instructions, private authored details, authored relationships/private tensions, schedules, activity preferences, place opinions and voice direction. Missing authored sections are labelled. Includes fictional secrets/spoilers; does not change their use in chat. This is a character-data inspector, not the fully assembled per-turn system prompt, global application policy or player memory. Provider credentials and other users' conversation state are not queried. No AI calls or charges.
+
+Server: together-memory v143, patched onto the downloaded live v142 bundle to preserve independent changes. No migration or RLS changes. Authenticated non-allowlisted live test returned 403 and no data. Four Deno authorization/version-scope tests passed. All 903 app tests, app typecheck, memory endpoint typecheck and production export passed. All nine owner instances have a valid pinned pre-created version. Owner-session visual testing was not performed; no owner credentials were generated or changed.
+
+Web: 5ca1c8e5-0714-4363-93a2-25b9f8d388c0; common e020f099ca944452f42ba55f27a78f39. Source 117e6aa. Route audit passed 423 pages / 63 assets. Prior Worker f9180d57-4ce5-4de9-a022-a74514c614f9. This export also includes previously committed client lifecycle fixes from 424d888; its separate Director backend change remains undeployed by this turn. No native binaries built.
