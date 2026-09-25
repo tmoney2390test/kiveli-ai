@@ -770,7 +770,7 @@ function ChatSession() {
   const clearAutoDialogue=()=>{autoDialogueRequest.current?.abort();autoDialogueRequest.current=null;setAutoDialogueBusy(false);setAutoDialogue(null);setInput('');currentInput.current='';setTimeout(()=>composerInput.current?.focus(),20);};
   const openAutoDialogueOptions=()=>setShowAutoDialogueOptions(true);
   const requestAutoDialogue=async(preference:AutoDialoguePreference='natural')=>{
-    if(!latestAssistantMessage||milestone||replyPending||autoDialogueBusy||pendingImage)return;
+    if(!latestAssistantMessage||replyPending||autoDialogueBusy||pendingImage)return;
     setShowAutoDialogueOptions(false);
     const anchorId=latestAssistantMessage.id,replacedText=autoDialogue?.text??'';
     if(currentInput.current.trim()&&currentInput.current!==replacedText)return;
@@ -784,7 +784,13 @@ function ChatSession() {
     }catch(caught){
       if(controller.signal.aborted||(caught instanceof Error&&caught.name==='AbortError'))return;
       if(latestTimelineMessageId.current!==anchorId)return;
-      if(caught instanceof ApiError&&['STALE_SUGGESTION','CANONICAL_CHOICE_REQUIRED'].includes(caught.code)){setError(caught.message);return;}
+      if(caught instanceof ApiError&&caught.code==='CANONICAL_CHOICE_REQUIRED'){
+        await refresh({force:true}).catch(()=>undefined);
+        setError(caught.message);
+        jumpToLatest();
+        return;
+      }
+      if(caught instanceof ApiError&&caught.code==='STALE_SUGGESTION'){setError(caught.message);return;}
       const fallback=prompts[0];
       if(fallback){const suggestion:AutoDialogueSuggestion={suggestionId:`client-${Date.now()}`,text:fallback,source:'client_fallback',intent:'curious',preference,anchorMessageId:anchorId,expiresAt:new Date(Date.now()+2*60_000).toISOString()};setAutoDialogue(suggestion);setInput(fallback);currentInput.current=fallback;setTimeout(()=>composerInput.current?.focus(),20);}
       else setError(caught instanceof Error?caught.message:'A reply suggestion could not be generated.');
@@ -1347,7 +1353,7 @@ function ChatSession() {
         {!activeSharedPlan&&joinableSharedPlan?<PlanJoinBar plan={joinableSharedPlan} locationName={snapshot.locations.find((item)=>item.id===joinableSharedPlan.location_id)?.name} busy={planActionBusyId===joinableSharedPlan.id||planning} onJoin={()=>void startTimelinePlan(joinableSharedPlan)} onDetails={()=>setPlanModal({planId:joinableSharedPlan.id})}/>:null}
         {focusPlanId&&focusPlanId!==activeSharedPlan?.id?<PlanFocusChip plan={(snapshot.sharedPlans??[]).find((item)=>item.id===focusPlanId)} onOpen={(id)=>navigateChatSurface(`/plan/${id}`)} onClose={()=>{setFocusPlanId(null);setFocusDismissed(true);}}/>:null}
         {memorySavedNotice?<MemorySavedToast key={memorySavedNotice.id} name={memorySavedNotice.name} onDismiss={()=>setMemorySavedNotice(null)}/>:null}
-        <ContextCostConfirmation pricing={contextPricing}/><DailyMessageAllowanceNotice allowance={snapshot.dailyMessageAllowance} onUpgrade={()=>navigateChatSurface(subscriptionHref({intent:'plans',returnTo:subscriptionReturnTo}))}/><Composer compact={width<720} desktop={desktopChat} inputRef={composerInput} conversationId={conversation.id} character={character} input={input} onChangeInput={changeComposerInput} onDictation={(text)=>stageManualInput(mergeDictationTranscript(currentInput.current,text))} onDictationError={setError} onDictationStart={()=>setActiveVoiceNoteId(null)} pendingImage={pendingImage} photoUploadPhase={photoUploadPhase} onAddPhoto={()=>void requestSharePhoto('library')} onRemovePhoto={clearPendingImage} sending={replyPending||!conversationReady||contextPricing.blocked||dailyMessageExhausted} onSend={() => void send()} onMoment={(mode)=>{setMediaRequestMode(mode);setShowPhotoRequests(true);}} autoDialogue={autoDialogue} autoDialogueBusy={autoDialogueBusy} canSuggest={Boolean(conversationReady&&latestAssistantMessage&&!milestone&&!replyPending&&!pendingImage)} onSuggest={()=>void requestAutoDialogue()} onSuggestOptions={openAutoDialogueOptions} onClearSuggestion={clearAutoDialogue} onFocus={onMobileComposerFocus} onLayout={()=>{const requestId=activeBottomPinRequest.current;if(requestId)settleSentMessageAtBottom(requestId);}} />
+        <ContextCostConfirmation pricing={contextPricing}/><DailyMessageAllowanceNotice allowance={snapshot.dailyMessageAllowance} onUpgrade={()=>navigateChatSurface(subscriptionHref({intent:'plans',returnTo:subscriptionReturnTo}))}/><Composer compact={width<720} desktop={desktopChat} inputRef={composerInput} conversationId={conversation.id} character={character} input={input} onChangeInput={changeComposerInput} onDictation={(text)=>stageManualInput(mergeDictationTranscript(currentInput.current,text))} onDictationError={setError} onDictationStart={()=>setActiveVoiceNoteId(null)} pendingImage={pendingImage} photoUploadPhase={photoUploadPhase} onAddPhoto={()=>void requestSharePhoto('library')} onRemovePhoto={clearPendingImage} sending={replyPending||!conversationReady||contextPricing.blocked||dailyMessageExhausted} onSend={() => void send()} onMoment={(mode)=>{setMediaRequestMode(mode);setShowPhotoRequests(true);}} autoDialogue={autoDialogue} autoDialogueBusy={autoDialogueBusy} canSuggest={Boolean(conversationReady&&latestAssistantMessage&&!replyPending&&!pendingImage)} onSuggest={()=>void requestAutoDialogue()} onSuggestOptions={openAutoDialogueOptions} onClearSuggestion={clearAutoDialogue} onFocus={onMobileComposerFocus} onLayout={()=>{const requestId=activeBottomPinRequest.current;if(requestId)settleSentMessageAtBottom(requestId);}} />
       </View>
       {showRight ? <ContextRail snapshot={snapshot} character={character} context={chatContext} activePlan={activeSharedPlan} onPrompt={stageManualInput} onPlan={openPlanPicker} /> : null}
     </View>

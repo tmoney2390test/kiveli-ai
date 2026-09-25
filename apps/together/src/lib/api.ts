@@ -11,7 +11,7 @@ import type { CompanionVoicePreset } from '@together/domain/src/voice-presets';
 import type { ChatLanguagePreference } from '@together/domain/src/chat-language';
 import type { AccountGender } from '@together/domain/src/account-onboarding';
 import type { AroundTownItem, WorldPulseEvent } from '@together/domain/src/world-pulse';
-import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterProfileDetails, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, ExploreCatalogSnapshot, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoResolution, VideoRouteOption, VoiceCallSession } from '../types';
+import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterProfileDetails, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorIdentityConfig, CreatorLifeConfig, CreatorRoutineBlock, CreatorStep, ExploreCatalogSnapshot, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoResolution, VideoRouteOption, VoiceCallSession } from '../types';
 import type { RealtimeVoiceConfiguration } from './realtimeVoice';
 import { withIdempotentRetry } from './requestRetry';
 import { clearSessionForApiFailure } from './authSession';
@@ -341,4 +341,4 @@ export async function sendSceneReaction(input:{conversationId:string;characterIn
   },{attempts:2,delayMs:220,onRetry:()=>onRetry?.()});
 }
 
-export const previewCreatorRoutine = (input:{draftId:string;weekIndex:number;identity:import('../types').CreatorIdentityConfig;life:import('../types').CreatorLifeConfig}) => manageCreator<{blocks:import('../types').CreatorRoutineBlock[];source:string;notice?:string}>({action:'preview_routine',...input});
+export const previewCreatorRoutine = (input:{draftId:string;weekIndex:number;identity:CreatorIdentityConfig;life:CreatorLifeConfig}) => manageCreator<{blocks:CreatorRoutineBlock[];source:string;notice?:string}>({action:'preview_routine',...input});
