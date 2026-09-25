@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { colors, radius, typography } from '../theme';
+import { colors, radius } from '../theme';
 
 export const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: "#0B1018", overflow: "hidden" },

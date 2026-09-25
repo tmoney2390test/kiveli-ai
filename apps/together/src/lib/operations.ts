@@ -1,6 +1,7 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { invoke } from "./api";
+import type { SupportDiagnostics } from "./supportRecovery";
 
 export type SupportCategory =
   | "bug"
@@ -244,7 +245,7 @@ export const createSupportTicket = (
     conversationId?: string;
     mediaId?: string;
     purchaseReference?: string;
-    diagnostics?: import('./supportRecovery').SupportDiagnostics;
+    diagnostics?: SupportDiagnostics;
   },
 ) =>
   invoke<{
@@ -414,7 +415,7 @@ export type SupportRecoveryContext={
   emailDelivery:Array<{id:string;kind:string;status:string;attempts:number;error_code:string|null;created_at:string;sent_at:string|null}>;
   conversation:{id:string;continuity_id:string|null;user_archived_at:string|null;restore_until:string|null}|null;
   actions:Array<{id:string;action:string;reason:string;created_at:string}>;
-  diagnostics:import('./supportRecovery').SupportDiagnostics|null;
+  diagnostics:SupportDiagnostics|null;
   purchaseReference:string|null;
 };
 export const recoverSupportTicket=(input:{ticketId:string;requestId:string;recoveryAction:'restore_chat'|'refresh_delivery'|'poll_media'|'reconcile_membership';targetId:string;confirmTarget:string;reason:string})=>invoke<{status:string;message:string}>('together-ops',{action:'recover_ticket',...input});
