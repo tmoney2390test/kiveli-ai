@@ -111,7 +111,7 @@ insert into public.together_schedule_templates(character_version_id,day_of_week,
 select (item->>'characterVersionId')::uuid,(item->>'dayOfWeek')::int,(item->>'startMinute')::int,(item->>'endMinute')::int,l.id,item->>'activity',item->>'availability',(item->>'energyDelta')::int,item->>'moodInfluence',1,item->'metadata'
 from eos_editorial_payload p cross join lateral jsonb_array_elements(p.data->'schedules') item
 left join public.together_locations l on l.world_id='${WORLD_ID}'::uuid and l.slug=item->>'locationSlug'
-on conflict(character_version_id,day_of_week,start_minute,week_index) do nothing;
+on conflict(character_version_id,day_of_week,start_minute) do nothing;
 
 do $$ begin
  if exists(select 1 from eos_editorial_protected before join public.together_character_versions after on after.id=before.id
