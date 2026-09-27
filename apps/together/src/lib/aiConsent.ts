@@ -55,3 +55,18 @@ export function isAiFeatureRequest(name:string,body:unknown):boolean {
   };
   return Boolean(actions[surface??'']?.includes(action));
 }
+
+// These message endpoints check consent on the server before any provider call.
+// A second client lookup can fail independently and strand a message before it
+// reaches the server, even though the user's consent remains valid.
+const serverGatedMessageSurfaces=new Set([
+  'together-dialogue',
+  'together-group-dialogue',
+  'together-story-dialogue',
+  'together-scene-reaction',
+  'together-dialogue-suggestion',
+  'together-dialogue-quote',
+]);
+export function needsClientAiConsentCheck(name:string,body:unknown):boolean {
+  return isAiFeatureRequest(name,body)&&!serverGatedMessageSurfaces.has(name.split('?')[0]??'');
+}
