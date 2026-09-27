@@ -203,6 +203,34 @@ describe('requested photo composition',()=>{
     expect(classifyPhotoIntent(message).requested).toBe(false);
   });
 
+  it.each([
+    'Sora you don’t want to see me you said it yourself',
+    "Sora you don't want to see me you said it yourself",
+    'You said you didn’t want to show me your face.',
+    'I don’t want to see your face.',
+    'Don’t send me a photo.',
+    'You never show me yourself.',
+    'You said you wouldn’t send a picture.',
+    'You said you want to see me.',
+    'Do you want to see any parts of my body',
+    'Do you me to send you something from my body like a snap',
+    'Do you want me to send you a selfie?',
+    'Can I send you a photo of me?',
+    'I can show you my body.',
+  ])('keeps relationship statements and negated visual language in chat: %s',(message)=>{
+    expect(classifyPhotoIntent(message).requested).toBe(false);
+  });
+
+  it.each([
+    'Want to see your face.',
+    'I want to see your face.',
+    'You don’t want to see me. Send me a selfie.',
+    'You said you don’t want to see me, but could you send me a selfie?',
+    'Would you send me a selfie?',
+  ])('still recognizes a separate affirmative visual request: %s',(message)=>{
+    expect(classifyPhotoIntent(message).requested).toBe(true);
+  });
+
   it('keeps where-you-are and activity requests companion-first',()=>{
     expect(classifyPhotoIntent('Show me where you are right now').shotPreference).toBe('candid');
     expect(classifyPhotoIntent('Send me a picture of what you are doing').shotPreference).toBe('candid');
