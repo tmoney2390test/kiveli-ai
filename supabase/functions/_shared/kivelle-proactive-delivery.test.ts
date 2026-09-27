@@ -144,6 +144,22 @@ Deno.test('answered topics and overnight user replies suppress generation', asyn
   }
 });
 
+Deno.test('a dead companion cannot send a queued or in-flight initiative', async () => {
+  const alreadyDead=fixture();
+  alreadyDead.tables.together_character_instances![0]!.life_state='dead';
+  await withModel(async(calls)=>{
+    assertEquals(await alreadyDead.run(),null);
+    assertEquals(calls.count,0);
+    assertEquals(alreadyDead.tables.together_proactive_messages![0]!.status,'cancelled');
+  });
+
+  const diedDuringGeneration=fixture();
+  await withModel(async()=>{
+    assertEquals(await diedDuringGeneration.run(),null);
+    assertEquals(diedDuringGeneration.tables.together_messages!.filter((message)=>message.role==='assistant').length,0);
+  },()=>{diedDuringGeneration.tables.together_character_instances![0]!.life_state='dead';});
+});
+
 Deno.test('a user response during model generation prevents the stale message from being inserted', async () => {
   const f = fixture();
   await withModel(async () => {
