@@ -10,12 +10,14 @@ import { renderEnrichmentMigration, migrationPath } from './build-eos-meridian-e
 test('all pre-existing character material outside first meetings is byte-for-byte preserved',()=>{
   const originalCharacters=structuredClone(characters);
   for(const character of originalCharacters){
+    // Public biographies are editorial display copy; protect all other canon here.
+    delete character.biography;
     delete character.firstMeeting;
     for(const key of ['editorialLife','currentGoals','ambitions','concerns'])delete character.characterBible[key];
   }
   const hash=createHash('sha256').update(JSON.stringify({characters:originalCharacters,dateScenes,adultFacts:worldFacts.filter(f=>f.contentLevel!=='standard')})).digest('hex');
   // Captured from ff04672 before this editorial pass, including spice, romance, boundaries and appearance.
-  assert.equal(hash,'b693078539f8aabacc717262c04bacd31091afc075a908c3bf7de367d7518718');
+  assert.equal(hash,'d1d0a7180c43a3a0fa10391d24324284e1a47a82a7bd3beb8ce4a7439129ab77');
 });
 
 test('47 residents have individual desires, dated histories, and distinct concrete openings',()=>{
