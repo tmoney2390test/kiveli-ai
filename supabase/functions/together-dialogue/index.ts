@@ -1328,6 +1328,32 @@ Deno.serve(async (request) => {
           reactions: Record<string, unknown>[];
         } = { messages: [], reactions: [] };
         if (assistantCommit.created) {
+          if (!isContinuation && outputSafety.allowed && primarySpeakerId === input.characterInstanceId) {
+            const confirmedDeath = await persistCharacterLifeTransition({
+              db,
+              userId: user.id,
+              continuityId: continuity.id,
+              sourceMessageId: String(assistantMessage.id),
+              message: userText,
+              confirmingAssistantMessage: safeText,
+              participants: [lifeParticipantFromInstance(instanceAtRequest)],
+              conversationId: input.conversationId,
+              sourceRole: "assistant",
+              allowedKinds: ["death"],
+            });
+            if (confirmedDeath) {
+              instanceAtRequest.life_state = confirmedDeath.to;
+              instanceAtRequest.life_state_summary = confirmedDeath.summary;
+              await track(db, user.id, "character_life_state_changed", {
+                characterInstanceId: input.characterInstanceId,
+                conversationId: input.conversationId,
+                from: confirmedDeath.from,
+                to: confirmedDeath.to,
+                transitionKind: confirmedDeath.kind,
+                sourceRole: "assistant",
+              });
+            }
+          }
           if (dialogueContext.currentScene.sceneSessionId&&!route.explicit) {
             await recordSceneMessage(db, {
               userId: user.id,

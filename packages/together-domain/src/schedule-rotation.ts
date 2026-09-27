@@ -4,7 +4,7 @@ export function scheduleRunsOnDate(
   date: Date | string,
   timezone = "UTC",
 ): boolean {
-  const weeks = Number(metadata?.cycleWeeks ?? 1);
+  const weeks = Number(metadata?.['cycleWeeks'] ?? 1);
   if (!Number.isInteger(weeks) || weeks <= 1) return true;
   if (weeks > 3) return false;
   const key = typeof date === "string"
@@ -20,8 +20,8 @@ export function scheduleRunsOnDate(
     const day = new Date(stamp).getUTCDay();
     return Math.floor(stamp / 86400000) - ((day + 6) % 7);
   };
-  const anchor = String(metadata?.cycleAnchorDate ?? "1970-01-05");
+  const anchor = typeof metadata?.['cycleAnchorDate'] === "string" ? metadata['cycleAnchorDate'] : "1970-01-05";
   const elapsed = Math.floor((monday(key) - monday(anchor)) / 7);
   return Number.isFinite(elapsed) &&
-    ((elapsed % weeks) + weeks) % weeks === Number(metadata?.weekIndex ?? 0);
+    ((elapsed % weeks) + weeks) % weeks === Number(metadata?.['weekIndex'] ?? 0);
 }

@@ -4,11 +4,11 @@ import { subscriptionStatusQueryKey } from '../../../src/hooks/useSubscriptionSt
 import type { SubscriptionStatus } from '../../../src/lib/subscription';
 import { styles } from '../../../src/styles/companionDraftStyles';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowRight, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, MapPin, Plus, RefreshCw, Sparkles, Trash2, UserRound, X } from 'lucide-react-native';
+import { ArrowRight, Camera, Check, ChevronLeft, ChevronRight, MapPin, Plus, RefreshCw, Sparkles, Trash2, UserRound } from 'lucide-react-native';
 import { CreatorWizardShell, ErrorState, GradientButton, GlassCard, KivelleCreditIcon, LoadingSkeleton, Screen } from '../../../src/components';
 import { archiveCreatorDraft, authorizeCreatorAppearanceUpload, cancelCreatorAppearanceUpload, completeCreatorAppearanceUpload, finalizeCreatorDraft, generateCreatorAppearance, getCreatorDraft, meetCompanion, regenerateCreatorDraftSection, selectCreatorAppearance, selectCreatorFirstMeeting, updateCreatorDraftSections } from '../../../src/lib/api';
 import { CreatorModal, CreatorPicker, creatorGenders, creatorPronouns } from '../../../src/components/CreatorPicker';
@@ -451,7 +451,6 @@ function ReviewRow({ label, value, complete }: { label: string; value: string; c
 function PreviewFact({ label, value }: { label: string; value: string }) { return <View style={styles.previewFact}><Text style={styles.previewFactLabel}>{label}</Text><Text style={styles.previewFactValue}>{value}</Text></View>; }
 function sectionTitle(step: CreatorStep, name: string) { return ({ identity: `Who is ${name}?`, appearance: `Give ${name} a face.`, personality: `Give ${name} a point of view.`, life: `Build a life that keeps moving.`, connection: `Decide how closeness feels.`, meeting: `Choose where your story begins.`, review: `${name} is almost ready.` } as Record<CreatorStep, string>)[step]; }
 function sectionBody(step: CreatorStep) { return ({ identity: 'These are canonical facts—not memories the companion has to rediscover.', appearance: 'Choose a photo or generate a look you love.', personality: 'Shape tendencies and communication without scripting every response.', life: 'Use real places and a broad weekly rhythm so their world remains internally consistent.', connection: 'Guide relationship behavior without pre-setting trust, attraction, or devotion.', meeting: 'This scene becomes the first real event in your shared history.', review: 'Check the pieces that will enter the normal Kivelle relationship engine.' } as Record<CreatorStep, string>)[step]; }
-function time(minute: number) { const hours = Math.floor(minute / 60); const minutes = minute % 60; return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`; }
 function title(value: string) { return value ? value[0]!.toUpperCase() + value.slice(1) : value; }
 
 

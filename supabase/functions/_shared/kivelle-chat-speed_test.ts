@@ -103,7 +103,7 @@ Deno.test('takeover during moderation stops even an otherwise approved delta',as
 
 Deno.test('Director reserves time for fallback after a stalled primary and uses nonreasoning defaults',async()=>{
  const oldFetch=globalThis.fetch,oldNow=Date.now;
- const names=['OPENAI_API_KEY','GEMINI_API_KEY','KIVELLE_DIRECTOR_MODEL'];
+ const names=['OPENAI_API_KEY','GEMINI_API_KEY','KIVELLE_DIRECTOR_MODEL'] as const;
  const values=names.map(n=>Deno.env.get(n));
  Deno.env.set(names[0],'test');Deno.env.set(names[1],'test');Deno.env.delete(names[2]);
  const started=oldNow();Date.now=()=>oldNow()+180000;

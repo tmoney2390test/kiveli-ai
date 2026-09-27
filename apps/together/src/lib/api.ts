@@ -11,7 +11,7 @@ import type { CompanionVoicePreset } from '@together/domain/src/voice-presets';
 import type { ChatLanguagePreference } from '@together/domain/src/chat-language';
 import type { AccountGender } from '@together/domain/src/account-onboarding';
 import type { AroundTownItem, WorldPulseEvent } from '@together/domain/src/world-pulse';
-import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterProfileDetails, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, ExploreCatalogSnapshot, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoResolution, VideoRouteOption, VoiceCallSession } from '../types';
+import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterProfileDetails, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorIdentityConfig, CreatorLifeConfig, CreatorRoutineBlock, CreatorStep, ExploreCatalogSnapshot, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoResolution, VideoRouteOption, VoiceCallSession } from '../types';
 import type { RealtimeVoiceConfiguration } from './realtimeVoice';
 import { withIdempotentRetry } from './requestRetry';
 import { clearSessionForApiFailure } from './authSession';
@@ -20,7 +20,7 @@ import { ensureWebAdultSession } from './webAdultSession';
 import { normalizeVideoGenerationOptions, videoOptionsForPlatform } from './videoGeneration';
 import { drainJsonSseEvents } from './sse';
 import { scheduleForegroundTimeout } from './webPageLifecycle';
-import { ensureAiConsent, invalidateAiConsent, isAiFeatureRequest } from './aiConsent';
+import { ensureAiConsent, invalidateAiConsent, needsClientAiConsentCheck } from './aiConsent';
 import { installationIdentity } from './installationIdentity';
 import { runMediaRequest } from './mediaRequestTransport';
 
@@ -65,7 +65,7 @@ async function requireFeatureConsent():Promise<void>{
   if(!await ensureAiConsent(data.session.user.id))throw new ApiError('AI sharing is required for this feature. You can change your choice in Privacy settings.','CONSENT_REQUIRED');
 }
 export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POST' = 'POST',options:{signal?:AbortSignal}={}): Promise<T> {
-  if(isAiFeatureRequest(name,body))await requireFeatureConsent();
+  if(needsClientAiConsentCheck(name,body))await requireFeatureConsent();
   const started=Date.now(),surface=name.split('?')[0]!,operation=typeof body==='object'&&body&&'action'in body?String((body as Record<string,unknown>).action):method.toLowerCase();let response:Response|undefined;
   try{
     response = await fetch(`${supabaseUrl}/functions/v1/${name}`, { method, headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json','x-kivelle-timezone':deviceTimezone() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),...(options.signal?{signal:options.signal}:{}) });
@@ -222,7 +222,6 @@ export type GroupDialogueEvent=
   |{type:'turn_cancelled';turnId:string}
   |{type:'heartbeat'};
 export async function sendGroupDialogue(input:{contextQuoteId?:string;contextCostAuthorization?:string;contextPreference?:'included';conversationId:string;message:string;attachmentIds?:string[];clientRequestId:string;mentionedCharacterInstanceIds?:string[];photoSubjectCharacterInstanceIds?:string[];replyToMessageId?:string;manualSpeakerInstanceId?:string;broadGroupRequest?:boolean;letThemTalk?:boolean},onEvent:(event:GroupDialogueEvent)=>void,signal?:AbortSignal):Promise<void>{
-  await requireFeatureConsent();
   if(input.message.length>MESSAGE_CHARACTER_LIMIT)throw new ApiError(messageCharacterLimitError(),'VALIDATION_FAILED');
   const started=Date.now();let firstTextRecorded=false,firstActivityRecorded=false,statusCode:number|undefined;
   try{
@@ -270,7 +269,6 @@ export async function createTogetherAccount(email: string, password: string,date
 }
 
 export async function sendDialogue(input: {contextQuoteId?:string;contextCostAuthorization?:string;contextPreference?:'included';conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;messageAction?:'continue';anchorMessageId?:string;messagePresentation?:OneTapSelfieMessagePresentation;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void, callbacks?: {onPrimary?:(message:Message,hasAdditional:boolean)=>void;onMessage?:(message:Message)=>void}): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
-  await requireFeatureConsent();
   if (input.message.length > MESSAGE_CHARACTER_LIMIT) throw new ApiError(messageCharacterLimitError(), 'VALIDATION_FAILED');
   const tokens=batchReplyText(onToken);
   let primary:Message|undefined;
@@ -318,7 +316,6 @@ export async function sendDialogue(input: {contextQuoteId?:string;contextCostAut
 }
 
 export async function suggestDialogue(input:{conversationId:string;characterInstanceId:string;anchorMessageId:string;clientRequestId:string;preference?:AutoDialoguePreference},signal?:AbortSignal):Promise<AutoDialogueSuggestion>{
-  await requireFeatureConsent();
   const response=await fetch(`${supabaseUrl}/functions/v1/together-dialogue-suggestion`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input),signal});
   const payload=await response.json().catch(()=>({})) as Envelope<AutoDialogueSuggestion>&{error?:{message?:string;code?:string;retryable?:boolean}};
   if(!response.ok){await clearSessionForApiFailure(supabase.auth,response.status,payload.error?.code);throw new ApiError(payload.error?.message??'A reply suggestion could not be generated.',payload.error?.code,payload.error?.retryable);}
@@ -326,7 +323,6 @@ export async function suggestDialogue(input:{conversationId:string;characterInst
 }
 
 export async function sendSceneReaction(input:{conversationId:string;characterInstanceId:string;sceneActionId:string;clientRequestId:string},onToken:(token:string)=>void,onRetry?:()=>void):Promise<{message:Message}>{
-  await requireFeatureConsent();
   return withIdempotentRetry(async()=>{
     const response=await fetch(`${supabaseUrl}/functions/v1/together-scene-reaction`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input)});
     if(!response.ok){const error=await response.json().catch(()=>({})) as{error?:{message?:string;code?:string;retryable?:boolean}};await clearSessionForApiFailure(supabase.auth,response.status,error.error?.code);throw new ApiError(error.error?.message??'Your companion could not react to that right now.',error.error?.code,error.error?.retryable??(response.status===408||response.status===429||response.status>=500));}
@@ -341,4 +337,4 @@ export async function sendSceneReaction(input:{conversationId:string;characterIn
   },{attempts:2,delayMs:220,onRetry:()=>onRetry?.()});
 }
 
-export const previewCreatorRoutine = (input:{draftId:string;weekIndex:number;identity:import('../types').CreatorIdentityConfig;life:import('../types').CreatorLifeConfig}) => manageCreator<{blocks:import('../types').CreatorRoutineBlock[];source:string;notice?:string}>({action:'preview_routine',...input});
+export const previewCreatorRoutine = (input:{draftId:string;weekIndex:number;identity:CreatorIdentityConfig;life:CreatorLifeConfig}) => manageCreator<{blocks:CreatorRoutineBlock[];source:string;notice?:string}>({action:'preview_routine',...input});

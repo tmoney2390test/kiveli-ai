@@ -91,6 +91,59 @@ export function deriveCharacterLifeTransition(input: {
   return unique.length === 1 && ![...observedOutcomes.values()].some((outcomes) => outcomes.size > 1) ? unique[0]! : null;
 }
 
+/** A lethal user action becomes canon only when the companion's reply confirms its outcome. */
+export function deriveConfirmedCharacterDeath(input: {
+  userMessage: string;
+  assistantMessage: string;
+  participant: CharacterLifeParticipant;
+}): CharacterLifeTransition | null {
+  const target = input.participant;
+  if (normalizeCharacterLifeState(target.lifeState) !== "alive") return null;
+  const aliases = participantAliases(target.name).map(escapePattern).sort((a, b) => b.length - a.length);
+  const object = `(?:${[...aliases, "you", "him", "her", "them"].join("|")})`;
+  const possessive = `(?:${aliases.map((alias) => `${alias}'?s`).join("|")}|your|his|her|their)`;
+  const lethalAction = new RegExp(
+    `\\b(?:slit|slash(?:ed)?|slice(?:d)?|cut)\\s+(?:${possessive}\\s+|the\\s+)?throat\\b|\\b(?:shoot|shot|stab(?:bed)?)\\s+${object}\\s+(?:in|through)\\s+(?:the|${possessive})\\s+(?:head|heart)\\b`,
+    "iu",
+  );
+  const actionConfirmed = clauses(input.userMessage).some((clause) =>
+    !nonCanonicalClaim(clause) && lethalAction.test(clause)
+  );
+  if (!actionConfirmed) return null;
+  // A third-person pronoun can refer to someone else in a direct scene.
+  const userText = normalizeText(input.userMessage);
+  const replyText = normalizeText(input.assistantMessage);
+  const namedTarget = aliases.some((alias) => new RegExp(`\\b${alias}\\b`, "iu").test(userText) || new RegExp(`\\b${alias}\\b`, "iu").test(replyText));
+  if (!namedTarget && !/\b(?:you|your)\b/iu.test(userText)) return null;
+  const explicitDeath = deriveCharacterLifeTransition({
+    message: input.assistantMessage,
+    participants: [target],
+    directedCharacterInstanceIds: [target.characterInstanceId],
+  })?.to === "dead";
+  const confirmedOutcome = explicitDeath || clauses(input.assistantMessage).some((clause) =>
+    !nonCanonicalClaim(clause) && (
+      /\b(?:the|his|her|their|your)\s+weight\s+(?:goes|went|falls|fell)\s+out of\s+(?:him|her|them|you)\b/iu.test(clause) ||
+      /\b(?:his|her|their|your)\s+(?:body\s+(?:goes|went|falls|fell)\s+limp|breath(?:ing)?\s+(?:stops|stopped|ceases|ceased)|heart(?:beat)?\s+(?:stops|stopped))\b/iu.test(clause) ||
+      /\b(?:the|his|her|their|your)\s+last\s+breath\b/iu.test(clause)
+    )
+  );
+  return confirmedOutcome ? {
+    characterInstanceId: target.characterInstanceId,
+    name: target.name,
+    from: "alive",
+    to: "dead",
+    kind: "death",
+    summary: `${target.name} was killed during this continuity.`,
+    confidence: .96,
+  } : null;
+}
+
+function clauses(message: string): string[] {
+  return (message.normalize("NFKC").replace(/[“"][^“”"]*[”"]/gu, " ").match(/[^.!?;\n]+[.!?;]?/gu) ?? [])
+    .filter((clause) => !clause.trim().endsWith("?"))
+    .map(normalizeText).filter(Boolean);
+}
+
 function nonCanonicalClaim(clause: string): boolean {
   return /\b(?:not|never|no|don't|didn't|won't|wouldn't|can't|cannot|isn't|aren't|wasn't|weren't|hasn't|haven't|if|unless|whether|will|would|could|might|may|should|must|can|almost|nearly|try|tries|tried|trying|attempt|attempts|attempted|attempting|want|wanted|wish|hope|plan|planned|pretend|pretended|imagine|imagined|dream|dreamed|dreamt|joke|joking|kidding|metaphor|figuratively|remember|recall|yesterday|previously|earlier|said|says|told|claims|claimed|rumor|rumour|book|movie|film|game|chess|checkers|poker)\b|\b(?:going to|need to|used to|with kindness|years ago|days ago|hours ago|last night|last week|last time)\b/iu.test(clause);
 }

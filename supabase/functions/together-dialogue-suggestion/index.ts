@@ -26,9 +26,8 @@ Deno.serve(async(request)=>{
   try{
     const{user,db}=await authenticated(request);await requireAiDataConsent(db,user.id);const input=await parseBody(request,schema),adultAccess=await resolveAdultAccess(request,user,db);
     const continuity=await activeContinuity(db,user.id);
-    const[{data:conversation},{data:pendingMilestone},{data:entitlement},{data:profile}]=await Promise.all([
+    const[{data:conversation},{data:entitlement},{data:profile}]=await Promise.all([
       db.from('together_conversations').select('*,together_character_instances!inner(*,together_character_templates(*),together_character_versions(*))').eq('id',input.conversationId).eq('user_id',user.id).eq('continuity_id',continuity.id).eq('character_instance_id',input.characterInstanceId).is('archived_at',null).is('user_archived_at',null).maybeSingle(),
-      db.from('together_relationship_milestones').select('id').eq('user_id',user.id).eq('character_instance_id',input.characterInstanceId).eq('status','pending').maybeSingle(),
       db.from('together_entitlements').select('tier,expires_at').eq('user_id',user.id).maybeSingle(),
       db.from('together_profiles').select('age_verified_at,content_preferences').eq('user_id',user.id).maybeSingle(),
     ]);
@@ -42,7 +41,6 @@ Deno.serve(async(request)=>{
     if(latestError)throw new AppError('INTERNAL_ERROR','A reply suggestion could not be prepared.',500,true);
     const latest=(latestRows??[]).find((row)=>row.provider_metadata?.uiHidden!==true&&['user','assistant'].includes(String(row.role)));
     if(!latest||latest.id!==input.anchorMessageId||latest.role!=='assistant')throw new AppError('STALE_SUGGESTION','The conversation moved forward. Try again for a fresh suggestion.',409,true);
-    if(pendingMilestone)throw new AppError('CANONICAL_CHOICE_REQUIRED','Choose how you want to respond to this relationship moment.',409);
 
     const contentMode=dialoguePolicy.effectiveMode;
     const{data:cached}=await db.from('together_dialogue_suggestion_cache')

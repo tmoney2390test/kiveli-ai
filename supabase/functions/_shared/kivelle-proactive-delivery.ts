@@ -5,6 +5,7 @@ import { normalizeSubscriptionTier } from '../../../packages/together-domain/src
 import { renderCharacterInitiative } from './kivelle-proactive-voice.ts';
 import { loadInitiativeSource, markInitiativeThreadDelivered, userResumedAfterQueue } from './kivelle-proactive-context.ts';
 import { continuityById } from './together-continuity.ts';
+import { characterCanSpeak } from '../../../packages/together-domain/src/character-life-state.ts';
 
 type Row = Record<string, any>;
 type DeliveryInput = {
@@ -65,6 +66,7 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
       ]);
       if (instanceResult.error || relationshipResult.error || entitlementResult.error) throw new Error('INITIATIVE_CONTEXT_READ_FAILED');
       const instance = instanceResult.data;
+      if (instance && !characterCanSpeak(instance.life_state)) return await cancel('character_dead');
       if (!source || !instance || !relationshipResult.data || !continuity ||
         String(proactive.continuity_id) !== String(conversation.continuity_id) ||
         String(instance.continuity_id) !== String(conversation.continuity_id) ||
@@ -84,7 +86,7 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
         loadInitiativeSource(db, userId, proactive, commitTime, input.timezone),
         latestUserMessage(db, userId, conversation.id),
         db.from('together_conversations').select('archived_at,metadata').eq('id', conversation.id).eq('user_id', userId).maybeSingle(),
-        db.from('together_character_instances').select('current_activity,current_location_id').eq('id', instance.id).eq('user_id', userId).maybeSingle(),
+        db.from('together_character_instances').select('current_activity,current_location_id,life_state').eq('id', instance.id).eq('user_id', userId).maybeSingle(),
         db.from('together_proactive_messages').select('id').eq('id', proactive.id).eq('user_id', userId)
           .eq('status', 'queued').eq('context->>generationLeaseToken', leaseToken).maybeSingle(),
         continuityById(db,userId,String(conversation.continuity_id)),
@@ -96,6 +98,7 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
         !currentConversation.data || currentConversation.data.archived_at || !currentContinuity ||
         JSON.stringify(currentContinuity.together_user_personas) !== JSON.stringify(continuity.together_user_personas) ||
         JSON.stringify(currentConversation.data.metadata?.chatPreferences) !== JSON.stringify(conversation.metadata?.chatPreferences) ||
+        !characterCanSpeak(currentInstance.data?.life_state) ||
         currentInstance.data?.current_activity !== instance.current_activity || currentInstance.data?.current_location_id !== instance.current_location_id ||
         commitTime.getTime() >= Date.parse(leaseContext.generationLeaseUntil) ||
         (input.additionalRelevance && !await input.additionalRelevance(commitTime))) return await cancel('changed_during_generation');

@@ -2,7 +2,6 @@ import {OperationsFrame} from '../src/components/ops/OperationsFrame';
 import {RetentionPanel} from '../src/components/ops/RetentionPanel';
 import {SupportWorkspace as Support} from '../src/components/ops/SupportWorkspace';
 import type {SupportRecoveryContext} from '../src/lib/operations';
-import {SupportReplies} from '../src/components/ops/SupportReplies';
 import type {SupportReply} from '../src/lib/operations';
 import { IncidentLine, Panel, SectionHeader, RecordLine, StatusPill, Stat, StatCard, SmallAction, Loading, date, duration } from '../src/components/ops/OperationsPrimitives';
 import { styles } from '../src/styles/opsStyles';
@@ -11,17 +10,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
-import { router } from "expo-router";
 import {
   Activity,
   AlertTriangle,
-  ArrowLeft,
   CheckCircle2,
   Clock3,
   DollarSign,
@@ -30,7 +26,6 @@ import {
   ImageIcon,
   MessageSquareWarning,
   Phone,
-  RefreshCw,
   Search,
   Send,
   ShieldCheck,
@@ -60,7 +55,6 @@ import {
   updateOperationsIncident,
   updateOperationsWorldStatus,
   updateSafetyReport,
-  updateSupportTicket,
 } from "../src/lib/operations";
 import { useAuth } from "../src/hooks/useAuth";
 

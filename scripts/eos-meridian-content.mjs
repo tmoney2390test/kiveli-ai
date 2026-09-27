@@ -1,5 +1,6 @@
 import { enrichCharacter, chronology, districtLife, venueLife, supportingResidents, arcEnrichment, eventVariations, localCulture } from './eos-meridian-enrichment.mjs';
 import { buildEnrichedSchedules } from './eos-meridian-schedules.mjs';
+import { publicBiographies } from './eos-meridian-public-biographies.mjs';
 export const WORLD_ID='10000000-0000-4000-8000-000000000012';
 export const LOCATION_PREFIX='2c000000-0000-4000-8000-';
 
@@ -152,8 +153,10 @@ const conversationalFirstName=name=>String(name).replace(/^(?:Dr\.|Commander)\s+
 export const characters=characterSeeds.map((item,index)=>{
   const [name,age,gender,pronouns,background,districtSlug,workSlug,secondarySlug,socialSlug,occupation,traits,interests,dialogueTone,quirks,spiceLevel,romanceStyle,storyHook,appearance]=item;
   const slug=slugify(name); const rosterId=index+1;
+  const biography=publicBiographies[slug];
+  if(!biography)throw new Error(`Missing Eos Meridian public biography: ${slug}`);
   return{rosterId,templateId:`24000000-0000-4000-8012-${idSuffix(rosterId)}`,versionId:`25000000-0000-4000-8012-${idSuffix(rosterId)}`,name,slug,age,gender,pronouns,background,classification:'human colonist',districtSlug,workSlug,secondarySlug,socialSlug,occupation,traits,interests,dialogueTone,quirks,spiceLevel,romanceStyle,storyHook,appearance,portraitAssetKey:`eos-meridian-character-${slug}`,
-    biography:`${name}, ${age}, is ${indefiniteArticle(occupation)} ${occupation.toLowerCase()} in Eos Meridian. ${traits.join(', ')}. ${storyHook}`,
+    biography,
     relationshipGoal:'either',
     relationshipConfig:{initialStage:'stranger',initialFamiliarity:6,initialTrust:10,initialAttraction:spiceLevel===3?10:7,initialComfort:8,initialChemistry:spiceLevel===3?11:7},
     boundaries:['No coercion','Work authority never implies romantic or sexual consent','Private information is shared according to earned trust','The user may choose pace and direction'],

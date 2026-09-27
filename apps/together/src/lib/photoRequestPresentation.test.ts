@@ -41,6 +41,8 @@ describe('photo request presentation', () => {
     expect(shouldShowPhotoGenerationPending('what are you doing tonight?')).toBe(false);
     expect(shouldShowPhotoGenerationPending('you showed me your boobs yesterday')).toBe(false);
     expect(shouldShowPhotoGenerationPending('I take my penis out. Care to touch?')).toBe(false);
+    expect(shouldShowPhotoGenerationPending('Sora you don’t want to see me you said it yourself')).toBe(false);
+    expect(shouldShowPhotoGenerationPending('Don’t send me a photo.')).toBe(false);
   });
 
   it('binds the newest active offer to its inline photo message', () => {
