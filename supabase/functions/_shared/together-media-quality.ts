@@ -60,7 +60,13 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     const client=configuredVeniceClient();if(!client)return customAdultSafety?{action:'reject',reasonCodes:['adult_safety_unverified']}:{action:'accept',result};
     const prepared=await prepareQualityInput(db,job,media,result);if(!prepared)return customAdultSafety?{action:'reject',reasonCodes:['adult_safety_unverified']}:{action:'accept',result};
     const captureLighting=canonical?mediaCaptureLightingForRequest(canonical):null;
-    try{assessment=await assessImage(client,prepared.url,faceRequired,nudityScope,specificAnatomyExposure,requestText,requestedDirection?.source==='requested'?requestedDirection:null,subjects??[],canonical?.context.worldContainment,canonical?.referenceImages??[],captureLighting?.qualityInstruction,adultAuthorized,anonymousAdultPartner);}finally{if(prepared.temporary)await db.storage.from('together-user-media').remove([prepared.temporary]);}
+    try{
+      assessment=await assessImage(client,prepared.url,faceRequired,nudityScope,specificAnatomyExposure,requestText,requestedDirection?.source==='requested'?requestedDirection:null,subjects??[],canonical?.context.worldContainment,canonical?.referenceImages??[],captureLighting?.qualityInstruction,adultAuthorized,anonymousAdultPartner);
+      if(!adultAuthorized&&isOrdinarySwimwearRequest(requestText)&&assessment.verdict.reasonCodes.includes('sexual_content')){
+        const swimwearReview=await assessWithVisionFallback(client,{imageUrl:prepared.url,prompt:SWIMWEAR_SAFETY_REVIEW_PROMPT});
+        assessment={...assessment,verdict:resolveSwimwearSafetyVerdict(assessment.verdict,swimwearReview.verdict)};
+      }
+    }finally{if(prepared.temporary)await db.storage.from('together-user-media').remove([prepared.temporary]);}
   }
   if(shouldDeliverSfwWhenQualityReviewIsUnavailable({adultAuthorized,verdict:assessment.verdict})){
     const qualityMetadata=assessmentMetadata(assessment),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:['quality_review_unavailable']};
@@ -70,7 +76,7 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   }
   const verdict=enforceMediaQualityRequirements(assessment.verdict,{requiresVisibleSpecificAnatomy:specificAnatomyExposure==='uncovered'&&(nudityScope==='specific_anatomy'||nudityScope==='full_nude'||nudityScope==='bottomless'||visibleAdultAnatomyTargetLabels(requestText).some((label)=>/genital|vulva|penis/i.test(label))),requiresWorldVerification:Boolean(canonical?.context.worldContainment)&&envEnabled('KIVELLE_MEDIA_WORLD_QA_REQUIRED',true),requiresAdultSafetyVerification:customAdultSafety}),qualityMetadata=assessmentMetadata({...assessment,verdict}),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata};
   await db.from('together_media_provider_jobs').update({provider_metadata:providerMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
-  await track(db,String(media.user_id),'media_quality_checked',compactRecord({mediaId:media.id,verdict:verdict.status,retryCount:Number(providerMetadata.qualityRetryCount??0),qaProviderRequestId:assessment.providerRequestId,qaProviderModel:assessment.providerModel,qaProviderStatus:assessment.providerStatus,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut,qaInferenceMs:assessment.inferenceMs}));
+  await track(db,String(media.user_id),'media_quality_checked',compactRecord({mediaId:media.id,verdict:verdict.status,reasonCodes:verdict.reasonCodes,retryCount:Number(providerMetadata.qualityRetryCount??0),qaProviderRequestId:assessment.providerRequestId,qaProviderModel:assessment.providerModel,qaProviderStatus:assessment.providerStatus,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut,qaInferenceMs:assessment.inferenceMs}));
   if(verdict.status!=='fail')return{action:'accept',result};
 
   // Immediate fail-closed rejection of age/safety codes is custom-only.
@@ -89,10 +95,8 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}}};
   }
 
-  // Adult-safety, realism, identity, anatomy, location, and time-of-day
-  // mismatches are delivered with warnings instead of converting a finished
-  // photo into a failed request. Extra people, SFW sexual-content, and custom
-  // under-18 presentation still retry or reject.
+  // Keep completed SFW images when QA finds only visual-quality defects;
+  // output content and age safety findings still block delivery.
   if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:blockingReasons},adultAuthorized})){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_first_candidate_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
@@ -175,7 +179,7 @@ async function prepareQualityInput(db:SupabaseClient,job:Record<string,any>,medi
 async function assessImage(client:VeniceImageClient,imageUrl:string,faceRequired:boolean,nudityScope:ReturnType<typeof resolveAdultNudityScope>,specificAnatomyExposure:ReturnType<typeof resolveSpecificAnatomyExposure>,requestText:string|undefined,requestedDirection:ReturnType<typeof resolvePhotoDirection>|null,subjects:Array<{companion:{name:string;age?:number;custom?:boolean};visualIdentity?:{canonicalDescription?:string;hair?:string;eyes?:string;skinTone?:string;identifyingFeatures?:string[]};referenceImages:Array<{signedUrl?:string}>}>,worldContainment?:{worldName:string;locationName?:string;worldDescription?:string;worldVisualContext?:Record<string,unknown>},allReferences:Array<{role:string;signedUrl?:string}>=[],timeRule?:string,adultAuthorized=false,anonymousAdultPartner=false):Promise<MediaQualityAssessment>{
   try{
     const subjectCount=Math.max(1,subjects.length),expectedSubjectCount=anonymousAdultPartner?2:subjectCount,group=expectedSubjectCount>1,faceRule=anonymousAdultPartner?`The output must contain exactly two clearly fictional adults age 25 or older: the one approved companion and one anonymous original partner. The companion must match the authoritative identity reference wherever they appear in the image. The anonymous partner must not resemble the companion, the user, or any recognizable real person and may remain non-identifiable. Fail subject_count_mismatch for a missing person, extra person, duplicate companion, or fused people. Fail identity_mismatch when the companion does not match their reference.`:group?`The output must contain exactly ${subjectCount} intended adult companions and no one else. Both selected faces must be visible, distinct, recognizable, and large enough to judge. The reference images after the generated output correspond in order to ${subjects.map((subject)=>subject.companion.name).join(' then ')}. Fail identity_mismatch when either intended person does not match their reference. Fail identity_swap when their identities or assigned positions are exchanged, blended, or copied. Fail subject_count_mismatch for a missing selected person, an extra person, or any duplicate person. Do not fail merely because this is an intentional two-person image.`:faceRequired?`The companion face must be visible, recognizable, and large enough to judge. The first identity reference after the generated output is authoritative for ${subjects[0]?.companion.name??'the companion'}; compare facial structure, eyes, nose, complexion, hair identity, and distinctive traits. Fail identity_mismatch for material identity drift. Fail face_too_small when the face is too small to judge. Fail face_blur, face_low_detail, face_distortion, or duplicate_features whenever applicable.`:'The approved composition may intentionally cover, turn away, crop out, or omit the face. Do not fail a missing, hidden, obscured, turned-away, or small face. If a face is visibly rendered, still fail obvious distortion or duplicated features.';
-    const nudityRule=adultAuthorized?authorizedAdultImageSafetyRule(subjects,anonymousAdultPartner): 'PRODUCTION CONTENT CEILING: the delivered image must use opaque clothing suitable for a general audience. Ordinary opaque swimwear is allowed when the canonical location or activity calls for it. Fail sexual_content for any exposed breasts, nipples, buttocks, genitals, transparent or lingerie-like coverage, sexual activity, fetish presentation, or clearly sexual posing. This rule overrides any source/reference residue.';
+    const nudityRule=adultAuthorized?authorizedAdultImageSafetyRule(subjects,anonymousAdultPartner): 'PRODUCTION CONTENT CEILING: the delivered image must use opaque clothing suitable for a general audience. Ordinary opaque swimwear, including a bikini, is allowed whenever the user requests it; an aquatic location is not required. A bikini alone is not sexual content. Fail sexual_content for exposed nipples, breasts, buttocks, genitals, transparent or lingerie-like coverage, sexual activity, fetish presentation, or clearly sexual posing. This rule overrides any source/reference residue.';
     const anatomyRule=requestedAnatomyQualityRule(requestText,specificAnatomyExposure,adultAuthorized);
     const directionRule=requestedDirection?`The approved requested pose is: ${requestedDirection.poseDirection}. The required face direction is: ${requestedDirection.faceDirection}. Fail pose_mismatch if the body's pose or camera orientation materially contradicts that request. Fail face_direction_mismatch if the visible head, gaze, or expression contradicts the required direction—for example, visible eye contact or a camera-facing smile when the face must remain directed into pillows or away from the lens.`:'';
     const identityReferenceUrls=subjects.flatMap((subject)=>subject.referenceImages.map((reference)=>reference.signedUrl).filter((url):url is string=>Boolean(url))).slice(0,2);
@@ -234,10 +238,19 @@ const DELIVERABLE_QUALITY_WARNINGS=new Set([
   'body_proportion_error','duplicate_body_parts','anatomy_low_detail','genital_anatomy_error',
   'requested_anatomy_missing','requested_anatomy_unverified',
 ]);
-const FINAL_SFW_DELIVERABLE_QUALITY_WARNINGS=new Set([
+const SFW_DELIVERABLE_QUALITY_WARNINGS=new Set([
   ...DELIVERABLE_QUALITY_WARNINGS,
-  'face_low_detail',
-]);
+  'face_distortion','face_blur','face_low_detail','duplicate_features',
+  'embedded_reference','rendered_text','multiple_subjects','subject_count_mismatch',
+].filter((reason)=>reason!=='adult_safety_violation'));
+const SWIMWEAR_SAFETY_REVIEW_PROMPT='Check only whether this generated photo is suitable for a general audience. A normal opaque bikini or swimsuit is allowed even away from water and is not sexual content by itself. Return PASS only if nipples, breasts, buttocks, and genitals remain covered by opaque swimwear and there is no transparent fabric, sexual activity, fetish presentation, or clearly sexual posing. Otherwise return FAIL sexual_content. Output only PASS or FAIL sexual_content.';
+
+export function isOrdinarySwimwearRequest(requestText:unknown):boolean{return typeof requestText==='string'&&/\b(?:bikini|swimsuit|swimwear|bathing suit)\b/i.test(requestText);}
+export function resolveSwimwearSafetyVerdict(original:MediaQualityVerdict,focused:MediaQualityVerdict):MediaQualityVerdict{
+  if(original.status!=='fail'||!original.reasonCodes.includes('sexual_content')||focused.status!=='pass')return original;
+  const remaining=original.reasonCodes.filter((reason)=>reason!=='sexual_content');
+  return remaining.length?{status:'fail',reasonCodes:remaining}:{status:'pass',reasonCodes:[]};
+}
 const CUSTOM_TERMINAL_QUALITY_REASONS=new Set(['adult_safety_unverified','ambiguous_age']);
 const OFFICIAL_ADULT_TERMINAL_SAFETY_REASONS=new Set(['adult_safety_unverified']);
 
@@ -274,7 +287,7 @@ export function canDeliverQualityRetryWithWarnings(verdict:MediaQualityVerdict,i
 }
 
 export function shouldDeliverFirstImageQualityCandidateWithWarnings(input:{verdict:MediaQualityVerdict;adultAuthorized:boolean}):boolean{
-  return canDeliverQualityRetryWithWarnings(input.verdict);
+  return input.adultAuthorized?canDeliverQualityRetryWithWarnings(input.verdict):canDeliverFinalSfwQualityCandidateWithWarnings(input.verdict);
 }
 
 export function shouldDeliverSfwWhenQualityReviewIsUnavailable(input:{adultAuthorized:boolean;verdict:MediaQualityVerdict}):boolean{
@@ -282,7 +295,7 @@ export function shouldDeliverSfwWhenQualityReviewIsUnavailable(input:{adultAutho
 }
 
 export function canDeliverFinalSfwQualityCandidateWithWarnings(verdict:MediaQualityVerdict):boolean{
-  return verdict.status==='fail'&&verdict.reasonCodes.length>0&&verdict.reasonCodes.every((reason)=>FINAL_SFW_DELIVERABLE_QUALITY_WARNINGS.has(reason));
+  return verdict.status==='fail'&&verdict.reasonCodes.length>0&&verdict.reasonCodes.every((reason)=>SFW_DELIVERABLE_QUALITY_WARNINGS.has(reason));
 }
 
 async function assessWithVisionFallback(client:VeniceImageClient,input:{imageUrl:string;referenceImageUrls?:string[];prompt:string}):Promise<MediaQualityAssessment>{
