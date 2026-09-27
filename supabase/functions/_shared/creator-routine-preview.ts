@@ -48,15 +48,18 @@ export function validateRoutineProposal(
         .test(block.activity)
     ) throw Error("Vague activity");
     if (block.sourceActivity !== undefined) {
-      if (block.sourceActivity >= input.activities.length) {
+      if (block.sourceActivity < 0 || block.sourceActivity >= input.activities.length ||
+        typeof input.activities[block.sourceActivity] !== "string") {
         throw Error("Unknown activity");
       }
       covered.add(block.sourceActivity);
     }
+    const sourceActivityText = block.sourceActivity === undefined
+      ? null
+      : input.activities[block.sourceActivity] ?? null;
     const adult = isPrivateRoutineActivity(block.activity) ||
-      (block.sourceActivity !== undefined &&
-        isPrivateRoutineActivity(input.activities[block.sourceActivity]));
-    if ((needsAdultAccess(block.activity) || (block.sourceActivity !== undefined && needsAdultAccess(input.activities[block.sourceActivity]))) && !input.adultAllowed) {
+      (sourceActivityText !== null && isPrivateRoutineActivity(sourceActivityText));
+    if ((needsAdultAccess(block.activity) || (sourceActivityText !== null && needsAdultAccess(sourceActivityText))) && !input.adultAllowed) {
       throw Error("Adult activity not authorized");
     }
     const { sourceActivity, ...fields } = block;
