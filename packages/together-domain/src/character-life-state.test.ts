@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   characterCanSpeak,
+  deriveConfirmedCharacterDeath,
   deriveCharacterLifeTransition,
 } from "./character-life-state.ts";
 
@@ -108,5 +109,31 @@ describe("character life-state continuity", () => {
     expect(characterCanSpeak("undead")).toBe(true);
     expect(characterCanSpeak("dead")).toBe(false);
     expect(characterCanSpeak(undefined)).toBe(true);
+  });
+
+  it("records a fatal scene after the companion confirms the outcome", () => {
+    const sandro={characterInstanceId:"sandro-instance",name:"Alessandro “Sandro” Moretti",lifeState:"alive"};
+    expect(deriveConfirmedCharacterDeath({
+      userMessage:"Slit his throat",
+      assistantMessage:"Sandro’s breath catches. His hand comes up too late. The weight goes out of him.",
+      participant:sandro,
+    })).toMatchObject({characterInstanceId:sandro.characterInstanceId,to:"dead",kind:"death"});
+    expect(deriveConfirmedCharacterDeath({
+      userMessage:"I slit your throat",
+      assistantMessage:"Your body goes limp.",
+      participant:sandro,
+    })).toMatchObject({to:"dead"});
+  });
+
+  it.each([
+    ["Slit his throat", "He catches your wrist before the blade reaches him."],
+    ["I try to slit his throat", "His body goes limp."],
+    ["If I slit his throat", "His body goes limp."],
+    ["I slit his throat in a film", "His body goes limp."],
+    ["I cut his sleeve", "The weight goes out of him."],
+    ["Slit his throat", "He tells you, ‘I am not dead.’"],
+    ["Slit his throat", "The stranger's body goes limp."],
+  ])("does not canonize an unconfirmed or hypothetical death: %s",(userMessage,assistantMessage)=>{
+    expect(deriveConfirmedCharacterDeath({userMessage,assistantMessage,participant:prince})).toBeNull();
   });
 });

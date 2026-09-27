@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   characterCanSpeak,
+  deriveConfirmedCharacterDeath,
   deriveCharacterLifeTransition,
   normalizeCharacterLifeState,
   type CharacterLifeParticipant,
@@ -48,13 +49,20 @@ export async function persistCharacterLifeTransition(input: {
   directedCharacterInstanceIds?: readonly string[];
   conversationId: string;
   sourceRole?: "user" | "assistant";
+  confirmingAssistantMessage?: string;
   allowedKinds?: readonly CharacterLifeTransition["kind"][];
 }): Promise<CharacterLifeTransition | null> {
   const transition = deriveCharacterLifeTransition({
     message: input.message,
     participants: input.participants,
     directedCharacterInstanceIds: input.directedCharacterInstanceIds,
-  });
+  }) ?? (input.confirmingAssistantMessage && input.participants.length === 1
+    ? deriveConfirmedCharacterDeath({
+      userMessage: input.message,
+      assistantMessage: input.confirmingAssistantMessage,
+      participant: input.participants[0]!,
+    })
+    : null);
   if (!transition) return null;
   if (input.allowedKinds && !input.allowedKinds.includes(transition.kind)) return null;
 
