@@ -41,13 +41,14 @@ function policy(createOffer:boolean,autoAccept:boolean,cost:number,qualityTier:M
   return{createOffer,autoAccept,creditAction:'companion_photo',creditCost:cost,qualityTier,includedSubscriptionBenefit:included,includedBenefitType:includedType,expiresInHours};
 }
 
+// Keys and store product IDs stay stable across catalog revisions. Historical receipts retain their recorded amount.
 export type CreditPackKey='credits_100'|'credits_300'|'credits_800'|'credits_2000';
 export type CreditPack={key:CreditPackKey;credits:number;priceUsd:number;displayPrice:string;companionPhotoEquivalent:number;popular?:boolean;active:boolean};
 export const creditPackCatalog:Readonly<Record<CreditPackKey,CreditPack>>={
-  credits_100:{key:'credits_100',credits:100,priceUsd:4.99,displayPrice:'$4.99',companionPhotoEquivalent:10,active:true},
-  credits_300:{key:'credits_300',credits:300,priceUsd:11.99,displayPrice:'$11.99',companionPhotoEquivalent:30,popular:true,active:true},
-  credits_800:{key:'credits_800',credits:800,priceUsd:27.99,displayPrice:'$27.99',companionPhotoEquivalent:80,active:true},
-  credits_2000:{key:'credits_2000',credits:2000,priceUsd:59.99,displayPrice:'$59.99',companionPhotoEquivalent:200,active:true},
+  credits_100:{key:'credits_100',credits:250,priceUsd:4.99,displayPrice:'$4.99',companionPhotoEquivalent:25,active:true},
+  credits_300:{key:'credits_300',credits:700,priceUsd:11.99,displayPrice:'$11.99',companionPhotoEquivalent:70,popular:true,active:true},
+  credits_800:{key:'credits_800',credits:1750,priceUsd:27.99,displayPrice:'$27.99',companionPhotoEquivalent:175,active:true},
+  credits_2000:{key:'credits_2000',credits:4500,priceUsd:59.99,displayPrice:'$59.99',companionPhotoEquivalent:450,active:true},
 };
 export const creditPacks=Object.values(creditPackCatalog);
 export function resolveCreditPack(value:unknown):CreditPack|null{return typeof value==='string'&&value in creditPackCatalog?creditPackCatalog[value as CreditPackKey]:null;}

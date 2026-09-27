@@ -111,6 +111,9 @@ export function SmallAction(
 ) {
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{disabled:Boolean(busy || disabled),busy:Boolean(busy)}}
       disabled={busy || disabled}
       onPress={onPress}
       style={[styles.smallAction, (busy || disabled) && styles.disabled]}

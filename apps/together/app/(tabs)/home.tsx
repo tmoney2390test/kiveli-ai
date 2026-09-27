@@ -16,7 +16,8 @@ import { loadExploreCatalog, markProactiveOpened, setCharacterFavorite, simulate
 import { buildHomeViewModel, mostRecentHomeCompanion, type HomeTargetAction } from '../../src/lib/homeViewModel';
 import { getHomeWorldScopes } from '../../src/lib/homePresentation';
 import { selectPortraitVersion } from '../../src/lib/selectors';
-import { featuredCompanionsForWorld, type FeaturedCompanion } from '../../src/lib/featuredCompanions';
+import type { FeaturedCompanion } from '../../src/lib/featuredCompanions';
+import { homeCompanionRecommendations } from '../../src/lib/homeCompanionRecommendations';
 import { homeWorldDiscoveryOptions } from '../../src/lib/homeWorldDiscovery';
 import { useSubscriptionStatus } from '../../src/hooks/useSubscriptionStatus';
 import { useAppShell } from '../../src/shell/AppShellContext';
@@ -96,10 +97,10 @@ export default function Home() {
   };
   const model = homeModel;
   if (!model) {
-    const featuredCompanions=fallbackWorld?featuredCompanionsForWorld(snapshot,fallbackWorld.id):[];
+    const featuredCompanions=fallbackWorld?homeCompanionRecommendations(snapshot,fallbackWorld.id):[];
     return <Screen contentStyle={desktop?styles.contentDesktop:styles.content}>
       <View pointerEvents="none" style={styles.ambientGlow}/>
-      {!desktop?<HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name??snapshot.profile?.display_name??'You'} onCredits={()=>router.push(subscriptionHref({intent:'credits'}) as never)} onProfile={()=>router.push('/settings')}/>:null}
+      {!desktop?<HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name??snapshot.profile?.display_name??'You'} onCredits={()=>router.push(subscriptionHref({intent:'credits'}) as never)}/>:null}
       <View style={styles.emptyLife}><Text accessibilityRole="header" style={styles.emptyLifeTitle}>Start a conversation</Text><GradientButton label="Explore" onPress={()=>router.push('/(tabs)/explore')}/></View>
       {fallbackWorld?<FeaturedCompanionsSection companions={featuredCompanions} world={fallbackWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds??[]} onOpen={(item)=>router.push(`/character/${item.public_handle??item.slug}`)} onViewAll={()=>{setBrowsedWorldId(fallbackWorld.id);router.push(`/(tabs)/singles?world=${fallbackWorld.slug}`);}} onToggleFavorite={toggleFavorite}/>:null}
     </Screen>;
@@ -111,7 +112,7 @@ export default function Home() {
   const portraitVersion = startupPortraitVersion??selectPortraitVersion(snapshot, companion);
   const portraitSource = startupPortraitSource??resolveCharacterPortraitSource(template, portraitVersion, template.slug);
   const { pulseWorld, selectedWorld } = getHomeWorldScopes(model, publishedWorlds, browsedWorldId);
-  const featuredCompanions = selectedWorld ? featuredCompanionsForWorld(snapshot, selectedWorld.id, template.id) : [];
+  const featuredCompanions = selectedWorld ? homeCompanionRecommendations(snapshot, selectedWorld.id, template.id) : [];
   const discoveryWorlds=homeWorldDiscoveryOptions(snapshot.worlds,model.currentWorld?.id);
   const topStageWide=width>=900;
 
@@ -127,7 +128,7 @@ export default function Home() {
   };
   return <Screen contentStyle={desktop ? styles.contentDesktop : styles.content}>
     <View pointerEvents="none" style={styles.ambientGlow} />
-    {!desktop ? <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push(subscriptionHref({intent:'credits'}) as never)} onProfile={() => router.push('/settings')} /> : null}
+    {!desktop ? <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push(subscriptionHref({intent:'credits'}) as never)} /> : null}
     <View style={[styles.topStage,!topStageWide&&styles.topStageStack]}>
       <View style={styles.companionHeroPane}><CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} actionLabel={model.hero.action.label} notice={model.hero.notice} prompt={model.message?.content ? `“${model.message.content}”` : model.hero.prompt} onContinue={() => void runAction(model.hero.action)} onProfile={() => router.push(`/character/${handle}`)} onVisualReady={heroReady}/></View>
       {discoveryWorlds.length?<View style={[styles.worldDiscoveryPane,!topStageWide&&styles.worldDiscoveryPaneStack]}><HomeWorldDiscoveryHero fill={topStageWide} worlds={discoveryWorlds} onExplore={(world)=>{setBrowsedWorldId(world.id);router.push(`/(tabs)/explore?world=${world.slug}`);}}/></View>:null}

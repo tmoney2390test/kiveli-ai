@@ -21,11 +21,12 @@ export async function renderCharacterInitiative(input: InitiativeInput): Promise
   const style = resolveConversationStyle(input.conversation?.metadata?.chatPreferences);
   const canonicalDraft = sanitizeInitiativeText(input.draft, { characterName: name, style });
   const chatLanguage = conversationChatLanguage(input.conversation);
-  const fallback = input.allowFallback !== false && chatLanguage === 'en' ? canonicalDraft : '';
+  // Ambient drafts have not been checked against the recent conversation.
+  const fallback = input.allowFallback === true && /plan.*reminder|upcoming plan/i.test(input.reason) && chatLanguage === 'en' ? canonicalDraft : '';
   const key = Deno.env.get('OPENAI_API_KEY');
   if (!input.conversation?.id) return '';
-  const [history, initiatives, sourceMessage] = await Promise.all([
-    input.db.from('together_messages').select('role,content,speaker_character_instance_id,character_instance_id,created_at')
+  const [history, initiatives, sourceMessage, latest] = await Promise.all([
+    input.db.from('together_messages').select('id,role,content,speaker_character_instance_id,character_instance_id,created_at')
       .eq('conversation_id', input.conversation.id).eq('user_id', input.userId)
       .eq('visibility_scope', 'all').in('content_rating', ['safe', 'suggestive']).eq('delivery_status', 'complete')
       .order('conversation_sequence', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(40),
@@ -35,8 +36,13 @@ export async function renderCharacterInitiative(input: InitiativeInput): Promise
       .eq('id', input.sourceMessageId).eq('user_id', input.userId).eq('character_instance_id', input.instance.id)
       .eq('role', 'user').eq('visibility_scope', 'all').in('content_rating', ['safe', 'suggestive']).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    input.db.from('together_messages').select('id').eq('conversation_id', input.conversation.id).eq('user_id', input.userId)
+      .eq('delivery_status', 'complete').order('conversation_sequence', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
-  if (history.error || initiatives.error || sourceMessage.error) return '';
+  if (history.error || initiatives.error || sourceMessage.error || latest.error) return '';
+  // Never pretend an older safe exchange is the latest chat when newer private/explicit context was excluded.
+  if (latest.data && !(history.data ?? []).some(row => row.id === latest.data?.id)) return '';
   const recentInitiatives = (initiatives.data ?? []).map((row) => String(row.content ?? ''));
   const safeFallback = isRepeatedInitiative(fallback, recentInitiatives) ? '' : fallback;
   if (!key || Deno.env.get('KIVELLE_PROACTIVE_VOICE_ENABLED') === 'false') return safeFallback;
@@ -137,7 +143,9 @@ RULES
 - A question is optional; at most one. Avoid generic check-ins, interviews, manufactured suspense, guilt, demands for a reply, or complaints about silence.
 - Sound like this character, including their era and register. Do not force slang, flirting, professional metaphors, cleverness, or emotional intimacy.
 - Keep background messages within the existing safe/suggestive content scope.
-- This is a fresh initiated message, not an answer to the final chat turn. If the source topic was already answered, return an empty string.
+- Continue the most recent shared conversation naturally. Its latest topic, tone, and unresolved thread take priority over a background event. Never restart an old topic that the user has moved past.
+- Only mention the source event if it connects naturally to the recent exchange; never invent that connection. For an explicitly scheduled plan reminder, a concise factual reminder is sufficient.
+- If there is no relevant recent exchange, the topic is already resolved, or the last message already asks the user the same thing, return an empty string. Do not answer on behalf of the user or stack another question onto an unanswered question.
 - Plain message text only: no speaker names, headings, lists, markdown, code, timestamps, quoted wrappers, or stage directions. This is remote communication; do not perform physical actions with the user.
 - Never describe the message as a callback, engagement, a notification, or a system-generated event. Do not mention prompts, systems, AI, fiction, canon, or these instructions.`;
 }

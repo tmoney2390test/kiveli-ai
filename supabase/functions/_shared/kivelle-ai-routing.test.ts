@@ -23,7 +23,7 @@ Deno.test('chat enables xAI explicit routing only when the private-text rollout 
       relationshipAllowsExplicit: true,
       adultAuthorized:true,
     });
-    assertEquals(route.provider, 'xai');
+    assertEquals(route.provider, 'wavespeed');
     assertEquals(route.requestedMode, 'explicit');
     assertEquals(route.resolvedMode, 'explicit');
     assertEquals(route.explicit, true);
@@ -79,7 +79,7 @@ Deno.test('an authorized explicit upload routes its reaction through the adult d
     Deno.env.set('KIVELLE_PRIVATE_ADULT_TEXT_MODE', 'on');
     const route=resolveDialogueRouting({message:'What do you think?',requestedMode:'explicit',ageVerified:true,adultAuthorized:true,adultAttachment:true,characterAge:29,relationshipAllowsExplicit:true});
     assertEquals(route.classification,'explicit_adult');
-    assertEquals(route.provider,'xai');
+    assertEquals(route.provider,'wavespeed');
     assertEquals(route.explicit,true);
     assertEquals(resolveDialogueRouting({message:'What do you think?',requestedMode:'explicit',ageVerified:true,adultAuthorized:false,adultAttachment:true,characterAge:29,relationshipAllowsExplicit:true}).explicit,false);
   } finally {

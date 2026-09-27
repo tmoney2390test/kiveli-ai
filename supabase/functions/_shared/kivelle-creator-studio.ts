@@ -1,3 +1,4 @@
+import { buildCreatorWeek, routinePreset, scheduleBuildIssues } from '../../../packages/together-domain/src/creator-routine.ts';
 import { z } from 'zod';
 import { creatorReadiness, normalizeCharacterPerformance, imageDimensions, routineConflicts, type CreatorRoutineBlock } from '../../../packages/together-domain/src/index.ts';
 import { AppError } from './types.ts';
@@ -11,7 +12,7 @@ import { envBoolean } from './wavespeed.ts';
 import { enforceCustomCompanionLimit, refundCredits, resolveSubscriptionState, spendCredits } from './kivelle-subscription.ts';
 import { track } from './together.ts';
 
-const identitySchema = z.object({
+export const identitySchema = z.object({
   name: z.string().trim().min(1).max(50),
   age: z.number().int().min(18).max(99),
   gender: z.string().trim().max(40).optional().default(''),
@@ -43,17 +44,17 @@ const connectionSchema = z.object({
   boundaries: z.array(z.string().trim().min(2).max(120)).max(8).default([]),
 });
 const appearanceSchema = z.object({ description: z.string().trim().min(20).max(1000) });
-const lifeSchema = z.object({
+export const lifeSchema = z.object({
   homeWorldId: z.string().uuid(), homeLocationId: z.string().uuid(), workLocationId: z.string().uuid().nullable().optional(),
   lifestyle: z.string().trim().min(3).max(300), preferredActivities: z.array(z.string().trim().min(1).max(80)).max(10),
   scheduleStyle: z.string().trim().min(3).max(200),
 });
 const routineBlockSchema = z.object({
-  id: z.string().uuid(), dayOfWeek: z.number().int().min(0).max(6), startMinute: z.number().int().min(0).max(1439),
+  id: z.string().uuid(), weekIndex: z.number().int().min(0).max(2).default(0), dayOfWeek: z.number().int().min(0).max(6), startMinute: z.number().int().min(0).max(1439),
   endMinute: z.number().int().min(1).max(1440), locationId: z.string().uuid(), activity: z.string().trim().min(2).max(160),
   availability: z.enum(['available', 'limited', 'busy']), energyDelta: z.number().int().min(-3).max(3), moodInfluence: z.string().trim().max(80).optional(),
 }).refine((value) => value.endMinute > value.startMinute, 'Routine end time must be after its start time.');
-const routineSchema = z.object({ blocks: z.array(routineBlockSchema).min(1).max(28), source: z.string().optional(), generatedAt: z.string().optional() });
+const routineSchema = z.object({ blocks: z.array(routineBlockSchema).min(1).max(84), source: z.string().optional(), generatedAt: z.string().optional() });
 
 type Db = any;
 type StudioAction = Record<string, any> & { action: string };
@@ -118,14 +119,14 @@ async function createDraft(db: Db, userId: string, input: StudioAction, now: str
   // The guided first step already supplies canonical identity facts. Build the
   // editable foundation locally so opening Portrait is not blocked on a model
   // round trip; concept-only and legacy creation still receive AI enrichment.
-  const proposal = await initialCharacterDraftProposal(concept, Boolean(seed), provider);
+  const proposal = await initialCharacterDraftProposal(concept, Boolean(seed), provider, seed ? { name: String(seed.name ?? ''), age: Number(seed.age), pronouns: String(seed.pronouns ?? '') } : undefined);
   const locations = await worldLocations(db, worldId);
   const home = chooseHomeArea(locations, world.default_arrival_location_id);
   if (!home) throw new AppError('CONFLICT', 'That world needs an authored district or neighborhood before someone can live there.', 409);
   const work = chooseWorkLocation(locations, proposal.occupation, proposal.interests, home.id);
   const identity = identitySchema.parse({
     name: seed?.name ?? proposal.displayName, age: seed?.age ?? proposal.age, gender: seed?.gender ?? '', pronouns: seed?.pronouns ?? proposal.pronouns ?? '', occupation: proposal.occupation,
-    biography: proposal.biography, interests: proposal.interests, traits: proposal.traits,
+    biography: seed && String(seed.description ?? '').trim().length >= 20 ? String(seed.description).trim() : proposal.biography, interests: proposal.interests, traits: proposal.traits,
     ambitions: [`Build a meaningful life as ${article(proposal.occupation)} ${proposal.occupation.toLowerCase()}.`],
   });
   const personality = personalitySchema.parse({ ...proposal.personality, note: '' });
@@ -137,7 +138,9 @@ async function createDraft(db: Db, userId: string, input: StudioAction, now: str
     preferredActivities: proposal.lifestyleHints.preferredActivities ?? proposal.interests.slice(0, 6),
     scheduleStyle: String(proposal.lifestyleHints.scheduleStyle ?? 'Weekday responsibilities with flexible evenings.'),
   });
-  const routine = buildRoutine(identity, personality, life, locations, now);
+  // A typical week is user-authored; do not prefill a generic work pattern.
+  life.lifestyle = '';
+  const routine = { blocks: [] as CreatorRoutineBlock[], source: 'awaiting_user_schedule', generatedAt: now };
   const firstMeeting = buildFirstMeetings(identity, personality, locations, worldId);
   const continuity = await activeContinuity(db, userId);
   const relationshipGoal = ['friendship', 'romance', 'either'].includes(String(input.relationshipGoal)) ? String(input.relationshipGoal) : 'either';
@@ -145,7 +148,7 @@ async function createDraft(db: Db, userId: string, input: StudioAction, now: str
     user_id: userId, target_continuity_id: continuity.id, world_id: worldId, status: 'editing', current_step: seed ? 'appearance' : 'identity',
     create_request_id: requestId, source_concept: concept, relationship_goal: relationshipGoal,
     identity_config: identity, personality_config: personality, communication_config: communication, connection_config: connection,
-    appearance_config: { description: String(seed?.description ?? '').trim().length >= 20 ? String(seed?.description).trim() : proposal.appearanceDescription }, life_config: life, routine_config: routine,
+    appearance_config: { description: proposal.appearanceDescription }, life_config: life, routine_config: routine,
     first_meeting_config: firstMeeting, metadata: { providerMode: 'configured', contextVersion: seed ? 3 : 2, characterPerformance: proposal.performanceProfile }, created_at: now, updated_at: now,
   }).select('*').single();
   if (inserted.error || !inserted.data) {
@@ -191,7 +194,9 @@ async function updateDraftSections(db: Db, userId: string, draft: Record<string,
     if (!home.data || !['region', 'district', 'neighborhood'].includes(String(home.data.location_type))) throw new AppError('VALIDATION_ERROR', 'Choose a district or neighborhood as the home area.', 400);
   } else if (section === 'routine') {
     config = routineSchema.parse(submitted); column = 'routine_config';
-    if (routineConflicts(config.blocks as CreatorRoutineBlock[]).length) throw new AppError('VALIDATION_ERROR', 'Routine blocks cannot overlap.', 400);
+    const blocks = config.blocks as CreatorRoutineBlock[];
+    for (let week = 0; week <= Math.max(...blocks.map((block) => block.weekIndex ?? 0)); week++) { const count = blocks.filter((block) => (block.weekIndex ?? 0) === week).length; if (count < 1 || count > 28) throw new AppError('VALIDATION_ERROR', 'Each rotating week needs 1–28 schedule blocks.', 400); }
+    if (routineConflicts(blocks).length) throw new AppError('VALIDATION_ERROR', 'Routine blocks cannot overlap.', 400);
     await validateLocationIds(db, draft.world_id, (config.blocks as CreatorRoutineBlock[]).map((block) => block.locationId));
   } else throw new AppError('VALIDATION_ERROR', 'Choose a valid creator section.', 400);
   await moderateText(JSON.stringify(config));
@@ -212,7 +217,12 @@ async function regenerateSection(db: Db, userId: string, draft: Record<string, a
   const target = String(input.section ?? '');
   const locations = await worldLocations(db, draft.world_id);
   let patch: Record<string, unknown>;
-  if (target === 'routine') patch = { routine_config: buildRoutine(identitySchema.parse(draft.identity_config), personalitySchema.parse(draft.personality_config), lifeSchema.parse(draft.life_config), locations, now) };
+  if (target === 'routine') {
+    const issues=scheduleBuildIssues(String(draft.life_config?.lifestyle??''),draft.life_config?.preferredActivities??[]);if(issues.length)throw new AppError('VALIDATION_ERROR',issues.join(' '),400);
+    const generated = buildRoutine(identitySchema.parse(draft.identity_config), personalitySchema.parse(draft.personality_config), lifeSchema.parse(draft.life_config), locations, now);
+    const weeks = Math.min(3, Math.max(1, ...(draft.routine_config?.blocks ?? []).map((block: CreatorRoutineBlock) => (block.weekIndex ?? 0) + 1)));
+    patch = { routine_config: { ...generated, blocks: Array.from({length: weeks}, (_,weekIndex) => buildRoutine(identitySchema.parse(draft.identity_config), personalitySchema.parse(draft.personality_config), lifeSchema.parse(draft.life_config), locations, now, weekIndex).blocks).flat() } };
+  }
   else if (target === 'first_meetings') patch = { first_meeting_config: buildFirstMeetings(identitySchema.parse(draft.identity_config), personalitySchema.parse(draft.personality_config), locations, draft.world_id) };
   else throw new AppError('VALIDATION_ERROR', 'Only the routine or first meeting can be regenerated here.', 400);
   const updated = await db.from('together_creator_drafts').update({ ...patch, status: 'editing', revision: draft.revision + 1, updated_at: now }).eq('id', draft.id).eq('user_id', userId).eq('revision', draft.revision).select('*').maybeSingle();
@@ -509,16 +519,9 @@ function chooseSocialLocation(locations: Array<Record<string, any>>, interests: 
   }).sort((left, right) => right.score - left.score || Number(left.location.sort_order ?? 0) - Number(right.location.sort_order ?? 0))[0]?.location ?? candidates[0] ?? locations[0]!;
 }
 
-function buildRoutine(identity: z.infer<typeof identitySchema>, personality: z.infer<typeof personalitySchema>, life: z.infer<typeof lifeSchema>, locations: Array<Record<string, any>>, now: string) {
-  const workLocation = locations.find((location) => location.id === life.workLocationId) ?? locations.find((location) => location.id === life.homeLocationId)!;
-  const socialLocation = chooseSocialLocation(locations, identity.interests, personality.socialEnergy, [life.homeLocationId, workLocation.id]);
-  const start = /late|night/i.test(life.scheduleStyle) ? 660 : personality.spontaneity > .7 ? 600 : 570;
-  const end = Math.min(start + 480, 1080);
-  const blocks: CreatorRoutineBlock[] = [];
-  for (let day = 1; day <= 5; day += 1) blocks.push({ id: crypto.randomUUID(), dayOfWeek: day, startMinute: start, endMinute: end, locationId: workLocation.id, activity: `Working as ${article(identity.occupation)} ${identity.occupation.toLowerCase()}`, availability: 'busy', energyDelta: -1, moodInfluence: 'focused' });
-  for (const day of personality.socialEnergy >= .6 ? [2, 4] : [3]) blocks.push({ id: crypto.randomUUID(), dayOfWeek: day, startMinute: 1110, endMinute: 1260, locationId: socialLocation.id, activity: `Making time for ${identity.interests[0]?.toLowerCase() ?? 'something personal'}`, availability: 'available', energyDelta: 0, moodInfluence: personality.humor >= .65 ? 'playful' : 'relaxed' });
-  blocks.push({ id: crypto.randomUUID(), dayOfWeek: 6, startMinute: personality.spontaneity >= .65 ? 720 : 660, endMinute: 930, locationId: socialLocation.id, activity: 'Keeping Saturday flexible', availability: 'available', energyDelta: 1, moodInfluence: 'open' });
-  blocks.push({ id: crypto.randomUUID(), dayOfWeek: 0, startMinute: 600, endMinute: 900, locationId: life.homeLocationId, activity: 'Having a slow morning at home', availability: 'limited', energyDelta: 1, moodInfluence: 'rested' });
+function buildRoutine(identity: z.infer<typeof identitySchema>, personality: z.infer<typeof personalitySchema>, life: z.infer<typeof lifeSchema>, locations: Array<Record<string, any>>, now: string, weekIndex = 0) {
+  const socialLocation = chooseSocialLocation(locations, life.preferredActivities, personality.socialEnergy, [life.homeLocationId, life.workLocationId ?? life.homeLocationId]);
+  const blocks = buildCreatorWeek({weekIndex, preset: routinePreset(life.scheduleStyle), description: life.lifestyle, occupation: identity.occupation, activities: life.preferredActivities, homeLocationId: life.homeLocationId, workLocationId: life.workLocationId, socialLocationId: socialLocation.id, id: () => crypto.randomUUID()});
   return { blocks, source: 'creator_studio', generatedAt: now };
 }
 

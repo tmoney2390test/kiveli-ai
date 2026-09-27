@@ -1,6 +1,7 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { invoke } from "./api";
+import type { SupportDiagnostics } from "./supportRecovery";
 
 export type SupportCategory =
   | "bug"
@@ -83,6 +84,12 @@ export type SafetyReportDetail = {
   events: Array<Record<string, unknown>>;
 };
 export type OperationsDashboard = {
+  retention?: {
+    attention:boolean; unavailable?:boolean; holds?:number;
+    storage?:{objects:Array<{status:string;objects:number;bytes:number}>;lastCheckedAt:string|null}|null;
+    policies:Array<{key:string;label:string;enabled:boolean;note:string;lastSuccessAt:string|null;lastError:string|null;lastCandidates:number;lastProcessed:number;totalProcessed:number}>;
+    rollups:Array<{kind:string;records:number;cost_usd:number;oldest:string;newest:string}>;
+  } | null;
   generatedAt: string;
   access: {
     role: OperationsRole;
@@ -208,9 +215,10 @@ export async function reportClientError(
     stackHash,
     platform: Platform.OS,
     appVersion: Constants.expoConfig?.version ?? "unknown",
-    buildId: Constants.expoConfig?.runtimeVersion
-      ? String(Constants.expoConfig.runtimeVersion)
-      : undefined,
+    buildId: Platform.OS === 'web' && typeof document !== 'undefined'
+      ? Array.from(document.scripts).map(script => script.src.split('/').pop()).find(name => name?.startsWith('__common-') || name?.startsWith('entry-'))
+      : Platform.OS === 'ios' ? Constants.expoConfig?.ios?.buildNumber
+      : Constants.expoConfig?.android?.versionCode?.toString(),
     correlationId: input.correlationId,
     metadata: input.metadata ?? {},
   });
@@ -235,11 +243,14 @@ export const createSupportTicket = (
     message: string;
     correlationId?: string;
     conversationId?: string;
+    mediaId?: string;
+    purchaseReference?: string;
+    diagnostics?: SupportDiagnostics;
   },
 ) =>
   invoke<{
     ticket: { id: string; ticket_number: number; status: string; created_at: string };
-    emailDelivery: "sent" | "not_configured" | "failed";
+    emailDelivery: "queued" | "sent" | "not_configured" | "failed";
   }>(
     "together-ops",
     { action: "create_support_ticket", ...input },
@@ -271,7 +282,7 @@ export const updateOperationsWorldStatus = (worldId: string, status: OperationsW
   });
 export const loadSupportTicket = (ticketId: string) =>
   invoke<
-    { ticket: Record<string, unknown>; events: Array<Record<string, unknown>>; replies:SupportReply[] }
+    { ticket: Record<string, unknown>; events: Array<Record<string, unknown>>; replies:SupportReply[]; recovery?: SupportRecoveryContext }
   >("together-ops", { action: "ticket_detail", ticketId });
 export const loadSafetyReports = (status?: SafetyReport["status"]) =>
   invoke<{ reports: SafetyReport[] }>("together-ops", {
@@ -397,6 +408,17 @@ export const recordOperationsRelease = (
   });
 
 export type SupportReply={id:string;sender:'customer'|'support';message:string;created_at:string};
+export type SupportRecoveryContext={
+  media:{id:string;media_type:string;status:string;provider:string|null;failure_code:string|null;created_at:string;updated_at:string;continuity_id:string|null}|null;
+  providerJobs:Array<{id:string;status:string;provider:string;model:string;submitted_at:string|null;provider_completed_at:string|null;finalized_at:string|null;failure_code:string|null}>;
+  recentAccountCredits:Array<{id:string;event_type:string;permanent_delta:number;subscription_delta:number;reference_type:string|null;reference_id:string|null;created_at:string}>;
+  emailDelivery:Array<{id:string;kind:string;status:string;attempts:number;error_code:string|null;created_at:string;sent_at:string|null}>;
+  conversation:{id:string;continuity_id:string|null;user_archived_at:string|null;restore_until:string|null}|null;
+  actions:Array<{id:string;action:string;reason:string;created_at:string}>;
+  diagnostics:SupportDiagnostics|null;
+  purchaseReference:string|null;
+};
+export const recoverSupportTicket=(input:{ticketId:string;requestId:string;recoveryAction:'restore_chat'|'refresh_delivery'|'poll_media'|'reconcile_membership';targetId:string;confirmTarget:string;reason:string})=>invoke<{status:string;message:string}>('together-ops',{action:'recover_ticket',...input});
 export type CustomerSupportDetail={ticket:{id:string;ticket_number:number;category:SupportCategory;subject:string;message:string;status:string;created_at:string;updated_at:string};replies:SupportReply[]};
 export const loadMySupportTicket=(ticketId:string)=>invoke<CustomerSupportDetail>('together-ops',{action:'my_ticket_detail',ticketId});
 export const replyToSupportTicket=(input:{ticketId:string;message:string;requestId:string},asSupport=false)=>invoke<{replyId:string}>('together-ops',{action:asSupport?'reply_to_customer':'reply_support_ticket',...input});

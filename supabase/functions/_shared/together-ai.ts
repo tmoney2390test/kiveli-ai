@@ -803,7 +803,7 @@ async function responsesBody(
     ?openAIFastServiceTier()
     :undefined;
   options.requestedServiceTier=serviceTier;
-  const prepared=pricedCompanionPrompt({context:{...context,chatGenerationControlsApplied:applied.promptDynamismApplied,chatGenerationMode:options.generationContext?.mode??'direct'},db:options.usageScope?.db,speakerId:options.usageScope?.characterInstanceId??undefined,provider,model:modelName,maxOutputTokens:applied.maxOutputTokens,payment:options.contextPayment});
+  const prepared=await pricedCompanionPrompt({context:{...context,chatGenerationControlsApplied:applied.promptDynamismApplied,chatGenerationMode:options.generationContext?.mode??'direct'},db:options.usageScope?.db,speakerId:options.usageScope?.characterInstanceId??undefined,provider,model:modelName,maxOutputTokens:applied.maxOutputTokens,serviceTier,payment:options.contextPayment});
   options.contextPayment=prepared.payment;
   return buildResponsesRequestBody({
     model: modelName,

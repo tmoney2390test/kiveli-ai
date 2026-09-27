@@ -1,3 +1,4 @@
+import {confirmScenarioEventTransition} from './scenarioEventTransition';
 import { rememberVideoCatalog } from './videoCatalog';
 import { batchReplyText, type ReplyDelta } from './replyStreaming';
 import type { DialogueContextQuote } from '@together/domain/src/chat-context';
@@ -10,7 +11,7 @@ import type { CompanionVoicePreset } from '@together/domain/src/voice-presets';
 import type { ChatLanguagePreference } from '@together/domain/src/chat-language';
 import type { AccountGender } from '@together/domain/src/account-onboarding';
 import type { AroundTownItem, WorldPulseEvent } from '@together/domain/src/world-pulse';
-import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterProfileDetails, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorStep, ExploreCatalogSnapshot, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoResolution, VideoRouteOption, VoiceCallSession } from '../types';
+import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterProfileDetails, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorIdentityConfig, CreatorLifeConfig, CreatorRoutineBlock, CreatorStep, ExploreCatalogSnapshot, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoResolution, VideoRouteOption, VoiceCallSession } from '../types';
 import type { RealtimeVoiceConfiguration } from './realtimeVoice';
 import { withIdempotentRetry } from './requestRetry';
 import { clearSessionForApiFailure } from './authSession';
@@ -19,9 +20,11 @@ import { ensureWebAdultSession } from './webAdultSession';
 import { normalizeVideoGenerationOptions, videoOptionsForPlatform } from './videoGeneration';
 import { drainJsonSseEvents } from './sse';
 import { scheduleForegroundTimeout } from './webPageLifecycle';
-import { ensureAiConsent, invalidateAiConsent, isAiFeatureRequest } from './aiConsent';
+import { ensureAiConsent, invalidateAiConsent, needsClientAiConsentCheck } from './aiConsent';
 import { installationIdentity } from './installationIdentity';
 import { runMediaRequest } from './mediaRequestTransport';
+
+export const manageScenario = <T=unknown>(input:Record<string,unknown>):Promise<T> => withIdempotentRetry(()=>invoke<T>('together-scenario',input));
 
 export class ApiError extends Error { constructor(message: string, readonly code = 'UNKNOWN', readonly retryable = false,readonly correlationId?:string) { super(message); if(code==='CONSENT_REQUIRED')invalidateAiConsent(); } }
 type Envelope<T> = { data: T; correlationId: string };
@@ -62,12 +65,16 @@ async function requireFeatureConsent():Promise<void>{
   if(!await ensureAiConsent(data.session.user.id))throw new ApiError('AI sharing is required for this feature. You can change your choice in Privacy settings.','CONSENT_REQUIRED');
 }
 export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POST' = 'POST',options:{signal?:AbortSignal}={}): Promise<T> {
-  if(isAiFeatureRequest(name,body))await requireFeatureConsent();
+  if(needsClientAiConsentCheck(name,body))await requireFeatureConsent();
   const started=Date.now(),surface=name.split('?')[0]!,operation=typeof body==='object'&&body&&'action'in body?String((body as Record<string,unknown>).action):method.toLowerCase();let response:Response|undefined;
   try{
     response = await fetch(`${supabaseUrl}/functions/v1/${name}`, { method, headers: { Authorization: `Bearer ${await token()}`, apikey: supabasePublishableKey, 'Content-Type': 'application/json','x-kivelle-timezone':deviceTimezone() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),...(options.signal?{signal:options.signal}:{}) });
     const payload = await response.json().catch(() => ({})) as Envelope<T> & { error?: {message?:string;code?:string;retryable?:boolean;correlationId?:string} };
     if (!response.ok) {
+      if(payload.error?.code==='SCENARIO_PAUSE_REQUIRED'&&body&&typeof body==='object'&&'action'in body&&((name==='together-plan'&&body.action==='join')||(name==='together-date'&&body.action==='start'))&&!('pauseScenario'in body&&body.pauseScenario===true)){
+        if(await confirmScenarioEventTransition())return invoke<T>(name,{...body,pauseScenario:true},method,options);
+        throw new ApiError('Your scenario is still running.','SCENARIO_CONTINUED');
+      }
       await clearSessionForApiFailure(supabase.auth,response.status,payload.error?.code);
       throw new ApiError(payload.error?.message ?? 'Something went wrong.', payload.error?.code, payload.error?.retryable ?? (response.status === 408 || response.status === 429 || response.status >= 500),payload.error?.correlationId??payload.correlationId);
     }
@@ -77,7 +84,7 @@ export async function invoke<T>(name: string, body?: unknown, method: 'GET'|'POS
   }
 }
 export async function quoteDialogueContext(input:Record<string,unknown>,signal?:AbortSignal):Promise<DialogueContextQuote>{await ensureWebAdultSession(await token()).catch(()=>undefined);return invoke<DialogueContextQuote>('together-dialogue-quote',input,'POST',{signal});}
-export async function rewriteDialogueMessage(group:boolean,input:{conversationId:string;characterInstanceId?:string;anchorMessageId:string;expectedRevision:number;messageAction:'spice'|'restore';clientRequestId:string;contextQuoteId?:string;contextPreference?:'included'}):Promise<{message:Message}>{
+export async function rewriteDialogueMessage(group:boolean,input:{conversationId:string;characterInstanceId?:string;anchorMessageId:string;expectedRevision:number;messageAction:'spice'|'restore';clientRequestId:string;contextQuoteId?:string;contextCostAuthorization?:string;contextPreference?:'included'}):Promise<{message:Message}>{
   await ensureWebAdultSession(await token()).catch(()=>undefined);
   return withIdempotentRetry(()=>invoke<{message:Message}>(group?'together-group-dialogue':'together-dialogue',input),{attempts:2,delayMs:600});
 }
@@ -214,8 +221,7 @@ export type GroupDialogueEvent=
   |{type:'turn_yielded';turnId:string;replyCount?:number;reactionCount?:number;replayed?:boolean}
   |{type:'turn_cancelled';turnId:string}
   |{type:'heartbeat'};
-export async function sendGroupDialogue(input:{contextQuoteId?:string;contextPreference?:'included';conversationId:string;message:string;attachmentIds?:string[];clientRequestId:string;mentionedCharacterInstanceIds?:string[];photoSubjectCharacterInstanceIds?:string[];replyToMessageId?:string;manualSpeakerInstanceId?:string;broadGroupRequest?:boolean;letThemTalk?:boolean},onEvent:(event:GroupDialogueEvent)=>void,signal?:AbortSignal):Promise<void>{
-  await requireFeatureConsent();
+export async function sendGroupDialogue(input:{contextQuoteId?:string;contextCostAuthorization?:string;contextPreference?:'included';conversationId:string;message:string;attachmentIds?:string[];clientRequestId:string;mentionedCharacterInstanceIds?:string[];photoSubjectCharacterInstanceIds?:string[];replyToMessageId?:string;manualSpeakerInstanceId?:string;broadGroupRequest?:boolean;letThemTalk?:boolean},onEvent:(event:GroupDialogueEvent)=>void,signal?:AbortSignal):Promise<void>{
   if(input.message.length>MESSAGE_CHARACTER_LIMIT)throw new ApiError(messageCharacterLimitError(),'VALIDATION_FAILED');
   const started=Date.now();let firstTextRecorded=false,firstActivityRecorded=false,statusCode:number|undefined;
   try{
@@ -262,8 +268,7 @@ export async function createTogetherAccount(email: string, password: string,date
   if (!response.ok) throw new ApiError(payload.error?.message ?? 'Your Kivelle account could not be created.', payload.error?.code, payload.error?.retryable);
 }
 
-export async function sendDialogue(input: {contextQuoteId?:string;contextPreference?:'included';conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;messageAction?:'continue';anchorMessageId?:string;messagePresentation?:OneTapSelfieMessagePresentation;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void, callbacks?: {onPrimary?:(message:Message,hasAdditional:boolean)=>void;onMessage?:(message:Message)=>void}): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
-  await requireFeatureConsent();
+export async function sendDialogue(input: {contextQuoteId?:string;contextCostAuthorization?:string;contextPreference?:'included';conversationId:string;characterInstanceId:string;message:string;attachmentIds?:string[];clientRequestId:string;focusPlanId?:string;sceneActionId?:string;messageAction?:'continue';anchorMessageId?:string;messagePresentation?:OneTapSelfieMessagePresentation;autoDialogueSuggestionId?:string;autoDialogueSuggestionSource?:AutoDialogueSuggestion['source'];autoDialogueSuggestionEdited?:boolean;autoDialogueSuggestionIntent?:AutoDialogueSuggestion['intent'];autoDialogueSuggestionPreference?:AutoDialoguePreference;entryContext?:{entryReason:'user_drop_in';locationId:string;scheduleEventId?:string}}, onToken: (token:string)=>void, callbacks?: {onPrimary?:(message:Message,hasAdditional:boolean)=>void;onMessage?:(message:Message)=>void}): Promise<{message:Message;additionalMessages?:Message[];generatedMedia?:GeneratedMedia;mediaOffer?:MediaOffer;photoRequestError?:{code:string;message:string;retryable:boolean};delta?:SnapshotDelta}> {
   if (input.message.length > MESSAGE_CHARACTER_LIMIT) throw new ApiError(messageCharacterLimitError(), 'VALIDATION_FAILED');
   const tokens=batchReplyText(onToken);
   let primary:Message|undefined;
@@ -311,7 +316,6 @@ export async function sendDialogue(input: {contextQuoteId?:string;contextPrefere
 }
 
 export async function suggestDialogue(input:{conversationId:string;characterInstanceId:string;anchorMessageId:string;clientRequestId:string;preference?:AutoDialoguePreference},signal?:AbortSignal):Promise<AutoDialogueSuggestion>{
-  await requireFeatureConsent();
   const response=await fetch(`${supabaseUrl}/functions/v1/together-dialogue-suggestion`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input),signal});
   const payload=await response.json().catch(()=>({})) as Envelope<AutoDialogueSuggestion>&{error?:{message?:string;code?:string;retryable?:boolean}};
   if(!response.ok){await clearSessionForApiFailure(supabase.auth,response.status,payload.error?.code);throw new ApiError(payload.error?.message??'A reply suggestion could not be generated.',payload.error?.code,payload.error?.retryable);}
@@ -319,7 +323,6 @@ export async function suggestDialogue(input:{conversationId:string;characterInst
 }
 
 export async function sendSceneReaction(input:{conversationId:string;characterInstanceId:string;sceneActionId:string;clientRequestId:string},onToken:(token:string)=>void,onRetry?:()=>void):Promise<{message:Message}>{
-  await requireFeatureConsent();
   return withIdempotentRetry(async()=>{
     const response=await fetch(`${supabaseUrl}/functions/v1/together-scene-reaction`,{method:'POST',headers:{Authorization:`Bearer ${await token()}`,apikey:supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify(input)});
     if(!response.ok){const error=await response.json().catch(()=>({})) as{error?:{message?:string;code?:string;retryable?:boolean}};await clearSessionForApiFailure(supabase.auth,response.status,error.error?.code);throw new ApiError(error.error?.message??'Your companion could not react to that right now.',error.error?.code,error.error?.retryable??(response.status===408||response.status===429||response.status>=500));}
@@ -333,3 +336,5 @@ export async function sendSceneReaction(input:{conversationId:string;characterIn
     if(!final)throw new ApiError('The reaction was interrupted. Try again.','STREAM_INTERRUPTED',true);return{message:final};
   },{attempts:2,delayMs:220,onRetry:()=>onRetry?.()});
 }
+
+export const previewCreatorRoutine = (input:{draftId:string;weekIndex:number;identity:CreatorIdentityConfig;life:CreatorLifeConfig}) => manageCreator<{blocks:CreatorRoutineBlock[];source:string;notice?:string}>({action:'preview_routine',...input});

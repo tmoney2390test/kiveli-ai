@@ -1,3 +1,4 @@
+import { scheduleRunsOnDate } from '@together/domain/src/schedule-rotation';
 import type { CharacterInstance, CharacterScheduleEvent, ScheduleItem, Snapshot } from '../types';
 import { getScheduleEventPresentation, getScheduleHint } from './lifePresentation';
 import { naturalizeCharacterActivity } from '@together/domain/src/character-language';
@@ -37,7 +38,7 @@ export function buildCharacterDaySchedule(input: {
   const localMinute = localMinuteOfDay(now, timezone);
   const dateKey = localDateKey(now, timezone);
   const recurring = snapshot.schedules
-    .filter((item) => item.character_version_id === characterVersionId && item.day_of_week === weekday)
+    .filter((item) => item.character_version_id === characterVersionId && scheduleRunsOnDate(item.metadata,dateKey) && item.day_of_week === weekday)
     .filter((item) => item.metadata?.profileVisibility !== 'hidden')
     .sort((left, right) => left.start_minute - right.start_minute);
   const authored = recurring.filter((item) => item.metadata?.scheduleMode === 'authored');

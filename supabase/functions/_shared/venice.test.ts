@@ -343,6 +343,14 @@ Deno.test('Venice prompt honors intentional face concealment without weakening a
   assert(prompt.includes('five distinct naturally arranged fingers'));
 });
 
+Deno.test('Venice standard prompt honors requested opaque swimwear over prior clothing', () => {
+  const request={...adultRequest(),contentLevel:'standard' as const,context:{...adultRequest().context,outfitDescription:'work overalls'},generationIntent:{requestText:'Wearing a bikini eating an apple',requestedContentLevel:'standard' as const}};
+  const prompt=buildVeniceImagePrompt(request);
+  assert(prompt.includes('requested ordinary opaque bikini or swimsuit'));
+  assert(!prompt.includes('Wardrobe: work overalls'));
+  assert(prompt.includes('Wearing a bikini eating an apple'));
+});
+
 Deno.test('Venice standard photo edits use the selected photo as the sole edit source',async()=>{
   const bodies:Array<Record<string,unknown>>=[],png=Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1]);
   const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(_url,init)=>{bodies.push(JSON.parse(String(init?.body)));return new Response(png,{status:200,headers:{'content-type':'image/png'}});});

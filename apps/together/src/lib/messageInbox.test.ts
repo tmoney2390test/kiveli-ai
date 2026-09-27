@@ -22,6 +22,7 @@ import {
   mergeInboxPages,
   isConversationPinned,
   mostRecentChatHref,
+  messagesInboxNavigationState,
   returnToMessagesInbox,
   shouldOpenMostRecentChat,
 } from "./messageInbox";
@@ -128,6 +129,11 @@ describe("message inbox presentation", () => {
     });
     expect(navigated).toEqual([MESSAGES_INBOX_HREF]);
     expect(order).toEqual(['reset:/home', 'scheduled', `navigate:${MESSAGES_INBOX_HREF}`]);
+  });
+
+  it('targets the inbox tab in one reset and ignores stale web launch params', () => {
+    expect(messagesInboxNavigationState()).toEqual({index:0,routes:[{name:'(tabs)',state:{index:0,routes:[{name:'chat-tab',params:{inbox:'1'}}]}}]});
+    expect(chatHrefFromInboxParams({messages:'1',character:'maya',conversationId:'stale'})).toBeNull();
   });
 
   it("shows active chats newest-first and excludes archived transcripts", () => {
@@ -446,10 +452,10 @@ describe("message inbox presentation", () => {
     const direct=conversation('maya-chat','maya-instance','2026-08-25T10:00:00.000Z','Hi');
     const group={...conversation('friends-chat','maya-instance','2026-08-25T11:00:00.000Z','Later'),kind:'group'};
     expect(mostRecentChatHref([direct,group],[maya])).toBe('/group-chat?id=friends-chat');
-    expect(mostRecentChatHref([direct],[maya])).toBe('/chat?character=maya');
+    expect(mostRecentChatHref([direct],[maya])).toBe(`/chat?character=maya&conversationId=${direct.id}`);
     expect(mostRecentChatHref([],[])).toBeNull();
     expect(['/home','/(tabs)/explore','/moments/'].every(shouldOpenMostRecentChat)).toBe(true);
-    expect(shouldOpenMostRecentChat('/profile')).toBe(false);
+    expect(shouldOpenMostRecentChat('/profile')).toBe(true);
   });
 
   it("gives a place planner a fresh session even when it reuses the current conversation", () => {

@@ -8,7 +8,7 @@ import { useTogether } from '../../store/useTogether';
 import { colors, radius } from '../../theme';
 import type { CharacterInstance, Conversation } from '../../types';
 
-export function SchedulePauseControl({character,conversation,disabled=false}:{character:CharacterInstance;conversation:Conversation;disabled?:boolean}) {
+export function SchedulePauseControl({character,conversation,disabled=false,compact=false}:{character:CharacterInstance;conversation:Conversation;disabled?:boolean;compact?:boolean}) {
   const stored=useTogether(state=>state.snapshot?.characters.find(item=>item.id===character.id));
   const pause=schedulePauseFrom((stored??character).schedule_pause);
   const [busy,setBusy]=useState(false);
@@ -29,14 +29,16 @@ export function SchedulePauseControl({character,conversation,disabled=false}:{ch
       finally{inFlight.current=false;setBusy(false);}
     }});
   };
-  return <Pressable accessibilityRole="button" accessibilityLabel={pause?'Resume companion schedule':'Pause companion schedule'} accessibilityState={{disabled:disabled||busy}} disabled={disabled||busy} onPress={toggle} style={({pressed})=>[styles.control,pressed&&styles.pressed,(disabled||busy)&&styles.disabled]}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={pause?'Resume companion schedule':'Pause companion schedule'} accessibilityState={{disabled:disabled||busy}} disabled={disabled||busy} onPress={toggle} style={({pressed})=>[styles.control,compact&&styles.menuControl,pressed&&styles.pressed,(disabled||busy)&&styles.disabled]}>
     <CalendarClock size={18} color={colors.violet}/>
-    <Text style={styles.label}>{pause?'Resume schedule':'Pause schedule'}</Text>
+    <Text style={[styles.label,compact&&styles.menuLabel]}>{pause?'Resume schedule':'Pause schedule'}</Text>
     {busy?<ActivityIndicator size="small" color={colors.text}/>:pause?<Play size={17} color={colors.textSecondary}/>:<Pause size={17} color={colors.textSecondary}/>}
   </Pressable>;
 }
 
 const styles=StyleSheet.create({
   control:{minHeight:48,flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:14,borderRadius:radius.md,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface},
+  menuControl:{minHeight:44,paddingHorizontal:9,borderWidth:0,backgroundColor:'transparent',borderRadius:radius.sm},
+  menuLabel:{fontSize:12},
   label:{flex:1,color:colors.text,fontSize:14,fontWeight:'700'},pressed:{opacity:.8},disabled:{opacity:.5},
 });

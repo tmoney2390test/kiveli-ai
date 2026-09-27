@@ -1,0 +1,1232 @@
+[
+  {
+    "index": 0,
+    "id": "story-eos-missing-seventeen-hours",
+    "title": "The Seventeen Missing Hours",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/eos-meridian/june-callahan.jpg",
+        "role": "character identity",
+        "sha256": "bcfda7eeea8e9546d38212ab0825f341e55678e5ec85e0f8d4493d4e09a34661"
+      },
+      {
+        "path": "apps/together/assets/locations/eos-meridian/pioneer-memorial.jpg",
+        "role": "location architecture",
+        "sha256": "ff6ce380393c1dc76c8aaebd0dfe483e85b54c770e17863cfaf1e63e2d1061e2"
+      }
+    ],
+    "prompt": "Generate a new cinematic photorealistic landscape scenario cover, 1536x1024, no text or graphic overlays. Image 1 is June Callahan's identity reference: preserve her face, freckles, reddish brown hair and adult age. Image 2 is Pioneer Memorial location reference: preserve its curved warm copper sci-fi museum architecture and lander exhibit. Depict the opening of The Seventeen Missing Hours: June standing beside an exhibit, comparing a maintenance record in her hand with a caption, thoughtful uncertainty, inviting the viewer to investigate. Medium-wide scene, natural hands, clear face, tactile textures, warm practical light, no excessive blur. Record text indistinct, no spoilers, no solution or supernatural phenomenon. Fully clothed. One coherent image, no panels. Save the generated asset.",
+    "asset": "apps/together/assets/scenarios/story-eos-missing-seventeen-hours.jpg"
+  },
+  {
+    "index": 1,
+    "id": "story-neon-kyo-rating-change",
+    "title": "The Rating Changed",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/neon-kyo/rin-akiyama.jpg",
+        "role": "character identity",
+        "sha256": "f721e121d46d878bb5c50ef7a62e3d2d254f3e55bcba7e5352394c7852eb4abc"
+      },
+      {
+        "path": "apps/together/assets/locations/neon-kyo/zeroday.jpg",
+        "role": "location architecture",
+        "sha256": "fa65f5b787fb85d3c1d8b85dfa8a21578b494dd6afe12d077373b3094702ba9a"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Rating Changed. World: neon-kyo. Opening moment: At ZeroDay, Rin shows you a Civic Rating change with no explanation attached. The timestamp offers a place to begin; the number alone proves nothing about who authorized it.\nReference image 1 is Rin Akiyama, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is ZeroDay: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-neon-kyo-rating-change.jpg"
+  },
+  {
+    "index": 2,
+    "id": "story-neon-kyo-offline-truth",
+    "title": "A Night Completely Offline",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/neon-kyo/mei-watanabe.jpg",
+        "role": "character identity",
+        "sha256": "0da158b9e2708a028d72254b6dc98468aac630cb2d168ecf4cc70cb1ab80f151"
+      },
+      {
+        "path": "apps/together/assets/locations/neon-kyo/laundry-nine.jpg",
+        "role": "location architecture",
+        "sha256": "02bad9e2ec6646b582cd4d9611fa9d7e22548e2717c70a9529ba2d059d1368e0"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: A Night Completely Offline. World: neon-kyo. Opening moment: At Laundry Nine, Mei proposes an evening without filters or a searchable record. Deciding what to leave off the network turns out to be more personal than switching a device off.\nReference image 1 is Mei Watanabe, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Laundry 9: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-neon-kyo-offline-truth.jpg"
+  },
+  {
+    "index": 3,
+    "id": "story-vespormoor-missing-corridors",
+    "title": "The Missing Corridors",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/lina-moreno.jpg",
+        "role": "character identity",
+        "sha256": "4db2853fdbacc74d7c26e84cf0ec914ccf0bc221a375154b61fac21d9ffd11b3"
+      },
+      {
+        "path": "apps/together/assets/locations/vespormoor/the-cloisters.jpg",
+        "role": "location architecture",
+        "sha256": "1a9175dce6fe0ef5806032494fcf941c4f50f3b54f1130ec4e3c62d4025992d7"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Missing Corridors. World: vespormoor. Opening moment: At the Cloisters, Lina lays a copied floor plan beside her own sketch. One corridor fits the building but appears on neither official drawing. She would like a second pair of eyes before she follows it.\nReference image 1 is Lina Moreno, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is The Cloisters: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-vespormoor-missing-corridors.jpg"
+  },
+  {
+    "index": 4,
+    "id": "story-vespormoor-observatory-signal",
+    "title": "The Observatory Signal",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/zuri-campbell.jpg",
+        "role": "character identity",
+        "sha256": "9f45438364be71188e9ebe83d7634294e245f4a641bf055092f4c46b738e42a9"
+      },
+      {
+        "path": "apps/together/assets/locations/vespormoor/observatory.jpg",
+        "role": "location architecture",
+        "sha256": "19696851d3935d3df20b944aaf561c123f9f06f9b57dd66f05469d9b5a8f294d"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Observatory Signal. World: vespormoor. Opening moment: At the Observatory, Zuri plays the same short recording twice. A faint pulse returns at an interval she cannot dismiss. The next observation could establish a pattern—or expose an error.\nReference image 1 is Zuri Campbell, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is The Observatory: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-vespormoor-observatory-signal.jpg"
+  },
+  {
+    "index": 5,
+    "id": "story-vespormoor-northern-silence",
+    "title": "The Northern Silence",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/rowan-hale.jpg",
+        "role": "character identity",
+        "sha256": "2845d63820a73accd15651432f0e5396092d085adf335168274fd5eda6b746da"
+      },
+      {
+        "path": "apps/together/assets/locations/vespormoor/morrow-vale-ranger-station.jpg",
+        "role": "location architecture",
+        "sha256": "1b09f3ecccf1a81a7ec3823aa20f8a4cd7c55e66708f65ef76e467b158759fdc"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Northern Silence. World: vespormoor. Opening moment: At the ranger station, Rowan points to a stretch of forest that has gone unusually quiet. He wants a careful patrol and a record of what is actually missing, before the town supplies its own explanation.\nReference image 1 is Rowan Hale, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Morrow Vale Ranger Station: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-vespormoor-northern-silence.jpg"
+  },
+  {
+    "index": 6,
+    "id": "story-vespormoor-old-portrait",
+    "title": "The Old Portrait",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/elodie-marchand.jpg",
+        "role": "character identity",
+        "sha256": "97588ab10f6a7ac1659443151ae572052bf06518c43dddcb3c940fe756a7fff0"
+      },
+      {
+        "path": "apps/together/assets/locations/vespormoor/grand-hall.jpg",
+        "role": "location architecture",
+        "sha256": "f8c7b7095669e8111f1ab4a722eca6bb6416c48c492687422e678580ad419cd1"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Old Portrait. World: vespormoor. Opening moment: In the Grand Hall, Elodie asks you to compare a portrait with a sketch from her last visit. One small detail seems different. She has not decided whether to trust her drawing, her memory, or neither.\nReference image 1 is Elodie Marchand, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is The Grand Hall: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-vespormoor-old-portrait.jpg"
+  },
+  {
+    "index": 7,
+    "id": "story-port-vervelle-small-table",
+    "title": "The Small Table",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/alessandro-moretti.jpg",
+        "role": "character identity",
+        "sha256": "8a83c187cded36e0d4b2dd3fdb6403a5fca8826cec173d7ee6a1abc9ac4e2781"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Small Table. World: port-vervelle. Opening moment: At Sotto Sale, Sandro has an investor proposal beside the evening menu. The money would ease real pressures; the conditions would change the room his regulars love. He wants to talk through one clause before service.\nReference image 1 is Alessandro “Sandro” Moretti, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. The scene is at Sotto Sale; focus on the character and story-relevant prop, with a discreet plausible background consistent with their world.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-port-vervelle-small-table.jpg"
+  },
+  {
+    "index": 8,
+    "id": "story-port-vervelle-no-scoreboard",
+    "title": "No Scoreboard",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/enzo-moretti.jpg",
+        "role": "character identity",
+        "sha256": "bb44f503245c705fdd03330b112a5e5c9a53157f896c688162ebc66f5ff0ee2a"
+      },
+      {
+        "path": "apps/together/assets/locations/port-vervelle/spiaggia-solana.jpg",
+        "role": "location architecture",
+        "sha256": "097dfcb121ca2877e1378d0322585aa31adc7337f64be282fd194a03345634fb"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: No Scoreboard. World: port-vervelle. Opening moment: On Spiaggia Solana, Enzo can turn almost anything into a competition—except the decision about what comes next. A study deadline has caught up with him. Today, winning may mean admitting what he has been avoiding.\nReference image 1 is Enzo Moretti, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Spiaggia Solana: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-port-vervelle-no-scoreboard.jpg"
+  },
+  {
+    "index": 9,
+    "id": "story-port-vervelle-off-the-clock",
+    "title": "Off the Clock",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/gabriel-laurent.jpg",
+        "role": "character identity",
+        "sha256": "f75c7e97073b7404d6eda24a56349977cb39c190dca0b768bffedc4b1f47ec35"
+      },
+      {
+        "path": "apps/together/assets/locations/port-vervelle/hotel-coralline.jpg",
+        "role": "location architecture",
+        "sha256": "21cc2b76c4ea8c84e6c4d1268f9c2114e07cbba0dc8dcfe512cad619830f4904"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: Off the Clock. World: port-vervelle. Opening moment: Gabriel has finally arranged an evening for himself when Hôtel Coralline calls with a problem. He is good at making everyone else comfortable. Finding a boundary he can keep is a different kind of work.\nReference image 1 is Gabriel Laurent, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Hôtel Coralline: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-port-vervelle-off-the-clock.jpg"
+  },
+  {
+    "index": 10,
+    "id": "story-port-vervelle-one-of-one",
+    "title": "One of One",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/nico-valenti.jpg",
+        "role": "character identity",
+        "sha256": "b0d9a2052acf902e426b985e7e4934e01723bee7271ebf87c6829a2d39af1d7a"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: One of One. World: port-vervelle. Opening moment: At Studio Ondine, Nico spreads out a production offer big enough to change his business. It would also change how his work is made. He asks which details you notice before he explains what the buyer wants removed.\nReference image 1 is Nico Valenti, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. The scene is at Studio Ondine; focus on the character and story-relevant prop, with a discreet plausible background consistent with their world.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-port-vervelle-one-of-one.jpg"
+  },
+  {
+    "index": 11,
+    "id": "story-port-vervelle-after-burnout",
+    "title": "After the Shift",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/luca-bianchi.jpg",
+        "role": "character identity",
+        "sha256": "62598bf0916afba0f524c79534619d0c3685e83212f6ab373ea063fee6852a43"
+      },
+      {
+        "path": "apps/together/assets/locations/port-vervelle/vervelle-general-clinic.jpg",
+        "role": "location architecture",
+        "sha256": "40584be2665bc43821a8b54928c4063d3bf40de288b158636d80cf79bf31d7c3"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: After the Shift. World: port-vervelle. Opening moment: At Vervelle General Clinic, Luca is considering a responsibility that resembles the work he once had to leave. He values being useful and the life he rebuilt. An ordinary conversation may help him name terms that protect both.\nReference image 1 is Dr. Luca Bianchi, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Vervelle General Clinic: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-port-vervelle-after-burnout.jpg"
+  },
+  {
+    "index": 12,
+    "id": "story-port-vervelle-free-sound",
+    "title": "The Free Sound",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/idris-benali.jpg",
+        "role": "character identity",
+        "sha256": "d1b47c1309581890e43558aa4035470db55d2e836e3f502d53551ea54f911bc8"
+      },
+      {
+        "path": "apps/together/assets/locations/port-vervelle/la-sirena.jpg",
+        "role": "location architecture",
+        "sha256": "bc8006d53aa5b1425fb987da73e98fabbd2b682ecb182cd3cab9b108773686e8"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Free Sound. World: port-vervelle. Opening moment: At La Sirena, Idris has received an offer to take his music further. It comes with a polished plan for how he should sound. Before he answers, he wants to play you the version that still feels like his.\nReference image 1 is Idris Benali, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is La Sirena: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-port-vervelle-free-sound.jpg"
+  },
+  {
+    "index": 13,
+    "id": "story-port-vervelle-old-stone-new-money",
+    "title": "Old Stone, New Money",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/marco-de-santis.jpg",
+        "role": "character identity",
+        "sha256": "ce284be665a7e12ebe0cd6331cbcfee74595c0d686170acfc79cd771e5fabeda"
+      },
+      {
+        "path": "apps/together/assets/locations/port-vervelle/vervelle-design-works.jpg",
+        "role": "location architecture",
+        "sha256": "cf4746c56182bce834a79a23de6e326d185479c759be2d5b51fb4bda321bb571"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: Old Stone, New Money. World: port-vervelle. Opening moment: At Vervelle Design Works, Marco sets a restoration drawing beside the developer’s figures. Both answer a real need, and neither tells the whole story of the building. He invites you to examine who gains space and who might lose it.\nReference image 1 is Marco De Santis, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Vervelle Design Works: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-port-vervelle-old-stone-new-money.jpg"
+  },
+  {
+    "index": 14,
+    "id": "story-port-vervelle-own-vintage",
+    "title": "His Own Vintage",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/lorenzo-bellaforte.jpg",
+        "role": "character identity",
+        "sha256": "cf1ebcad56466f68c8c4b0d513d825e10d8e1ffb6ea019592155904cb9bc9a45"
+      },
+      {
+        "path": "apps/together/assets/locations/port-vervelle/domaine-vervelle.jpg",
+        "role": "location architecture",
+        "sha256": "6d0eb5dc485106ec4838914fb37ee6bcbfaac99da6c41d4618b795e8f6f91e60"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: His Own Vintage. World: port-vervelle. Opening moment: At Domaine Vervelle, Lorenzo asks you to taste a wine before he shows you its label. An opportunity could establish his own work—or make it another footnote to the family name. He has a decision to make before the next release.\nReference image 1 is Lorenzo Bellaforte, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Domaine Vervelle: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-port-vervelle-own-vintage.jpg"
+  },
+  {
+    "index": 15,
+    "id": "story-port-vervelle-serious-reputation",
+    "title": "The Reputation",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/port-vervelle/theo-mancini.jpg",
+        "role": "character identity",
+        "sha256": "180fbe0961cb05ef9b91b65f57025a7bcdf3080107f22773cf714730811a1172"
+      },
+      {
+        "path": "apps/together/assets/locations/port-vervelle/bellavista-fitness-club.jpg",
+        "role": "location architecture",
+        "sha256": "328e8fdb534f12c82672c1b5a9d9c68c2b0ce89336c72a622ff1ae2b48385b1e"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Reputation. World: port-vervelle. Opening moment: At Bellavista Fitness Club, Theo learns why a promising client declined his studio. His old reputation has arrived before his work. He wants a response that demonstrates what changed without pretending his past belongs to someone else.\nReference image 1 is Theo Mancini, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Bellavista Fitness Club: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-port-vervelle-serious-reputation.jpg"
+  },
+  {
+    "index": 16,
+    "id": "story-juniper-summer-after",
+    "title": "The Summer After",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/brooke-sullivan.jpg",
+        "role": "character identity",
+        "sha256": "8b8b439119c03a5bb331be08717d6565776532a43110c0a38875f9b08aea2e89"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/riverwalk.jpg",
+        "role": "location architecture",
+        "sha256": "0076ca7ab229fc0ff406eb1605ad8f8d3824840cee8683abe07213aba77632f8"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Summer After. World: juniper-city. Opening moment: Brooke has two invitations and a graduation deadline open on her phone by the Riverwalk. The familiar summer routine is easy to say yes to. Choosing what comes after it has become harder to postpone.\nReference image 1 is Brooke Sullivan, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Riverwalk: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-summer-after.jpg"
+  },
+  {
+    "index": 17,
+    "id": "story-juniper-one-more-shift",
+    "title": "One More Shift",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/mateo-alvarez.jpg",
+        "role": "character identity",
+        "sha256": "b46becd6aeb5b04a97ff2d3b108870e212984ccee926ec2790d730c7c3b83be4"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/static-house.jpg",
+        "role": "location architecture",
+        "sha256": "e90f35d9e7a2fbe39236c1c8e26de780596224ede04429fd8d5c0808b740ee2d"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: One More Shift. World: juniper-city. Opening moment: At Static House, Mateo starts to cancel a personal plan because the station needs another shift covered. It is a familiar sentence. Tonight, he pauses before sending it and admits how often he has used it.\nReference image 1 is Mateo Alvarez, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Static House: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-one-more-shift.jpg"
+  },
+  {
+    "index": 18,
+    "id": "story-juniper-unclosed-file",
+    "title": "The Unclosed File",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/elena-markovic.jpg",
+        "role": "character identity",
+        "sha256": "6370a65c54d7fc0c5941a2ae934020cab9bdf632ddcf37cc78f7ea758dd7acd1"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/juniper-city-hall.jpg",
+        "role": "location architecture",
+        "sha256": "1fdc51411dccefe9c82047783ef4e7bebf9d6a42b98a1a0793cf9743d3a0102f"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Unclosed File. World: juniper-city. Opening moment: At City Hall, Elena compares an old case summary with a detail that does not quite fit. She knows how easily a suspicion can become a story people want to believe. Help her find the question that can responsibly be checked.\nReference image 1 is Elena Markovic, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Juniper City Hall: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-unclosed-file.jpg"
+  },
+  {
+    "index": 19,
+    "id": "story-juniper-first-big-piece",
+    "title": "The First Big Piece",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/jade-nguyen.jpg",
+        "role": "character identity",
+        "sha256": "32bcbc9757cc4f242d5d959b60d70061629ea612b4eab58dfe963ca46d91af44"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/needles-and-notes.jpg",
+        "role": "location architecture",
+        "sha256": "096f560d2405d74715ecd20f3ddab2fb864c2d468d87cef8dd65d5984f771834"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The First Big Piece. World: juniper-city. Opening moment: At Needles & Notes, Jade has been offered a piece that could put her work in front of a much larger audience. The brief includes a condition she cannot respect. There is still time to propose different terms.\nReference image 1 is Jade Nguyen, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Needles & Notes: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-first-big-piece.jpg"
+  },
+  {
+    "index": 20,
+    "id": "story-juniper-second-location",
+    "title": "Second Location",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/camila-reyes.jpg",
+        "role": "character identity",
+        "sha256": "7e77dc6e21a07e768b2edef38425a794649c4589a5b7766f6bc821dca671adb8"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/sora-table.jpg",
+        "role": "location architecture",
+        "sha256": "b57b50f538420ed685235977e93fc6104a4ef9ef742ac388f21ecef8260af6dc"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: Second Location. World: juniper-city. Opening moment: At Sora Table, Camila has an expansion proposal waiting while dinner service fills the room. The offer recognizes what she built and asks her to change it. She wants to see which promises would survive a real evening’s work.\nReference image 1 is Camila Reyes, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Sora Table: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-second-location.jpg"
+  },
+  {
+    "index": 21,
+    "id": "story-juniper-keep-the-room",
+    "title": "Keep the Room",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/luca-moretti.jpg",
+        "role": "character identity",
+        "sha256": "27c199d0b96b2d6ad205293538888c829ffdb0b83def9e26f8b6fa91b5ad4e17"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/static-house.jpg",
+        "role": "location architecture",
+        "sha256": "e90f35d9e7a2fbe39236c1c8e26de780596224ede04429fd8d5c0808b740ee2d"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: Keep the Room. World: juniper-city. Opening moment: At Static House, Luca has been offered the money to make the venue more reliable—and much more predictable. The next show will test what the room needs and what people would miss. He has not signed anything.\nReference image 1 is Luca Moretti, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Static House: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-keep-the-room.jpg"
+  },
+  {
+    "index": 22,
+    "id": "story-juniper-story-she-wont-air",
+    "title": "The Story She Won't Air",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/tessa-morgan.jpg",
+        "role": "character identity",
+        "sha256": "6ecb6ad5d7eaec6761558732e10faee7cae538967c282ac45ab53cb98daa058d"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/side-street-comedy.jpg",
+        "role": "location architecture",
+        "sha256": "f41e9a9097487c301d64578e69e6d588de9bc47781e8e7520d62314ddabd8841"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Story She Won't Air. World: juniper-city. Opening moment: After a set at Side Street Comedy, Tessa lets you hear a piece of audio she is reluctant to use. It makes a compelling story out of someone else’s private life. Her editor wants an answer before she has found a fair version.\nReference image 1 is Tessa Morgan, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Side Street Comedy: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-story-she-wont-air.jpg"
+  },
+  {
+    "index": 23,
+    "id": "story-juniper-last-train-north",
+    "title": "Last Train North",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/noah-williams.jpg",
+        "role": "character identity",
+        "sha256": "982ad793ed6aabf1672e126b138a86ca9fc8f0d4fe7997e84173dea72f58a890"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/juniper-central-station.jpg",
+        "role": "location architecture",
+        "sha256": "46096785d9a1b556f46d05e55d3d1f107dd45400700691aff003caca14f91b26"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: Last Train North. World: juniper-city. Opening moment: At Central Station, Noah has a promotion letter tucked beneath the delay notices. The role would take him away from the team he knows. A difficult shift may clarify what he wants without deciding it for him.\nReference image 1 is Noah Williams, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Juniper Central Station: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-last-train-north.jpg"
+  },
+  {
+    "index": 24,
+    "id": "story-juniper-choice-after-midnight",
+    "title": "The Choice After Midnight",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/daniel-kim.jpg",
+        "role": "character identity",
+        "sha256": "9f1ca3de6f7afae69478a24deac04b005de0147ba2c6d3f37483fd3950096daa"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Choice After Midnight. World: juniper-city. Opening moment: At Juniper General, Daniel is being asked to lead a new surgical program. The opportunity matters; so do the boundaries he learned to keep. He wants to examine the actual job before agreeing to become indispensable again.\nReference image 1 is Dr. Daniel Kim, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. The scene is at Juniper General Hospital; focus on the character and story-relevant prop, with a discreet plausible background consistent with their world.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-choice-after-midnight.jpg"
+  },
+  {
+    "index": 25,
+    "id": "story-juniper-riverside-vote",
+    "title": "The Riverside Vote",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/gabriel-ortiz.jpg",
+        "role": "character identity",
+        "sha256": "70f756468afa824d23cdeef2bc76ee492e2191d277a3ab63167189cff0232878"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/juniper-city-hall.jpg",
+        "role": "location architecture",
+        "sha256": "1fdc51411dccefe9c82047783ef4e7bebf9d6a42b98a1a0793cf9743d3a0102f"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Riverside Vote. World: juniper-city. Opening moment: At City Hall, Gabriel is preparing for a hearing on Riverside’s future. A neatly worded proposal has consequences that do not fit on its summary page. He asks you to help make one tradeoff visible before testimony begins.\nReference image 1 is Gabriel Ortiz, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Juniper City Hall: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-riverside-vote.jpg"
+  },
+  {
+    "index": 26,
+    "id": "story-juniper-high-water",
+    "title": "High Water",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/malcolm-reed.jpg",
+        "role": "character identity",
+        "sha256": "9a26bcdb348b63b9d6dd189289c9b3deb6282e56f01b4e76f63db35ba783c817"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/riverside-landing.jpg",
+        "role": "location architecture",
+        "sha256": "9736cf8f9553da9f8281fa112881c251c1b65a044c7f9a524009fa40ae97c9a6"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: High Water. World: juniper-city. Opening moment: At Riverside Landing, Mal notices that the river and the public forecast are telling different stories. He needs a practical safeguard, not a dramatic prediction. There is time to check the signs before the next group arrives.\nReference image 1 is Malcolm “Mal” Reed, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Riverside Landing: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-high-water.jpg"
+  },
+  {
+    "index": 27,
+    "id": "story-juniper-keep-it-small",
+    "title": "Keep It Small",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/javier-morales.jpg",
+        "role": "character identity",
+        "sha256": "cd01f6d83d1a9586552415fdca8859ec7e81d3adb4d3eea563f1a5b40edfdf1a"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/taqueria-lumen.jpg",
+        "role": "location architecture",
+        "sha256": "5eedb1c70dec350e4567e1a3c042acad43522f98b55794df25a0b75592837536"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: Keep It Small. World: juniper-city. Opening moment: At Taquería Lumen, Javier is reading an offer that could turn his counter into a recognizable brand. A crowded service shows him exactly where help would matter. The question is which kind of growth he actually wants.\nReference image 1 is Javier Morales, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Taquería Lumen: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-keep-it-small.jpg"
+  },
+  {
+    "index": 28,
+    "id": "story-juniper-anonymous-source",
+    "title": "The Anonymous Source",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/vincent-hale.jpg",
+        "role": "character identity",
+        "sha256": "179854803340b57c27caca2f2c9d49cf494b9ef233f72d2fb86caa8018feabab"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/paper-trail.jpg",
+        "role": "location architecture",
+        "sha256": "61c541badc4c276ab645672d337cdb37f33eb68cdac7ff1dc7ba0032e8181f43"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Anonymous Source. World: juniper-city. Opening moment: At Paper Trail, Vincent has received documents from someone who refuses to explain their interest in the story. The material deserves scrutiny. Publishing it too quickly could expose an innocent person along with the wrongdoing.\nReference image 1 is Vincent Hale, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Paper Trail: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-anonymous-source.jpg"
+  },
+  {
+    "index": 29,
+    "id": "story-juniper-signal-upgrade",
+    "title": "The Signal Upgrade",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/omar-haddad.jpg",
+        "role": "character identity",
+        "sha256": "48706b5d115f2adee7bea8616771e42dced2b4e7dd9f935f3d9f9dcd2090c61e"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/juniper-central-station.jpg",
+        "role": "location architecture",
+        "sha256": "46096785d9a1b556f46d05e55d3d1f107dd45400700691aff003caca14f91b26"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Signal Upgrade. World: juniper-city. Opening moment: At Central Station, Omar compares the approved accessibility design with the procurement list. A detail praised in the announcement has quietly disappeared. He wants to demonstrate who needs it before the order is finalized.\nReference image 1 is Omar Haddad, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Juniper Central Station: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-signal-upgrade.jpg"
+  },
+  {
+    "index": 30,
+    "id": "story-juniper-rivermark-offer",
+    "title": "The Rivermark Offer",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/caleb-bennett.jpg",
+        "role": "character identity",
+        "sha256": "2e71e2cd72cc260da966136126c343bddcd58b52e6f31b95907adde477c593cb"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/rivermark-hotel.jpg",
+        "role": "location architecture",
+        "sha256": "fea7e1b42cc924936390df3002530f1cb594d99b3ece160678200f048e41d416"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Rivermark Offer. World: juniper-city. Opening moment: At the Rivermark, Caleb is being recruited for a prestigious role elsewhere. Every conversation seems to begin with how much the hotel needs him. He would like one that starts with what he wants from his own life.\nReference image 1 is Caleb Bennett, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is The Rivermark: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-rivermark-offer.jpg"
+  },
+  {
+    "index": 31,
+    "id": "story-juniper-accessible-city",
+    "title": "The Accessible City",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/reese-morgan.jpg",
+        "role": "character identity",
+        "sha256": "43bfb0f2292a38d33e175d359c34b07869a0ec56ff2a6dfaef5955acc942fa11"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/juniper-city-hall.jpg",
+        "role": "location architecture",
+        "sha256": "1fdc51411dccefe9c82047783ef4e7bebf9d6a42b98a1a0793cf9743d3a0102f"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Accessible City. World: juniper-city. Opening moment: At City Hall, Reese has found accessibility moved into a later phase of a celebrated proposal. A public walk-through could make the exclusion clear. They want the people affected to have a voice, not become illustrations for someone else’s campaign.\nReference image 1 is Reese Morgan, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Juniper City Hall: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-accessible-city.jpg"
+  },
+  {
+    "index": 32,
+    "id": "story-juniper-night-platform",
+    "title": "Night Platform",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/jules-navarro.jpg",
+        "role": "character identity",
+        "sha256": "6afeddda0c50285504f820d9cc29f9fa5cf4182dca57254fe2238cd4c99e4104"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/juniper-central-station.jpg",
+        "role": "location architecture",
+        "sha256": "46096785d9a1b556f46d05e55d3d1f107dd45400700691aff003caca14f91b26"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: Night Platform. World: juniper-city. Opening moment: On the overnight platform, Jules points out a small anomaly that keeps recurring. Colleagues have learned to work around it. An upcoming maintenance window offers a chance to establish a cause instead.\nReference image 1 is Jules Navarro, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Juniper Central Station: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-night-platform.jpg"
+  },
+  {
+    "index": 33,
+    "id": "story-juniper-closed-door-briefing",
+    "title": "The Closed-Door Briefing",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/leila-rahman.jpg",
+        "role": "character identity",
+        "sha256": "d35893f1c1ebbf360af9f5e84f8ab1c2919d0b1a92f6ab9c0eb9b070b1b9b1e1"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/juniper-city-hall.jpg",
+        "role": "location architecture",
+        "sha256": "1fdc51411dccefe9c82047783ef4e7bebf9d6a42b98a1a0793cf9743d3a0102f"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Closed-Door Briefing. World: juniper-city. Opening moment: At City Hall, Leila has been invited to a briefing with a shortcut she would struggle to defend in public. She wants to understand the full cost before the room calls it consensus. There is still time to ask an inconvenient question.\nReference image 1 is Leila Rahman, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Juniper City Hall: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-closed-door-briefing.jpg"
+  },
+  {
+    "index": 34,
+    "id": "story-juniper-landing-season",
+    "title": "The Landing Season",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/naomi-chen.jpg",
+        "role": "character identity",
+        "sha256": "ea2985c3fd3ae44a34bc9275784d1c0d3f34fbdd624e57f060761245401420cc"
+      },
+      {
+        "path": "apps/together/assets/locations/juniper-city/riverside-landing.jpg",
+        "role": "location architecture",
+        "sha256": "9736cf8f9553da9f8281fa112881c251c1b65a044c7f9a524009fa40ae97c9a6"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Landing Season. World: juniper-city. Opening moment: At Riverside Landing, Naomi has a budget proposal large enough to change the season. Its conditions would also narrow who feels welcome. She wants to hear how the place is used before choosing what the money should buy.\nReference image 1 is Naomi Chen, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Riverside Landing: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-landing-season.jpg"
+  },
+  {
+    "index": 35,
+    "id": "story-juniper-unit-she-built",
+    "title": "The Unit She Built",
+    "focus": "character",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/juniper-city/talia-washington.jpg",
+        "role": "character identity",
+        "sha256": "d8b9f7178e9e06220720e0db3d9b33627e24077fd85fae3c5f02d5eb52786e85"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Unit She Built. World: juniper-city. Opening moment: At Juniper General, Talia is considering an executive role that would take her away from the emergency floor. Her team deserves a capable successor, and she deserves a future she chooses. Neither question has a ready answer.\nReference image 1 is Talia Washington, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. The scene is at Juniper General Hospital; focus on the character and story-relevant prop, with a discreet plausible background consistent with their world.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-juniper-unit-she-built.jpg"
+  },
+  {
+    "index": 36,
+    "id": "story-vespormoor-stone-that-remembers",
+    "title": "The Stone That Remembers",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/ren-takahashi.jpg",
+        "role": "character identity",
+        "sha256": "37f43b21febb2765e8d70060cac10a20d9593fc553a1176725da3c10708364b1"
+      },
+      {
+        "path": "apps/together/assets/locations/vespormoor/vesper-tower.jpg",
+        "role": "location architecture",
+        "sha256": "ec11c044570c39fd3a2f53ea8b6477c3138041fc140984eaa2b5c10f8eb53844"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Stone That Remembers. World: vespormoor. Opening moment: At Vesper Tower, Ren keeps returning to one stone and the impression of a staircase. No surviving plan agrees. A modest test could help separate what the stone suggests from what the building can prove.\nReference image 1 is Ren Takahashi, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Vesper Tower: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-vespormoor-stone-that-remembers.jpg"
+  },
+  {
+    "index": 37,
+    "id": "story-vespormoor-repeated-patient",
+    "title": "The Repeated Patient",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vespormoor/gideon-price.jpg",
+        "role": "character identity",
+        "sha256": "cb3754872ae6d0d4845a1c95a04d37d3608d24eca01820650b7ce7c265b4ff4f"
+      },
+      {
+        "path": "apps/together/assets/locations/vespormoor/anatomy-hall.jpg",
+        "role": "location architecture",
+        "sha256": "f685ed4ffcb34cafdd86a96cdc4b502ecb4510c9284947d5b2518916d528f556"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Repeated Patient. World: vespormoor. Opening moment: At Anatomy Hall, Gideon has found the same pulse and scar described in files bearing different names. He will discuss the pattern without exposing the patients. The first question is whether the records are independent at all.\nReference image 1 is Dr. Gideon Price, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Anatomy Hall: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-vespormoor-repeated-patient.jpg"
+  },
+  {
+    "index": 38,
+    "id": "story-northvale-silver-basin-line",
+    "title": "The Silver Basin Line",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/northvale/talia-valdez.jpg",
+        "role": "character identity",
+        "sha256": "cb08009499d4b2a5c227db8bda9a98a23599eaba08382104ec7a2c2ccd742bfd"
+      },
+      {
+        "path": "apps/together/assets/locations/northvale/avalanche-forecast-center.jpg",
+        "role": "location architecture",
+        "sha256": "162b492bbde88be4b17529f7e8804ae5db93f8d5e3cb321a4dbdc4a0b9cbd616"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Silver Basin Line. World: northvale. Opening moment: A proposed controlled-access line into Silver Basin forces real questions about water, rescue burden, employment, public access, wildlife, and Accord obligations.\nReference image 1 is Talia Valdez, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Avalanche Forecast Center: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-northvale-silver-basin-line.jpg"
+  },
+  {
+    "index": 39,
+    "id": "story-northvale-one-more-winter",
+    "title": "One More Winter",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/northvale/riley-hart.jpg",
+        "role": "character identity",
+        "sha256": "5a4de5ed928bdc155c5d4aec9de9ee6bbb5d9bf0186262ac1210ca1174595929"
+      },
+      {
+        "path": "apps/together/assets/locations/northvale/juniper-house.jpg",
+        "role": "location architecture",
+        "sha256": "a49a6c210263bdceb8ba69c4d9029309ed334568b611f24fbf60783a28f04062"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: One More Winter. World: northvale. Opening moment: The possible sale of Juniper House turns a worker residence, band rehearsal space, friendship network, and collection of temporary lives into a choice about permanence.\nReference image 1 is Riley Hart, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Juniper House: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-northvale-one-more-winter.jpg"
+  },
+  {
+    "index": 40,
+    "id": "story-northvale-last-reel",
+    "title": "The Last Reel",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/northvale/sofia-reyes.jpg",
+        "role": "character identity",
+        "sha256": "4ca045d93e21d5f82d1a3c70539b866c93c35697e234070fc61baa9705f7d359"
+      },
+      {
+        "path": "apps/together/assets/locations/northvale/rialto-mountain-cinema.jpg",
+        "role": "location architecture",
+        "sha256": "7f7c893099d6abf584ebd55ae89cecd1a8a6abae8e05e16984e4d8ec2bf060f6"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Last Reel. World: northvale. Opening moment: At Rialto Mountain Cinema, Sofia tests a damaged reel from the gondola opening. A few surviving frames show people missing from the familiar account. Restoring enough to identify their work would be a beginning, not the whole story.\nReference image 1 is Sofia Reyes, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Rialto Mountain Cinema: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-northvale-last-reel.jpg"
+  },
+  {
+    "index": 41,
+    "id": "story-northvale-second-descent",
+    "title": "Second Descent",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/northvale/mika-tanaka.jpg",
+        "role": "character identity",
+        "sha256": "e08a82f73c9acfaa55ad426e54c317ac822b80a967f7512ff593be2b72f30f74"
+      },
+      {
+        "path": "apps/together/assets/locations/northvale/halo-terrain-park.jpg",
+        "role": "location architecture",
+        "sha256": "7a258275b2e21d06afb17f827b0171a0d93e77e4018d30bd4bed859904a7e6c3"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: Second Descent. World: northvale. Opening moment: At Halo Terrain Park, Mika is discussing a return after injury. Other people already have a story about what her comeback should look like. She wants room to decide what success means before a date goes on the calendar.\nReference image 1 is Mika Tanaka, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Halo Terrain Park: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-northvale-second-descent.jpg"
+  },
+  {
+    "index": 42,
+    "id": "story-northvale-broken-cable",
+    "title": "The Broken Cable",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/northvale/mila-novak.jpg",
+        "role": "character identity",
+        "sha256": "19a3387954620c7efb419edb6868ac969442198a9f4e79447c4f7ff560ef0b4f"
+      },
+      {
+        "path": "apps/together/assets/locations/northvale/sunrise-gondola.jpg",
+        "role": "location architecture",
+        "sha256": "d18c697d1dd0beabb93df40b9f1d7b767a6fd8f1b5abcff5adb5c0898cad11dc"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Broken Cable. World: northvale. Opening moment: At Sunrise Gondola, Mila shows you a retired cable sample whose wear does not match the removal note. The inspection records deserve a careful reading. Understanding the discrepancy could matter more than finding someone to blame.\nReference image 1 is Mila Novak, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Sunrise Gondola: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-northvale-broken-cable.jpg"
+  },
+  {
+    "index": 43,
+    "id": "story-northvale-cabin-mile-nine",
+    "title": "The Cabin at Mile Nine",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/northvale/tessa-ward.jpg",
+        "role": "character identity",
+        "sha256": "08ed45aefc92e73796bef7c4e8f8b0341c23d5ab8ed95f2fcb1bce362b4bd3b2"
+      },
+      {
+        "path": "apps/together/assets/locations/northvale/vale-and-pine-books.jpg",
+        "role": "location architecture",
+        "sha256": "63a0575ad9a532e75dd3e6ac5ab21624334d953437ad1a2ad8775dad2ccb0d62"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Cabin at Mile Nine. World: northvale. Opening moment: At Vale & Pine Books, Tessa finds repeated directions on an old checkout card. They seem to lead toward Pine Lake, but the current guest maps offer no answer. She asks for help checking the route before anyone turns it into a legend.\nReference image 1 is Tessa Ward, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Vale & Pine Books: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-northvale-cabin-mile-nine.jpg"
+  },
+  {
+    "index": 44,
+    "id": "story-the-ashen-crown",
+    "title": "The Ashen Crown",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/asha-ren.png",
+        "role": "character identity",
+        "sha256": "bb1f4f4cdc2411fa2d7acc768d56baacd7f27e8bb7c93a82499d9b88b7543850"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/cinder-camp.jpg",
+        "role": "location architecture",
+        "sha256": "a6f67f3f0c40f79f2fc1618e5dbee7518001160d82ec2e446cffbfa1a17936b5"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Ashen Crown. World: vharadren. Opening moment: Asha has been asked to prove a claim she has good reason to distrust. A damaged seal and an unfamiliar witness offer a first lead. Who should be allowed to examine them?\nReference image 1 is Asha Renn, the Cinder Saint, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Cinder Camp: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-the-ashen-crown.jpg"
+  },
+  {
+    "index": 45,
+    "id": "story-feast-of-falling-embers",
+    "title": "The Feast of Falling Embers",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/queen-maerra-vaelorian.png",
+        "role": "character identity",
+        "sha256": "f120edc717ed43f13a2b2c9bfc7af46f996a288e1a97e1fb94fefa8fa9d9f2fe"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/ember-throne-hall.jpg",
+        "role": "location architecture",
+        "sha256": "23de2e7ed357a1dcec27529ada164a5c94007076d8ec5fb58d890c0e40358df3"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Feast of Falling Embers. World: vharadren. Opening moment: A surviving detail from the imperial feast does not match the official account. Maerra offers a guarded conversation about the guest list, and what it would cost to reopen it.\nReference image 1 is Queen Maerra Vaelorian, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is The Hall of the Ember Throne: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-feast-of-falling-embers.jpg"
+  },
+  {
+    "index": 46,
+    "id": "story-eos-ghost-passenger",
+    "title": "The Ghost Passenger",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/eos-meridian/owen-calder.jpg",
+        "role": "character identity",
+        "sha256": "1d53f15d11c043426ce74f056a0221928673dbc453bfa3b98766dab6253c0551"
+      },
+      {
+        "path": "apps/together/assets/locations/eos-meridian/ascension-terminal.jpg",
+        "role": "location architecture",
+        "sha256": "357bdaf6f5802267a9db8fab3363a185609634f1ad5b31b1265e4d6d2be281a4"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Ghost Passenger. World: eos-meridian. Opening moment: At the arrivals desk, Owen finds one check-in that a traveler cannot reconcile with their own journey. A quiet conversation may establish what happened without exposing someone who needs privacy.\nReference image 1 is Owen Calder, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Ascension Terminal: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-eos-ghost-passenger.jpg"
+  },
+  {
+    "index": 47,
+    "id": "story-deepnail-awakening",
+    "title": "The Dragon Beneath Deepnail",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/sera-blackvein.png",
+        "role": "character identity",
+        "sha256": "63d8e7c781825ccf0d0da373d958a321280e4aa063e3a4ffd275c6be4598a0f5"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/deepnail-mines.jpg",
+        "role": "location architecture",
+        "sha256": "134b8fc6ba07a3a8802b22a14d19287304551570ae2c34a400f3ffb82bf80560"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Dragon Beneath Deepnail. World: vharadren. Opening moment: Sera brings a sample from Deepnail that does not behave like ordinary ore. Before another shift descends, she needs someone to help establish what the mine is cutting into.\nReference image 1 is Sera Blackvein, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Deepnail Mines: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-deepnail-awakening.jpg"
+  },
+  {
+    "index": 48,
+    "id": "story-the-prison-fleet",
+    "title": "The Prison Fleet",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/delphine-lantern.png",
+        "role": "character identity",
+        "sha256": "c9219625c4fb3d79db13e862126e4ee79dcc5afe9a3841d5656611ee68126da9"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/lantern-rooms.jpg",
+        "role": "location architecture",
+        "sha256": "be10b9304c2f938b6defcf1bf01fc2dd8231bd4eb1deb919928a4b603d3b14b2"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Prison Fleet. World: vharadren. Opening moment: A transport departure has been brought forward. Delphine has a fragment of the route and people relying on her discretion. A wrong confidence could put them in danger.\nReference image 1 is Delphine Lantern, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is The Lantern Rooms: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-the-prison-fleet.jpg"
+  },
+  {
+    "index": 49,
+    "id": "story-roots-outlive-crowns",
+    "title": "Roots Outlive Crowns",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/duchess-aveline-edevane.png",
+        "role": "character identity",
+        "sha256": "66d1a713caf1b096c098f0c0a8f884d4843922551de28cd7881f1c7c28e1d560"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/hartwood-hall.jpg",
+        "role": "location architecture",
+        "sha256": "4eecf2afd28c9cad38a474441aad93df85fc05eda064a2791a14aa81c42c1bcb"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: Roots Outlive Crowns. World: vharadren. Opening moment: A courier’s message reaches Aveline as two incompatible defense plans gather support. Grain, forest paths and the people living between armies all have a place in the argument.\nReference image 1 is Duchess Aveline Edevane, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Hartwood Hall: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-roots-outlive-crowns.jpg"
+  },
+  {
+    "index": 50,
+    "id": "story-what-sinks-shall-rise",
+    "title": "What Sinks Shall Rise",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/duchess-mirelle-greymere.png",
+        "role": "character identity",
+        "sha256": "de0f7868a86add0b9236b1db8b595be3a8320b8f35b12934b342fbefec73454f"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/drowned-crown-palace.jpg",
+        "role": "location architecture",
+        "sha256": "c8291b2242b5660696e67506f82108ba682b284d85d1856c3035ff819b013c93"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: What Sinks Shall Rise. World: vharadren. Opening moment: Mirelle believes a lost charter may survive below the flooded palace. Before a descent can be proposed, someone must establish the tide, the risks and who would have a claim on the result.\nReference image 1 is Duchess Mirelle Greymere, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Drowned Crown Palace: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-what-sinks-shall-rise.jpg"
+  },
+  {
+    "index": 51,
+    "id": "story-velvet-law",
+    "title": "The Velvet Law",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/sabine-silk-veyl.png",
+        "role": "character identity",
+        "sha256": "8e01fb0075c3cb95eaecb481cc15f3fb43dd1ff0df756a757a5b0128930658d3"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/house-of-velvet-oaths.jpg",
+        "role": "location architecture",
+        "sha256": "fe6e79ca80a99bb8d3fa88c07612c6bcb035e5d7ae99383a4644c1b4cb473601"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Velvet Law. World: vharadren. Opening moment: Sabine invites you to hear a disagreement about turning house protections into enforceable law. Workers want safety without signing away the independence that made those protections possible.\nReference image 1 is Sabine “Silk” Veyl, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is House of Velvet Oaths: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-velvet-law.jpg"
+  },
+  {
+    "index": 52,
+    "id": "story-the-scarlet-marriage",
+    "title": "The Scarlet Marriage",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/vharadren/lord-halric-thornwall.png",
+        "role": "character identity",
+        "sha256": "cef1d5d81a7a1df7e4bbeb4c7acc94a32dcd0de4cb750361e90084eee2f8f99d"
+      },
+      {
+        "path": "apps/together/assets/locations/vharadren/wolfgate-barracks.jpg",
+        "role": "location architecture",
+        "sha256": "989f06b5adda5d9147edf78aa6bd106a9e72604a02babfd9fda5fe2c5a665db2"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Scarlet Marriage. World: vharadren. Opening moment: A draft agreement arrives with a clause that does not belong in an ordinary alliance. Halric wants a private reading before anyone asks the people whose futures it would bind.\nReference image 1 is Lord Halric Thornwall, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Wolfgate Barracks: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-the-scarlet-marriage.jpg"
+  },
+  {
+    "index": 53,
+    "id": "story-calders-the-borrowed-horse",
+    "title": "The Borrowed Horse",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/june-dempsey.jpg",
+        "role": "character identity",
+        "sha256": "271e3f7b60f54be3532069a278b7aab325edd0dc210e2712d11af2759d69ddae"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/dempsey-livery.jpg",
+        "role": "location architecture",
+        "sha256": "9bd53507d878f10ae143d4d9af79ba3ed4c3ec7f252a37372aa0965e71f5f00e"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Borrowed Horse. World: calders-run. Opening moment: At the livery rail, a tired traveler calls a boarded mare by a name June has never heard. The animal turns before anybody answers.\nReference image 1 is June Dempsey, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Dempsey Livery: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-calders-the-borrowed-horse.jpg"
+  },
+  {
+    "index": 54,
+    "id": "story-calders-water-after-dark",
+    "title": "Water After Dark",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/mateo-varela.jpg",
+        "role": "character identity",
+        "sha256": "c7de3ec0153b8a019f16e691e8cc5cac4d7e7c32014125b889d66f40d2a9f089"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/irrigation-meeting-house.jpg",
+        "role": "location architecture",
+        "sha256": "11f7a96e15363c6b921c51e69fbf1323a9d146862aadf1c9bf0f20871de9e3cf"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: Water After Dark. World: calders-run. Opening moment: At dawn, two growers find different stories in the same wet channel. One has saved a crop; another has lost the turn she was promised.\nReference image 1 is Mateo Varela, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Irrigation Meeting House: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-calders-water-after-dark.jpg"
+  },
+  {
+    "index": 55,
+    "id": "story-calders-a-room-kept-warm",
+    "title": "A Room Kept Warm",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/agnes-reed.jpg",
+        "role": "character identity",
+        "sha256": "994f1934d54d396455bcd090fd1a984610b4885a0190a03c164363e0016530b9"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/boatmens-boardinghouse.jpg",
+        "role": "location architecture",
+        "sha256": "72287701c49be6524863860ae1d9d91b86f0c4152fe90528fef847b9c86382cd"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: A Room Kept Warm. World: calders-run. Opening moment: Agnes sets one extra place at supper and asks the table to talk about anything except the envelope beside her plate.\nReference image 1 is Agnes Reed, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Boatmen’s Boardinghouse: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-calders-a-room-kept-warm.jpg"
+  },
+  {
+    "index": 56,
+    "id": "story-calders-a-door-of-her-own",
+    "title": "A Door of Her Own",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/hazel-whitcomb.jpg",
+        "role": "character identity",
+        "sha256": "0305c578f0b425b13f334162543a55e4f8459407c544dccb31203241e2ad3e6b"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/eastbank-provisioners.jpg",
+        "role": "location architecture",
+        "sha256": "c1a77b51ce4b3763aae658c48dbe3f73a6ed09334da021339d21902306075144"
+      },
+      {
+        "path": "apps/together/assets/characters/calders-run/adelaide-whitcomb.jpg",
+        "role": "supporting character: Adelaide Whitcomb, Hazel’s mother",
+        "sha256": "cbd1ee6e7a7bdb58fd4a9110f91bf26a7ffd3b580158924154c560ee8b0abec4"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: A Door of Her Own. World: calders-run. Opening moment: Hazel has chosen the paint for her sign before asking Adelaide to read the loan agreement that would put the building partly under her mother’s control.\nReference image 1 is Hazel Whitcomb, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Eastbank Provisioners: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable. Reference image 3 is Adelaide Whitcomb, Hazel’s mother; if visible, preserve this identity rather than inventing their appearance. Keep both named characters distinct.",
+    "asset": "apps/together/assets/scenarios/story-calders-a-door-of-her-own.jpg"
+  },
+  {
+    "index": 57,
+    "id": "story-calders-closing-time",
+    "title": "Closing Time",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/alma-baptiste.jpg",
+        "role": "character identity",
+        "sha256": "d44d03e9357e9e8e75fbe5bf2bd20c3be1b01feb6f579edda798f66b42a7048a"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/night-kitchen.jpg",
+        "role": "location architecture",
+        "sha256": "3009225e84698a65a646598b7775c3f1a2ccd4cd74eae220ba20b552ba81076e"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: Closing Time. World: calders-run. Opening moment: A closing-time meal begins as a celebration and turns when Alma discovers that the proposed partnership still calls her contribution wages.\nReference image 1 is Alma Baptiste, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Night Kitchen: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-calders-closing-time.jpg"
+  },
+  {
+    "index": 58,
+    "id": "story-calders-the-letter-to-leave",
+    "title": "The Letter to Leave",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/eliza-morrow.jpg",
+        "role": "character identity",
+        "sha256": "c0e3af682967a80e8a016c47799d1f81f04ea570a8b56a3208a7222ba98510e1"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/orchard-schoolhouse.jpg",
+        "role": "location architecture",
+        "sha256": "0200ef79658b585dd915c5c81364d852c40797bdbf806e87d55f990166825ee3"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Letter to Leave. World: calders-run. Opening moment: Eliza receives an education prospectus on the same afternoon someone calls the schoolhouse lucky to have a woman who will surely always remain.\nReference image 1 is Eliza Morrow, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Orchard Schoolhouse: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-calders-the-letter-to-leave.jpg"
+  },
+  {
+    "index": 59,
+    "id": "story-calders-after-the-crossing",
+    "title": "After the Crossing",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/samuel-pike.jpg",
+        "role": "character identity",
+        "sha256": "794b4beb28e3181fe905368a5527306853d311f8be3f3cd7f8c66d8d3025a873"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/pikes-ferry.jpg",
+        "role": "location architecture",
+        "sha256": "4f1d82b86d822f2b037082493f2a5f2749c8f339dfc5cee80a61ed890ee22bd6"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: After the Crossing. World: calders-run. Opening moment: Samuel finds a drawing for a passenger boat and recognizes an idea he has been keeping in his own desk for months.\nReference image 1 is Samuel Pike, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Pike’s Ferry: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-calders-after-the-crossing.jpg"
+  },
+  {
+    "index": 60,
+    "id": "story-calders-the-terms-of-mercy",
+    "title": "The Terms of Mercy",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/reverend-jonah-bell.jpg",
+        "role": "character identity",
+        "sha256": "5857e5986f76d96ae08d787b9c502fe2ada9be5ec2dc3b52676746cec1616fca"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/riverside-chapel.jpg",
+        "role": "location architecture",
+        "sha256": "ff59b294dca62632f1514e4da6d7208ea2b86d12796b68e691fa373234748c9c"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Terms of Mercy. World: calders-run. Opening moment: A donor offers the relief fund enough money to end an immediate shortage, provided the chapel agrees who deserves to receive it.\nReference image 1 is Reverend Jonah Bell, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is Riverside Chapel: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable.",
+    "asset": "apps/together/assets/scenarios/story-calders-the-terms-of-mercy.jpg"
+  },
+  {
+    "index": 61,
+    "id": "story-calders-the-red-sash-lease",
+    "title": "The Red Sash Lease",
+    "focus": "both",
+    "references": [
+      {
+        "path": "apps/together/assets/characters/calders-run/bess-kincaid.jpg",
+        "role": "character identity",
+        "sha256": "5eabdb7cfbd8eba1780702f5fffa43a792a0a06786762a413a3d28a4cd893343"
+      },
+      {
+        "path": "apps/together/assets/locations/calders-run/red-sash-brothel.jpg",
+        "role": "location architecture",
+        "sha256": "06e6b2340c872156c2b23b8591d650a2acb9a35b5752131d8c957121988ac0d0"
+      },
+      {
+        "path": "apps/together/assets/characters/calders-run/sabine-roche.jpg",
+        "role": "supporting character: Sabine Roche",
+        "sha256": "59e89d3a70432a56dbe5490575b38986bc95cb58107866c8661f34b83b58b612"
+      }
+    ],
+    "prompt": "Use case: photorealistic-natural. Asset: landscape scenario cover for Kivelli, 1536x1024. Create one coherent cinematic still, no panels, no captions, no logo or watermark. Scenario: The Red Sash Lease. World: calders-run. Opening moment: In the Red Sash parlor, Bess rehearses a chorus about buying the house while Sabine quietly turns over the page containing the repair estimate.\nReference image 1 is Bess Kincaid, an adult fictional character: faithfully preserve face, hair, skin tone, age and distinctive appearance. Reference image 2 is The Red Sash: preserve recognizable architecture, materials and world setting, but compose a fresh scene.\nDepict the opening question before any resolution. Show one clear action from this setup, not every detail at once. Candid expression, believable anatomy and hands. Medium-wide landscape composition, readable at thumbnail size, subject within the central 80% for card cropping. Crisp natural textures, enough light to see the scene, restrained cinematic contrast, no excessive blur. Fully clothed, non-explicit public catalogue art. Documents and screens have indistinct markings, no legible invented claims. No future plot revelations, no invented supernatural effects, no unrelated train bridges. Respect the era and architecture in the references. Supporting people only if the opening needs them, kept incidental; the lead remains recognizable. Reference image 3 is Sabine Roche; if visible, preserve this identity rather than inventing their appearance. Keep both named characters distinct.",
+    "asset": "apps/together/assets/scenarios/story-calders-the-red-sash-lease.jpg"
+  }
+]

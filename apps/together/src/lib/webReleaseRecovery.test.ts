@@ -46,3 +46,11 @@ describe('web release recovery', () => {
     expect([...values.values()][0]).toContain(environment.href);
   });
 });
+
+it('recovers when obtaining session storage itself is denied', () => {
+  resetWebReleaseRecoveryForTests();
+  const reload = vi.fn();
+  vi.stubGlobal('window', { location: { href: 'https://kivelli.app/chat', reload }, get sessionStorage() { throw Error('denied'); } });
+  try { expect(recoverStaleWebRelease('ChunkLoadError')).toBe(true); expect(reload).toHaveBeenCalledOnce(); }
+  finally { vi.unstubAllGlobals(); }
+});

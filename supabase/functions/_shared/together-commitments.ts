@@ -26,7 +26,7 @@ export function decorateCommitment(plan:Row,attendance:Row[],resolution:Row|null
   return{...plan,attendance:{user:userAttendance??null,character:characterAttendance??null},missResolution:resolution,temporalState};
 }
 
-export async function joinCommitment(db:SupabaseClient,input:{userId:string;continuityId:string;characterInstanceId:string;planId:string;requestId?:string;source?:'app'|'date'|'trip'|'recovery';now?:Date}):Promise<PlanExperience>{
+export async function joinCommitment(db:SupabaseClient,input:{userId:string;continuityId:string;characterInstanceId:string;planId:string;requestId?:string;source?:'app'|'date'|'trip'|'recovery'|'scenario_confirmed';now?:Date}):Promise<PlanExperience>{
   return beginPlanExperience({db,userId:input.userId,continuityId:input.continuityId,characterInstanceId:input.characterInstanceId,planId:input.planId,requestId:input.requestId??`join:${input.planId}`,source:input.source,now:input.now});
 }
 

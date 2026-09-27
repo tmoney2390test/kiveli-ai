@@ -25,8 +25,8 @@ export function GlobalErrorReporter(){const route=usePathname(),routeRef=useRef(
   if(Platform.OS==='web'){
     const onError=(event:ErrorEvent)=>{if(recoverStaleWebAssetEvent(event)||recoverStaleWebRelease(event.error??event.message)){event.preventDefault();return;}report(event.error??event.message,'unhandled_error');};
     const onRejection=(event:PromiseRejectionEvent)=>{if(recoverStaleWebRelease(event.reason)){event.preventDefault();return;}report(event.reason,'unhandled_rejection');};
-    window.addEventListener('error',onError);window.addEventListener('unhandledrejection',onRejection);
-    return()=>{window.removeEventListener('error',onError);window.removeEventListener('unhandledrejection',onRejection);};
+    window.addEventListener('error',onError,true);window.addEventListener('unhandledrejection',onRejection);
+    return()=>{window.removeEventListener('error',onError,true);window.removeEventListener('unhandledrejection',onRejection);};
   }
   const errorUtils=(globalThis as typeof globalThis&{ErrorUtils?:ErrorUtilsShape}).ErrorUtils,previous=errorUtils?.getGlobalHandler?.();
   if(!errorUtils?.setGlobalHandler)return;

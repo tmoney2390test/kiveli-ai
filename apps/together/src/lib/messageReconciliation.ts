@@ -32,7 +32,13 @@ export function reconcileMessages(
     }
     else result.push(message);
   }
-  return result.sort(compareMessages);
+  result.sort(compareMessages);
+  // Repeated focus/realtime reads should not remount unchanged rows or relayout the list.
+  for (let index = 0; index < result.length; index++) {
+    const previous = current[index], next = result[index];
+    if (previous && next && previous.id === next.id && JSON.stringify(previous) === JSON.stringify(next)) result[index] = previous;
+  }
+  return result.length === current.length && result.every((message, index) => message === current[index]) ? current : result;
 }
 
 export function sameLogicalMessage(left: Message, right: Message): boolean {

@@ -26,6 +26,11 @@ import {
   formatSupportTicketReference,
 } from "../src/lib/supportTicket";
 import { useSupportRequest } from "../src/lib/useSupportRequest";
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+import { useSupportDraft } from '../src/lib/supportDraft';
+import { SupportRecoveryLinks } from '../src/components/SupportRecoveryLinks';
+import { recoveryTopics, supportStatusLabel } from '../src/lib/supportRecovery';
 const categories: SupportCategory[] = [
   "bug",
   "billing",
@@ -38,11 +43,21 @@ type Ticket = Awaited<
   ReturnType<typeof loadMySupportTickets>
 >["tickets"][number];
 export default function Support() {
-  const params = useLocalSearchParams<{ ticket?: string }>();
-  const [category, setCategory] = useState<SupportCategory>("bug"),
-    [subject, setSubject] = useState(""),
-    [message, setMessage] = useState(""),
-    [reply, setReply] = useState("");
+  const params = useLocalSearchParams<{ ticket?: string; topic?: string }>();
+  const saved = useSupportDraft('new', { category: 'bug' as SupportCategory, subject: '', message: '', topic: '', mediaId: '', conversationId: '', purchaseReference: '', includeDiagnostics: true });
+  const { category, subject, message } = saved.draft;
+  const setCategory = (category: SupportCategory) => saved.update({category});
+  const setSubject = (subject: string) => saved.update({subject});
+  const setMessage = (message: string) => saved.update({message});
+
+  const [diagnostics] = useState(() => ({platform:Platform.OS,appVersion:Constants.expoConfig?.version ?? 'unknown',buildId:Platform.OS === 'ios' ? Constants.expoConfig?.ios?.buildNumber : Platform.OS === 'android' ? String(Constants.expoConfig?.android?.versionCode ?? 'unknown') : typeof document !== 'undefined' ? Array.from(document.scripts).map(script=>script.src.split('/').pop()).find(name=>name?.startsWith('__common-')) ?? 'web' : 'web'}));
+  const topicApplied = useRef(false);
+  useEffect(() => {
+    if (!saved.ready || topicApplied.current) return;
+    topicApplied.current = true;
+    const topic = recoveryTopics.find(topic => topic.id === params.topic);
+    if (topic && !saved.draft.subject && !saved.draft.message) saved.update({topic:topic.id,category:topic.category,subject:topic.title});
+  }, [saved.ready, params.topic]);
   const [tickets, setTickets] = useState<Ticket[]>([]),
     [detail, setDetail] = useState<CustomerSupportDetail | null>(null);
   const [selected, setSelected] = useState<string | null>(
@@ -52,6 +67,9 @@ export default function Support() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const replyDraft = useSupportDraft('reply:'+(selected??'none'), {message:''});
+  const reply = replyDraft.draft.message;
+  const setReply = (message:string) => replyDraft.update({message});
   const sequence = useRef(0), sendRequest = useSupportRequest();
   const load = useCallback(async (quiet = false) => {
     const version = ++sequence.current;
@@ -79,7 +97,6 @@ export default function Support() {
   }, [selected]);
   useEffect(() => {
     setDetail(null);
-    setReply("");
     setError("");
     void load();
     const interval = setInterval(() => {
@@ -98,7 +115,9 @@ export default function Support() {
     if (params.ticket) setSelected(params.ticket);
   }, [params.ticket]);
   const submit = async () => {
-    if (busy || !canSubmitSupportRequest(subject, message)) return;
+    if (busy || !saved.ready || !canSubmitSupportRequest(subject, message)) return;
+    if (saved.draft.mediaId.trim() && !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(saved.draft.mediaId.trim())) { setError('Use the Kivelli media request ID shown in the app, not a provider URL.'); return; }
+    if (saved.draft.conversationId.trim() && !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(saved.draft.conversationId.trim())) { setError('Use the conversation ID, or leave it blank if you do not have it.'); return; }
     setBusy(true);
     setError("");
     setNotice("");
@@ -107,9 +126,12 @@ export default function Support() {
         category,
         subject: subject.trim(),
         message: message.trim(),
+        mediaId: saved.draft.mediaId.trim() || undefined,
+        conversationId: saved.draft.conversationId.trim() || undefined,
+        purchaseReference: saved.draft.purchaseReference.trim() || undefined,
+        diagnostics: saved.draft.includeDiagnostics ? {...diagnostics,topic:saved.draft.topic || undefined} : undefined,
       }, createSupportTicket);
-      setSubject("");
-      setMessage("");
+      saved.clear();
       setSelected(result.ticket.id);
       setNotice(
         `${
@@ -127,7 +149,7 @@ export default function Support() {
     }
   };
   const sendReply = async () => {
-    if (!selected || busy || reply.trim().length < 2) return;
+    if (!selected || busy || !replyDraft.ready || reply.trim().length < 2) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -208,7 +230,7 @@ export default function Support() {
               <Text style={styles.meta}>
                 {formatSupportTicketReference(detail.ticket.ticket_number)} ·
                 {" "}
-                {detail.ticket.status.replace(/_/g, " ")}
+                {supportStatusLabel(detail.ticket.status)}
               </Text>
               <View style={styles.card}>
                 <Text style={styles.label}>Your request</Text>
@@ -247,7 +269,7 @@ export default function Support() {
                 accessibilityLabel="Support reply"
                 value={reply}
                 onChangeText={setReply}
-                editable={!busy}
+                editable={!busy && replyDraft.ready}
                 maxLength={5000}
                 multiline
                 textAlignVertical="top"
@@ -257,7 +279,7 @@ export default function Support() {
               />
               <GradientButton
                 label={busy ? "Sending…" : "Send reply"}
-                disabled={busy || reply.trim().length < 2}
+                disabled={busy || !replyDraft.ready || reply.trim().length < 2}
                 onPress={() => void sendReply()}
               />
               {["closed", "resolved"].includes(detail.ticket.status)
@@ -272,6 +294,8 @@ export default function Support() {
           : null
         : (
           <>
+            <SupportRecoveryLinks onTopic={topic => saved.update({topic:topic.id,category:topic.category,subject:subject || topic.title})}/>
+            <Text style={styles.sectionTitle}>Send a support request</Text>
             <Text style={styles.text}>
               Send a private request and follow replies here. We never attach
               your chat history.
@@ -299,7 +323,7 @@ export default function Support() {
               accessibilityLabel="Support request subject"
               value={subject}
               onChangeText={setSubject}
-              editable={!busy}
+              editable={!busy && saved.ready}
               maxLength={160}
               placeholder="Short summary"
               placeholderTextColor={colors.dimmed}
@@ -310,7 +334,7 @@ export default function Support() {
               accessibilityLabel="Support request message"
               value={message}
               onChangeText={setMessage}
-              editable={!busy}
+              editable={!busy && saved.ready}
               maxLength={5000}
               multiline
               textAlignVertical="top"
@@ -318,9 +342,17 @@ export default function Support() {
               placeholderTextColor={colors.dimmed}
               style={[styles.input, styles.message]}
             />
+            <Text style={styles.label}>Media request ID (optional)</Text>
+            <TextInput accessibilityLabel="Media request ID" value={saved.draft.mediaId} onChangeText={mediaId=>saved.update({mediaId})} editable={!busy && saved.ready} autoCapitalize="none" maxLength={36} placeholder="Kivelli request ID" placeholderTextColor={colors.dimmed} style={styles.input}/>
+            <Text style={styles.label}>Purchase reference (optional)</Text>
+            <TextInput accessibilityLabel="Purchase reference" value={saved.draft.purchaseReference} onChangeText={purchaseReference=>saved.update({purchaseReference})} editable={!busy && saved.ready} autoCapitalize="none" maxLength={120} placeholder="Store transaction reference — no payment details" placeholderTextColor={colors.dimmed} style={styles.input}/>
+            <Pressable accessibilityRole="checkbox" accessibilityState={{checked:saved.draft.includeDiagnostics}} onPress={()=>saved.update({includeDiagnostics:!saved.draft.includeDiagnostics})} style={styles.card}><Text style={styles.label}>{saved.draft.includeDiagnostics?'✓ ':''}Include app diagnostics</Text><Text style={styles.meta}>{diagnostics.platform} · App {diagnostics.appVersion} · Build {diagnostics.buildId}</Text><Text style={styles.meta}>Only these technical details and your selected issue type are attached. Your messages and memories are not included.</Text></Pressable>
+            <Text style={styles.label}>Conversation ID (optional)</Text>
+            <TextInput accessibilityLabel="Conversation ID" value={saved.draft.conversationId} onChangeText={conversationId=>saved.update({conversationId})} editable={!busy && saved.ready} autoCapitalize="none" maxLength={36} placeholder="Leave blank if unavailable" placeholderTextColor={colors.dimmed} style={styles.input}/>
+            <Text style={styles.meta}>{saved.persistenceError ? 'Device storage is unavailable. Keep this page open until you send your request.' : saved.ready ? 'Your draft is kept on this device for this account.' : 'Loading your draft…'}</Text>
             <GradientButton
               label={busy ? "Sending…" : "Send to support"}
-              disabled={busy || !canSubmitSupportRequest(subject, message)}
+              disabled={busy || !saved.ready || !canSubmitSupportRequest(subject, message)}
               onPress={() => void submit()}
             />
             <Text style={styles.sectionTitle}>Your recent requests</Text>
@@ -343,7 +375,7 @@ export default function Support() {
                 <Text style={styles.label}>{ticket.subject}</Text>
                 <Text style={styles.meta}>
                   {formatSupportTicketReference(ticket.ticket_number)} ·{" "}
-                  {ticket.status.replace(/_/g, " ")} ·{" "}
+                  {supportStatusLabel(ticket.status)} ·{" "}
                   {new Date(ticket.updated_at).toLocaleDateString()}
                 </Text>
               </Pressable>

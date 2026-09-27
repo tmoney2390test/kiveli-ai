@@ -1,5 +1,5 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
-import {AiConsentCheckError,ensureAiConsent,installAiConsentHandler,invalidateAiConsent,isAiFeatureRequest} from './aiConsent';
+import {AiConsentCheckError,ensureAiConsent,installAiConsentHandler,invalidateAiConsent,isAiFeatureRequest,needsClientAiConsentCheck} from './aiConsent';
 afterEach(()=>invalidateAiConsent());
 describe('AI sharing request boundary',()=>{
   it('does not repeat valid consent and does not carry it to another account',async()=>{
@@ -20,6 +20,14 @@ describe('AI sharing request boundary',()=>{
     expect(isAiFeatureRequest('together-account',{action:'delete'})).toBe(false);
     expect(isAiFeatureRequest('together-conversation',{action:'history'})).toBe(false);
     expect(isAiFeatureRequest('together-call',{action:'status'})).toBe(false);
+  });
+  it('lets server-gated message paths proceed without a second privacy lookup',()=>{
+    for(const name of ['together-dialogue','together-group-dialogue','together-story-dialogue','together-scene-reaction','together-dialogue-suggestion','together-dialogue-quote']){
+      expect(isAiFeatureRequest(name,{})).toBe(true);
+      expect(needsClientAiConsentCheck(name,{})).toBe(false);
+    }
+    expect(needsClientAiConsentCheck('together-media',{action:'request'})).toBe(true);
+    expect(needsClientAiConsentCheck('together-creator',{action:'quick_create'})).toBe(true);
   });
   it('rechecks consent invalidated during a background/resume transition',async()=>{
     const handler=vi.fn().mockImplementationOnce(()=>{invalidateAiConsent();return Promise.resolve(true);}).mockResolvedValue(true);

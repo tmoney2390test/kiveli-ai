@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { router, Tabs, usePathname } from 'expo-router';
+import { router, Tabs } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { Compass, Crown, Home, Images, MessageCircle } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppShell } from '../../src/shell/AppShellContext';
-import { MESSAGES_INBOX_HREF, mostRecentChatHref, shouldOpenMostRecentChat, WEB_MESSAGES_INBOX_HREF } from '../../src/lib/messageInbox';
+import { MESSAGES_INBOX_HREF, mostRecentChatHref, WEB_MESSAGES_INBOX_HREF } from '../../src/lib/messageInbox';
 import { useTogether } from '../../src/store/useTogether';
 import { colors } from '../../src/theme';
 import { markRouteIntent, scheduleCoreRouteWarmup, warmRoute } from '../../src/lib/routeWarmup';
@@ -18,10 +18,8 @@ export default function TabsLayout() {
   const insets=useSafeAreaInsets();
   const { desktop } = useAppShell();
   const desktopViewport=isDesktopShellViewport(Platform.OS,width);
-  const pathname=usePathname();
   const snapshot=useTogether((state)=>state.snapshot);
   const webBarWidth = Math.max(300, Math.min(720, width - 24));
-  const openLatestFromCurrentPage=shouldOpenMostRecentChat(pathname);
   const latestChatHref=snapshot?mostRecentChatHref(snapshot.conversations,snapshot.characters):null;
   const messagesInboxHref=web?WEB_MESSAGES_INBOX_HREF:MESSAGES_INBOX_HREF;
   const[webInputFocused,setWebInputFocused]=useState(false);
@@ -74,7 +72,7 @@ export default function TabsLayout() {
     <Tabs.Screen
       name="chat-tab"
       options={{ title: 'Chat', tabBarIcon: ({ color, size, focused }) => <MessageCircle color={color} size={focused ? size + 2 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }}
-      listeners={{tabPress:(event)=>{const href=latestChatHref??messagesInboxHref;prepare(href);if(!openLatestFromCurrentPage)return;event.preventDefault();router.push(href as never);}}}
+      listeners={{tabPress:(event)=>{const href=latestChatHref??messagesInboxHref;prepare(href);event.preventDefault();router.push(href as never);}}}
     />
     <Tabs.Screen name="moments" options={{ title: 'Moments', tabBarIcon: ({ color, size, focused }) => <Images color={color} size={focused ? size + 1 : size} /> }} listeners={{tabPress:()=>prepare('/moments')}} />
     <Tabs.Screen name="upgrade" options={{ title: 'Upgrade', tabBarIcon: ({ color, size, focused }) => <Crown color={focused?'#E8B3FF':color} size={focused ? size + 2 : size} fill={focused?'rgba(221,162,255,.16)':'transparent'} /> }} listeners={{tabPress:(event)=>{event.preventDefault();prepare('/subscription');router.push('/subscription' as never);}}} />

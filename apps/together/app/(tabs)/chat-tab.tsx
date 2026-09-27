@@ -1,3 +1,4 @@
+import { createRealtimeChannel } from '../../src/lib/realtimeChannel';
 import { styles } from '../../src/styles/inboxStyles';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -198,7 +199,7 @@ export default function MessageInbox() {
         void fetchInbox("silent");
       }, 160);
     };
-    const channel = supabase.channel(`kivelle-inbox-${continuityId}`)
+    const channel = createRealtimeChannel(supabase, `kivelle-inbox-${continuityId}`)
       .on("postgres_changes", {
         event: "*",
         schema: "public",

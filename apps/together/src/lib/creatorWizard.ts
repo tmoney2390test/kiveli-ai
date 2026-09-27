@@ -61,7 +61,11 @@ export function creatorSectionIssues(input: {
     if (input.life.scheduleStyle.trim().length > 200) issues.push('Keep their schedule style to 200 characters.');
     if (input.life.preferredActivities.length > 10 || input.life.preferredActivities.some((item) => item.length > 80)) issues.push('Use up to 10 preferred activities, each 80 characters or fewer.');
     if (input.routine.length < 1) issues.push('Add at least one schedule block.');
-    if (input.routine.length > 28) issues.push('Keep the weekly rhythm to 28 schedule blocks.');
+    for (let week = 0; week <= Math.min(2, Math.max(0, ...input.routine.map((block) => block.weekIndex ?? 0))); week += 1) {
+      const count = input.routine.filter((block) => (block.weekIndex ?? 0) === week).length;
+      if (count < 1 || count > 28) issues.push('Each rotating week needs 1–28 schedule blocks.');
+    }
+    if (input.routine.length > 84) issues.push('Use up to three rotating weeks.');
     for (const block of input.routine) {
       if (!block.locationId || block.activity.trim().length < 2 || block.activity.trim().length > 160 || block.endMinute <= block.startMinute) {
         issues.push('Every schedule block needs a place, activity, and valid time range.');

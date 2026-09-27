@@ -94,7 +94,7 @@ export async function messageRewriteRoute(db:SupabaseClient,userId:string,prepar
   const providers=configuredDialogueProviders();
   const manual={...route,provider:'xai' as const,reason:'manual_spice' as const,explicit:true,resolvedMode:'explicit' as const,carryoverTurnsRemaining:0};
   const selected=await applyChatTestRoute(db,userId,prepared.conversation,manual);
-  if(!dialogueProviderCapabilities[selected.provider].explicitSexualText||!selected.explicit||selected.provider==='xai'&&(!providers.xai||!providers.xaiEnabled||!providers.xaiExplicitEnabled))throw new AppError('PROVIDER_UNAVAILABLE','Spice is temporarily unavailable. Your original reply has not changed.',503,true);
+  if(!dialogueProviderCapabilities[selected.provider].explicitSexualText||!selected.explicit||(selected.provider==='xai'||selected.adultModel)&&(!providers.xai||!providers.xaiEnabled||!providers.xaiExplicitEnabled))throw new AppError('PROVIDER_UNAVAILABLE','Spice is temporarily unavailable. Your original reply has not changed.',503,true);
   return {...selected,reason:'manual_spice',carryoverTurnsRemaining:0};
 }
 

@@ -52,3 +52,15 @@ describe('conversation message warmup', () => {
     expect(readConversationMessagePage('user-1','conversation-20')?.messages[0]?.id).toBe('20');
   });
 });
+
+
+it('keeps loaded history and a new reply when a smaller, older refresh returns', async () => {
+  resetConversationMessageWarmupForTests();
+  writeConversationMessagePage('user-1','conversation-1',{messages:[message('1'),message('2')],hasMore:true},0);
+  let finish!: (page: {messages:Message[];hasMore:boolean}) => void;
+  const loading=loadConversationMessagePage('user-1','conversation-1',()=>new Promise(resolve=>{finish=resolve;}),{maxAgeMs:-1});
+  writeConversationMessagePage('user-1','conversation-1',{messages:[message('1'),message('2'),message('3')],hasMore:true});
+  finish({messages:[message('2')],hasMore:true});
+  expect((await loading).messages.map(row=>row.id)).toEqual(['1','2','3']);
+  resetConversationMessageWarmupForTests();
+});

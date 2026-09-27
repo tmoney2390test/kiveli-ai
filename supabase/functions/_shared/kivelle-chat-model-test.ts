@@ -1,5 +1,6 @@
 import { CHAT_MODEL_TEST_VERSION, normalizeChatTestSelection, chatTestModel, chatTestSelections, type ChatTestCapability, type ChatDialogueExperiment } from '../../../packages/together-domain/src/chat-model-test.ts';
 import type { DialogueRoutingDecision } from '../../../packages/together-domain/src/ai-routing.ts';
+import { useDeepSeekAdultModel } from './kivelle-ai-routing.ts';
 import { AppError } from './types.ts';
 
 // Verified auth.users identity. Never authorize an email or ID supplied in a request body.
@@ -35,9 +36,9 @@ export async function resolveChatTestExperiment(db: any, userId: string, convers
   return capability.available && capability.selections.includes(selection) ? { selection, provider: model.provider, model: model.id, version: capability.version } : null;
 }
 export async function applyChatTestRoute(db: any, userId: string, conversation: Row, route: DialogueRoutingDecision, frozenExperiment?: ChatDialogueExperiment | null): Promise<DialogueRoutingDecision> {
-  if (userId !== TEST_USER_ID || route.provider !== 'xai' || !route.explicit || route.hardBlocked || conversation.user_id !== userId) return route;
+  if (userId !== TEST_USER_ID || (route.provider !== 'xai' && !route.adultModel) || !route.explicit || route.hardBlocked || conversation.user_id !== userId) return useDeepSeekAdultModel(route);
   const experiment = frozenExperiment === undefined ? await resolveChatTestExperiment(db, userId, conversation) : frozenExperiment;
-  return experiment ? { ...route, provider: experiment.provider, experiment } : route;
+  return experiment ? { ...route, adultModel: undefined, provider: experiment.provider, experiment } : useDeepSeekAdultModel(route);
 }
 /** Recheck configuration and ownership immediately before an outbound experiment request. */
 export async function assertChatTestRequest(db: any, userId: string | undefined, conversationId: string | null | undefined, experiment: ChatDialogueExperiment | undefined): Promise<void> {

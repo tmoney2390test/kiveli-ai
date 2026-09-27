@@ -2,7 +2,7 @@ import { normalizeChatTestSelection, type ChatTestSelection } from '@together/do
 import { resolveCompanionQuietHours } from '@together/domain/src/proactive-preferences';
 import { ProactiveSettings, initialProactiveDraft, proactivePatch } from './settings/ProactiveSettings';
 import { normalizeContextPreference, type ContextPreference } from '@together/domain/src/chat-context';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef} from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AlignLeft, Check, ChevronDown, ChevronRight, Languages, MessageCircle, Palette, Pause, Play, Type, Volume2, X } from 'lucide-react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
@@ -27,7 +27,6 @@ import { defaultDirectConversationTitle } from '../lib/conversation';
 import { type ChatBubbleColor } from '@together/domain/src/chat-appearance';
 import { ChatBubbleColorSettings } from './settings/ChatBubbleColorSettings';
 import { ChatSettingsTabs, type ChatSettingsTab } from './settings/ChatSettingsTabs';
-import { SchedulePauseControl } from './settings/SchedulePauseControl';
 
 type Props = {
   visible: boolean;
@@ -60,6 +59,8 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
   const [voiceMenuOpen, setVoiceMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<ChatSettingsTab>('chat');
+  const previewEpoch = useRef(0);
+  useEffect(() => { previewEpoch.current++; setVoicePreviewBusy(false); return () => { previewEpoch.current++; }; }, [visible, conversation?.id, voicePreset, chatLanguage]);
   const voicePlayer = useAudioPlayer(null, { updateInterval: 200 });
   const voicePlayerStatus = useAudioPlayerStatus(voicePlayer);
   const voiceEntitled = snapshot?.experienceCapabilities?.voiceNotes === true || snapshot?.entitlements?.entitlement_keys?.includes('voice_notes') === true;
@@ -133,17 +134,19 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
       return;
     }
     setVoicePreviewBusy(true);
+    const epoch = previewEpoch.current;
     try {
       const result = await previewCompanionVoice({ conversationId: conversation.id, voicePreset, chatLanguage, requestId: createClientRequestId() });
+      if (epoch !== previewEpoch.current) return;
       const preview = { ...result.preview, selection: voicePreset, language: chatLanguage };
       rememberVoicePreview(conversation.id, preview);
       setVoicePreview(preview);
       voicePlayer.replace(result.preview.signedUrl);
       voicePlayer.play();
     } catch (error) {
-      Alert.alert('Voice preview unavailable', error instanceof Error ? error.message : 'Please try again.');
+      if (epoch === previewEpoch.current) Alert.alert('Voice preview unavailable', error instanceof Error ? error.message : 'Please try again.');
     } finally {
-      setVoicePreviewBusy(false);
+      if (epoch === previewEpoch.current) setVoicePreviewBusy(false);
     }
   };
 
@@ -192,7 +195,6 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
           <SettingSection icon={<MessageCircle size={16} color={colors.violet} />} label="Your persona">
             <Pressable accessibilityRole="button" accessibilityLabel="Switch persona or edit your identity" disabled={saving} onPress={()=>void save(()=>{const slug=character?.together_character_templates.slug;router.push((slug?'/personas?character='+encodeURIComponent(slug):'/personas') as never);})} style={styles.input}>
               <Text style={{color:colors.text}}>{snapshot?.activePersona?.display_name ?? 'Your persona'} · Change</Text>
-              <Text style={{color:colors.muted,fontSize:12,marginTop:4}}>Each Life keeps its own chat history.</Text>
             </Pressable>
           </SettingSection>
           <SettingSection icon={<MessageCircle size={16} color={colors.violet} />} label="Chat name" optional>
@@ -230,7 +232,6 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
           </SettingSection>
 
           <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible}/>
-          {character&&conversation?<SchedulePauseControl character={character} conversation={conversation} disabled={saving}/>:null}
 
           <SettingSection icon={<Volume2 size={16} color={colors.violet} />} label="Companion voice">
             {voiceEntitled ? <>
@@ -283,7 +284,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
           </SettingSection>
           </> : null}
 
-          {activeTab === 'proactive' ? <ProactiveSettings accountFrequency={snapshot?.notificationPreferences?.initiative_level??(snapshot?.notificationPreferences?.character_initiated_messages===false?'off':'natural')} accountQuiet={resolveCompanionQuietHours(snapshot?.notificationPreferences,'','')} defaultQuiet={resolveCompanionQuietHours(snapshot?.notificationPreferences,'',character?.continuity_id??'')} value={proactive} onChange={setProactive} entitled={proactiveEntitled} disabled={saving} name={name} scenarioActive={Boolean(character?.scenario_state)} onUpgrade={()=>{onClose();const href=subscriptionHref({intent:'initiative'});if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);}}/> : null}
+          {activeTab === 'proactive' ? <ProactiveSettings accountFrequency={snapshot?.notificationPreferences?.initiative_level??(snapshot?.notificationPreferences?.character_initiated_messages===true?'natural':'off')} accountQuiet={resolveCompanionQuietHours(snapshot?.notificationPreferences,'','')} defaultQuiet={resolveCompanionQuietHours(snapshot?.notificationPreferences,'',character?.continuity_id??'')} value={proactive} onChange={setProactive} entitled={proactiveEntitled} disabled={saving} name={name} scenarioActive={Boolean(character?.scenario_state)} onUpgrade={()=>{onClose();const href=subscriptionHref({intent:'initiative'});if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);}}/> : null}
           {activeTab === 'ai' ? <ChatGenerationSettings veniceTest={snapshot?.veniceTest} veniceTestModel={veniceTestModel} onVeniceTestModelChange={setVeniceTestModel} mode="direct" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} contextPreference={contextPreference} onContextPreferenceChange={setContextPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/> : null}
         </ScrollView>
 

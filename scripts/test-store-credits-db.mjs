@@ -10,20 +10,26 @@ try{
   const old=readFileSync(new URL('../supabase/migrations/202608150004_kivelle_intelligence_subscriptions.sql',import.meta.url),'utf8');
   await db.exec(old.slice(old.indexOf('create or replace function public.kivelle_grant_permanent_credits'),old.indexOf('create or replace function public.kivelle_grant_subscription_credits')));
   await db.exec(readFileSync(new URL('../supabase/migrations/20260914191828_native_consumable_credits.sql',import.meta.url),'utf8'));
+  await db.exec(readFileSync(new URL('../supabase/migrations/20260915131624_credit_pack_value_upgrade.sql',import.meta.url),'utf8'));
   const owner=crypto.randomUUID(),other=crypto.randomUUID();
   await db.query('insert into auth.users values ($1),($2)',[owner,other]);
   const apply=(id,refund=false,user=owner)=>db.query("select kivelle_apply_store_credit_purchase($1,'APP_STORE','SANDBOX',$2,'app.kivelli.credits.100',100,$3)",[user,id,refund]);
   const balance=async()=>Number((await db.query('select permanent_balance from together_credit_accounts where user_id=$1',[owner])).rows[0]?.permanent_balance??0);
   await Promise.all([apply('one'),apply('one')]);assert.equal(await balance(),100);
   await assert.rejects(()=>apply('one',false,other),/ownership/);
+  await db.query("select kivelle_apply_store_credit_purchase($1,'APP_STORE','SANDBOX','one','app.kivelli.credits.100',250,false)",[owner]);assert.equal(await balance(),100);
+  await db.query("select kivelle_apply_store_credit_purchase($1,'APP_STORE','SANDBOX','one','app.kivelli.credits.100',250,true)",[owner]);assert.equal(await balance(),0);
   await apply('one',true);await apply('one',true);await apply('one');assert.equal(await balance(),0);
   await apply('early-refund',true);await apply('early-refund');assert.equal(await balance(),0);
   await apply('spent');await db.query('update together_credit_accounts set permanent_balance=25 where user_id=$1',[owner]);
   await apply('spent',true);assert.equal(await balance(),0);
   assert.equal((await db.query("select unrecovered_credits from together_store_credit_purchases where transaction_id='spent'")).rows[0].unrecovered_credits,75);
+  for(const amount of [250,700,1750,4500]){await db.query("select kivelle_apply_store_credit_purchase($1,'APP_STORE','SANDBOX',$2,'app.kivelli.credits.100',$3,false)",[owner,'new-'+amount,amount]);}
+  assert.equal(await balance(),7200);
   await db.query('delete from auth.users where id=$1',[owner]);
   await assert.rejects(()=>apply('one',false,other),/ownership/);
   await db.exec('set role authenticated');
   await assert.rejects(()=>apply('forged',false,other),/permission denied/);
   console.log('Store credit SQL checks passed: duplicate delivery, ownership, refunds, out-of-order events, spent credits, deletion tombstones, client access.');
 }finally{await db.close();}
+

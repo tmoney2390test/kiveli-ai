@@ -51,12 +51,14 @@ export function staleWebAssetUrl(event: Event): string | null {
 }
 
 function defaultEnvironment(): RecoveryEnvironment | null {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === 'undefined' || !window.location?.href) return null;
+  let storage: Storage | undefined;
+  try { storage = window.sessionStorage; } catch { /* Privacy mode may deny access itself. */ }
   return {
     now: () => Date.now(),
     href: window.location.href,
     reload: () => window.location.reload(),
-    storage: window.sessionStorage,
+    storage,
   };
 }
 

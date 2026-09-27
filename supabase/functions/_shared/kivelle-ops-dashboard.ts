@@ -29,6 +29,8 @@ export async function operationsDashboard(
     queueRollup,
     audit,
     worlds,
+    retention,
+    retentionStorage,
   ] = await Promise.all([
     count(
       db,
@@ -50,8 +52,8 @@ export async function operationsDashboard(
     db.from("together_client_error_events").select(
       "id,incident_id,route,surface,error_name,message_safe,stack_hash,platform,app_version,build_id,correlation_id,created_at",
     ).order("created_at", { ascending: false }).limit(60),
-    db.from("together_support_tickets").select(
-      "id,user_id,category,subject,message,status,priority,assigned_to,tags,correlation_id,incident_id,created_at,updated_at",
+    role === 'viewer' ? Promise.resolve({data:[],error:null}) : db.from("together_support_tickets").select(
+      "id,ticket_number,user_id,category,subject,status,priority,assigned_to,tags,correlation_id,incident_id,created_at,updated_at",
     ).order("updated_at", { ascending: false }).limit(100),
     db.from("together_ops_incidents").select("*").order("last_seen_at", {
       ascending: false,
@@ -75,6 +77,8 @@ export async function operationsDashboard(
     role === "admin"
       ? db.from("together_worlds").select("id,slug,name,published,access_type,entitlement_key,sort_order,updated_at,metadata").order("sort_order").order("name")
       : Promise.resolve({ data: [], error: null }),
+    role === "admin" ? db.rpc('kivelle_retention_status') : Promise.resolve({data:null,error:null}),
+    role === "admin" ? db.rpc('kivelle_retention_storage_status') : Promise.resolve({data:null,error:null}),
   ]);
   const queried = [
       runtimeRollup,
@@ -112,6 +116,7 @@ export async function operationsDashboard(
     callFailed = queues.find((queue) => queue.key === "calls")?.failed24h ?? 0,
     pushFailed = queues.find((queue) => queue.key === "push")?.failed24h ?? 0;
   return {
+    retention: retention.error ? {attention:true,unavailable:true,policies:[],rollups:[]} : retention.data ? {...retention.data,storage:retentionStorage.error?null:retentionStorage.data} : null,
     generatedAt: new Date().toISOString(),
     access: {
       role,
@@ -122,7 +127,7 @@ export async function operationsDashboard(
       },
     },
     health: {
-      status: criticalIncidents > 0 || mediaStale + callFailed + pushFailed > 0
+      status: criticalIncidents > 0 || mediaStale + callFailed + pushFailed > 0 || retention.error || retention.data?.attention
         ? "attention"
         : "healthy",
       openIncidents: openIncidents.length,

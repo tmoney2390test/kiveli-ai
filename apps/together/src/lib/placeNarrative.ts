@@ -4,24 +4,14 @@ type PlaceNarrativeInput={
   description:string;
   lore:LocationLore;
   backstory?:unknown;
-  socialTexture?:unknown;
-  crowdNow?:string;
 };
 
-export function buildPlaceNarrative({description,lore,backstory,socialTexture,crowdNow}:PlaceNarrativeInput){
+export function buildPlaceNarrative({description,lore,backstory}:PlaceNarrativeInput){
   const overview=sentences([lore.summary??description,text(backstory)]);
-  const atmosphere=sentences([
-    text(socialTexture),
-    crowdNow,
-    lore.sensoryDetails?.length?`You’ll notice ${naturalList(lore.sensoryDetails.slice(0,2))}.`:undefined,
-  ]);
-  const history=sentences(lore.publicHistory??[]);
-  const people=(lore.recurringPeople??[]).slice(0,4);
-  const localCharacter=people.length?sentences([
-    `Familiar faces include ${naturalList(people.map((person)=>`${person.label} — ${person.role}`))}.`,
-    ...people.map((person)=>person.rhythm),
-  ]):'';
-  return unique([overview,atmosphere,history,localCharacter]).filter(Boolean);
+  // The remaining lore fields inform stories and character behavior. They can
+  // contain editorial directions, operational constraints, and generated
+  // scaffolding that should never appear as public place descriptions.
+  return overview?[overview]:[];
 }
 
 function sentences(values:Array<unknown>){
@@ -33,13 +23,6 @@ function sentence(value:string){
   if(!trimmed)return'';
   const capitalized=`${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
   return/[.!?…]$/.test(capitalized)?capitalized:`${capitalized}.`;
-}
-
-function naturalList(values:string[]){
-  const items=values.map((value)=>value.trim().replace(/[.!?…]+$/,'' )).filter(Boolean);
-  if(items.length<2)return items[0]??'';
-  if(items.length===2)return`${items[0]} and ${items[1]}`;
-  return`${items.slice(0,-1).join(', ')}, and ${items.at(-1)}`;
 }
 
 function text(value:unknown){return typeof value==='string'&&value.trim()?value.trim():undefined;}

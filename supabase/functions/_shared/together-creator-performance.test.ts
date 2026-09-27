@@ -31,3 +31,11 @@ Deno.test('concept-only creation retains AI proposal enrichment',async()=>{
   await initialCharacterDraftProposal('A reserved architect named Nora who enjoys jazz.',false,{propose:async(concept)=>{providerCalls+=1;return deterministicCharacterDraft(concept);}});
   assert(providerCalls===1,'Concept-only creation skipped its AI proposal');
 });
+
+Deno.test('structured foundation preserves canonical name and pronouns throughout',async()=>{
+  const seed={name:'Mira Vale QA',age:28,pronouns:'they/them'};
+  const draft=await initialCharacterDraftProposal('An independent botanical illustrator.',true,{propose:async()=>{throw new Error('Unexpected provider call');}},seed);
+  assert(draft.displayName===seed.name && draft.age===28 && draft.pronouns==='they/them','Seed identity changed');
+  assert(draft.biography.includes('Mira Vale QA') && !draft.biography.includes('Ari'),'Placeholder name leaked into biography');
+  assert(draft.biography.includes('They is')===false,'Incorrect plural verb');
+});

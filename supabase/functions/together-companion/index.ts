@@ -4,7 +4,7 @@ import {parseBody} from '../_shared/body.ts';
 import {json,serve} from '../_shared/http.ts';
 import {AppError} from '../_shared/types.ts';
 import {buildSnapshot,track} from '../_shared/together.ts';
-import {getActiveConversation} from '../_shared/together-conversation.ts';
+import {getActiveConversation,mergeConversationSceneMetadata} from '../_shared/together-conversation.ts';
 import {activeContinuity} from '../_shared/together-continuity.ts';
 import {enforceActiveConversationLimit} from '../_shared/kivelle-subscription.ts';
 import {resolveWorldAccess} from '../_shared/together-place.ts';
@@ -98,6 +98,22 @@ serve(async(request,correlationId)=>{
   const meeting=(template.first_meeting??{}) as Record<string,unknown>;
   if(conversation?.id&&typeof meeting.opening_line==='string'){
     const{count}=await db.from('together_messages').select('id',{count:'exact',head:true}).eq('conversation_id',conversation.id).eq('user_id',user.id);
+    if(!count && template.creator_id===user.id && meeting.location_id && meeting.world_id){
+      // A creator-selected introduction is a real shared scene, not a passive schedule slot.
+      // Reuse the session on retry and leave established conversations untouched.
+      const {data:existingScene}=await db.from('together_scene_sessions').select('*').eq('user_id',user.id).eq('conversation_id',conversation.id).is('ended_at',null).order('started_at',{ascending:false}).limit(1).maybeSingle();
+      let sceneSession=existingScene;
+      if(!sceneSession){
+        const createdScene=await db.from('together_scene_sessions').insert({user_id:user.id,continuity_id:continuity.id,character_instance_id:instance.id,conversation_id:conversation.id,world_id:meeting.world_id,location_id:meeting.location_id,source:'conversation',participant_instance_ids:[instance.id],started_at:now,expected_end_at:new Date(Date.parse(now)+90*60_000).toISOString(),state:{sequence:0,entryReason:'user_drop_in',participantCount:1,creatorFirstMeeting:true}}).select('*').single();
+        if(createdScene.error||!createdScene.data)throw new AppError('INTERNAL_ERROR','Your first meeting scene could not begin. Please try again.',500,true);
+        sceneSession=createdScene.data;
+      }
+      const participant=await db.from('together_scene_participants').upsert({user_id:user.id,continuity_id:continuity.id,scene_session_id:sceneSession.id,character_instance_id:instance.id,role:'primary_companion',joined_at:sceneSession.started_at,witnessed_from_sequence:1,metadata:{canonicalPrimary:true,contextVersion:1}},{onConflict:'scene_session_id,character_instance_id'});
+      if(participant.error)throw new AppError('INTERNAL_ERROR','Your first meeting scene could not begin. Please try again.',500,true);
+      const scene={version:1 as const,characterInstanceId:instance.id,locationId:String(meeting.location_id),worldId:String(meeting.world_id),interactionMode:'co_present' as const,entryReason:'user_drop_in' as const,enteredAt:sceneSession.started_at,source:'presence' as const,activityLabel:String(meeting.companion_activity??'Meeting for the first time'),sceneSessionId:sceneSession.id,validUntil:sceneSession.expected_end_at,updatedAt:now};
+      const sceneUpdate=await db.from('together_conversations').update({metadata:mergeConversationSceneMetadata(conversation.metadata??{},scene),updated_at:now}).eq('id',conversation.id).eq('user_id',user.id);
+      if(sceneUpdate.error)throw new AppError('INTERNAL_ERROR','Your first meeting scene could not begin. Please try again.',500,true);
+    }
     if(!count)await db.from('together_messages').insert({conversation_id:conversation.id,user_id:user.id,character_instance_id:instance.id,role:'assistant',content:meeting.opening_line,delivery_status:'complete'});
   }
   await track(db,user.id,'companion_selected',{continuity_id:continuity.id,character_template_id:template.id,character_instance_id:instance.id,source:input.source});

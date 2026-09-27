@@ -1,0 +1,876 @@
+[
+  {
+    "slug": "creative-burnout",
+    "title": "Creative Burnout",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "chloe-new-relationship",
+    "title": "Chloe's New Relationship",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "wedding-weekend",
+    "title": "Wedding Weekend",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "maya-birthday",
+    "title": "Maya's Birthday",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "old-flame",
+    "title": "An Old Flame",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "new-apartment-idea",
+    "title": "New Apartment Idea",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "weekend-escape",
+    "title": "Weekend Escape",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "family-visit",
+    "title": "Family Visit",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "chloe-needs-help",
+    "title": "Chloe Needs Help",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "alex-creative-project",
+    "title": "Alex's Creative Project",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "financial-stress",
+    "title": "Financial Stress",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "career-crossroads",
+    "title": "Career Crossroads",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "bad-week",
+    "title": "A Bad Week",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "surprise-free-weekend",
+    "title": "Surprise Free Weekend",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "holiday-season",
+    "title": "Holiday Season",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "anniversary-week",
+    "title": "Anniversary Week",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "gallery-opportunity",
+    "title": "The Gallery Opportunity",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "missing-camera",
+    "title": "The Missing Camera",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "big-client",
+    "title": "The Big Client",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "photography-competition",
+    "title": "Photography Competition",
+    "status": "retired_companion",
+    "reason": "Only the retired Maya template is eligible; preserve existing history."
+  },
+  {
+    "slug": "eos-missing-seventeen-hours",
+    "title": "The Seventeen Missing Hours",
+    "status": "new_scenario",
+    "scenarioId": "story-eos-missing-seventeen-hours",
+    "lead": "june-callahan",
+    "location": "pioneer-memorial"
+  },
+  {
+    "slug": "eos-beneath-night-ice",
+    "title": "Beneath the Night Ice",
+    "status": "woven",
+    "scenarioId": "eos-01",
+    "lead": "dr-selene-ward",
+    "location": "listening-station-seven"
+  },
+  {
+    "slug": "eos-independence-vote",
+    "title": "The Charter Choice",
+    "status": "woven",
+    "scenarioId": "eos-09",
+    "lead": "cassian-vale",
+    "location": "charter-hall"
+  },
+  {
+    "slug": "eos-habitat-lyra",
+    "title": "Habitat Lyra",
+    "status": "woven",
+    "scenarioId": "eos-08",
+    "lead": "kellan-ro",
+    "location": "hangar-twelve"
+  },
+  {
+    "slug": "vesper-opportunity",
+    "title": "The Vesper Opportunity",
+    "status": "retired_world",
+    "reason": "Inactive template; do not republish."
+  },
+  {
+    "slug": "vesper-one-more-stop",
+    "title": "One More Stop",
+    "status": "retired_world",
+    "reason": "Inactive template; do not republish."
+  },
+  {
+    "slug": "solara-stay-another-day",
+    "title": "Stay Another Day",
+    "status": "retired_world",
+    "reason": "Inactive template; do not republish."
+  },
+  {
+    "slug": "solara-storm-day",
+    "title": "The Storm Day",
+    "status": "retired_world",
+    "reason": "Inactive template; do not republish."
+  },
+  {
+    "slug": "kairo-last-train-story",
+    "title": "The Last Train Problem",
+    "status": "retired_world",
+    "reason": "Inactive template; do not republish."
+  },
+  {
+    "slug": "kairo-hidden-place",
+    "title": "A Different Side of Kairo",
+    "status": "retired_world",
+    "reason": "Inactive template; do not republish."
+  },
+  {
+    "slug": "alder-no-signal",
+    "title": "No Signal",
+    "status": "retired_world",
+    "reason": "Inactive template; do not republish."
+  },
+  {
+    "slug": "alder-should-i-stay",
+    "title": "Should I Stay?",
+    "status": "retired_world",
+    "reason": "Inactive template; do not republish."
+  },
+  {
+    "slug": "aurelia-place-we-go",
+    "title": "The Place We Always Go",
+    "status": "retired_world",
+    "reason": "Inactive template; do not republish."
+  },
+  {
+    "slug": "aurelia-exhibition",
+    "title": "The Exhibition",
+    "status": "retired_world",
+    "reason": "Inactive template; do not republish."
+  },
+  {
+    "slug": "maren-trip-we-needed",
+    "title": "The Trip We Needed",
+    "status": "retired_world",
+    "reason": "Inactive template; do not republish."
+  },
+  {
+    "slug": "maren-one-more-night",
+    "title": "One More Night",
+    "status": "retired_world",
+    "reason": "Inactive template; do not republish."
+  },
+  {
+    "slug": "neon-kyo-rating-change",
+    "title": "The Rating Changed",
+    "status": "new_scenario",
+    "scenarioId": "story-neon-kyo-rating-change",
+    "lead": "rin-akiyama",
+    "location": "zeroday",
+    "repair": "Replaced obsolete visitor eligibility with a local lead."
+  },
+  {
+    "slug": "neon-kyo-offline-truth",
+    "title": "A Night Completely Offline",
+    "status": "new_scenario",
+    "scenarioId": "story-neon-kyo-offline-truth",
+    "lead": "mei-watanabe",
+    "location": "laundry-nine",
+    "repair": "Replaced obsolete visitor eligibility with a local lead."
+  },
+  {
+    "slug": "vespormoor-future-book",
+    "title": "The Future Book",
+    "status": "woven",
+    "scenarioId": "ves-01",
+    "lead": "evelyn-harrow",
+    "location": "morrow-and-quill"
+  },
+  {
+    "slug": "vespormoor-beneath-lake",
+    "title": "Beneath Lake Vesper",
+    "status": "woven",
+    "scenarioId": "ves-05",
+    "lead": "jun-park",
+    "location": "vesper-boatworks"
+  },
+  {
+    "slug": "vespormoor-missing-corridors",
+    "title": "The Missing Corridors",
+    "status": "new_scenario",
+    "scenarioId": "story-vespormoor-missing-corridors",
+    "lead": "lina-moreno",
+    "location": "the-cloisters"
+  },
+  {
+    "slug": "vespormoor-observatory-signal",
+    "title": "The Observatory Signal",
+    "status": "new_scenario",
+    "scenarioId": "story-vespormoor-observatory-signal",
+    "lead": "zuri-campbell",
+    "location": "observatory"
+  },
+  {
+    "slug": "vespormoor-vale-return",
+    "title": "The Vale Return",
+    "status": "woven",
+    "scenarioId": "ves-04",
+    "lead": "elara-vale",
+    "location": "vale-house"
+  },
+  {
+    "slug": "vespormoor-northern-silence",
+    "title": "The Northern Silence",
+    "status": "new_scenario",
+    "scenarioId": "story-vespormoor-northern-silence",
+    "lead": "rowan-hale",
+    "location": "morrow-vale-ranger-station"
+  },
+  {
+    "slug": "vespormoor-old-portrait",
+    "title": "The Old Portrait",
+    "status": "new_scenario",
+    "scenarioId": "story-vespormoor-old-portrait",
+    "lead": "elodie-marchand",
+    "location": "grand-hall"
+  },
+  {
+    "slug": "port-vervelle-stay-or-sail",
+    "title": "Stay or Sail",
+    "status": "woven",
+    "scenarioId": "por-08",
+    "lead": "matteo-bellandi",
+    "location": "porto-marina"
+  },
+  {
+    "slug": "port-vervelle-small-table",
+    "title": "The Small Table",
+    "status": "new_scenario",
+    "scenarioId": "story-port-vervelle-small-table",
+    "lead": "alessandro-moretti",
+    "location": "sotto-sale"
+  },
+  {
+    "slug": "port-vervelle-no-scoreboard",
+    "title": "No Scoreboard",
+    "status": "new_scenario",
+    "scenarioId": "story-port-vervelle-no-scoreboard",
+    "lead": "enzo-moretti",
+    "location": "spiaggia-solana"
+  },
+  {
+    "slug": "port-vervelle-off-the-clock",
+    "title": "Off the Clock",
+    "status": "new_scenario",
+    "scenarioId": "story-port-vervelle-off-the-clock",
+    "lead": "gabriel-laurent",
+    "location": "hotel-coralline"
+  },
+  {
+    "slug": "port-vervelle-one-of-one",
+    "title": "One of One",
+    "status": "new_scenario",
+    "scenarioId": "story-port-vervelle-one-of-one",
+    "lead": "nico-valenti",
+    "location": "studio-ondine"
+  },
+  {
+    "slug": "port-vervelle-after-burnout",
+    "title": "After the Shift",
+    "status": "new_scenario",
+    "scenarioId": "story-port-vervelle-after-burnout",
+    "lead": "luca-bianchi",
+    "location": "vervelle-general-clinic"
+  },
+  {
+    "slug": "port-vervelle-free-sound",
+    "title": "The Free Sound",
+    "status": "new_scenario",
+    "scenarioId": "story-port-vervelle-free-sound",
+    "lead": "idris-benali",
+    "location": "la-sirena"
+  },
+  {
+    "slug": "port-vervelle-old-stone-new-money",
+    "title": "Old Stone, New Money",
+    "status": "new_scenario",
+    "scenarioId": "story-port-vervelle-old-stone-new-money",
+    "lead": "marco-de-santis",
+    "location": "vervelle-design-works"
+  },
+  {
+    "slug": "port-vervelle-damaged-water",
+    "title": "The Damaged Water",
+    "status": "woven",
+    "scenarioId": "por-09",
+    "lead": "rafael-silva",
+    "location": "porto-marina"
+  },
+  {
+    "slug": "port-vervelle-own-vintage",
+    "title": "His Own Vintage",
+    "status": "new_scenario",
+    "scenarioId": "story-port-vervelle-own-vintage",
+    "lead": "lorenzo-bellaforte",
+    "location": "domaine-vervelle"
+  },
+  {
+    "slug": "port-vervelle-below-the-chart",
+    "title": "Below the Chart",
+    "status": "woven",
+    "scenarioId": "por-10",
+    "lead": "elias-romano",
+    "location": "museo-marittimo-vervelle"
+  },
+  {
+    "slug": "port-vervelle-serious-reputation",
+    "title": "The Reputation",
+    "status": "new_scenario",
+    "scenarioId": "story-port-vervelle-serious-reputation",
+    "lead": "theo-mancini",
+    "location": "bellavista-fitness-club"
+  },
+  {
+    "slug": "juniper-summer-after",
+    "title": "The Summer After",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-summer-after",
+    "lead": "brooke-sullivan",
+    "location": "riverwalk"
+  },
+  {
+    "slug": "juniper-field-report",
+    "title": "The Field Report",
+    "status": "woven",
+    "scenarioId": "jun-07",
+    "lead": "becka-shaw",
+    "location": "riverwalk"
+  },
+  {
+    "slug": "juniper-one-more-shift",
+    "title": "One More Shift",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-one-more-shift",
+    "lead": "mateo-alvarez",
+    "location": "static-house"
+  },
+  {
+    "slug": "juniper-case-she-carries",
+    "title": "The Case She Carries",
+    "status": "woven",
+    "scenarioId": "jun-04",
+    "lead": "priya-kapoor",
+    "location": "lucky-note"
+  },
+  {
+    "slug": "juniper-unclosed-file",
+    "title": "The Unclosed File",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-unclosed-file",
+    "lead": "elena-markovic",
+    "location": "juniper-city-hall"
+  },
+  {
+    "slug": "juniper-first-big-piece",
+    "title": "The First Big Piece",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-first-big-piece",
+    "lead": "jade-nguyen",
+    "location": "needles-and-notes"
+  },
+  {
+    "slug": "juniper-second-location",
+    "title": "Second Location",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-second-location",
+    "lead": "camila-reyes",
+    "location": "sora-table"
+  },
+  {
+    "slug": "juniper-off-the-record",
+    "title": "Off the Record",
+    "status": "woven",
+    "scenarioId": "jun-02",
+    "lead": "nia-brooks",
+    "location": "juniper-civic-arena"
+  },
+  {
+    "slug": "juniper-keep-the-room",
+    "title": "Keep the Room",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-keep-the-room",
+    "lead": "luca-moretti",
+    "location": "static-house"
+  },
+  {
+    "slug": "juniper-story-she-wont-air",
+    "title": "The Story She Won't Air",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-story-she-wont-air",
+    "lead": "tessa-morgan",
+    "location": "side-street-comedy"
+  },
+  {
+    "slug": "juniper-last-train-north",
+    "title": "Last Train North",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-last-train-north",
+    "lead": "noah-williams",
+    "location": "juniper-central-station"
+  },
+  {
+    "slug": "juniper-choice-after-midnight",
+    "title": "The Choice After Midnight",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-choice-after-midnight",
+    "lead": "daniel-kim",
+    "location": "juniper-general-hospital"
+  },
+  {
+    "slug": "juniper-riverside-vote",
+    "title": "The Riverside Vote",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-riverside-vote",
+    "lead": "gabriel-ortiz",
+    "location": "juniper-city-hall"
+  },
+  {
+    "slug": "juniper-high-water",
+    "title": "High Water",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-high-water",
+    "lead": "malcolm-reed",
+    "location": "riverside-landing"
+  },
+  {
+    "slug": "juniper-keep-it-small",
+    "title": "Keep It Small",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-keep-it-small",
+    "lead": "javier-morales",
+    "location": "taqueria-lumen"
+  },
+  {
+    "slug": "juniper-anonymous-source",
+    "title": "The Anonymous Source",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-anonymous-source",
+    "lead": "vincent-hale",
+    "location": "paper-trail"
+  },
+  {
+    "slug": "juniper-signal-upgrade",
+    "title": "The Signal Upgrade",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-signal-upgrade",
+    "lead": "omar-haddad",
+    "location": "juniper-central-station"
+  },
+  {
+    "slug": "juniper-rivermark-offer",
+    "title": "The Rivermark Offer",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-rivermark-offer",
+    "lead": "caleb-bennett",
+    "location": "rivermark-hotel"
+  },
+  {
+    "slug": "juniper-accessible-city",
+    "title": "The Accessible City",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-accessible-city",
+    "lead": "reese-morgan",
+    "location": "juniper-city-hall"
+  },
+  {
+    "slug": "juniper-night-platform",
+    "title": "Night Platform",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-night-platform",
+    "lead": "jules-navarro",
+    "location": "juniper-central-station"
+  },
+  {
+    "slug": "juniper-closed-door-briefing",
+    "title": "The Closed-Door Briefing",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-closed-door-briefing",
+    "lead": "leila-rahman",
+    "location": "juniper-city-hall"
+  },
+  {
+    "slug": "juniper-landing-season",
+    "title": "The Landing Season",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-landing-season",
+    "lead": "naomi-chen",
+    "location": "riverside-landing"
+  },
+  {
+    "slug": "juniper-unit-she-built",
+    "title": "The Unit She Built",
+    "status": "new_scenario",
+    "scenarioId": "story-juniper-unit-she-built",
+    "lead": "talia-washington",
+    "location": "juniper-general-hospital"
+  },
+  {
+    "slug": "vespormoor-stone-that-remembers",
+    "title": "The Stone That Remembers",
+    "status": "new_scenario",
+    "scenarioId": "story-vespormoor-stone-that-remembers",
+    "lead": "ren-takahashi",
+    "location": "vesper-tower"
+  },
+  {
+    "slug": "vespormoor-repeated-patient",
+    "title": "The Repeated Patient",
+    "status": "new_scenario",
+    "scenarioId": "story-vespormoor-repeated-patient",
+    "lead": "gideon-price",
+    "location": "anatomy-hall"
+  },
+  {
+    "slug": "northvale-white-sunday-log",
+    "title": "The White Sunday Log",
+    "status": "woven",
+    "scenarioId": "nor-06",
+    "lead": "june-nakashima",
+    "location": "miners-hall"
+  },
+  {
+    "slug": "northvale-silver-basin-line",
+    "title": "The Silver Basin Line",
+    "status": "new_scenario",
+    "scenarioId": "story-northvale-silver-basin-line",
+    "lead": "talia-valdez",
+    "location": "avalanche-forecast-center"
+  },
+  {
+    "slug": "northvale-one-more-winter",
+    "title": "One More Winter",
+    "status": "new_scenario",
+    "scenarioId": "story-northvale-one-more-winter",
+    "lead": "riley-hart",
+    "location": "juniper-house"
+  },
+  {
+    "slug": "northvale-last-reel",
+    "title": "The Last Reel",
+    "status": "new_scenario",
+    "scenarioId": "story-northvale-last-reel",
+    "lead": "sofia-reyes",
+    "location": "rialto-mountain-cinema"
+  },
+  {
+    "slug": "northvale-second-descent",
+    "title": "Second Descent",
+    "status": "new_scenario",
+    "scenarioId": "story-northvale-second-descent",
+    "lead": "mika-tanaka",
+    "location": "halo-terrain-park"
+  },
+  {
+    "slug": "northvale-broken-cable",
+    "title": "The Broken Cable",
+    "status": "new_scenario",
+    "scenarioId": "story-northvale-broken-cable",
+    "lead": "mila-novak",
+    "location": "sunrise-gondola"
+  },
+  {
+    "slug": "northvale-cabin-mile-nine",
+    "title": "The Cabin at Mile Nine",
+    "status": "new_scenario",
+    "scenarioId": "story-northvale-cabin-mile-nine",
+    "lead": "tessa-ward",
+    "location": "vale-and-pine-books"
+  },
+  {
+    "slug": "the-ashen-crown",
+    "title": "The Ashen Crown",
+    "status": "new_scenario",
+    "scenarioId": "story-the-ashen-crown",
+    "lead": "asha-ren",
+    "location": "cinder-camp"
+  },
+  {
+    "slug": "three-unhatched-fires",
+    "title": "Three Unhatched Fires",
+    "status": "woven",
+    "scenarioId": "vha-05",
+    "lead": "ilyra-ashscale",
+    "location": "caldera-hatchery"
+  },
+  {
+    "slug": "feast-of-falling-embers",
+    "title": "The Feast of Falling Embers",
+    "status": "new_scenario",
+    "scenarioId": "story-feast-of-falling-embers",
+    "lead": "queen-maerra-vaelorian",
+    "location": "ember-throne-hall"
+  },
+  {
+    "slug": "eos-ghost-passenger",
+    "title": "The Ghost Passenger",
+    "status": "new_scenario",
+    "scenarioId": "story-eos-ghost-passenger",
+    "lead": "owen-calder",
+    "location": "ascension-terminal"
+  },
+  {
+    "slug": "deepnail-awakening",
+    "title": "The Dragon Beneath Deepnail",
+    "status": "new_scenario",
+    "scenarioId": "story-deepnail-awakening",
+    "lead": "sera-blackvein",
+    "location": "deepnail-mines"
+  },
+  {
+    "slug": "the-red-ledger",
+    "title": "The Red Ledger",
+    "status": "woven",
+    "scenarioId": "vha-02",
+    "lead": "lady-isolde-morcant",
+    "location": "red-ledger-exchange"
+  },
+  {
+    "slug": "unbound-hymn",
+    "title": "The Unbound Hymn",
+    "status": "woven",
+    "scenarioId": "vha-04",
+    "lead": "high-flame-elowen-orison",
+    "location": "basilica-seven-flames"
+  },
+  {
+    "slug": "the-prison-fleet",
+    "title": "The Prison Fleet",
+    "status": "new_scenario",
+    "scenarioId": "story-the-prison-fleet",
+    "lead": "delphine-lantern",
+    "location": "lantern-rooms"
+  },
+  {
+    "slug": "roots-outlive-crowns",
+    "title": "Roots Outlive Crowns",
+    "status": "new_scenario",
+    "scenarioId": "story-roots-outlive-crowns",
+    "lead": "duchess-aveline-edevane",
+    "location": "hartwood-hall"
+  },
+  {
+    "slug": "what-sinks-shall-rise",
+    "title": "What Sinks Shall Rise",
+    "status": "new_scenario",
+    "scenarioId": "story-what-sinks-shall-rise",
+    "lead": "duchess-mirelle-greymere",
+    "location": "drowned-crown-palace"
+  },
+  {
+    "slug": "the-glassing-command",
+    "title": "The Glassing Command",
+    "status": "woven",
+    "scenarioId": "vha-07",
+    "lead": "petra-glass",
+    "location": "glass-battlefield"
+  },
+  {
+    "slug": "velvet-law",
+    "title": "The Velvet Law",
+    "status": "new_scenario",
+    "scenarioId": "story-velvet-law",
+    "lead": "sabine-silk-veyl",
+    "location": "house-of-velvet-oaths"
+  },
+  {
+    "slug": "the-scarlet-marriage",
+    "title": "The Scarlet Marriage",
+    "status": "new_scenario",
+    "scenarioId": "story-the-scarlet-marriage",
+    "lead": "lord-halric-thornwall",
+    "location": "wolfgate-barracks"
+  },
+  {
+    "slug": "calders-the-other-bank",
+    "title": "The Other Bank",
+    "status": "woven",
+    "scenarioId": "cal-02",
+    "lead": "tess-corbett",
+    "location": "survey-camp"
+  },
+  {
+    "slug": "calders-the-borrowed-horse",
+    "title": "The Borrowed Horse",
+    "status": "new_scenario",
+    "scenarioId": "story-calders-the-borrowed-horse",
+    "lead": "june-dempsey",
+    "location": "dempsey-livery"
+  },
+  {
+    "slug": "calders-the-last-encore",
+    "title": "The Last Encore",
+    "status": "woven",
+    "scenarioId": "cal-04",
+    "lead": "rosalie-quinn",
+    "location": "bellflower-theater"
+  },
+  {
+    "slug": "calders-water-after-dark",
+    "title": "Water After Dark",
+    "status": "new_scenario",
+    "scenarioId": "story-calders-water-after-dark",
+    "lead": "mateo-varela",
+    "location": "irrigation-meeting-house"
+  },
+  {
+    "slug": "calders-a-room-kept-warm",
+    "title": "A Room Kept Warm",
+    "status": "new_scenario",
+    "scenarioId": "story-calders-a-room-kept-warm",
+    "lead": "agnes-reed",
+    "location": "boatmens-boardinghouse"
+  },
+  {
+    "slug": "calders-the-honest-weight",
+    "title": "The Honest Weight",
+    "status": "woven",
+    "scenarioId": "cal-05",
+    "lead": "vera-sutter",
+    "location": "assay-office"
+  },
+  {
+    "slug": "calders-the-price-of-news",
+    "title": "The Price of News",
+    "status": "woven",
+    "scenarioId": "cal-03",
+    "lead": "iris-keene",
+    "location": "keenes-print-shop"
+  },
+  {
+    "slug": "calders-a-door-of-her-own",
+    "title": "A Door of Her Own",
+    "status": "new_scenario",
+    "scenarioId": "story-calders-a-door-of-her-own",
+    "lead": "hazel-whitcomb",
+    "location": "eastbank-provisioners"
+  },
+  {
+    "slug": "calders-closing-time",
+    "title": "Closing Time",
+    "status": "new_scenario",
+    "scenarioId": "story-calders-closing-time",
+    "lead": "alma-baptiste",
+    "location": "night-kitchen"
+  },
+  {
+    "slug": "calders-the-letter-to-leave",
+    "title": "The Letter to Leave",
+    "status": "new_scenario",
+    "scenarioId": "story-calders-the-letter-to-leave",
+    "lead": "eliza-morrow",
+    "location": "orchard-schoolhouse"
+  },
+  {
+    "slug": "calders-after-the-crossing",
+    "title": "After the Crossing",
+    "status": "new_scenario",
+    "scenarioId": "story-calders-after-the-crossing",
+    "lead": "samuel-pike",
+    "location": "pikes-ferry"
+  },
+  {
+    "slug": "calders-the-terms-of-mercy",
+    "title": "The Terms of Mercy",
+    "status": "new_scenario",
+    "scenarioId": "story-calders-the-terms-of-mercy",
+    "lead": "reverend-jonah-bell",
+    "location": "riverside-chapel"
+  },
+  {
+    "slug": "calders-the-red-sash-lease",
+    "title": "The Red Sash Lease",
+    "status": "new_scenario",
+    "scenarioId": "story-calders-the-red-sash-lease",
+    "lead": "bess-kincaid",
+    "location": "red-sash-brothel"
+  },
+  {
+    "slug": "calders-the-crowcut-reckoning",
+    "title": "The Crowcut Reckoning",
+    "status": "woven",
+    "scenarioId": "cal-10",
+    "lead": "cole-hensley",
+    "location": "main-street"
+  },
+  {
+    "slug": "eos-solace-bloom",
+    "title": "The Solace Bloom",
+    "status": "woven",
+    "scenarioId": "eos-02",
+    "lead": "imani-laurent",
+    "location": "pollinator-house"
+  }
+]

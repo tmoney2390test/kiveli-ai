@@ -12,13 +12,13 @@ const initiativePolicies:Record<InitiativeLevel,InitiativePolicy>={
   frequent:{minimumConversationHours:3,minimumProactiveHours:8,probabilityMultiplier:1.35},
 };
 
-export function normalizeInitiativeLevel(value:unknown,fallback:InitiativeLevel='natural'):InitiativeLevel{
+export function normalizeInitiativeLevel(value:unknown,fallback:InitiativeLevel='off'):InitiativeLevel{
   return typeof value==='string'&&initiativeLevels.includes(value as InitiativeLevel)?value as InitiativeLevel:fallback;
 }
 export function initiativePolicy(level:unknown):InitiativePolicy{return initiativePolicies[normalizeInitiativeLevel(level)];}
 export function effectiveInitiativeLevel(input:{entitled:boolean;globalLevel:unknown;characterOverride?:unknown;legacyEnabled?:boolean}):InitiativeLevel{
   if(!input.entitled)return'off';
-  const fallback=input.legacyEnabled===false?'off':'natural';
+  const fallback=input.legacyEnabled===true?'natural':'off';
   return normalizeInitiativeLevel(input.characterOverride,normalizeInitiativeLevel(input.globalLevel,fallback));
 }
 export function shouldMaterializeLifeEvents(trigger:LifeSimulationTrigger):boolean{return trigger==='conversation_continued';}

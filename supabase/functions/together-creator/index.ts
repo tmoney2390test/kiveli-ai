@@ -1,3 +1,4 @@
+import { previewCreatorRoutine } from '../_shared/creator-routine-preview.ts';
 import { z } from 'zod';
 import { buildDefaultCharacterCuriosityProfile, isValidCharacterCuriosityProfile, normalizeCharacterPerformance, isValidCharacterPerformance } from '../../../packages/together-domain/src/index.ts';
 import { authenticated, enforceRateLimit } from '../_shared/context.ts';
@@ -14,6 +15,7 @@ import { handleCreatorStudioAction, isCreatorStudioAction } from '../_shared/kiv
 import { requireAiDataConsent } from '../_shared/kivelle-ai-consent.ts';
 
 const schema=z.discriminatedUnion('action',[
+  z.object({action:z.literal('preview_routine'),draftId:z.string().uuid(),weekIndex:z.number().int().min(0).max(2),identity:z.record(z.string(),z.unknown()),life:z.record(z.string(),z.unknown())}),
   z.object({action:z.literal('create_draft'),concept:z.string().trim().min(20).max(1200),worldId:z.string().uuid(),relationshipGoal:z.enum(['friendship','romance','either']),requestId:z.string().uuid(),identitySeed:z.object({name:z.string().trim().min(1).max(50),age:z.number().int().min(18).max(99),gender:z.string().trim().min(1).max(40),pronouns:z.string().trim().min(1).max(40),description:z.string().trim().max(800).optional()}).optional()}),
   z.object({action:z.literal('get_draft'),draftId:z.string().uuid()}),
   z.object({action:z.literal('list_drafts')}),
@@ -39,7 +41,8 @@ const schema=z.discriminatedUnion('action',[
 const provider=new ConfiguredCharacterCreationProvider(),moderation=new ConfiguredModerationProvider();
 
 serve(async(request,correlationId)=>{
-  const{user,db}=await authenticated(request);const input=await parseBody(request,schema);if(['create_draft','regenerate_draft_section','generate_draft_appearance','quick_create','generate_appearance','update_draft_section','update_draft_sections','complete_draft_appearance_upload','finalize_draft','update'].includes(input.action))await requireAiDataConsent(db,user.id);await enforceRateLimit(db,user.id,`together_creator_${input.action}`,['generate_appearance','generate_draft_appearance'].includes(input.action)?8:30,3600);const now=new Date().toISOString();
+  const{user,db}=await authenticated(request);const input=await parseBody(request,schema);if(['preview_routine','create_draft','regenerate_draft_section','generate_draft_appearance','quick_create','generate_appearance','update_draft_section','update_draft_sections','complete_draft_appearance_upload','finalize_draft','update'].includes(input.action))await requireAiDataConsent(db,user.id);await enforceRateLimit(db,user.id,`together_creator_${input.action}`,['generate_appearance','generate_draft_appearance'].includes(input.action)?8:30,3600);const now=new Date().toISOString();
+  if(input.action==='preview_routine')return json({data:await previewCreatorRoutine({db,user,request,input}),correlationId},200,correlationId);
   if(isCreatorStudioAction(input.action)){
     const data=await handleCreatorStudioAction({db,userId:user.id,action:input,now});
     return json({data,correlationId},input.action==='create_draft'?201:200,correlationId);

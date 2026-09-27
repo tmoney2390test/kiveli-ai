@@ -19,7 +19,7 @@ describe('companion initiative pacing',()=>{
 
   it('normalizes stored levels and fails closed without the paid entitlement',()=>{
     expect(normalizeInitiativeLevel('frequent')).toBe('frequent');
-    expect(normalizeInitiativeLevel('unknown')).toBe('natural');
+    expect(normalizeInitiativeLevel('unknown')).toBe('off');
     expect(effectiveInitiativeLevel({entitled:false,globalLevel:'frequent',characterOverride:'frequent'})).toBe('off');
     expect(effectiveInitiativeLevel({entitled:true,globalLevel:'occasional',characterOverride:'frequent'})).toBe('frequent');
     expect(effectiveInitiativeLevel({entitled:true,globalLevel:'off',characterOverride:'frequent'})).toBe('frequent');

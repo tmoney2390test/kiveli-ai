@@ -1,3 +1,4 @@
+import { activityDisplayDescriptions } from '../packages/together-domain/src/location-activity-display.ts';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { auditVharadrenEvents, enrichVharadrenSchedules } from './lib/vharadren-event-language.mjs';
@@ -103,6 +104,7 @@ const publicLocation = (location) => {
       nearbyLocationSlugs: lore.nearbyLocationSlugs,
       publicHistory: lore.publicHistory,
       recurringPeople: lore.recurringPeople,
+      activityDescriptions: activityDisplayDescriptions(location.activities ?? [], lore.activityDescriptions),
       activityNotes: lore.activityNotes,
       accessNotes: lore.accessNotes,
       weatherNotes: lore.weatherNotes,
@@ -479,7 +481,7 @@ select (item->>'characterVersionId')::uuid,
     'displayLocation',item->>'displayLocation','eventLanguageVersion',item->>'eventLanguageVersion')
 from vharadren_pack cross join lateral jsonb_array_elements(data->'weeklySchedules') item
 left join public.together_locations location on location.world_id='10000000-0000-4000-8000-000000000013'::uuid and location.slug=item->>'locationSlug'
-on conflict(character_version_id,day_of_week,start_minute) do update set end_minute=excluded.end_minute,
+on conflict(character_version_id,day_of_week,start_minute,week_index) do update set end_minute=excluded.end_minute,
   location_id=excluded.location_id,activity=excluded.activity,availability=excluded.availability,
   energy_delta=excluded.energy_delta,mood_influence=excluded.mood_influence,variation_weight=excluded.variation_weight,
   metadata=excluded.metadata;

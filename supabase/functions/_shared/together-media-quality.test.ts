@@ -1,5 +1,5 @@
 import { assertStringIncludes } from 'jsr:@std/assert@1';
-import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverFinalSfwQualityCandidateWithWarnings, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, hasTerminalAdultOutputSafetyFailure, isCustomCharacterTerminalQualityFailure, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, shouldAttemptPaidImageQualityRetry, shouldDeliverFirstImageQualityCandidateWithWarnings, shouldDeliverOfficialAdultImageWithWarnings, shouldDeliverSfwWhenQualityReviewIsUnavailable, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
+import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverFinalSfwQualityCandidateWithWarnings, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, hasTerminalAdultOutputSafetyFailure, isCustomCharacterTerminalQualityFailure, isOrdinarySwimwearRequest, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, resolveSwimwearSafetyVerdict, shouldAttemptPaidImageQualityRetry, shouldDeliverFirstImageQualityCandidateWithWarnings, shouldDeliverOfficialAdultImageWithWarnings, shouldDeliverSfwWhenQualityReviewIsUnavailable, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
 
 Deno.test('solo adult quality checks do not confuse explicit posing with non-consent',()=>{
   const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27,custom:false}}]);
@@ -60,7 +60,20 @@ Deno.test('a first candidate may keep realism, identity, anatomy, location, and 
   if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['identity_mismatch','time_mismatch']},adultAuthorized:false}))throw new Error('identity mismatch should deliver with warnings');
   if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['world_mismatch']},adultAuthorized:true}))throw new Error('adult location mismatch should deliver with warnings');
   if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['adult_safety_violation','non_photorealistic','requested_anatomy_missing']},adultAuthorized:true}))throw new Error('adult-safety, realism, and anatomy mismatches should deliver with warnings');
-  if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['multiple_subjects']},adultAuthorized:false}))throw new Error('an extra person must still retry or reject');
+  if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['multiple_subjects','face_blur']},adultAuthorized:false}))throw new Error('a completed SFW candidate must not be discarded for non-safety quality defects');
+  if(shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['sexual_content']},adultAuthorized:false}))throw new Error('an actual SFW content violation still blocks delivery');
+});
+
+Deno.test('ordinary opaque swimwear remains SFW even outside an aquatic location',()=>{
+  if(!isOrdinarySwimwearRequest('Wearing a bikini eating an apple at Solace Biome'))throw new Error('the requested bikini must be recognized');
+  if(isOrdinarySwimwearRequest('Wearing a dress eating an apple'))throw new Error('ordinary clothes do not need swimwear review');
+  const initial={status:'fail' as const,reasonCodes:['sexual_content','face_blur']};
+  const safe={status:'pass' as const,reasonCodes:[]};
+  const cleared=resolveSwimwearSafetyVerdict(initial,safe);
+  if(cleared.status!=='fail'||cleared.reasonCodes.join()!=='face_blur')throw new Error('a focused safe review should clear only a mistaken swimwear flag');
+  if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:cleared,adultAuthorized:false}))throw new Error('remaining aesthetic defects must not discard the photo');
+  if(resolveSwimwearSafetyVerdict(initial,{status:'unavailable',reasonCodes:[]}).reasonCodes.join()!==initial.reasonCodes.join())throw new Error('an unavailable safety review must not clear the flag');
+  if(resolveSwimwearSafetyVerdict({status:'fail',reasonCodes:['sexual_content']},safe).status!=='pass')throw new Error('a safe bikini must pass after focused review');
 });
 
 Deno.test('official adult candidates are delivered for visual mismatches including adult-safety flags',()=>{
@@ -79,10 +92,10 @@ Deno.test('an unavailable quality reviewer never erases a provider-approved SFW 
   if(shouldDeliverSfwWhenQualityReviewIsUnavailable({adultAuthorized:false,verdict:{status:'fail',reasonCodes:['multiple_subjects']}}))throw new Error('an actual hard verdict must not be treated as a reviewer outage');
 });
 
-Deno.test('a corrected SFW candidate is delivered with subjective warnings but never hard defects',()=>{
+Deno.test('a generated SFW candidate is delivered with quality warnings but never a safety violation',()=>{
   if(!canDeliverFinalSfwQualityCandidateWithWarnings({status:'fail',reasonCodes:['face_low_detail','non_photorealistic','identity_mismatch','time_mismatch']}))throw new Error('subjective SFW misses should not erase the corrected result');
-  if(!canDeliverFinalSfwQualityCandidateWithWarnings({status:'fail',reasonCodes:['identity_swap','malformed_hands','duplicate_body_parts','adult_safety_violation']}))throw new Error('identity, anatomy, and adult-safety mismatches should deliver after correction');
-  for(const reason of ['face_distortion','multiple_subjects','subject_count_mismatch','sexual_content','ambiguous_age','embedded_reference']){
+  if(!canDeliverFinalSfwQualityCandidateWithWarnings({status:'fail',reasonCodes:['identity_swap','malformed_hands','duplicate_body_parts','multiple_subjects','embedded_reference']}))throw new Error('non-safety defects should remain visible to the user');
+  for(const reason of ['sexual_content','adult_safety_violation','adult_safety_unverified','ambiguous_age']){
     if(canDeliverFinalSfwQualityCandidateWithWarnings({status:'fail',reasonCodes:[reason]}))throw new Error(`${reason} must remain a hard rejection`);
   }
 });

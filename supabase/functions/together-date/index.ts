@@ -12,7 +12,7 @@ import {activeContinuity}from'../_shared/together-continuity.ts';
 
 const schema = z.discriminatedUnion('action', [
   z.object({ action:z.literal('availability'),characterInstanceId:z.string().uuid(),worldId:z.string().uuid() }),
-  z.object({ action: z.literal('start'), sessionId: z.string().uuid() }),
+  z.object({ action: z.literal('start'), sessionId: z.string().uuid(), pauseScenario:z.boolean().optional() }),
   z.object({ action: z.literal('defer'), sessionId: z.string().uuid() }),
   z.object({ action: z.literal('choose'), sessionId: z.string().uuid(), choiceId: z.string().min(1).max(80), choiceText: z.string().min(1).max(1000), freeText: z.boolean().optional() }),
 ]);
@@ -44,7 +44,9 @@ serve(async (request, correlationId) => {
   if (input.action === 'start') {
     if (!['unlocked','upcoming','deferred'].includes(session.status)) throw new AppError('CONFLICT', 'This date is not ready to begin.', 409);
     const now = new Date().toISOString();
-    const { data, error } = await db.from('together_date_sessions').update({ status: 'active', current_phase: 'arrival', phase_index: 0, started_at: now, updated_at: now }).eq('id', session.id).select('*,together_date_templates(*)').single();
+    const {data:started,error}=await db.rpc('together_start_date_with_scenario',{p_user:user.id,p_continuity:continuity.id,p_session:session.id,p_pause:input.pauseScenario===true,p_state:session.state??{},p_schedule_now:false});
+    if(error?.message?.includes('SCENARIO_PAUSE_REQUIRED'))throw new AppError('SCENARIO_PAUSE_REQUIRED','Join this date and pause your scenario?',409);
+    const data=started?{...started,together_date_templates:session.together_date_templates}:null;
     if (error) throw new AppError('INTERNAL_ERROR', 'Could not begin the date.', 500, true);
     await track(db, user.id, 'date_started', { dateSessionId: session.id });
     return json({ data, correlationId }, 200, correlationId);

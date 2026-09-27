@@ -1,3 +1,4 @@
+import { assertPhotoRequestAllowed } from './photo-request-policy.ts';
 import type{SupabaseClient}from'@supabase/supabase-js';
 import{resolveMediaOfferPolicy,type MediaOfferSource}from'../../../packages/together-domain/src/media-economics.ts';
 import{capabilitiesForTier,normalizeSubscriptionTier,type SubscriptionTier}from'../../../packages/together-domain/src/entitlements.ts';
@@ -20,6 +21,7 @@ export type CreateMediaOfferInput={
 };
 
 export async function createMediaOffer(db:SupabaseClient,input:CreateMediaOfferInput):Promise<Record<string,any>|null>{
+  assertPhotoRequestAllowed({requestText:typeof input.previewMetadata?.requestText==='string'?input.previewMetadata.requestText:undefined,requestedContentLevel:input.contentLevel,adultPipelineAuthorized:input.adultPipelineAuthorized},{stage:'create_offer',userId:input.userId,characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,requestId:input.offerKey});
   const originalPreview=input.previewMetadata??{},productionRequest=resolveProductionSafePhotoRequest({requestText:typeof originalPreview.requestText==='string'?originalPreview.requestText:undefined,requestedContentLevel:input.contentLevel,fallbackLevel:input.source==='date'?'romance':'standard',adultPipelineAuthorized:input.adultPipelineAuthorized===true});
   const subjectIds=normalizeMediaSubjectIds(input.characterInstanceId,input.subjectCharacterInstanceIds);
   const[subjects,profileResult,tier]=await Promise.all([

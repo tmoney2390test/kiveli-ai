@@ -1,9 +1,11 @@
+import { initiativePacingAllows } from './kivelle-proactive-pacing.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeChatLanguage } from '../../../packages/together-domain/src/chat-language.ts';
 import { normalizeSubscriptionTier } from '../../../packages/together-domain/src/entitlements.ts';
 import { renderCharacterInitiative } from './kivelle-proactive-voice.ts';
 import { loadInitiativeSource, markInitiativeThreadDelivered, userResumedAfterQueue } from './kivelle-proactive-context.ts';
 import { continuityById } from './together-continuity.ts';
+import { characterCanSpeak } from '../../../packages/together-domain/src/character-life-state.ts';
 
 type Row = Record<string, any>;
 type DeliveryInput = {
@@ -50,6 +52,7 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
     let message = existing;
     let content = existing?.content ?? '';
     if (!message) {
+      if (!await initiativePacingAllows(db, userId, proactive, now)) return await cancel('unanswered_backoff_or_disabled');
       const [source, instanceResult, relationshipResult, entitlementResult, latestUser, continuity] = await Promise.all([
         loadInitiativeSource(db, userId, proactive, now, input.timezone),
         db.from('together_character_instances')
@@ -63,6 +66,7 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
       ]);
       if (instanceResult.error || relationshipResult.error || entitlementResult.error) throw new Error('INITIATIVE_CONTEXT_READ_FAILED');
       const instance = instanceResult.data;
+      if (instance && !characterCanSpeak(instance.life_state)) return await cancel('character_dead');
       if (!source || !instance || !relationshipResult.data || !continuity ||
         String(proactive.continuity_id) !== String(conversation.continuity_id) ||
         String(instance.continuity_id) !== String(conversation.continuity_id) ||
@@ -82,17 +86,19 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
         loadInitiativeSource(db, userId, proactive, commitTime, input.timezone),
         latestUserMessage(db, userId, conversation.id),
         db.from('together_conversations').select('archived_at,metadata').eq('id', conversation.id).eq('user_id', userId).maybeSingle(),
-        db.from('together_character_instances').select('current_activity,current_location_id').eq('id', instance.id).eq('user_id', userId).maybeSingle(),
+        db.from('together_character_instances').select('current_activity,current_location_id,life_state').eq('id', instance.id).eq('user_id', userId).maybeSingle(),
         db.from('together_proactive_messages').select('id').eq('id', proactive.id).eq('user_id', userId)
           .eq('status', 'queued').eq('context->>generationLeaseToken', leaseToken).maybeSingle(),
         continuityById(db,userId,String(conversation.continuity_id)),
       ]);
       if (currentConversation.error || currentInstance.error || currentClaim.error) throw new Error('INITIATIVE_REVALIDATION_FAILED');
       if (!currentClaim.data) return null;
+      if (!await initiativePacingAllows(db, userId, proactive, commitTime)) return await cancel('unanswered_backoff_or_disabled');
       if (!currentSource || JSON.stringify(currentSource) !== JSON.stringify(source) || userResumedAfterQueue(proactive, currentUser) ||
         !currentConversation.data || currentConversation.data.archived_at || !currentContinuity ||
         JSON.stringify(currentContinuity.together_user_personas) !== JSON.stringify(continuity.together_user_personas) ||
         JSON.stringify(currentConversation.data.metadata?.chatPreferences) !== JSON.stringify(conversation.metadata?.chatPreferences) ||
+        !characterCanSpeak(currentInstance.data?.life_state) ||
         currentInstance.data?.current_activity !== instance.current_activity || currentInstance.data?.current_location_id !== instance.current_location_id ||
         commitTime.getTime() >= Date.parse(leaseContext.generationLeaseUntil) ||
         (input.additionalRelevance && !await input.additionalRelevance(commitTime))) return await cancel('changed_during_generation');
@@ -100,7 +106,7 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
         conversation_id: conversation.id, user_id: userId, character_instance_id: instance.id,
         speaker_character_instance_id: conversation.kind === 'group' ? instance.id : null,
         role: 'assistant', content, delivery_status: 'complete', response_key: responseKey,
-        provider_metadata: { provider: 'life-engine', proactive: true, proactive_message_id: proactive.id,
+        provider_metadata: { provider: 'life-engine', proactive: true, messageKind: proactive.context?.messageKind, proactive_message_id: proactive.id,
           group_plan_id: proactive.context?.groupPlanId, chatLanguage: normalizeChatLanguage(conversation.metadata?.chatPreferences?.chatLanguage),
           initiativeGenerationVersion: 2, ...(proactive.open_thread_id ? { conversationalHandoff: {
             mode: 'earned_followup', source: 'open_thread', openThreadId: proactive.open_thread_id,

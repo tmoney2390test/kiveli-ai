@@ -1,3 +1,5 @@
+import { scheduleRunsOnDate } from '../../../packages/together-domain/src/schedule-rotation.ts';
+import {publicArcView,isConvertedArcEvent} from './scenario-catalog.ts';
 import { dailyDialogueUsage } from './kivelle-daily-dialogue-usage.ts';
 import { pausedCharacterState, schedulePauseFrom, scheduleEventAllowedDuringPause } from '../../../packages/together-domain/src/schedule-pause.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -87,7 +89,7 @@ export function nextDatePhase(current: string, phases: Array<{ id: string }> = p
 export function resolveLifeState(rows: Array<Record<string, unknown>>, now = new Date(), timezone = 'UTC', fallback?:{locationId:string;location:string}): { locationId: string; location: string; activity: string; availability: string; mood: string; energy: string } {
   const clock = experienceClock(timezone, now);
   const minute = clock.minuteOfDay;
-  const row = rows.find((entry) => Number(entry.day_of_week) === clock.weekday && minute >= Number(entry.start_minute) && minute < Number(entry.end_minute));
+  const row = rows.find((entry) => scheduleRunsOnDate(entry.metadata as Record<string,unknown>, clock.localDate) && Number(entry.day_of_week) === clock.weekday && minute >= Number(entry.start_minute) && minute < Number(entry.end_minute));
   if (!row) return { locationId: fallback?.locationId ?? '', location: fallback?.location ?? 'Current world', activity: minute < 480 ? 'sleeping' : 'having some unstructured time', availability: minute < 480 ? 'busy' : 'available', mood: 'content', energy: minute > 1260 ? 'low' : 'medium' };
   const location = (row.together_locations as Record<string, unknown> | null)?.name ?? fallback?.location ?? 'Current place';
   return { locationId: String(row.location_id ?? fallback?.locationId ?? ''), location: String(location), activity: String(row.activity), availability: String(row.availability), mood: String(row.mood_influence ?? 'content'), energy: Number(row.energy_delta) > 0 ? 'high' : Number(row.energy_delta) < 0 ? 'low' : 'medium' };
@@ -249,7 +251,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   const dailyMessageWindowReset=new Date(dailyMessageWindowStart);dailyMessageWindowReset.setUTCDate(dailyMessageWindowReset.getUTCDate()+1);
   const activeVersionIds=[...new Set((instanceRows.data??[]).map((instance)=>String(instance.character_version_id??'')).filter(Boolean))];
   const scheduleTemplates=fetchScheduleTemplates(db,activeVersionIds);
-  const [profile, personas, continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, favorites, schedules, scheduleEvents, relationships, relationshipPlaces, milestones, dates, moments, memories, threads, conversations, sceneSessions, sceneParticipants, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions, dailyMessages] = await Promise.all([
+  const [profile, personas, continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, favorites, schedules, scheduleEvents, relationships, relationshipPlaces, pendingMilestones, milestoneHistory, dates, moments, memories, threads, conversations, sceneSessions, sceneParticipants, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions, dailyMessages] = await Promise.all([
     Promise.resolve(profileForSnapshot),
     db.from('together_user_personas').select('*').eq('user_id',userId).order('is_default',{ascending:false}).order('created_at'),
     db.from('together_continuities').select('*,together_user_personas(*)').eq('user_id',userId).order('kind').order('created_at'),
@@ -267,7 +269,8 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
     db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).gte('ends_at',new Date(Date.now()-86400000).toISOString()).lte('starts_at',new Date(Date.now()+2*86400000).toISOString()).order('starts_at').limit(300),
     db.from('together_relationship_states').select('*').eq('user_id', userId).eq('continuity_id',continuity.id),
     db.from('together_relationship_places').select('*').eq('user_id',userId).eq('continuity_id',continuity.id),
-    db.from('together_relationship_milestones').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('created_at', { ascending: false }).limit(100),
+    db.from('together_relationship_milestones').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('status','pending').order('created_at', { ascending: false }),
+    db.from('together_relationship_milestones').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).neq('status','pending').order('created_at', { ascending: false }).limit(100),
     db.from('together_date_sessions').select('*, together_date_templates(*)').eq('user_id', userId).eq('continuity_id',continuity.id),
     db.from('together_moments').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).order('occurred_at', { ascending: false }).limit(30),
     db.from('together_memories').select('*').eq('user_id', userId).eq('continuity_id',continuity.id).eq('status', 'active').eq('visibility_scope','all').in('content_rating',['safe','suggestive']).order('pinned', { ascending: false }).order('importance', { ascending: false }).limit(100),
@@ -288,10 +291,10 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
     db.from('together_conversation_actions').select('*').eq('user_id',userId).eq('continuity_id',continuity.id).eq('status','pending').or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).order('created_at',{ascending:false}).limit(20),
     dailyDialogueUsage(db,userId,dailyMessageWindowStart.toISOString()),
   ]);
-  const snapshotResults = [profile,personas,continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, favorites, schedules, scheduleEvents, relationships,relationshipPlaces, milestones, dates, moments, memories, threads, conversations, sceneSessions,sceneParticipants, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions,dailyMessages];
+  const snapshotResults = [profile,personas,continuities, worlds, locations, userWorlds, characterWorldPresence, instances, discoverable, favorites, schedules, scheduleEvents, relationships,relationshipPlaces, pendingMilestones, milestoneHistory, dates, moments, memories, threads, conversations, sceneSessions,sceneParticipants, events, sharedPlans, conversationEvents, proactive, entitlements, preferences, storyArcs, trips, photoOpportunities, generatedMedia, conversationActions,dailyMessages];
   const failedIndex=snapshotResults.findIndex((result)=>Boolean(result.error));
   if(failedIndex>=0){
-    const snapshotResultNames=['profile','personas','continuities','worlds','locations','userWorlds','characterWorldPresence','instances','discoverable','favorites','schedules','scheduleEvents','relationships','relationshipPlaces','milestones','dates','moments','memories','threads','conversations','sceneSessions','sceneParticipants','events','sharedPlans','conversationEvents','proactive','entitlements','preferences','storyArcs','trips','photoOpportunities','generatedMedia','conversationActions','dailyMessages'];
+    const snapshotResultNames=['profile','personas','continuities','worlds','locations','userWorlds','characterWorldPresence','instances','discoverable','favorites','schedules','scheduleEvents','relationships','relationshipPlaces','pendingMilestones','milestoneHistory','dates','moments','memories','threads','conversations','sceneSessions','sceneParticipants','events','sharedPlans','conversationEvents','proactive','entitlements','preferences','storyArcs','trips','photoOpportunities','generatedMedia','conversationActions','dailyMessages'];
     const failure=snapshotResults[failedIndex]?.error;
     console.error('together_bootstrap_snapshot_query_failed',{
       query:snapshotResultNames[failedIndex]??'unknown',
@@ -320,6 +323,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   // the shared scene without mutating the character just to render a screen.
   const visibleInstances:Array<Record<string,any>>=(instances.data??[]).map((instance:Record<string,any>):Record<string,any>=>{
     const scene=sceneByInstance.get(String(instance.id));
+    if(instance.scenario_state)return instance;
     if(scene)return {...instance,current_location_id:scene.location_id,current_activity:sceneSnapshotActivity(scene),current_interruptibility:'open',current_presence_source:'scene'};
     const commitment=activeSnapshotCommitment(instance,nowDate,publishedDates,publishedSharedPlans);if(commitment)return commitment; if(schedulePauseFrom(instance.schedule_pause))return pausedCharacterState(instance);
     const authoritativeEvent=activeAuthoritativeLifeEvent(String(instance.id),nowDate,publishedLifeEvents);
@@ -345,11 +349,12 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   const activeInstance=visibleInstances.find((item)=>item.id===continuity.active_companion_instance_id)??visibleInstances[0];
   const versionIds=[...new Set(visibleInstances.map((item)=>String(item.character_version_id)).filter(Boolean))];
   const currentLocationId=String(activeInstance?.current_location_id??'');
-  const [signed,discoverableCharacters,characterPlaceProfilesResult,currentPlaceContext]=await Promise.all([
+  const [signed,discoverableCharacters,characterPlaceProfilesResult,currentPlaceContext,instancePortraits]=await Promise.all([
     readyPaths.length?db.storage.from('together-user-media').createSignedUrls(readyPaths,3600):Promise.resolve({data:[]}),
     hydrateDiscoverableCharacters(db,discoverable.data??[]),
     versionIds.length?db.from('together_character_place_profiles').select('*').in('character_version_id',versionIds):Promise.resolve({data:[],error:null}),
     activeInstance?resolveCharacterPlaceContext({db,characterVersionId:String(activeInstance.character_version_id),locationId:publishedLocationIds.has(currentLocationId)?currentLocationId:null,activity:String(activeInstance.current_activity??''),userId,characterInstanceId:String(activeInstance.id)}):Promise.resolve(null),
+    hydrateDiscoverableCharacters(db,visibleInstances.map((instance)=>({...instance.together_character_templates,current_published_version:instance.together_character_versions?.version,together_character_versions:instance.together_character_versions?[instance.together_character_versions]:[]}))),
   ]);
   if(characterPlaceProfilesResult.error)throw new AppError('INTERNAL_ERROR','Kivelle could not load companion place context.',500,true);
   const characterPlaceProfiles=characterPlaceProfilesResult.data??[];
@@ -358,7 +363,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   const snapshotLocations=publishedLocations.map(compactSnapshotLocation);
   const profilePayload=profile.data?projectClientProfile({...profile.data,active_continuity_id:continuity.id,active_companion_instance_id:activeInstance?.id??null}):profile.data;
   const experienceCapabilities=resolveServerExperienceCapabilities(normalizeMultimodalPreferences(profile.data?.multimodal_preferences),(entitlements.data?.entitlement_keys??[]).map(String)).experience;
-  return { veniceTest:await chatTestCapability(db,userId), profile: profilePayload, activePersona:continuity.together_user_personas??null,activeContinuity:continuity,personas:personas.data??[],continuities:continuities.data??[],worlds:publishedWorlds,userWorlds:publishedWorldAccess,characterWorldPresence:publishedCharacterPresence,currentPlaceContext,locations:snapshotLocations,relationshipPlaces:relationshipPlaces.data??[],characterPlaceProfiles,characters:visibleInstances,discoverableCharacters,favoriteCharacterTemplateIds:(favorites.data??[]).map((item)=>String(item.character_template_id)),schedules:(schedules.data??[]).map(compactSnapshotSchedule),scheduleEvents:(scheduleEvents.data??[]).filter((event)=>(!pausedInstanceIds.has(String(event.character_instance_id))||scheduleEventAllowedDuringPause(event))&&!event.metadata?.suppressedByPlanId&&(!event.location_id||publishedLocationIds.has(String(event.location_id)))).map(compactSnapshotScheduleEvent),relationships:relationships.data??[],relationshipMilestones:(milestones.data??[]).filter((milestone)=>milestone.status==='pending'),relationshipMilestoneHistory:(milestones.data??[]).filter((milestone)=>milestone.status!=='pending'),relationshipCues,dates:publishedDates,moments:moments.data??[],memories:clientMemories,memoryCounts,openThreads:threads.data??[],conversations:conversationMetadata,sceneSessions:activeScenes,sceneParticipants:sceneParticipants.data??[],sharedPlans:publishedSharedPlans,conversationEvents:conversationEvents.data??[],lifeEvents:publishedLifeEvents,proactiveMessages:proactive.data??[],storyArcs:storyArcs.data??[],trips:trips.data??[],photoOpportunities:photoOpportunities.data??[],generatedMedia:mediaPayload,conversationActions:conversationActions.data??[],entitlements:{...(entitlements.data??{}),tier:snapshotCapabilities.tier,entitlement_keys:[...snapshotCapabilities.entitlements]},dailyMessageAllowance,experienceCapabilities,notificationPreferences:preferences.data&&requestedTimezone?{...preferences.data,timezone:requestedTimezone}:preferences.data };
+  return { veniceTest:await chatTestCapability(db,userId), profile: profilePayload, activePersona:continuity.together_user_personas??null,activeContinuity:continuity,personas:personas.data??[],continuities:continuities.data??[],worlds:publishedWorlds,userWorlds:publishedWorldAccess,characterWorldPresence:publishedCharacterPresence,currentPlaceContext,locations:snapshotLocations,relationshipPlaces:relationshipPlaces.data??[],characterPlaceProfiles,characters:visibleInstances.map((instance,index)=>({...instance,together_character_versions:instancePortraits[index]?.together_character_versions??instance.together_character_versions})),discoverableCharacters,favoriteCharacterTemplateIds:(favorites.data??[]).map((item)=>String(item.character_template_id)),schedules:(schedules.data??[]).map(compactSnapshotSchedule),scheduleEvents:(scheduleEvents.data??[]).filter((event)=>(!pausedInstanceIds.has(String(event.character_instance_id))||scheduleEventAllowedDuringPause(event))&&!event.metadata?.suppressedByPlanId&&(!event.location_id||publishedLocationIds.has(String(event.location_id)))).map(compactSnapshotScheduleEvent),relationships:relationships.data??[],relationshipMilestones:pendingMilestones.data??[],relationshipMilestoneHistory:milestoneHistory.data??[],relationshipCues,dates:publishedDates,moments:moments.data??[],memories:clientMemories,memoryCounts,openThreads:threads.data??[],conversations:conversationMetadata,sceneSessions:activeScenes,sceneParticipants:sceneParticipants.data??[],sharedPlans:publishedSharedPlans,conversationEvents:conversationEvents.data??[],lifeEvents:publishedLifeEvents.filter(e=>!isConvertedArcEvent(e)),proactiveMessages:proactive.data??[],storyArcs:(storyArcs.data??[]).map(publicArcView),trips:trips.data??[],photoOpportunities:photoOpportunities.data??[],generatedMedia:mediaPayload,conversationActions:conversationActions.data??[],entitlements:{...(entitlements.data??{}),tier:snapshotCapabilities.tier,entitlement_keys:[...snapshotCapabilities.entitlements]},dailyMessageAllowance,experienceCapabilities,notificationPreferences:preferences.data&&requestedTimezone?{...preferences.data,timezone:requestedTimezone}:preferences.data };
 }
 
 export async function buildCharacterPresenceSnapshot(
@@ -454,7 +459,7 @@ function compactSnapshotLocation(location:Record<string,any>){
   return{...location,canonical_lore:compactLocationLoreForDirectory(location.canonical_lore),canonical_visual_context:{indoorOutdoor:visual.indoorOutdoor,visualAnchors:Array.isArray(visual.visualAnchors)?visual.visualAnchors.slice(0,3):[]}};
 }
 
-const SNAPSHOT_SCHEDULE_METADATA_KEYS=['scheduleMode','profileVisibility','activityVariants','displayLocation','activityKey'] as const;
+const SNAPSHOT_SCHEDULE_METADATA_KEYS=['cycleWeeks','weekIndex','cycleAnchorDate','scheduleMode','profileVisibility','activityVariants','displayLocation','activityKey'] as const;
 const SNAPSHOT_SCHEDULE_EVENT_METADATA_KEYS=['activityLabel','upcomingHint','displayLocation','activityKey'] as const;
 const SNAPSHOT_MEDIA_METADATA_KEYS=['source','title','context','activity','locked','visibility','editDepth','rootMediaId','providerJobId','providerRequestId','requestedModel','resolvedModel','videoModelDisplayName','soundRequested','audioStreamDetected','audioStripped','finalSoundPresent','quotedCredits','creditCost','resolution','duration','durationSeconds'] as const;
 
@@ -495,7 +500,7 @@ function resolveAuthoredSnapshotPresence(instance:Record<string,unknown>,now:Dat
   const locationById=new Map(locations.map((location)=>[String(location.id),location]));
   const authoredLocation=authored.map((row)=>locationById.get(String(row.location_id??''))).find(Boolean);
   const worldId=String(worldPresence?.world_id??authoredLocation?.world_id??''),world=worlds.find((item)=>String(item.id)===worldId);
-  const clock=experienceClock(world?.timezone??'UTC',now),row=authored.find((item)=>Number(item.day_of_week)===clock.weekday&&clock.minuteOfDay>=Number(item.start_minute)&&clock.minuteOfDay<Number(item.end_minute));
+  const clock=experienceClock(world?.timezone??'UTC',now),row=authored.find((item)=>scheduleRunsOnDate(item.metadata,clock.localDate)&&Number(item.day_of_week)===clock.weekday&&clock.minuteOfDay>=Number(item.start_minute)&&clock.minuteOfDay<Number(item.end_minute));
   const homeId=worldPresence?.home_location_id?String(worldPresence.home_location_id):null;
   if(!row)return{locationId:homeId??(instance.current_location_id?String(instance.current_location_id):null),activity:'Having some unstructured time at home',energy:'medium',interruptibility:'open'};
   const variants=Array.isArray(row.metadata?.activityVariants)?row.metadata.activityVariants.filter((value:unknown)=>typeof value==='string'&&Boolean(value.trim())):[];

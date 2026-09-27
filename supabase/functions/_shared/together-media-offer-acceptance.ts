@@ -1,3 +1,4 @@
+import { assertPhotoRequestAllowed } from './photo-request-policy.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MediaOfferSource } from '../../../packages/together-domain/src/media-economics.ts';
 import type { MediaPresenceState } from '../../../packages/together-domain/src/media.ts';
@@ -13,7 +14,7 @@ import{dailyPhotoReservationKey,prepareDailyPhotoOffer,releaseDailyPhotoAllowanc
 export async function acceptMediaOffer(db:SupabaseClient,input:{userId:string;offerId:string;requestId:string;paymentMethod?:'credits'|'daily_included';adultPipelineAuthorized?:boolean;adultWebSessionId?:string|null}):Promise<{state:'accepted'|'needs_credits'|'daily_unavailable'|'expired';offer:Record<string,any>;media?:Record<string,unknown>;creditBalance:number;required?:number;dailyPhotoAllowanceRemaining?:number;dailyPhotoAllowanceLimit?:number;dailyPhotoBenefitDate?:string}>{
   let{data:offer}=await db.from('together_media_offers').select('*').eq('id',input.offerId).eq('user_id',input.userId).maybeSingle();
   if(!offer)throw new AppError('NOT_FOUND','That photo offer is unavailable.',404);
-  if(['suggestive','mature','explicit'].includes(String(offer.content_level))&&!input.adultPipelineAuthorized)throw new AppError('FORBIDDEN','That photo offer is unavailable in this session.',403);
+  assertPhotoRequestAllowed({requestText:typeof offer.preview_metadata?.requestText==='string'?offer.preview_metadata.requestText:undefined,requestedContentLevel:offer.content_level,adultPipelineAuthorized:input.adultPipelineAuthorized},{stage:'accept_offer',userId:input.userId,offerId:input.offerId,requestId:input.requestId});
   if(offer.generated_media_id){const{data:media}=await db.from('together_generated_media').select('*').eq('id',offer.generated_media_id).eq('user_id',input.userId).maybeSingle();const state=await resolveSubscriptionState(db,input.userId),allowance=await dailyPhotoAllowanceStatus(db,{userId:input.userId,limit:state.capabilities.includedCompanionPhotoDailyLimit});return{state:'accepted',offer:offerWithDailyAllowance(offer,allowance),media:media??undefined,creditBalance:state.creditBalance.total,dailyPhotoAllowanceRemaining:allowance.remaining,dailyPhotoAllowanceLimit:allowance.limit,dailyPhotoBenefitDate:allowance.benefitDate};}
   if(!configuredMediaRegistry().some((route)=>route.enabled&&route.mediaTypes.includes('image')))throw new AppError('PROVIDER_NOT_CONFIGURED',"Photo generation isn't connected yet.",503);
   const offeredSubjects=Array.isArray(offer.subject_character_instance_ids)&&offer.subject_character_instance_ids.length?offer.subject_character_instance_ids.map(String):[String(offer.character_instance_id)];

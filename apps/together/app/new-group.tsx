@@ -1,3 +1,4 @@
+import { withComingSoonWorlds, isComingSoonWorld } from '../src/lib/comingSoonWorlds';
 import { styles } from '../src/styles/newGroupStyles';
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -173,14 +174,15 @@ export default function NewGroupScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.worlds}
             >
-              {worldOptions.map((option) => {
+              {withComingSoonWorlds(worldOptions.map((option) => option.world)).map((world) => {
+                const option = worldOptions.find((item) => item.world.id === world.id) ?? { world, characters: [] };
                 const active = option.world.id === activeWorldId;
                 return (
                   <Pressable
                     key={option.world.id}
                     accessibilityRole="radio"
-                    accessibilityState={{ checked: active }}
-                    accessibilityLabel={`${option.world.name}, ${option.characters.length} available companions`}
+                    disabled={isComingSoonWorld(world)} accessibilityState={{ checked: active, disabled: isComingSoonWorld(world) }}
+                    accessibilityLabel={`${option.world.name}, ${isComingSoonWorld(world) ? "coming soon" : `${isComingSoonWorld(world) ? "Coming soon" : `${option.characters.length} available`} companions`}`}
                     onPress={() => chooseWorld(option.world.id)}
                     style={[styles.world, active && styles.worldActive]}
                   >

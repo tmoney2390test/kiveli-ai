@@ -1,3 +1,4 @@
+import { assertPhotoRequestAllowed } from './photo-request-policy.ts';
 import type{SupabaseClient}from'@supabase/supabase-js';
 import{classifyMediaEditSemantics,MAX_MEDIA_EDIT_DEPTH,normalizeMediaEditInstruction,resolveMediaEditContentLevel}from'../../../packages/together-domain/src/media-edit.ts';
 import{resolveCharacterMediaBoundaries,resolveMediaContentPolicy,type MediaContentLevel}from'../../../packages/together-domain/src/media-routing.ts';
@@ -20,6 +21,7 @@ const PROHIBITED_ADULT=/\b(?:incest|mother|father|mom|dad|sister|brother|daughte
 
 export async function queueMediaEdit(db:SupabaseClient,input:{userId:string;continuityId:string;sourceMedia:Record<string,unknown>;requestId:string;instruction:string;adultPipelineAuthorized?:boolean;adultWebSessionId?:string|null}):Promise<{media:Record<string,unknown>;creditCost:number;creditBalance:Record<string,unknown>}>{
   const source=input.sourceMedia,instruction=normalizeMediaEditInstruction(input.instruction);
+  assertPhotoRequestAllowed({requestText:instruction,adultPipelineAuthorized:input.adultPipelineAuthorized},{stage:"edit_photo",userId:input.userId,requestId:input.requestId});
   if(!instruction)throw new AppError('VALIDATION_ERROR','Describe what you want changed in the photo.',400);
   if(source.media_type!=='image'||source.status!=='ready'||!source.storage_path)throw new AppError('CONFLICT','Only a completed companion photo can be edited.',409);
   const sourceMetadata=(source.metadata??{}) as Record<string,unknown>,depth=Number(sourceMetadata.editDepth??0)+1;

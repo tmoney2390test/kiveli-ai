@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   Brain,
   CalendarDays,
@@ -38,6 +38,7 @@ type Props = {
   onFavorite: () => void;
   onPin: () => void;
   onDetails: () => void;
+  onBlueprint?: () => void;
   onMemory?: () => void;
   memoryLocked?: boolean;
   onHistory?: () => void;
@@ -45,6 +46,7 @@ type Props = {
   onChangePlan: () => void;
   onEndPlan: () => void;
   onSettings: () => void;
+  scheduleControl?: React.ReactNode;
   onFresh: () => void;
   onAdvanced?: () => void;
   onDelete: () => void;
@@ -64,12 +66,14 @@ export function ConversationOverflowMenu({
   onPin,
   onDetails,
   onMemory,
+  onBlueprint,
   memoryLocked,
   onHistory,
   onCreatePlan,
   onChangePlan,
   onEndPlan,
   onSettings,
+  scheduleControl,
   onFresh,
   onAdvanced,
   onDelete,
@@ -115,6 +119,7 @@ export function ConversationOverflowMenu({
       onPress: onMemory,
     }] : []),
   ];
+  if(onBlueprint)identity.push({label:'Character blueprint',icon:<Brain size={16} color={colors.violet}/>,onPress:onBlueprint});
   const conversation: MenuAction[] = [
     { label: pinned ? 'Unpin chat' : 'Pin chat', icon: <Pin size={16} color={pinned ? colors.violet : colors.textSecondary} fill={pinned ? colors.violet : 'transparent'} />, onPress: onPin, selected: pinned, disabled: pinBusy },
     { label: 'Chat settings', icon: <Settings size={16} color={colors.textSecondary} />, onPress: onSettings },
@@ -141,6 +146,7 @@ export function ConversationOverflowMenu({
             <X size={17} color={colors.muted} />
           </Pressable>
         </View>
+        <ScrollView style={{flexShrink:1}} keyboardShouldPersistTaps="handled">
         <MenuSection label={kind === 'group' ? 'GROUP' : 'COMPANION'} actions={identity} />
         <MenuSection label="PLAN" actions={conversationPlanMenuItems(hasActivePlan).map((item) => ({
           label: item.label,
@@ -148,8 +154,10 @@ export function ConversationOverflowMenu({
           onPress: planActions[item.key],
           danger: item.danger,
         }))} />
+        {scheduleControl}
         <MenuSection label="CONVERSATION" actions={conversation} />
         <MenuSection label="MANAGE" actions={manage} />
+        </ScrollView>
       </FrostedSurface>
     </View>
   </View>;
@@ -190,6 +198,7 @@ const styles = StyleSheet.create({
     maxHeight: '82%',
   },
   menu: {
+    maxHeight: '100%',
     width: '100%',
     padding: 10,
     borderRadius: radius.lg,

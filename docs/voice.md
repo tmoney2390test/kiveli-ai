@@ -12,11 +12,11 @@ Access is checked by Supabase Edge Functions, never only by Expo:
 | Kivelle+ | Yes | Essential or Immersive with Credits |
 | Kivelle Max | Yes | Essential or Immersive with Credits |
 
-Live calls have no subscription gate. The call screen exposes a persisted Essential/Immersive selector before microphone capture starts. Both routes spend the account's shared Kivelle Credit balance: Essential costs three Credits per started minute and Immersive costs eight. The stable API/database route IDs remain `standard` and `express` for compatibility.
+Live calls have no subscription gate. The call screen exposes a persisted Essential/Immersive selector before microphone capture starts. Both routes spend the account's shared Kivelle Credit balance: Essential costs five Credits per started minute and Immersive costs eight. The stable API/database route IDs remain `standard` and `express` for compatibility.
 
 ## Essential and Immersive routes
 
-**Essential** (internal route `standard`) streams PCM through `voice.kivelli.app` to xAI streaming STT, sends final user turns through Grok text dialogue with a stable call prompt-cache key, and streams clauses through xAI TTS. It is intended for long conversations and defaults to three Credits per started minute. The Worker receives a short-lived HMAC credential bound to the user, call, route, and exact configuration. Kivelle's private call context travels inside an authenticated AES-GCM envelope that only the relay can open; Expo receives no cleartext relationship or memory prompt. A per-call SQLite Durable Object enforces one active relay and one use of each credential, preventing one paid call from being replayed into concurrent provider streams. The permanent xAI key remains a Worker secret. Raw audio is forwarded transiently and never stored.
+**Essential** (internal route `standard`) streams PCM through `voice.kivelli.app` to xAI streaming STT, sends final user turns through Grok text dialogue with a stable call prompt-cache key, and streams clauses through xAI TTS. It is intended for long conversations and defaults to five Credits per started minute. The Worker receives a short-lived HMAC credential bound to the user, call, route, and exact configuration. Kivelle's private call context travels inside an authenticated AES-GCM envelope that only the relay can open; Expo receives no cleartext relationship or memory prompt. A per-call SQLite Durable Object enforces one active relay and one use of each credential, preventing one paid call from being replayed into concurrent provider streams. The permanent xAI key remains a Worker secret. Raw audio is forwarded transiently and never stored.
 
 **Immersive** (internal route `express`) preserves the direct native Grok Voice session described below. Route selection is fixed for the life of a call; Kivelle never silently switches providers or content modes mid-call.
 
@@ -24,14 +24,14 @@ Standard is fail-closed until `KIVELLE_XAI_CASCADED_VOICE_ENABLED=true`, the rel
 
 ### Provisional unit economics
 
-At measured all-in costs of $0.015, $0.020, $0.025, and $0.030 per Essential minute, the variable provider exposure is:
+At modeled all-in costs of $0.015, $0.020, $0.025, and $0.030 per Essential minute, the variable provider exposure is:
 
 | Allowance | $0.015/min | $0.020/min | $0.025/min | $0.030/min |
 | --- | ---: | ---: | ---: | ---: |
-| 500 Plus Credits used on Essential (166 min) | $2.49 | $3.32 | $4.15 | $4.98 |
-| 1,200 Max Credits used on Essential (400 min) | $6.00 | $8.00 | $10.00 | $12.00 |
+| 500 Plus Credits used on Essential (100 min) | $1.50 | $2.00 | $2.50 | $3.00 |
+| 1,200 Max Credits used on Essential (240 min) | $3.60 | $4.80 | $6.00 | $7.20 |
 
-The Max annual plan averages about $33.33 revenue per month before payment fees, text/media usage, and support overhead. Essential and Immersive draw from the same general Credit balance as media. Essential is three Credits per minute and Immersive is eight Credits per minute.
+The Max annual plan averages about $33.33 revenue per month before payment fees, text/media usage, and support overhead. Essential and Immersive draw from the same general Credit balance as media. Essential is five Credits per minute and Immersive is twenty Credits per minute.
 
 Recommended release progression is `0% -> internal IDs -> 5% -> 25% -> 100%`, with stage latency, refusal rate, interruption waste, transcript accuracy, cost per connected minute, and reconciliation success reviewed at each step. Rollback requires setting the Standard canary or enable flag to zero; existing Express calls and all text chat remain intact.
 
@@ -59,8 +59,8 @@ KIVELLE_VOICE_RELAY_SIGNING_SECRET=<long-random-value>
 KIVELLE_XAI_STREAMING_STT_MODEL=grok-transcribe
 KIVELLE_XAI_CASCADE_DIALOGUE_MODEL=grok-4.3
 KIVELLE_XAI_STREAMING_TTS_MODEL=xai-text-to-speech
-KIVELLE_STANDARD_VOICE_CREDITS_PER_MINUTE=3
-KIVELLE_EXPRESS_VOICE_CREDITS_PER_MINUTE=8
+KIVELLE_STANDARD_VOICE_CREDITS_PER_MINUTE=5
+KIVELLE_EXPRESS_VOICE_CREDITS_PER_MINUTE=20
 ```
 
 `KIVELLE_XAI_TTS_MODEL` is a telemetry label. The current xAI TTS REST contract does not accept a selectable model field. Live calls pin the production model `grok-voice-think-fast-2.0`; `grok-voice-latest` is intentionally not used so a provider alias cannot silently change production behavior.

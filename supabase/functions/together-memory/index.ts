@@ -1,3 +1,4 @@
+import { loadCharacterBlueprint } from '../_shared/character-blueprint.ts';
 import { z } from "zod";
 import { authenticated, enforceRateLimit } from "../_shared/context.ts";
 import { parseBody } from "../_shared/body.ts";
@@ -53,6 +54,7 @@ const categoryPreferences = z.object({
   open_thread: z.boolean().optional(),
 }).strict();
 const schema = z.discriminatedUnion("action", [
+  z.object({action:z.literal("character_blueprint"),characterInstanceId:z.string().uuid()}),
   z.object({
     action: z.literal("overview"),
     characterInstanceId: z.string().uuid(),
@@ -115,6 +117,8 @@ serve(async (request, correlationId) => {
   await enforceRateLimit(db, user.id, "together_memory", 180, 3600);
   const input = await parseBody(request, schema),
     continuity = await activeContinuity(db, user.id);
+
+  if(input.action === "character_blueprint") return json({data:await loadCharacterBlueprint(db,user.id,continuity.id,input.characterInstanceId),correlationId},200,correlationId);
 
   if (input.action === "overview") {
     const [companion, subscription] = await Promise.all([

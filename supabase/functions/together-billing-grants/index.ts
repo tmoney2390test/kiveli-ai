@@ -12,9 +12,11 @@ serve(async(request,correlationId)=>{
   const expected=serverEnv('KIVELLE_BILLING_GRANT_SECRET'),supplied=request.headers.get('x-kivelle-billing-grant-secret');
   if(!supplied||!constantTimeEqual(supplied,expected))throw new AppError('FORBIDDEN','Billing grant authorization failed.',403);
   const db=adminClient(),now=new Date(),month=now.toISOString().slice(0,7);
-  const{data,error}=await db.from('together_billing_subscriptions').select('user_id,provider,provider_subscription_id,plan_key,status,current_period_start,current_period_end,access_ends_at').eq('billing_interval','annual').eq('status','active').gt('access_ends_at',now.toISOString()).limit(1000);
+  let eligible=0,granted=0,failed=0;
+  for(let offset=0;;offset+=500){
+  const{data,error}=await db.from('together_billing_subscriptions').select('user_id,provider,provider_subscription_id,plan_key,status,current_period_start,current_period_end,access_ends_at').eq('billing_interval','annual').eq('status','active').gt('access_ends_at',now.toISOString()).order('user_id').order('provider_subscription_id').range(offset,offset+499);
   if(error)throw new AppError('INTERNAL_ERROR','Annual subscription benefits could not be loaded.',500,true);
-  let granted=0,failed=0;
+  eligible+=(data??[]).length;
   for(const row of(data??[]) as AnnualSubscription[]){
     if(!row.current_period_start||row.plan_key==='free')continue;
     try{
@@ -22,5 +24,7 @@ serve(async(request,correlationId)=>{
       granted+=1;
     }catch(error){failed+=1;console.error(JSON.stringify({level:'error',operation:'annual_credit_grant',subscriptionId:row.provider_subscription_id,month,code:error instanceof AppError?error.code:'INTERNAL_ERROR'}));}
   }
-  return json({data:{eligible:(data??[]).length,processed:granted,failed,month},correlationId},failed?207:200,correlationId);
+  if((data??[]).length<500)break;
+  }
+  return json({data:{eligible,processed:granted,failed,month},correlationId},failed?207:200,correlationId);
 });

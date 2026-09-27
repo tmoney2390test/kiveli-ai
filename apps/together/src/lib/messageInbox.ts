@@ -27,6 +27,7 @@ export type InboxSection = {
 };
 export type ChatLaunchParams = {
   inbox?: string;
+  messages?: string;
   compose?: string;
   character?: string;
   conversationId?: string;
@@ -70,9 +71,13 @@ export function returnToMessagesInbox({
   schedule(() => navigate(MESSAGES_INBOX_HREF));
 }
 
+export function messagesInboxNavigationState() {
+  return { index: 0, routes: [{ name: '(tabs)', state: { index: 0, routes: [{ name: 'chat-tab', params: { inbox: '1' } }] } }] };
+}
+
 export function shouldOpenMostRecentChat(pathname:string):boolean{
   const normalized=pathname.replace(/^\/\(tabs\)/,'').replace(/\/$/,'')||'/';
-  return ['/home','/explore','/moments'].includes(normalized);
+  return normalized.startsWith('/');
 }
 
 export function mostRecentChatHref(conversations:Conversation[],characters:CharacterInstance[]):string|null{
@@ -83,7 +88,7 @@ export function mostRecentChatHref(conversations:Conversation[],characters:Chara
     if(character){
       const template=character.together_character_templates;
       const handle=template.public_handle??template.slug;
-      if(handle)return`/chat?character=${encodeURIComponent(handle)}`;
+      if(handle)return`/chat?character=${encodeURIComponent(handle)}&conversationId=${encodeURIComponent(conversation.id)}`;
     }
   }
   return null;
@@ -105,7 +110,7 @@ const chatLaunchKeys = [
 export function chatHrefFromInboxParams(
   params: ChatLaunchParams,
 ): string | null {
-  if (params.inbox === "1") return null;
+  if (params.inbox === "1" || params.messages === "1") return null;
   const entries = chatLaunchKeys.flatMap((key) =>
     params[key] ? [[key, params[key]] as const] : []
   );

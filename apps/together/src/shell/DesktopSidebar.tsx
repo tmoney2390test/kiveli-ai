@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AccountMenu } from '../components/AccountMenu';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
@@ -20,7 +21,7 @@ import { KivelleCreditIcon } from '../components/KivelleCreditIcon';
 import { useSubscriptionStatus } from '../hooks/useSubscriptionStatus';
 import { useProfileAvatarUrl } from '../hooks/useProfileAvatarUrl';
 import { desktopNavigationKey, type DesktopNavigationKey } from '../lib/desktopNavigation';
-import { isActiveInboxConversation, MESSAGES_INBOX_HREF, mostRecentChatHref, shouldOpenMostRecentChat, WEB_MESSAGES_INBOX_HREF } from '../lib/messageInbox';
+import { isActiveInboxConversation, MESSAGES_INBOX_HREF, mostRecentChatHref, WEB_MESSAGES_INBOX_HREF } from '../lib/messageInbox';
 import { useTogether } from '../store/useTogether';
 import { colors, typography } from '../theme';
 import { markRouteIntent, warmRoute } from '../lib/routeWarmup';
@@ -34,6 +35,7 @@ type Props = { expanded: boolean; onHoverChange: (hovered: boolean) => void };
 type NavItem = { key: DesktopNavigationKey; label: string; href: string; icon: (color: string) => ReactNode; count?: number };
 
 export function DesktopSidebar({ expanded, onHoverChange }: Props) {
+  const [accountOpen, setAccountOpen] = useState(false);
   const pathname = usePathname();
   const settingsOpen = pathname === '/settings';
   const snapshot = useTogether((state) => state.snapshot);
@@ -53,7 +55,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
   const unreadCount = conversations.filter((conversation) => conversation.unread).length;
   const latestChatHref=snapshot?mostRecentChatHref(snapshot.conversations,snapshot.characters):null;
   const inboxHref=Platform.OS==='web'?WEB_MESSAGES_INBOX_HREF:MESSAGES_INBOX_HREF;
-  const messagesHref=shouldOpenMostRecentChat(pathname)?latestChatHref??inboxHref:inboxHref;
+  const messagesHref=latestChatHref??inboxHref;
   const currentWorld = snapshot?.worlds.find((world) => world.id === browsedWorldId)
     ?? (snapshot?.currentPlaceContext ? snapshot.worlds.find((world) => world.id === snapshot.currentPlaceContext?.world.id) : undefined)
     ?? snapshot?.worlds.find(isWorldCatalogVisible);
@@ -140,13 +142,14 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
       <View style={styles.footer}>
         <SidebarAction expanded={expanded} label={subscription ? `${subscription.creditBalance.total.toLocaleString()} Credits` : 'Kivelle Credits'} icon={<KivelleCreditIcon size={24} />} onPress={() => navigate(subscriptionHref({intent:'credits'}))} />
         <SidebarAction expanded={expanded} label="Notifications" icon={<Bell size={23} color={colors.muted} />} onPress={() => navigate('/notifications')} />
-        <Pressable accessibilityRole="button" accessibilityLabel={expanded ? undefined : 'Open Settings'} accessibilityHint="Open Settings" onPress={() => navigate('/settings')} style={({ pressed }) => [styles.account, !expanded && styles.accountCollapsed, activeKey === 'settings' && styles.accountActive, pressed && styles.rowPressed]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open your account" onPress={() => setAccountOpen(true)} style={({ pressed }) => [styles.account, !expanded && styles.accountCollapsed, activeKey === 'settings' && styles.accountActive, pressed && styles.rowPressed]}>
           <View style={styles.initial}>{showProfileAvatar ? <Image accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" alt="" source={profileAvatarSource!} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" transition={0} onError={() => setProfileAvatarFailed(true)} /> : <Text style={styles.initialText}>{personaName.trim()[0]?.toUpperCase() || 'Y'}</Text>}</View>
           {expanded ? <View style={styles.accountCopy}><Text style={styles.accountName} numberOfLines={1}>{personaName}</Text><Text style={styles.accountTier}>{subscriptionLabel(subscription?.tier ?? snapshot?.entitlements?.tier)}</Text></View> : null}
           {expanded ? <Settings size={22} color={activeKey === 'settings' ? colors.text : colors.muted} /> : null}
         </Pressable>
       </View>
     </View>
+    <AccountMenu visible={accountOpen} onClose={() => setAccountOpen(false)}/>
   </View>;
 }
 

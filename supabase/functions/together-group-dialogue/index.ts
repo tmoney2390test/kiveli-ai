@@ -107,6 +107,7 @@ import {
 const normalSchema = z.object({
   streamProtocol: z.literal(2).optional(),
   contextQuoteId:z.string().uuid().optional(),
+  contextCostAuthorization:z.string().max(160).optional(),
   contextPreference:z.literal('included').optional(),
   conversationId: z.string().uuid(),
   message: z.string().trim().max(MESSAGE_CHARACTER_LIMIT).default(""),

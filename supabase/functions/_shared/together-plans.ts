@@ -1,3 +1,4 @@
+import { scheduleRunsOnDate } from '../../../packages/together-domain/src/schedule-rotation.ts';
 import { AppError } from './types.ts';
 import { experienceClock, safeTimezone } from './kivelle-time.ts';
 import { track } from './together.ts';
@@ -227,7 +228,7 @@ async function validateAvailability(db:any,input:{userId:string;characterInstanc
   // shared-plan trigger suppresses overlapping passive schedule blocks, so
   // rejecting the same overlap here makes Start Now impossible for exactly
   // the companions whose lives are currently active.
-  const busy=input.immediate||schedulePauseFrom(instance.schedule_pause)?undefined:(schedules??[]).find((item:any)=>Number(item.day_of_week)===clock.weekday&&item.availability==='busy'&&clock.minuteOfDay<Number(item.end_minute)&&endClock.minuteOfDay>Number(item.start_minute));
+  const busy=input.immediate||schedulePauseFrom(instance.schedule_pause)?undefined:(schedules??[]).find((item:any)=>scheduleRunsOnDate(item.metadata,clock.localDate)&&Number(item.day_of_week)===clock.weekday&&item.availability==='busy'&&clock.minuteOfDay<Number(item.end_minute)&&endClock.minuteOfDay>Number(item.start_minute));
   if(busy)throw new AppError('COMPANION_BUSY',`Your companion is busy with ${busy.activity} until ${minuteLabel(Number(busy.end_minute))}. Try ${minuteLabel(Number(busy.end_minute)+30)} or ${minuteLabel(Number(busy.end_minute)+60)}.`,409,true);
   return{worldTimezone:safeTimezone(place.world.timezone),userTimezone:timezone,end,shortenedForClosingTime,closesAt};
 }

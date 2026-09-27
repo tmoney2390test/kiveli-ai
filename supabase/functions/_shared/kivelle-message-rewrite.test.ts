@@ -12,7 +12,7 @@ const prepared={source:{content:'When does the library open?'},conversation:{use
 const context={character:{name:'Aster',age:30},userMessage:prepared.source.content,recent:[],relationship:{},memories:[],conversationStyle:'texting'} as unknown as DialogueContext;
 const db={} as SupabaseClient;
 async function configured(run:()=>Promise<void>){
-  const names=['XAI_API_KEY','OPENAI_API_KEY','GEMINI_API_KEY','KIVELLE_XAI_ENABLED','KIVELLE_XAI_EXPLICIT_ENABLED','KIVELLE_PRIVATE_ADULT_TEXT_MODE'];
+  const names=['WAVESPEED_API_KEY','XAI_API_KEY','OPENAI_API_KEY','GEMINI_API_KEY','KIVELLE_XAI_ENABLED','KIVELLE_XAI_EXPLICIT_ENABLED','KIVELLE_PRIVATE_ADULT_TEXT_MODE'];
   const values=names.map(name=>Deno.env.get(name)),fetch=globalThis.fetch;
   names.forEach(name=>Deno.env.set(name,name.endsWith('_KEY')?'mock-only':name.endsWith('_MODE')?'on':'true'));
   try{await run();}finally{globalThis.fetch=fetch;names.forEach((name,i)=>values[i]===undefined?Deno.env.delete(name):Deno.env.set(name,values[i]!));}
@@ -26,7 +26,7 @@ Deno.test('rewrite schema requires a target/version/idempotency key and strips p
 });
 Deno.test('manual selection keeps actual classification, uses adult router and does not seed continuity',()=>configured(async()=>{
   const route=await messageRewriteRoute(db,user,prepared,context);
-  assertEquals(route.provider,'xai');assertEquals(route.reason,'manual_spice');assertEquals(route.classification,'standard');assertEquals(route.carryoverTurnsRemaining,0);
+  assertEquals(route.provider,'wavespeed');assertEquals(route.reason,'manual_spice');assertEquals(route.classification,'standard');assertEquals(route.carryoverTurnsRemaining,0);
 }));
 Deno.test('manual selection honors unavailable provider and relationship boundaries',()=>configured(async()=>{
   Deno.env.delete('XAI_API_KEY');await assertRejects(()=>messageRewriteRoute(db,user,prepared,context));
@@ -36,7 +36,7 @@ Deno.test('failed strict-route rewrite never calls an alternative provider',()=>
   const route=await messageRewriteRoute(db,user,prepared,context),calls:string[]=[];
   globalThis.fetch=(url)=>{calls.push(String(url));return Promise.resolve(new Response('busy',{status:503}));};
   await assertRejects(()=>new ConfiguredDialogueProvider().generate(context,{route,strictRoute:true,providerAttemptBudget:{max:2,used:0}}));
-  assertEquals(calls.length>0,true);assertEquals(calls.every(url=>new URL(url).hostname==='api.x.ai'),true);
+  assertEquals(calls.length>0,true);assertEquals(calls.every(url=>new URL(url).hostname==='llm.wavespeed.ai'),true);
 }));
 Deno.test('revision guidance survives both SMS and paragraph compaction without changing original request',()=>{
   for(const conversationStyle of ['texting','paragraph']){

@@ -12,8 +12,8 @@ export const characterDraftSchema=z.object({
 export type CharacterDraftProposal=z.infer<typeof characterDraftSchema>;
 export interface CharacterCreationProvider{propose(concept:string):Promise<CharacterDraftProposal>}
 
-export function initialCharacterDraftProposal(concept:string,structuredIdentity:boolean,creationProvider:CharacterCreationProvider):Promise<CharacterDraftProposal>{
-  return structuredIdentity?Promise.resolve(deterministicCharacterDraft(concept)):creationProvider.propose(concept);
+export function initialCharacterDraftProposal(concept:string,structuredIdentity:boolean,creationProvider:CharacterCreationProvider,seed?:{name:string;age:number;pronouns:string}):Promise<CharacterDraftProposal>{
+  return structuredIdentity?Promise.resolve(deterministicCharacterDraft(concept,seed)):creationProvider.propose(concept);
 }
 
 export class ConfiguredCharacterCreationProvider implements CharacterCreationProvider{
@@ -28,11 +28,11 @@ export class ConfiguredCharacterCreationProvider implements CharacterCreationPro
   }
 }
 
-export function deterministicCharacterDraft(concept:string):CharacterDraftProposal{
-  const age=clamp(Number(concept.match(/\b(\d{2})[- ]year[- ]old\b/i)?.[1]??concept.match(/\bage\s*(\d{2})\b/i)?.[1]??27),18,99);
+export function deterministicCharacterDraft(concept:string,seed?:{name:string;age:number;pronouns:string}):CharacterDraftProposal{
+  const age=seed?.age??clamp(Number(concept.match(/\b(\d{2})[- ]year[- ]old\b/i)?.[1]??concept.match(/\bage\s*(\d{2})\b/i)?.[1]??27),18,99);
   const named=concept.match(/(?:named|called)\s+([A-Z][a-z]{1,30})/)?.[1];const occupation=occupationFrom(concept);const interests=interestList(concept);
-  const name=named??nameFor(occupation,concept);const lower=concept.toLowerCase();
-  const pronouns=/\b(nonbinary|non-binary|they\/?them)\b/.test(lower)?'they/them':/\b(man|male|guy|he\/?him)\b/.test(lower)?'he/him':'she/her';const adultDescription=pronouns==='he/him'?'man':pronouns==='they/them'?'person':'woman';
+  const name=seed?.name??named??nameFor(occupation,concept);const lower=concept.toLowerCase();
+  const pronouns=seed?.pronouns??(/\b(nonbinary|non-binary|they\/?them)\b/.test(lower)?'they/them':/\b(man|male|guy|he\/?him)\b/.test(lower)?'he/him':'she/her');const adultDescription=pronouns==='he/him'?'man':pronouns==='they/them'?'person':'woman';
   const personality={
     warmth:lower.includes('reserved') ? .38 : lower.includes('warm') ? .82 : .62,
     humor:lower.includes('dry humor') ? .82 : lower.includes('playful') ? .78 : .56,
@@ -45,7 +45,7 @@ export function deterministicCharacterDraft(concept:string):CharacterDraftPropos
   const subject=pronouns==='he/him'?'He':pronouns==='they/them'?'They':'She';
   const interestPhrase=naturalList(interests.slice(0,3).map((item)=>item.toLowerCase()));
   const traitPhrase=naturalList([...new Set(traits)].slice(0,3));
-  return characterDraftSchema.parse({displayName:name,age,pronouns,occupation,biography:`${name} works as ${article(occupation)} ${occupation.toLowerCase()} and makes time for ${interestPhrase}. ${subject} is ${traitPhrase}; trust and independence matter more to ${name} than instant chemistry.`,interests,traits:[...new Set(traits)],personality,communicationStyle:{messageLength:'short_to_medium',humor:personality.humor>.7?'dry':'natural',asksGenericQuestions:false},relationshipStyle:{pace:lower.includes('slow')?'slow_burn':'natural',independent:personality.independence,affection:personality.warmth},appearanceDescription:`An original fictional adult ${age}-year-old ${adultDescription} with expressive features, a distinctive contemporary style suited to ${occupation.toLowerCase()}, and a grounded photorealistic identity that does not resemble any real person.`,lifestyleHints:{preferredActivities:interests,scheduleStyle:lower.includes('night')?'late creative schedule':'weekday professional schedule with flexible evenings'}});
+  return characterDraftSchema.parse({displayName:name,age,pronouns,occupation,biography:`${name} works as ${article(occupation)} ${occupation.toLowerCase()} and makes time for ${interestPhrase}. ${subject} ${pronouns==='they/them'?'are':'is'} ${traitPhrase}; trust and independence matter more to ${name} than instant chemistry.`,interests,traits:[...new Set(traits)],personality,communicationStyle:{messageLength:'short_to_medium',humor:personality.humor>.7?'dry':'natural',asksGenericQuestions:false},relationshipStyle:{pace:lower.includes('slow')?'slow_burn':'natural',independent:personality.independence,affection:personality.warmth},appearanceDescription:`An original fictional adult ${age}-year-old ${adultDescription} with expressive features, a distinctive contemporary style suited to ${occupation.toLowerCase()}, and a grounded photorealistic identity that does not resemble any real person.`,lifestyleHints:{preferredActivities:interests,scheduleStyle:lower.includes('night')?'late creative schedule':'weekday professional schedule with flexible evenings'}});
 }
 
 export function appearanceCandidates(proposal:CharacterDraftProposal){const styles=['polished and architectural','warm contemporary','creative understated','confident evening'];return styles.map((style,index)=>({id:crypto.randomUUID(),label:`Look ${index+1}`,description:`${proposal.appearanceDescription} Styling is ${style}. Maintain the same fictional adult identity across future images.`,status:'proposed',visualDoNotChange:['facial structure','eye color','skin tone','identifying features']}));}

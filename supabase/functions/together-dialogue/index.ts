@@ -1,3 +1,4 @@
+import { assertPhotoRequestAllowed } from '../_shared/photo-request-policy.ts';
 import { chatSpeedEnabled, ChatTimings } from '../_shared/kivelle-chat-latency.ts';
 import { stageContextAuthorization } from '../_shared/kivelle-context-authorization.ts';
 import { z } from "zod";
@@ -156,6 +157,7 @@ import {
 const normalSchema = z.object({
   streamProtocol: z.literal(2).optional(),
   contextQuoteId:z.string().uuid().optional(),
+  contextCostAuthorization:z.string().max(160).optional(),
   contextPreference:z.literal('included').optional(),
   conversationId: z.string().uuid(),
   message: z.string().max(MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError())
@@ -276,6 +278,14 @@ Deno.serve(async (request) => {
         const contextText = (isContinuation?String(continuationAnchor?.content??''):userText) ||
           "The user shared an image without a caption.";
         const photoIntent = classifyPhotoRequest(isContinuation?'':contextText);
+        if (photoIntent.requested && !isContinuation) {
+          try {
+            assertPhotoRequestAllowed({requestText:contextText,requestedContentLevel:photoIntent.requestedContentLevel,adultPipelineAuthorized:adultAccess.authorized_web_adult}, {stage:'dialogue_input',userId:user.id,characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,requestId,clientSurface:adultAccess.client_surface});
+          } catch (error) {
+            await track(db,user.id,'photo_request_blocked',{reason:'adult_photo_not_authorized',requestedContentLevel:photoIntent.requestedContentLevel,clientSurface:adultAccess.client_surface,characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,requestId,correlationId}).catch(()=>undefined);
+            throw error;
+          }
+        }
         const activeConversation = await getActiveConversation(
           db,
           user.id,
@@ -1318,6 +1328,32 @@ Deno.serve(async (request) => {
           reactions: Record<string, unknown>[];
         } = { messages: [], reactions: [] };
         if (assistantCommit.created) {
+          if (!isContinuation && outputSafety.allowed && primarySpeakerId === input.characterInstanceId) {
+            const confirmedDeath = await persistCharacterLifeTransition({
+              db,
+              userId: user.id,
+              continuityId: continuity.id,
+              sourceMessageId: String(assistantMessage.id),
+              message: userText,
+              confirmingAssistantMessage: safeText,
+              participants: [lifeParticipantFromInstance(instanceAtRequest)],
+              conversationId: input.conversationId,
+              sourceRole: "assistant",
+              allowedKinds: ["death"],
+            });
+            if (confirmedDeath) {
+              instanceAtRequest.life_state = confirmedDeath.to;
+              instanceAtRequest.life_state_summary = confirmedDeath.summary;
+              await track(db, user.id, "character_life_state_changed", {
+                characterInstanceId: input.characterInstanceId,
+                conversationId: input.conversationId,
+                from: confirmedDeath.from,
+                to: confirmedDeath.to,
+                transitionKind: confirmedDeath.kind,
+                sourceRole: "assistant",
+              });
+            }
+          }
           if (dialogueContext.currentScene.sceneSessionId&&!route.explicit) {
             await recordSceneMessage(db, {
               userId: user.id,
@@ -3204,6 +3240,7 @@ async function safelyCreateConversationPhotoOffer(
   try {
     const currentScene = context.currentScene;
     const intent = classifyPhotoRequest(input.message);
+    assertPhotoRequestAllowed({requestText:input.message,requestedContentLevel:intent.requestedContentLevel,adultPipelineAuthorized},{stage:'dialogue_offer',userId,conversationId:input.conversationId,requestId:input.clientRequestId});
     const productionRequest=resolveProductionSafePhotoRequest({requestText:input.message,requestedContentLevel:intent.requestedContentLevel,adultPipelineAuthorized});
     const characterName = String(context.character.name ?? "Your companion")
       .trim();

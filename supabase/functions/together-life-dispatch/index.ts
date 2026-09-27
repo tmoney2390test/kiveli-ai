@@ -25,7 +25,7 @@ serve(async (request, correlationId) => {
   const deletionCleanup=await retryAccountDeletionCleanup(db,now);
   const appleRevocation=await retryAppleRevocations(db,now);
   const photoCleanup = await cleanupPrivateChatPhotos(db, now);
-  const{error:photoCleanupAuditError}=await db.from('together_analytics_events').insert({user_id:null,event_name:'chat_photo_cleanup_cycle',properties:{expired:photoCleanup.expired,orphans:photoCleanup.orphans,retried:photoCleanup.retried,failures:photoCleanup.failures}});
+  const{error:photoCleanupAuditError}=await db.from('together_analytics_events').insert({user_id:null,event_name:'chat_photo_cleanup_cycle',properties:{...photoCleanup}});
   if(photoCleanupAuditError)console.error(JSON.stringify({level:'error',operation:'chat_photo_cleanup_audit',message:'aggregate_record_failed'}));
   console.log(JSON.stringify({level:'info',operation:'chat_photo_cleanup',...photoCleanup}));
   const cutoff = new Date(now.getTime() - 20 * 60000).toISOString();
@@ -54,34 +54,43 @@ serve(async (request, correlationId) => {
 
 async function cleanupPrivateChatPhotos(db:any,now:Date):Promise<{expired:number;exportsExpired:number;orphans:number;retried:number;failures:number}>{
   const result={expired:0,exportsExpired:0,orphans:0,retried:0,failures:0},orphanCutoff=new Date(now.getTime()-2*60*60_000).toISOString();
-  const{data:orphans}=await db.from('together_conversation_attachments').select('id,user_id,storage_path').is('message_id',null).lt('created_at',orphanCutoff).limit(100);
+  const{data:orphans,error:orphanError}=await db.from('together_conversation_attachments').select('id,user_id,storage_path').is('message_id',null).lt('created_at',orphanCutoff).limit(100);
+  if(orphanError)result.failures+=1;
   for(const attachment of orphans??[]){
-    const removed=!attachment.storage_path||!(await db.storage.from('together-user-media').remove([attachment.storage_path])).error;
-    if(!removed){result.failures+=1;continue;}
-    const{error}=await db.from('together_conversation_attachments').delete().eq('id',attachment.id).eq('user_id',attachment.user_id).is('message_id',null);
-    if(error)result.failures+=1;else result.orphans+=1;
+    // The delete trigger queues the file only if this still-unattached row is
+    // removed. Never remove the object before checking a concurrent message send.
+    const{data:removed,error}=await db.from('together_conversation_attachments').delete().eq('id',attachment.id).eq('user_id',attachment.user_id).is('message_id',null).select('id');
+    if(error)result.failures+=1;else result.orphans+=removed?.length??0;
   }
-  const{data:expired}=await db.from('together_conversation_attachments').select('id,user_id,storage_path').not('message_id','is',null).not('storage_path','is',null).lte('expires_at',now.toISOString()).limit(100);
+  const{data:expired,error:expiredError}=await db.from('together_conversation_attachments').select('id,user_id,storage_path').not('message_id','is',null).not('storage_path','is',null).lte('expires_at',now.toISOString()).limit(100);
+  if(expiredError)result.failures+=1;
   for(const attachment of expired??[]){
     const{error:removeError}=await db.storage.from('together-user-media').remove([attachment.storage_path]);
     if(removeError){result.failures+=1;continue;}
     const{error}=await db.from('together_conversation_attachments').update({storage_path:null,storage_deleted_at:now.toISOString(),updated_at:now.toISOString()}).eq('id',attachment.id).eq('user_id',attachment.user_id).eq('storage_path',attachment.storage_path);
     if(error)result.failures+=1;else result.expired+=1;
   }
-  const{data:expiredExports}=await db.from('together_account_exports').select('id,user_id,storage_bucket,storage_path').eq('status','ready').lte('expires_at',now.toISOString()).limit(100);
+  const{data:expiredExports,error:exportsError}=await db.from('together_account_exports').select('id,user_id,storage_bucket,storage_path').eq('status','ready').lte('expires_at',now.toISOString()).limit(100);
+  if(exportsError)result.failures+=1;
   for(const item of expiredExports??[]){
     const{error:removeError}=item.storage_path?await db.storage.from(item.storage_bucket).remove([item.storage_path]):{error:null};
     if(removeError){result.failures+=1;await db.from('together_storage_cleanup_jobs').insert({user_id:item.user_id,bucket_id:item.storage_bucket,storage_path:item.storage_path,status:'pending'});continue;}
     const{error}=await db.from('together_account_exports').update({status:'expired',storage_path:null,updated_at:now.toISOString()}).eq('id',item.id).eq('status','ready');
     if(error)result.failures+=1;else result.exportsExpired+=1;
   }
-  const{data:jobs}=await db.from('together_storage_cleanup_jobs').select('id,user_id,bucket_id,storage_path,status,attempt_count').in('status',['pending','held']).order('created_at').limit(100);
+  const{data:jobs,error:jobsError}=await db.from('together_storage_cleanup_jobs').select('id,user_id,bucket_id,storage_path,status,attempt_count,orphan_review').or('status.eq.pending,and(status.eq.held,user_id.is.null)').order('created_at').limit(100);
+  if(jobsError)result.failures+=1;
   for(const job of jobs??[]){
     if(job.status==='held'&&job.user_id!==null)continue;
+    if(job.orphan_review){
+      const{data:allowed,error:reviewError}=await db.rpc('kivelle_allow_orphan_removal',{p_job:job.id});
+      if(reviewError){result.failures+=1;continue;}
+      if(!allowed)continue;
+    }
     const{error}=await db.storage.from(job.bucket_id).remove([job.storage_path]);
     if(error){result.failures+=1;await db.from('together_storage_cleanup_jobs').update({attempt_count:Number(job.attempt_count??0)+1,last_error:'storage_remove_failed',updated_at:now.toISOString()}).eq('id',job.id);continue;}
-    await db.from('together_storage_cleanup_jobs').update({status:'complete',last_error:null,updated_at:now.toISOString()}).eq('id',job.id);
-    result.retried+=1;
+    const{error:completeError}=await db.from('together_storage_cleanup_jobs').update({status:'complete',last_error:null,updated_at:now.toISOString()}).eq('id',job.id);
+    if(completeError)result.failures+=1;else result.retried+=1;
   }
   return result;
 }

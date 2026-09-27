@@ -1,3 +1,4 @@
+import { useSupportDraft } from "../../lib/supportDraft";
 import { useState } from "react";
 import { Text, TextInput } from "react-native";
 import { replyToSupportTicket, type SupportReply } from "../../lib/operations";
@@ -13,12 +14,14 @@ export function SupportReplies(
     onSent: () => Promise<void>;
   },
 ) {
-  const [message, setMessage] = useState(""),
-    [busy, setBusy] = useState(false),
+  const draft = useSupportDraft("staff-reply:" + ticketId, { message: "" });
+  const message = draft.draft.message;
+  const setMessage = (message: string) => draft.update({ message });
+  const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const sendRequest = useSupportRequest();
   const send = async () => {
-    if (busy || message.trim().length < 2) return;
+    if (busy || !draft.ready || message.trim().length < 2) return;
     setBusy(true);
     setError("");
     try {
@@ -52,7 +55,7 @@ export function SupportReplies(
       <TextInput
         accessibilityLabel="Reply to customer"
         value={message}
-        editable={!busy}
+        editable={!busy && draft.ready}
         onChangeText={setMessage}
         maxLength={5000}
         multiline
@@ -66,7 +69,7 @@ export function SupportReplies(
       <SmallAction
         label="Send reply to portal"
         busy={busy}
-        disabled={message.trim().length < 2}
+        disabled={!draft.ready || message.trim().length < 2}
         onPress={() => void send()}
       />
     </Panel>

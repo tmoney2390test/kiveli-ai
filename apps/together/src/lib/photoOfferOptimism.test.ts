@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { MediaOffer } from '../types';
-import { createOptimisticPhotoRequest, matchingServerPhotoOffer, photoOfferStatusSettled, queueOptimisticPhotoOfferAcceptance, queueServerPhotoOfferAcceptance, waitForMatchingServerPhotoOffer, waitForPhotoOfferStatus } from './photoOfferOptimism';
+import { withPhotoRequestTimeout, createOptimisticPhotoRequest, matchingServerPhotoOffer, photoOfferStatusSettled, queueOptimisticPhotoOfferAcceptance, queueServerPhotoOfferAcceptance, waitForMatchingServerPhotoOffer, waitForPhotoOfferStatus } from './photoOfferOptimism';
 
 function serverOffer(overrides: Partial<MediaOffer> = {}): MediaOffer {
   return {
@@ -148,5 +148,34 @@ describe('photo offer optimism', () => {
     });
     expect(attempt).toBe(2);
     expect(result).toBe(accepted);
+  });
+});
+
+
+describe('bounded photo status recovery', () => {
+  it('settles a hung operation and clears its timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const result = withPhotoRequestTimeout(new Promise<never>(() => {}), 100);
+      const check = expect(result).rejects.toThrow('Check the existing request');
+      await vi.advanceTimersByTimeAsync(100);
+      await check;
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+  it('clears the timeout when authoritative status arrives first', async () => {
+    vi.useFakeTimers();
+    try {
+      await expect(withPhotoRequestTimeout(Promise.resolve('accepted'))).resolves.toBe('accepted');
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+  it('returns from reconciliation even when every status read hangs', async () => {
+    vi.useFakeTimers();
+    try {
+      const result = waitForPhotoOfferStatus({loadStatus:()=>new Promise(()=>{}),delays:[0,0]});
+      await vi.advanceTimersByTimeAsync(10_000);
+      await expect(result).resolves.toBeNull();
+    } finally { vi.useRealTimers(); }
   });
 });
