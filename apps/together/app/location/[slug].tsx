@@ -64,8 +64,7 @@ export default function LocationDetail() {
   const photos = (snapshot.generatedMedia ?? []).filter((item) => item.location_id === location.id);
   const upcoming = (snapshot.sharedPlans ?? []).filter((plan) => plan.location_id === location.id && (!active||plan.character_instance_id===active.id) && plan.status === 'scheduled' && new Date(plan.starts_at) > now).sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())[0];
   const lore = (placeDetail?.location.id===location.id?placeDetail.location.lore:location.canonical_lore) ?? {};
-  const crowdNow = lore.crowdRhythm?.[localDaypart(viewerTimezone, now)];
-  const loreParagraphs=buildPlaceNarrative({description:location.description,lore,backstory:location.metadata?.backstory,socialTexture:location.metadata?.socialTexture,crowdNow});
+  const loreParagraphs=buildPlaceNarrative({description:location.description,lore,backstory:location.metadata?.backstory});
   const nearby=placeDetail?.location.id===location.id?(placeDetail.nearby??[]):[];
   const perspective = selectCharacterPlacePerspective(snapshot, active, location);
   const programs = venuePrograms(location);
@@ -133,7 +132,6 @@ export default function LocationDetail() {
   </Screen>;
 }
 
-function localDaypart(timezone='UTC', now=new Date()) { try { const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:timezone,hour:'2-digit',hourCycle:'h23'}).format(now));return hour<5?'overnight':hour<12?'morning':hour<17?'afternoon':hour<22?'evening':'late_night'; } catch { return 'afternoon'; } }
 function programDays(days:number[]) { const labels=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; return days.map((day)=>labels[day]).filter(Boolean).join(' & '); }
 function formatClock(value:string) { const [hour,minute]=value.split(':').map(Number); if(!Number.isFinite(hour)||!Number.isFinite(minute))return value;return new Date(2000,0,1,hour,minute).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}); }
 function formatDuration(minutes:number) { const hours=Math.floor(minutes/60),rest=minutes%60;return [hours?`${hours} hr`:'',rest?`${rest} min`:''].filter(Boolean).join(' '); }
