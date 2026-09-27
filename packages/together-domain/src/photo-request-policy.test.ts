@@ -15,5 +15,7 @@ describe('photo request authorization before prompt rewriting', () => {
     expect(photoRequestRestriction({ requestText: 'Send a nude photo', adultPipelineAuthorized: true })).toBeNull();
     expect(photoRequestRestriction({ requestText: 'Send a photo in your blue dress' })).toBeNull();
     expect(photoRequestRestriction({ requestText: 'Send a romantic photo by the lake' })).toBeNull();
+    expect(photoRequestRestriction({ requestText: 'Send me a photo showing exactly this: Wearing a bikini eating an apple', adultPipelineAuthorized: false })).toBeNull();
+    expect(photoRequestRestriction({ requestText: 'Send me a photo in a see-through bikini', adultPipelineAuthorized: false })).not.toBeNull();
   });
 });
