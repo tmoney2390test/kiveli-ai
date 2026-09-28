@@ -187,7 +187,6 @@ export const styles = StyleSheet.create({
     alignSelf: "flex-start",
     width: "92%",
     maxWidth: 430,
-    height: 390,
     borderRadius: 30,
     backgroundColor: "#241A31",
     borderWidth: 1,
@@ -197,6 +196,7 @@ export const styles = StyleSheet.create({
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 12 },
   },
+  chatPhotoPendingCard: { height: 390 },
   chatPhotoPreviewRow: { ...StyleSheet.absoluteFill, flexDirection: "row" },
   chatPhotoPreviewPart: { flex: 1, height: "100%" },
   chatPhotoScrim: {

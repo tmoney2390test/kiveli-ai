@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image, type ImageSource } from 'expo-image';
 import { Camera, RefreshCw, Sparkles, X } from 'lucide-react-native';
@@ -38,6 +39,7 @@ export function ChatPhotoRequestCard({
   onRetry?: () => void;
   readyContentFit?: "cover" | "contain";
 }) {
+  const [loadedRatio, setLoadedRatio] = useState<{ id: string; ratio: number } | null>(null);
   const ready = media?.status === "ready" && Boolean(media.signed_url),
     failed = media?.status === "failed" || offer?.status === "failed",
     generating = !ready && !failed &&
@@ -56,9 +58,11 @@ export function ChatPhotoRequestCard({
       : "",
     dismissAction = photoOfferDismissAction(offer?.status, preparing, generating);
   if (ready && media?.signed_url) {
-    const aspectRatio = photoCardAspectRatio(media);
+    const aspectRatio = loadedRatio?.id === media.id
+      ? loadedRatio.ratio
+      : photoCardAspectRatio(media);
     return (
-      <View style={[styles.chatPhotoCard, aspectRatio ? { height: undefined, aspectRatio } : null]}>
+      <View style={[styles.chatPhotoCard, { aspectRatio: aspectRatio ?? 1 }]}>
         <Pressable
           accessibilityRole="imagebutton"
           accessibilityLabel="Open generated photo"
@@ -69,7 +73,14 @@ export function ChatPhotoRequestCard({
             source={generatedMediaImageSource(media)}
             style={StyleSheet.absoluteFill}
             contentFit={readyContentFit}
-            contentPosition="top"
+            contentPosition="center"
+            onLoad={(event) => {
+              const ratio = photoCardAspectRatio(event.source);
+              if (ratio) setLoadedRatio((current) =>
+                current?.id === media.id && current.ratio === ratio
+                  ? current
+                  : { id: media.id, ratio });
+            }}
             transition={220}
             cachePolicy="memory-disk"
             priority="normal"
@@ -87,7 +98,7 @@ export function ChatPhotoRequestCard({
       accessibilityLabel={generating
         ? "Taking your photo"
         : offer?.companion_message ?? "Preparing photo request"}
-      style={styles.chatPhotoCard}
+      style={[styles.chatPhotoCard, styles.chatPhotoPendingCard]}
     >
       {previewSources?.length
         ? (
