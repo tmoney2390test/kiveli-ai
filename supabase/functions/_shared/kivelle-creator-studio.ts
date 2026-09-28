@@ -438,7 +438,7 @@ async function serializeDraft(db: Db, draft: Record<string, any>, includeContext
   if (!includeContext) return base;
   const [world, locations] = await Promise.all([
     db.from('together_worlds').select('id,name,slug,timezone,access_type').eq('id', draft.world_id).maybeSingle(),
-    db.from('together_locations').select('id,world_id,parent_location_id,name,slug,location_type,category,description,possible_activities,hours,metadata,sort_order').eq('world_id', draft.world_id).order('sort_order'),
+    db.from('together_locations').select('id,world_id,parent_location_id,name,slug,location_type,category,description,possible_activities,hours,metadata,sort_order').eq('world_id', draft.world_id).is('owner_user_id',null).order('sort_order'),
   ]);
   return { ...base, world: world.data ?? null, locations: locations.data ?? [] };
 }
@@ -468,7 +468,7 @@ function assertOriginalFictionalPerson(value: string): void {
 }
 
 async function worldLocations(db: Db, worldId: string): Promise<Array<Record<string, any>>> {
-  const result = await db.from('together_locations').select('*').eq('world_id', worldId).order('sort_order');
+  const result = await db.from('together_locations').select('*').eq('world_id', worldId).is('owner_user_id',null).order('sort_order');
   if (result.error) throw new AppError('INTERNAL_ERROR', 'World places could not be loaded.', 500, true);
   return result.data ?? [];
 }
@@ -476,7 +476,7 @@ async function worldLocations(db: Db, worldId: string): Promise<Array<Record<str
 async function validateLocationIds(db: Db, worldId: string, locationIds: string[]): Promise<void> {
   const unique = [...new Set(locationIds.filter(Boolean))];
   if (!unique.length) return;
-  const result = await db.from('together_locations').select('id').eq('world_id', worldId).in('id', unique);
+  const result = await db.from('together_locations').select('id').eq('world_id', worldId).is('owner_user_id',null).in('id', unique);
   if (result.error || (result.data ?? []).length !== unique.length) throw new AppError('VALIDATION_ERROR', 'One of those places is not available in this world.', 400);
 }
 

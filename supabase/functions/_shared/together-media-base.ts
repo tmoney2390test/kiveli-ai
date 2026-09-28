@@ -1160,6 +1160,7 @@ export async function queueMediaRequest(
     : { data: null };
   const worldContainment = await resolveCanonicalMediaWorld({
     db,
+    userId: input.userId,
     characterVersionIds: subjects.map((subject) =>
       String(subject.character_version_id)
     ),
@@ -1720,6 +1721,7 @@ export async function canonicalRequestForMedia(
   const storedLocationId = String(media.location_id ?? meta.locationId ?? "");
   const verifiedWorldContainment = await resolveCanonicalMediaWorld({
     db,
+    userId: String(media.user_id),
     characterVersionIds: subjectInstances.map((subject) =>
       String(subject.character_version_id)
     ),

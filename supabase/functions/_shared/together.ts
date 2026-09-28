@@ -47,7 +47,7 @@ function loadSnapshotCatalog(db:SupabaseClient){
   if(snapshotCatalogCache&&snapshotCatalogCache.expiresAt>Date.now())return snapshotCatalogCache.value;
   const value:Promise<SnapshotCatalog>=Promise.all([
     db.from('together_worlds').select('*').eq('published',true),
-    db.from('together_locations').select('*'),
+    db.from('together_locations').select('*').is('owner_user_id',null),
     db.from('together_character_world_presence').select('*'),
     db.from('together_trip_templates').select('*').eq('active',true),
     db.from('together_photo_opportunities').select('*').eq('active',true),
@@ -244,6 +244,7 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
     ]).then(()=>undefined));
   }
   const catalog=loadSnapshotCatalog(db);
+  const ownedLocationsPromise=db.from('together_locations').select('*').eq('owner_user_id',userId).order('created_at',{ascending:false}).limit(100);
   const continuity=await activeContinuity(db,userId);
   const instanceRows=await db.from('together_character_instances').select(SNAPSHOT_CHARACTER_INSTANCE_SELECT).eq('user_id', userId).eq('continuity_id',continuity.id);
   if(instanceRows.error)throw new AppError('INTERNAL_ERROR','Kivelle could not load your companions.',500,true);
@@ -302,9 +303,11 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
     });
     throw new AppError('INTERNAL_ERROR', 'Kivelle could not load your world.', 500, true);
   }
+  const ownedLocations=await ownedLocationsPromise;
+  if(ownedLocations.error)throw new AppError('INTERNAL_ERROR','Your places could not be loaded.',500,true);
   const publishedWorlds=worlds.data??[];
   const publishedWorldIds=new Set(publishedWorlds.map((world)=>String(world.id)));
-  const publishedLocations=(locations.data??[]).filter((location)=>publishedWorldIds.has(String(location.world_id)));
+  const publishedLocations=[...(locations.data??[]),...(ownedLocations.data??[])].filter((location)=>publishedWorldIds.has(String(location.world_id)));
   const publishedLocationIds=new Set(publishedLocations.map((location)=>String(location.id)));
   const publishedWorldAccess=(userWorlds.data??[]).filter((access)=>publishedWorldIds.has(String(access.world_id)));
   const publishedCharacterPresence=(characterWorldPresence.data??[]).filter((presence)=>publishedWorldIds.has(String(presence.world_id)));
@@ -360,7 +363,10 @@ export async function buildSnapshot(db: SupabaseClient, userId: string, requeste
   const characterPlaceProfiles=characterPlaceProfilesResult.data??[];
   const urlByPath=new Map((signed.data??[]).map((item)=>[item.path,item.signedUrl]));
   const mediaPayload=mediaRows.map((item)=>{const safe={...item,metadata:compactSnapshotMediaMetadata(item.metadata),signed_url:item.storage_path?urlByPath.get(item.storage_path)??null:null};delete safe.storage_path;return safe;});
-  const snapshotLocations=publishedLocations.map(compactSnapshotLocation);
+  const privateImagePaths=(ownedLocations.data??[]).map((item)=>String(item.custom_image_path??'')).filter(Boolean);
+  const privateImageUrls=privateImagePaths.length?await db.storage.from('together-user-media').createSignedUrls(privateImagePaths,3600):{data:[]};
+  const privateUrlByPath=new Map((privateImageUrls.data??[]).map((item)=>[item.path,item.signedUrl]));
+  const snapshotLocations=publishedLocations.map((item)=>({...compactSnapshotLocation(item),...(item.owner_user_id?{custom_image_url:privateUrlByPath.get(item.custom_image_path)??null}:{})}));
   const profilePayload=profile.data?projectClientProfile({...profile.data,active_continuity_id:continuity.id,active_companion_instance_id:activeInstance?.id??null}):profile.data;
   const experienceCapabilities=resolveServerExperienceCapabilities(normalizeMultimodalPreferences(profile.data?.multimodal_preferences),(entitlements.data?.entitlement_keys??[]).map(String)).experience;
   return { veniceTest:await chatTestCapability(db,userId), profile: profilePayload, activePersona:continuity.together_user_personas??null,activeContinuity:continuity,personas:personas.data??[],continuities:continuities.data??[],worlds:publishedWorlds,userWorlds:publishedWorldAccess,characterWorldPresence:publishedCharacterPresence,currentPlaceContext,locations:snapshotLocations,relationshipPlaces:relationshipPlaces.data??[],characterPlaceProfiles,characters:visibleInstances.map((instance,index)=>({...instance,together_character_versions:instancePortraits[index]?.together_character_versions??instance.together_character_versions})),discoverableCharacters,favoriteCharacterTemplateIds:(favorites.data??[]).map((item)=>String(item.character_template_id)),schedules:(schedules.data??[]).map(compactSnapshotSchedule),scheduleEvents:(scheduleEvents.data??[]).filter((event)=>(!pausedInstanceIds.has(String(event.character_instance_id))||scheduleEventAllowedDuringPause(event))&&!event.metadata?.suppressedByPlanId&&(!event.location_id||publishedLocationIds.has(String(event.location_id)))).map(compactSnapshotScheduleEvent),relationships:relationships.data??[],relationshipMilestones:pendingMilestones.data??[],relationshipMilestoneHistory:milestoneHistory.data??[],relationshipCues,dates:publishedDates,moments:moments.data??[],memories:clientMemories,memoryCounts,openThreads:threads.data??[],conversations:conversationMetadata,sceneSessions:activeScenes,sceneParticipants:sceneParticipants.data??[],sharedPlans:publishedSharedPlans,conversationEvents:conversationEvents.data??[],lifeEvents:publishedLifeEvents.filter(e=>!isConvertedArcEvent(e)),proactiveMessages:proactive.data??[],storyArcs:(storyArcs.data??[]).map(publicArcView),trips:trips.data??[],photoOpportunities:photoOpportunities.data??[],generatedMedia:mediaPayload,conversationActions:conversationActions.data??[],entitlements:{...(entitlements.data??{}),tier:snapshotCapabilities.tier,entitlement_keys:[...snapshotCapabilities.entitlements]},dailyMessageAllowance,experienceCapabilities,notificationPreferences:preferences.data&&requestedTimezone?{...preferences.data,timezone:requestedTimezone}:preferences.data };
@@ -408,7 +414,7 @@ export async function buildCharacterPresenceSnapshot(
 async function buildOnboardingSnapshot(db:SupabaseClient,userId:string,profile:Record<string,unknown>|null):Promise<Record<string,unknown>>{
   const[worlds,locations,characterWorldPresence,discoverable,entitlements,preferences]=await Promise.all([
     db.from('together_worlds').select('*').eq('published',true),
-    db.from('together_locations').select('*'),
+    db.from('together_locations').select('*').is('owner_user_id',null),
     db.from('together_character_world_presence').select('*'),
     db.from('together_character_templates').select(SNAPSHOT_DISCOVERABLE_CHARACTER_SELECT).eq('published',true).eq('can_be_selected',true).neq('lifecycle_status','archived').order('name'),
     db.from('together_entitlements').select('*').eq('user_id',userId).maybeSingle(),

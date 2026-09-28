@@ -1,18 +1,20 @@
 import { CatalogImage as Image } from './CatalogImage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Edit3, MapPin, RefreshCw, X } from 'lucide-react-native';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Edit3, MapPin, Plus, RefreshCw, X } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { DateTimeFields } from './DateTimeFields';
 import { locationHeroAsset } from '../assets';
 import { colors, radius } from '../theme';
 import type { CharacterInstance, ConversationAction, SharedPlan, Snapshot } from '../types';
 import { companionPick, companionPickQuote, defaultPlanTimeFields, formatQuickPlanClock, isVenueProgramTime, localPlanDateValue, nextAvailableGroupPlanTime, parseCustomPlanTime, planOptionCanStartNow, previewPlanTiming, recommendPlanOptions, resolveGroupPlanAvailability, type PlanDiscoveryIntent, type PlanOption, type PlanTimingChoice, type PlanTimingSelection } from '../lib/plans';
-import { characterResidentWorld, locationsForWorld, worldForLocation } from '../lib/place';
+import { characterResidentWorld, worldForLocation } from '../lib/place';
 import { placeHoursStatus } from '../lib/placeHours';
 import { userExperienceTimezone } from '../lib/experienceTimezone';
 import { useWorldPulse } from '../hooks/useWorldPulse';
 import { navigateLocalRouteOnWeb } from '../lib/conversationNavigation';
+import { PersonalPlacePicker } from './PersonalPlacePicker';
+import type { Location } from '../types';
 
 type Props = {
   snapshot: Snapshot;
@@ -51,6 +53,8 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
   const [dateValue, setDateValue] = useState('');
   const [timeValue, setTimeValue] = useState(defaultPlanTimeFields().time);
   const [validation, setValidation] = useState('');
+  const [personalPickerOpen,setPersonalPickerOpen]=useState(false);
+  const [personalPlaces,setPersonalPlaces]=useState<Location[]>(()=>snapshot.locations.filter((item)=>Boolean(item.owner_user_id)&&!item.archived_at));
   const { width } = useWindowDimensions();
   const carousel = useRef<ScrollView>(null);
   const heroCardWidth = Math.max(290, Math.min(width - 48, 760));
@@ -63,7 +67,8 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
   const scopedCandidate = snapshot.locations.find((item) => item.id === scopedLocationId && (mode==='switch'||item.id !== currentLocationId));
   const scoped = scopedCandidate && (!residentWorld || scopedCandidate.world_id === residentWorld.id) ? scopedCandidate : undefined;
   const scopedWorld = residentWorld ?? worldForLocation(snapshot, scoped?.id ?? activeLocationId);
-  const allPlanLocations = scopedWorld ? locationsForWorld(snapshot, scopedWorld.id) : snapshot.locations;
+  const allLocations=[...snapshot.locations.filter((item)=>!item.owner_user_id),...personalPlaces];
+  const allPlanLocations = scopedWorld ? allLocations.filter((item)=>item.world_id===scopedWorld.id) : allLocations;
   const planLocations = mode==='switch'
     ? allPlanLocations.filter((location)=>placeHoursStatus(location.hours,switchNow,viewerTimezone).isOpen)
     : allPlanLocations;
@@ -89,10 +94,16 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
   };
   const options = useMemo(() => {
     const recommended=recommendPlanOptions(planContext);
-    return mode==='switch'?recommended.filter((option)=>
+    const custom:PlanOption[]=planLocations.filter((location)=>Boolean(location.owner_user_id)).flatMap((location)=>location.possible_activities.map((activity)=>({
+      id:`personal:${location.id}:${activity.toLowerCase().replace(/[^a-z0-9]+/g,'_')}`,
+      title:`${activity} at ${location.name}`,description:location.description,locationId:location.id,locationName:location.name,
+      activityKey:activity.toLowerCase().replace(/[^a-z0-9]+/g,'_'),source:'location_activity' as const,tags:[],durationMinutes:90,reason:'Your private place',hours:location.hours,
+    })));
+    const combined=[...recommended,...custom];
+    return mode==='switch'?combined.filter((option)=>
       planOptionCanStartNow(option,switchNow,viewerTimezone)
       && !(option.locationId===currentPlan?.location_id&&option.activityKey===currentPlan.activity_key)
-    ):recommended;
+    ):combined;
   }, [
     character.current_activity,
     character.current_mood,
@@ -103,7 +114,7 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
     character.together_character_versions,
     interests.join('|'),
     preferences.join('|'),
-    planLocations.map((item) => item.id).join('|'),
+    planLocations.map((item) => `${item.id}:${item.possible_activities.join(',')}`).join('|'),
     scoped?.id,
     elsewhere,
     intent,
@@ -126,11 +137,13 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
   const choice = chooserOpen ? undefined : options.find((option) => option.id === selectedOptionId);
   const heroOptions = useMemo(() => {
     const unique = new Map<string, PlanOption>();
+    const chosen=options.find((option)=>option.id===selectedOptionId);
+    if(chosen)unique.set(chosen.locationId,chosen);
     for (const option of options) if (!unique.has(option.locationId)) unique.set(option.locationId, option);
     return [...unique.values()].slice(0, 8);
-  }, [options]);
-  const selectedLocation = choice ? snapshot.locations.find((item) => item.id === choice.locationId) : scoped;
-  const selectedWorld = selectedLocation ? worldForLocation(snapshot, selectedLocation.id) : scopedWorld;
+  }, [options,selectedOptionId]);
+  const selectedLocation = choice ? allLocations.find((item) => item.id === choice.locationId) : scoped;
+  const selectedWorld = selectedLocation ? snapshot.worlds.find((world)=>world.id===selectedLocation.world_id) : scopedWorld;
   const activeHeroIndex = choice ? Math.max(0, heroOptions.findIndex((option) => option.locationId === choice.locationId)) : heroIndex;
 
   useEffect(() => {
@@ -163,6 +176,11 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
     setTimingChoice(mode==='switch'?'now':null);
     setCustomOpen(false);
     setValidation('');
+  };
+  const selectPersonalPlace=(place:Location,activity:string)=>{
+    if(!activity)return;
+    setPersonalPlaces((rows)=>[place,...rows.filter((item)=>item.id!==place.id)]);
+    selectOption(`personal:${place.id}:${activity.toLowerCase().replace(/[^a-z0-9]+/g,'_')}`);
   };
   const selectTiming = (value:PlanTimingChoice) => {
     setTimingChoice(value);
@@ -241,13 +259,14 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
         return <Pressable key={option.id} accessibilityRole="button" accessibilityLabel={`${option.title}. ${hours.statusLabel}. ${hours.scheduleLabel}.`} onPress={() => selectOption(option.id)} style={styles.option}><View style={{ flex: 1, minWidth: 0 }}><Text style={styles.optionTitle}>{option.title}</Text><Text style={styles.optionCopy} numberOfLines={2}>{option.description}</Text><PlaceHoursLine status={hours}/><Text style={styles.optionReason}>{option.reason}</Text></View><ChevronRight size={17} color={colors.rose} /></Pressable>;
       })}</View> : null}
       {!options.length&&mode==='switch'?<View style={styles.noOpenPlaces}><Clock3 size={16} color={colors.muted}/><Text style={styles.noOpenPlacesText}>No other place can fit a plan right now. Try again when more places are open.</Text></View>:null}
+      {scopedWorld?<Pressable onPress={()=>setPersonalPickerOpen(true)} style={styles.secondary}><MapPin size={15} color={colors.rose}/><Text style={styles.secondaryText}>Your places · choose or create</Text><Plus size={15} color={colors.rose}/></Pressable>:null}
       {scoped && !elsewhere ? <Pressable onPress={() => { setElsewhere(true); setIntent(null); }} style={styles.secondary}><MapPin size={15} color={colors.rose} /><Text style={styles.secondaryText}>Choose somewhere else</Text></Pressable> : null}
     </> : <>
       <View style={styles.carouselWrap} accessible accessibilityLabel={`${companionName}'s plan place choices`}>
         <ScrollView ref={carousel} horizontal showsHorizontalScrollIndicator={false} snapToInterval={heroCardWidth + 12} decelerationRate="fast" contentContainerStyle={styles.carouselContent} onMomentumScrollEnd={(event) => { const index = Math.round(event.nativeEvent.contentOffset.x / (heroCardWidth + 12)); if (heroOptions[index]) selectHero(index); }}>
-          {heroOptions.map((option, index) => { const isActive = index === activeHeroIndex; const optionLocation = snapshot.locations.find((item) => item.id === option.locationId); const optionWorld = optionLocation ? worldForLocation(snapshot, option.locationId) : selectedWorld; const hours=placeHoursStatus(optionLocation?.hours??option.hours); return <View key={option.id} style={[styles.heroCard,{width:heroCardWidth}]}>
+          {heroOptions.map((option, index) => { const isActive = index === activeHeroIndex; const optionLocation = allLocations.find((item) => item.id === option.locationId); const optionWorld = optionLocation ? snapshot.worlds.find((item)=>item.id===optionLocation.world_id) : selectedWorld; const hours=placeHoursStatus(optionLocation?.hours??option.hours); return <View key={option.id} style={[styles.heroCard,{width:heroCardWidth}]}>
             <View style={[styles.hero,isActive&&styles.heroActive]}>
-              <Image source={locationHeroAsset(optionWorld?.slug, optionLocation?.slug)} contentFit="cover" transition={220} priority={isActive ? 'high' : 'low'} style={StyleSheet.absoluteFill} />
+              <Image source={optionLocation?.custom_image_url?{uri:optionLocation.custom_image_url}:locationHeroAsset(optionWorld?.slug, optionLocation?.slug)} contentFit="cover" transition={220} priority={isActive ? 'high' : 'low'} style={StyleSheet.absoluteFill} />
               <View style={styles.heroShade} />
               <View style={styles.heroContent}>
                 <Text style={styles.heroStatus}>{index === 0 ? pluralCompanions?'Group pick':`${companionName}'s pick` : isActive ? availability : pluralCompanions?'Check everyone below':`${companionName} should be free`}</Text>
@@ -262,7 +281,7 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
           </View>; })}
         </ScrollView>
         {heroOptions.length > 1 && Platform.OS === 'web' ? <><Pressable accessibilityLabel="Previous place" disabled={activeHeroIndex === 0} onPress={() => moveHero(-1)} style={[styles.carouselArrow, styles.carouselArrowLeft, activeHeroIndex === 0 && styles.arrowDisabled]}><ChevronLeft size={20} color="#fff" /></Pressable><Pressable accessibilityLabel="Next place" disabled={activeHeroIndex >= heroOptions.length - 1} onPress={() => moveHero(1)} style={[styles.carouselArrow, styles.carouselArrowRight, activeHeroIndex >= heroOptions.length - 1 && styles.arrowDisabled]}><ChevronRight size={20} color="#fff" /></Pressable></> : null}
-        <View style={styles.carouselFooter}><Text style={styles.carouselCount}>{activeHeroIndex + 1} of {heroOptions.length}</Text>{!hideViewAllPlaces?<Pressable accessibilityRole="link" onPress={viewAllPlaces} style={styles.viewAll}><Text style={styles.viewAllText}>View all places</Text><ChevronRight size={14} color={colors.rose} /></Pressable>:null}</View>
+        <View style={styles.carouselFooter}><Text style={styles.carouselCount}>{activeHeroIndex + 1} of {heroOptions.length}</Text><Pressable accessibilityRole="button" onPress={()=>setPersonalPickerOpen(true)} style={styles.viewAll}><MapPin size={14} color={colors.rose}/><Text style={styles.viewAllText}>Your places</Text></Pressable>{!hideViewAllPlaces?<Pressable accessibilityRole="link" onPress={viewAllPlaces} style={styles.viewAll}><Text style={styles.viewAllText}>View all places</Text><ChevronRight size={14} color={colors.rose} /></Pressable>:null}</View>
       </View>
       {mode==='switch'?<View style={styles.switchNotice}><RefreshCw size={15} color={colors.rose}/><View style={{flex:1}}><Text style={styles.switchNoticeTitle}>Switch together now</Text><Text style={styles.switchNoticeCopy}>Any place open now can start immediately. If it closes soon, the plan ends at closing time.</Text></View></View>:<><View style={styles.whenHeader}><Text style={styles.sectionTitle}>When works?</Text><Text style={styles.sectionHint}>Choose the moment that feels right.</Text></View>
       <View style={styles.timingRow}>
@@ -274,6 +293,7 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
       {pluralCompanions&&groupAvailability.length?<View style={styles.groupAvailability} accessibilityLabel="Group availability"><View style={styles.groupAvailabilityHeading}><Text style={styles.groupAvailabilityTitle}>{groupBlocked?'SOMEONE HAS A CONFLICT':'EVERYONE IS IN'}</Text><Text style={styles.groupAvailabilityTime}>{timingPreview}</Text></View>{groupAvailability.map((status)=><View key={status.characterInstanceId} style={styles.groupAvailabilityRow}><View style={[styles.groupAvailabilityDot,status.available?styles.groupAvailabilityFree:styles.groupAvailabilityBusy]}/><Text numberOfLines={1} style={styles.groupAvailabilityName}>{status.name}</Text><Text numberOfLines={1} style={[styles.groupAvailabilityDetail,!status.available&&styles.groupAvailabilityConflict]}>{status.detail}</Text></View>)}{nextGroupTime?<Pressable accessibilityRole="button" onPress={chooseRecommendedGroupTime} style={styles.groupAvailabilitySuggestion}><Check size={14} color={colors.success}/><Text style={styles.groupAvailabilitySuggestionText}>Everyone is free {formatPlanDate(nextGroupTime,viewerTimezone)}</Text></Pressable>:null}</View>:null}
       <View style={styles.confirmation}><Text style={styles.confirmationTitle} numberOfLines={2}>{choice.title}</Text><Text style={styles.confirmationWhen}>{mode==='switch'?'Starts now':timingPreview}</Text>{error?<Text accessibilityRole="alert" style={styles.validation}>{error}</Text>:null}<Pressable accessibilityRole="button" accessibilityLabel={mode==='switch'?'Switch plan now':'Confirm plan'} accessibilityHint={mode==='switch'?'Ends the current plan and starts this one':timingChoice==='custom'?'Custom time selected':timingChoice?`${timingChoice.replace(/_/g,' ')} selected`:'Choose a time first'} disabled={busy || !canConfirm} onPress={confirm} style={[styles.confirm, (busy || !canConfirm) && styles.disabled]}><Text style={styles.confirmText}>{busy ? mode==='switch'?'Switching…':'Saving…' : mode==='switch'?'Switch Now':timingChoice==='now'?'Start Now':'Confirm Plan'}</Text></Pressable></View>
     </>}
+    {scopedWorld?<PersonalPlacePicker visible={personalPickerOpen} worldId={scopedWorld.id} districts={allLocations.filter((item)=>item.world_id===scopedWorld.id&&['district','neighborhood'].includes(item.location_type)&&!item.owner_user_id)} onClose={()=>setPersonalPickerOpen(false)} onSelect={selectPersonalPlace} onPlacesChange={setPersonalPlaces}/>:null}
   </View>;
 }
 

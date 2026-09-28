@@ -164,7 +164,7 @@ async function loadContext(input: { db: any; userId: string; continuityId: strin
   if (access === 'locked' || access === 'available') throw new AppError('WORLD_LOCKED', 'That world is not available for this life yet.', 403);
   const [locationResult, nearbyResult, worldResult, presence, memoryResult, episodeResult, patternResult] = await Promise.all([
     input.db.from('together_locations').select('*').eq('id', locationId).maybeSingle(),
-    input.db.from('together_locations').select('*').eq('world_id', place.world.id).neq('id', locationId).limit(120),
+    input.db.from('together_locations').select('*').eq('world_id', place.world.id).is('owner_user_id',null).neq('id', locationId).limit(120),
     input.db.from('together_worlds').select('id,activity_families,metadata').eq('id', place.world.id).maybeSingle(),
     resolveCompanionPresence({ db: input.db, userId: input.userId, characterInstanceId: input.characterInstanceId, now: input.now, ensure: false }),
     input.db.from('together_memories').select('id,memory_type,canonical_text,importance,location_id,context_tags,metadata').eq('user_id',input.userId).eq('character_instance_id',input.characterInstanceId).eq('status','active').eq('visibility_scope','all').in('content_rating',['safe','suggestive']).order('importance',{ascending:false}).limit(16),
