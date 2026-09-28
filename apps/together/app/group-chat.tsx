@@ -2303,17 +2303,14 @@ export default function GroupChatScreen() {
         onRequestClose={() => setShowPhotoMenu(false)}
       >
         <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':Platform.OS==='android'?'height':undefined}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Close photo options"
-          style={styles.modalRoot}
-          onPress={() => setShowPhotoMenu(false)}
-        >
+        <View style={styles.modalRoot}>
           <Pressable
-            accessibilityRole="none"
-            onPress={(event) => event.stopPropagation()}
-            style={[styles.photoMenu,{paddingBottom:Math.max(16,screenInsets.bottom)}]}
-          >
+            accessibilityRole="button"
+            accessibilityLabel="Close photo options"
+            style={StyleSheet.absoluteFill}
+            onPress={() => setShowPhotoMenu(false)}
+          />
+          <View style={[styles.photoMenu,{paddingBottom:Math.max(16,screenInsets.bottom)}]}>
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.photoMenuHeader}>
               <View>
@@ -2445,8 +2442,8 @@ export default function GroupChatScreen() {
             </Pressable>
             {Platform.OS!=="web"?<Pressable accessibilityRole="button" accessibilityLabel="Take a photo" onPress={()=>void requestSharePhoto("camera")} style={styles.photoUploadButton}><Camera size={18} color={colors.rose}/><View style={{flex:1}}><Text style={styles.photoUploadTitle}>Take photo</Text><Text style={styles.photoUploadCopy}>Use your camera, then review it before sending.</Text></View><ChevronRight size={18} color={colors.dimmed}/></Pressable>:null}
             </ScrollView>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
         </KeyboardAvoidingView>
       </Modal>
       <ConversationMediaGalleryModal
