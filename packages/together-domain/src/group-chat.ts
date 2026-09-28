@@ -301,7 +301,8 @@ export function planGroupTurn(input: GroupTurnInput): GroupTurnPlan {
       : [],
     intent: index === 0
       ? "answer_user"
-      : crossAddressedExchange
+      : crossAddressedExchange ||
+          (input.letThemTalk && !broad && !explicitlyAddressed.length && index === 1)
       ? "respond_to_character"
       : "add_novel_group_contribution",
     reasonCodes: [

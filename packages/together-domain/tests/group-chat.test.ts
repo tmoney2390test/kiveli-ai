@@ -216,17 +216,21 @@ describe("group director", () => {
       });
     expect(initial.continuationBudget).toBeGreaterThanOrEqual(2);
     expect(initial.continuationBudget).toBeLessThanOrEqual(5);
-    expect(
-      planGroupContinuation({
+    const second = planGroupContinuation({
         originatingMessage: "Talk this through.",
         latestMessage: "Fine.",
         latestSpeakerCharacterInstanceId: two[0]!.characterInstanceId,
         candidates: two,
         alreadySpokeCharacterInstanceIds: [two[0]!.characterInstanceId],
+        preferredActions: initial.actions.slice(1),
         letThemTalk: true,
         continuationIndex: 1,
-      })?.characterInstanceId,
-    ).toBe(two[1]!.characterInstanceId);
+      });
+    expect(second).toMatchObject({
+      characterInstanceId: two[1]!.characterInstanceId,
+      intent: "respond_to_character",
+      addresseeInstanceIds: [two[0]!.characterInstanceId],
+    });
     expect(planGroupContinuation({
       originatingMessage: "Talk this through.",
       latestMessage: "I disagree with Mara.",
