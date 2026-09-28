@@ -714,6 +714,7 @@ export const styles = StyleSheet.create({
   photoMenu: {
     width: "100%",
     maxWidth: 470,
+    maxHeight: "92%",
     padding: 20,
     borderRadius: radius.xl,
     backgroundColor: "rgba(31,23,42,.97)",
@@ -766,7 +767,7 @@ export const styles = StyleSheet.create({
   photoSubjectNameSelected: { color: colors.text },
   photoRequestButton: {
     height: 50,
-    marginTop: 16,
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -775,6 +776,16 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.wine,
   },
   photoRequestButtonText: { color: "#fff", fontSize: 13, fontWeight: "900" },
+  photoQuickRow: {flexDirection:"row",alignItems:"center",gap:9,marginTop:16},
+  photoSpicyToggle: {width:50,height:50,borderRadius:16,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(255,255,255,.055)",borderWidth:1,borderColor:"rgba(203,168,255,.20)"},
+  photoSpicyToggleActive: {backgroundColor:"rgba(216,62,234,.22)",borderColor:"rgba(255,111,151,.72)"},
+  photoSpicyToggleLocked: {opacity:.55},
+  photoSpicyEmoji: {fontSize:22},
+  photoMenuError: {color:colors.danger,fontSize:12,marginTop:9},
+  photoPromptLabel: {color:colors.textSecondary,fontSize:10,fontWeight:"900",letterSpacing:1.1,marginTop:18,marginBottom:9},
+  photoPromptRow: {flexDirection:"row",alignItems:"center",gap:8},
+  photoPromptInput: {flex:1,minWidth:0,minHeight:46,paddingHorizontal:13,borderRadius:16,color:colors.text,fontSize:13,backgroundColor:"rgba(7,5,12,.52)",borderWidth:1,borderColor:"rgba(203,168,255,.24)"},
+  photoPromptSubmit: {width:46,height:46,borderRadius:16,alignItems:"center",justifyContent:"center",backgroundColor:colors.wine},
   photoMenuDivider: {
     height: 1,
     marginVertical: 17,

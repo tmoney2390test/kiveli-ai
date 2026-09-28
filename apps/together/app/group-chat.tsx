@@ -169,6 +169,8 @@ import { mergeGeneratedMediaCollections, missingMediaIds } from "../src/lib/medi
 import { chatMediaGalleryItems } from "../src/lib/chatMediaGallery";
 import { presentMemoryText } from "../src/lib/memoryPresentation";
 import { mediaWithoutActivePhotoOffer, photoMediaForOffer, visibleChatPhotoMedia } from "../src/lib/photoRequestPresentation";
+import { groupPhotoRequestText } from "../src/lib/groupPhotoRequest";
+import { spicyUnavailableCopy } from "../src/lib/mediaMomentPicker";
 import { characterCatalogForWorld, characterResidentWorld } from "../src/lib/place";
 import type { FeaturedCompanion } from "../src/lib/featuredCompanions";
 import { placeHoursStatus } from "../src/lib/placeHours";
@@ -280,6 +282,9 @@ export default function GroupChatScreen() {
     [showPhotoPaywall,setShowPhotoPaywall]=useState(false),
     [photoUploadPhase,setPhotoUploadPhase]=useState<PhotoUploadPhase>("idle"),
     [photoSubjects, setPhotoSubjects] = useState<string[]>([]),
+    [photoDescription, setPhotoDescription] = useState(""),
+    [photoSpicyUnlocked, setPhotoSpicyUnlocked] = useState(false),
+    [photoMenuError, setPhotoMenuError] = useState(""),
     [photoRequestBusy, setPhotoRequestBusy] = useState(false),
     [showDetails, setShowDetails] = useState(params.details === "1" && params.settings !== "1"),
     [showChatSettings,setShowChatSettings]=useState(params.settings === "1"),
@@ -1235,6 +1240,8 @@ export default function GroupChatScreen() {
       ? manualSpeaker
       : detail.participants[0]?.character_instance_id;
     setPhotoSubjects(preferred ? [preferred] : []);
+    setPhotoSpicyUnlocked(false);
+    setPhotoMenuError("");
     setShowPhotoMenu(true);
   };
   const togglePhotoSubject = (characterInstanceId: string) => {
@@ -1246,7 +1253,7 @@ export default function GroupChatScreen() {
         : [current[1]!, characterInstanceId]
     );
   };
-  const requestGroupPhoto = async () => {
+  const requestGroupPhoto = async (description?: string) => {
     if (!detail || !photoSubjects.length || photoRequestBusy || replyPending) return;
     if(dailyMessageExhausted){setShowPhotoMenu(false);setError("You’ve used today’s free messages.");return;}
     abortRef.current?.abort();
@@ -1259,11 +1266,10 @@ export default function GroupChatScreen() {
     ).filter(Boolean) as GroupParticipant[];
     const names = selected.map((participant) =>
       participant.together_character_instances.together_character_templates.name
-        .split(" ")[0]
+        .split(" ")[0] ?? ""
     );
-    const message = names.length > 1
-      ? `${names.join(" and ")}, send me a photo together.`
-      : `${names[0]}, send me a photo.`;
+    const message = groupPhotoRequestText(names, photoSpicyUnlocked, description);
+    if (!message) { setPhotoRequestBusy(false); return; }
     setShowPhotoMenu(false);
     const clientRequestId=createClientRequestId();
     const anchorCharacterId=photoSubjects[0]??detail.conversation.character_instance_id??detail.participants[0]?.character_instance_id;
@@ -1284,6 +1290,7 @@ export default function GroupChatScreen() {
         controller.signal,
       );
       consumeDailyMessageAllowance();
+      setPhotoDescription("");
     } catch (caught) {
       if (!controller.signal.aborted) {
         const recovered=dialogueFailureMayHavePersisted(caught)?await recoverInterruptedGroupDialogue(clientRequestId,''):false;
@@ -2294,6 +2301,7 @@ export default function GroupChatScreen() {
         navigationBarTranslucent
         onRequestClose={() => setShowPhotoMenu(false)}
       >
+        <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':Platform.OS==='android'?'height':undefined}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Close photo options"
@@ -2305,6 +2313,7 @@ export default function GroupChatScreen() {
             onPress={(event) => event.stopPropagation()}
             style={[styles.photoMenu,{paddingBottom:Math.max(16,screenInsets.bottom)}]}
           >
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.photoMenuHeader}>
               <View>
                 <Text style={styles.detailsKicker}>PHOTO</Text>
@@ -2356,24 +2365,66 @@ export default function GroupChatScreen() {
                 );
               })}
             </View>
-            <Pressable
-              accessibilityRole="button"
-              disabled={!photoSubjects.length || photoRequestBusy}
-              onPress={() => void requestGroupPhoto()}
-              style={[
-                styles.photoRequestButton,
-                (!photoSubjects.length || photoRequestBusy) && { opacity: .45 },
-              ]}
-            >
-              {photoRequestBusy
-                ? <ActivityIndicator color="#fff" />
-                : <Camera size={18} color="#fff" />}
-              <Text style={styles.photoRequestButtonText}>
-                {photoSubjects.length === 2
-                  ? "Request photo together"
-                  : "Request photo"}
-              </Text>
-            </Pressable>
+            <View style={styles.photoQuickRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={photoSubjects.length===2?'Request a photo of both selected companions':'Request a photo of the selected companion'}
+                disabled={!photoSubjects.length || photoRequestBusy || replyPending}
+                onPress={() => void requestGroupPhoto()}
+                style={[
+                  styles.photoRequestButton,
+                  (!photoSubjects.length || photoRequestBusy || replyPending) && { opacity: .45 },
+                ]}
+              >
+                {photoRequestBusy
+                  ? <ActivityIndicator color="#fff" />
+                  : <Camera size={18} color="#fff" />}
+                <Text style={styles.photoRequestButtonText}>
+                  {photoSubjects.length === 2 ? "Photo together" : "Send me a photo"}
+                </Text>
+              </Pressable>
+              <Pressable
+                testID="group-photo-spicy-toggle"
+                accessibilityRole="switch"
+                accessibilityLabel={Platform.OS==='web'?'Unlock adult group photo generation':`Adult photo generation unavailable on ${Platform.OS==='ios'?'iOS':'Android'}`}
+                accessibilityHint={Platform.OS==='web'?'Changes only the quick photo request.':'Adult photo generation is available on Kivelli.app.'}
+                accessibilityState={{checked:photoSpicyUnlocked}}
+                onPress={()=>{
+                  const unavailable=spicyUnavailableCopy(Platform.OS);
+                  if(unavailable){Alert.alert(unavailable.title,unavailable.message);return;}
+                  if(detail?.participants.some((participant)=>Number(participant.together_character_instances.together_character_templates.age)<18)){
+                    setPhotoMenuError('Adult photos require everyone in the group to be an adult.');
+                    return;
+                  }
+                  setPhotoMenuError('');
+                  setPhotoSpicyUnlocked((current)=>!current);
+                }}
+                style={[styles.photoSpicyToggle,photoSpicyUnlocked&&styles.photoSpicyToggleActive,Platform.OS!=='web'&&styles.photoSpicyToggleLocked]}
+              ><Text style={styles.photoSpicyEmoji}>🌶️</Text></Pressable>
+            </View>
+            {photoMenuError?<Text accessibilityLiveRegion="polite" style={styles.photoMenuError}>{photoMenuError}</Text>:null}
+            <Text style={styles.photoPromptLabel}>CUSTOM PROMPT</Text>
+            <View style={styles.photoPromptRow}>
+              <TextInput
+                accessibilityLabel="Describe the exact group photo you want"
+                value={photoDescription}
+                onChangeText={setPhotoDescription}
+                onSubmitEditing={()=>{if(photoDescription.trim())void requestGroupPhoto(photoDescription);}}
+                placeholder="Describe what you want…"
+                placeholderTextColor={colors.dimmed}
+                maxLength={320}
+                returnKeyType="send"
+                style={styles.photoPromptInput}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Request this group photo"
+                accessibilityState={{disabled:!photoDescription.trim()||!photoSubjects.length||photoRequestBusy||replyPending}}
+                disabled={!photoDescription.trim()||!photoSubjects.length||photoRequestBusy||replyPending}
+                onPress={()=>void requestGroupPhoto(photoDescription)}
+                style={[styles.photoPromptSubmit,(!photoDescription.trim()||!photoSubjects.length||photoRequestBusy||replyPending)&&{opacity:.45}]}
+              ><Send size={17} color="#fff"/></Pressable>
+            </View>
             <View style={styles.photoMenuDivider} />
             <Text style={styles.photoMenuLabel}>SHARE A PHOTO</Text>
             <Pressable
@@ -2392,8 +2443,10 @@ export default function GroupChatScreen() {
               <ChevronRight size={18} color={colors.dimmed} />
             </Pressable>
             {Platform.OS!=="web"?<Pressable accessibilityRole="button" accessibilityLabel="Take a photo" onPress={()=>void requestSharePhoto("camera")} style={styles.photoUploadButton}><Camera size={18} color={colors.rose}/><View style={{flex:1}}><Text style={styles.photoUploadTitle}>Take photo</Text><Text style={styles.photoUploadCopy}>Use your camera, then review it before sending.</Text></View><ChevronRight size={18} color={colors.dimmed}/></Pressable>:null}
+            </ScrollView>
           </Pressable>
         </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
       <ConversationMediaGalleryModal
         visible={showChatMedia}
