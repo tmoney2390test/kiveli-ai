@@ -509,7 +509,7 @@ Deno.test("adult group photos make a clothed identity base before the adult edit
     } } as unknown as WaveSpeedClient;
     const venice = { edit: async (body: { prompt: string; images: string[]; safeMode: boolean }) => {
       veniceInputs.push(body);
-      return { bytes: new Uint8Array([1, 2, 3]), contentType: "image/webp", providerRequestId: "adult-edit", model: "grok-imagine-edit", estimatedCost: .04, generationMs: 300, safety: { blurred: false, contentViolation: false, adultModelContentViolation: false } };
+      return { bytes: new Uint8Array([1, 2, 3]), contentType: "image/webp", providerRequestId: "adult-edit", model: "qwen-edit-uncensored", estimatedCost: .04, generationMs: 300, safety: { blurred: false, contentViolation: false, adultModelContentViolation: false } };
     } } as unknown as VeniceImageClient;
     const result = await new VeniceMediaProvider(venice, wave).submit(canonical, routed.route.capability);
     assertEquals(waveInputs.length, 1);
@@ -517,6 +517,7 @@ Deno.test("adult group photos make a clothed identity base before the adult edit
     assert(!String(waveInputs[0]?.prompt).includes("Nude"));
     assertEquals(veniceInputs[0]?.images, ["https://images.test/clothed-base.webp"]);
     assertEquals(veniceInputs[0]?.safeMode, false);
+    assertEquals(routed.route.capability.model, "qwen-edit-uncensored");
     assert(veniceInputs[0]?.prompt.includes("Nude kissing"));
     assertEquals(result.result?.providerMetadata?.pipeline, "clothed_group_identity_base_then_adult_edit");
     assertEquals(result.result?.providerAttempts?.length, 2);
