@@ -35,6 +35,7 @@ export async function resolvePlaceContext(input:{db:SupabaseClient;locationId:st
   const now=input.now??new Date();
   const {data:location,error}=await requestRead(input.db,['authored-location',input.locationId],()=>input.db.from('together_locations').select('*').eq('id',input.locationId).maybeSingle());
   if(error||!location)throw new AppError('NOT_FOUND','That place is unavailable.',404);
+  if(location.owner_user_id&&location.owner_user_id!==input.userId)throw new AppError('NOT_FOUND','That place is unavailable.',404);
   const aiLorePromise=resolveEligibleLocationAiLore({...input,locationId:String(location.id)});
   const {data:world,error:worldError}=await requestRead(input.db,['authored-world',location.world_id],()=>input.db.from('together_worlds').select('*').eq('id',location.world_id).maybeSingle());
   if(worldError||!world)throw new AppError('INTERNAL_ERROR','This place is missing its world.',500,true);
@@ -50,8 +51,8 @@ export async function resolvePlaceContext(input:{db:SupabaseClient;locationId:st
   const timezonePromise=resolveUserExperienceTimezone(input.db,input.userId,safeTimezone(world.timezone));
   const nearbySlugs=Array.isArray(lore.nearbyLocationSlugs)?lore.nearbyLocationSlugs.map(String).filter(Boolean).slice(0,8):[];
   let nearbyRows:Row[]=[];
-  if(nearbySlugs.length){const{data}=await input.db.from('together_locations').select('id,slug,name,location_type,category,description,possible_activities,sort_order').eq('world_id',location.world_id).in('slug',nearbySlugs).limit(8);nearbyRows=data??[];}
-  else if(location.parent_location_id){const{data}=await input.db.from('together_locations').select('id,slug,name,location_type,category,description,possible_activities,sort_order').eq('world_id',location.world_id).eq('parent_location_id',location.parent_location_id).neq('id',location.id).order('sort_order').limit(6);nearbyRows=data??[];}
+  if(nearbySlugs.length){const{data}=await input.db.from('together_locations').select('id,slug,name,location_type,category,description,possible_activities,sort_order').eq('world_id',location.world_id).is('owner_user_id',null).in('slug',nearbySlugs).limit(8);nearbyRows=data??[];}
+  else if(location.parent_location_id){const{data}=await input.db.from('together_locations').select('id,slug,name,location_type,category,description,possible_activities,sort_order').eq('world_id',location.world_id).is('owner_user_id',null).eq('parent_location_id',location.parent_location_id).neq('id',location.id).order('sort_order').limit(6);nearbyRows=data??[];}
   const districtRow=String(location.location_type??'venue')==='district'?location:[...ancestry].reverse().find((item)=>String(item.location_type)==='district');
   const districtLore=(districtRow?.canonical_lore??{}) as LocationLore;
   const adjacentSlugs=Array.isArray(districtLore.nearbyLocationSlugs)?districtLore.nearbyLocationSlugs.map(String).filter(Boolean).slice(0,8):[];
@@ -126,6 +127,12 @@ export async function resolveCharacterHomeContext(input:{db:SupabaseClient;chara
 
 export async function resolveCharacterPlaceContext(input:{db:SupabaseClient;characterVersionId:string;locationId?:string|null;activity?:string|null;activityKey?:string|null;now?:Date;userId?:string;characterInstanceId?:string}):Promise<PlaceContext|null>{
   if(isHomePresenceActivity(input.activity,input.activityKey)){
+    // An explicit user-owned plan at “Home” is the user's home, not the
+    // companion's schedule-owned private residence.
+    if(input.locationId&&input.userId){
+      const{data:personal}=await input.db.from('together_locations').select('id').eq('id',input.locationId).eq('owner_user_id',input.userId).maybeSingle();
+      if(personal)return resolvePlaceContext({db:input.db,locationId:input.locationId,now:input.now,userId:input.userId,characterInstanceId:input.characterInstanceId});
+    }
     const home=await resolveCharacterHomeContext({db:input.db,characterVersionId:input.characterVersionId,now:input.now,userId:input.userId});
     if(home)return home;
   }
@@ -138,7 +145,7 @@ export async function resolveCharacterBaseLocation(input:{db:SupabaseClient;char
   const {data:world}=await input.db.from('together_worlds').select('default_arrival_location_id').eq('id',input.worldId).maybeSingle();
   const ids=[presence?.home_location_id,world?.default_arrival_location_id].filter(Boolean).map(String);
   for(const id of ids){const {data}=await input.db.from('together_locations').select('*').eq('id',id).eq('world_id',input.worldId).maybeSingle();if(data)return data;}
-  const {data:fallback}=await input.db.from('together_locations').select('*').eq('world_id',input.worldId).is('parent_location_id',null).order('sort_order').order('name').limit(1).maybeSingle();
+  const {data:fallback}=await input.db.from('together_locations').select('*').eq('world_id',input.worldId).is('owner_user_id',null).is('parent_location_id',null).order('sort_order').order('name').limit(1).maybeSingle();
   return fallback??null;
 }
 

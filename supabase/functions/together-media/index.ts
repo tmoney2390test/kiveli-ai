@@ -472,8 +472,8 @@ async function directVideoDraft(db:any,input:{userId:string;continuityId:string;
     place=locations.homePlace;
   }else{
     if(!input.locationId)throw new AppError('VALIDATION_ERROR','Choose a place for this video.',422);
-    const{data:selected}=await db.from('together_locations').select('id,world_id,location_type').eq('id',input.locationId).maybeSingle();
-    if(!selected||String(selected.world_id)!==locations.worldId||['district','residence'].includes(String(selected.location_type)))throw new AppError('FORBIDDEN','Choose a public place in this companion’s current world.',403);
+    const{data:selected}=await db.from('together_locations').select('id,world_id,location_type,owner_user_id,archived_at').eq('id',input.locationId).maybeSingle();
+    if(!selected||String(selected.world_id)!==locations.worldId||(selected.owner_user_id?selected.owner_user_id!==input.userId||Boolean(selected.archived_at):['district','residence'].includes(String(selected.location_type))))throw new AppError('FORBIDDEN','Choose an available place in this companion’s current world.',403);
     const access=await resolveWorldAccess({db,userId:input.userId,worldId:locations.worldId});if(access==='locked'||access==='available')throw new AppError('FORBIDDEN','That world is not available for video generation.',403);
     place=await resolvePlaceContext({db,locationId:String(selected.id),userId:input.userId,characterInstanceId:input.characterInstanceId});
   }
@@ -492,9 +492,9 @@ async function directVideoLocations(db:any,userId:string,instance:Record<string,
   const currentPlace=presence?.placeContext??await resolveCharacterPlaceContext({db,characterVersionId,locationId:currentLocationId,activity:String(instance.current_activity??''),userId,characterInstanceId:String(instance.id)});
   const resolvedCurrent=currentPlace??homePlace;if(!resolvedCurrent)throw new AppError('NOT_FOUND','This companion does not have an available video location.',404);
   const worldId=resolvedCurrent.world.id,worldName=resolvedCurrent.world.name,access=await resolveWorldAccess({db,userId,worldId});if(access==='locked'||access==='available')throw new AppError('FORBIDDEN','This companion’s current world is not available.',403);
-  const{data:rows,error}=await db.from('together_locations').select('id,world_id,name,category,location_type,parent_location_id,sort_order').eq('world_id',worldId).not('location_type','in','(district,residence)').order('sort_order').order('name').limit(120);if(error)throw new AppError('INTERNAL_ERROR','Video places could not be loaded.',500,true);
+  const{data:rows,error}=await db.from('together_locations').select('id,world_id,name,category,location_type,parent_location_id,sort_order,owner_user_id').eq('world_id',worldId).or(`owner_user_id.is.null,owner_user_id.eq.${userId}`).is('archived_at',null).not('location_type','in','(district)').order('sort_order').order('name').limit(140);if(error)throw new AppError('INTERNAL_ERROR','Video places could not be loaded.',500,true);
   const option=(source:DirectVideoLocationSource,place:PlaceContext):DirectVideoLocationOption=>({source,locationId:place.location.virtualType==='character_home'?null:place.location.id,name:place.location.name,detail:place.path,worldId:place.world.id,worldName:place.world.name});
-  const current=option('current',resolvedCurrent),home=homePlace?option('home',homePlace):null,places:DirectVideoLocationOption[]=(rows??[]).map((row:Record<string,unknown>)=>({source:'place',locationId:String(row.id),name:String(row.name),detail:String(row.category??'Place'),worldId,worldName}));
+  const current=option('current',resolvedCurrent),home=homePlace?option('home',homePlace):null,places:DirectVideoLocationOption[]=(rows??[]).filter((row:Record<string,unknown>)=>row.owner_user_id||row.location_type!=='residence').map((row:Record<string,unknown>)=>({source:'place',locationId:String(row.id),name:String(row.name),detail:row.owner_user_id?'Your private place':String(row.category??'Place'),worldId,worldName}));
   return{currentPlace:resolvedCurrent,currentActivity:presence?.activity??String(instance.current_activity??`At ${resolvedCurrent.location.name}`),homePlace,worldId,worldName,options:{defaultSource:'current' as const,worldId,worldName,current,home,places}};
 }
 

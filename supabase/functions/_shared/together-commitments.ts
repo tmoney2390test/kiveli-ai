@@ -76,6 +76,7 @@ export async function createWindowedCommitment(db:SupabaseClient,input:{userId:s
     db.from('together_locations').select('*,together_worlds(id,name,timezone,access_type,entitlement_key,published)').eq('id',input.locationId).maybeSingle(),
   ]);
   if(!instance||!location)throw new AppError('NOT_FOUND','That companion or place is unavailable.',404);
+  if(location.owner_user_id&&(location.owner_user_id!==input.userId||location.archived_at))throw new AppError('NOT_FOUND','That private place is unavailable.',404);
   await assertCharacterResidentInWorld({db,characterVersionId:String(instance.character_version_id),worldId:String(location.world_id)});
   const world=(location as Row).together_worlds as Row|undefined;
   const access=await resolveWorldAccess({db,userId:input.userId,worldId:String(location.world_id)});

@@ -43,7 +43,7 @@ export async function createSharedPlan(db:any, input:CreatePlanInput) {
   const { data:existing }=await db.from('together_shared_plans').select('*').eq('user_id',input.userId).eq('continuity_id',continuity.id).eq('metadata->>requestId',input.requestId).maybeSingle();
   if(existing)return{kind:'shared_plan' as const,commitment:existing,created:false};
 
-  const resolved=await resolvePlanOption(db,input.locationId,input.activityKey,input.title,input.durationMinutes);
+  const resolved=await resolvePlanOption(db,input.userId,input.locationId,input.activityKey,input.title,input.durationMinutes);
   await assertCharacterResidentInWorld({db,characterVersionId:String(instance.character_version_id),worldId:String(resolved.location.world_id)});
   const roster=await resolveSharedPlanRoster(db,{userId:input.userId,continuityId:continuity.id,anchorCharacterInstanceId:input.characterInstanceId,sourceConversationId:input.sourceConversationId,worldId:String(resolved.location.world_id)});
   const worldAccess=await resolveWorldAccess({db,userId:input.userId,worldId:String(resolved.location.world_id)});
@@ -129,7 +129,7 @@ export async function updateSharedPlan(db:any,input:{userId:string;planId:string
   if(!['proposed','scheduled'].includes(plan.status))throw new AppError('CONFLICT','That plan can no longer be changed.',409,true);
   const patch:Record<string,unknown>={updated_at:new Date().toISOString()};
   if(input.note!==undefined)patch.note=input.note.trim()||null;
-  if(input.locationId||input.activityKey){const resolved=await resolvePlanOption(db,input.locationId??plan.location_id,input.activityKey??plan.activity_key);await assertCharacterResidentInWorld({db,characterVersionId:String(plan.together_character_instances.character_version_id),worldId:String(resolved.location.world_id)});const start=new Date(plan.starts_at),end=new Date(start.getTime()+resolved.durationMinutes*60000);const availability=await validateAvailability(db,{userId:input.userId,characterInstanceId:plan.character_instance_id,characterVersionId:plan.together_character_instances.character_version_id,location:resolved.location,activityKey:resolved.activityKey,start,end,excludePlanId:plan.id});await validateAdditionalPlanParticipants(db,{userId:input.userId,continuityId:continuity.id,plan,location:resolved.location,activityKey:resolved.activityKey,start,end,excludePlanId:plan.id});patch.location_id=resolved.location.id;patch.world_id=resolved.location.world_id;patch.activity_key=resolved.activityKey;patch.title=resolved.title;patch.ends_at=end.toISOString();patch.world_timezone=availability.worldTimezone;patch.user_timezone=availability.userTimezone;patch.metadata={...(plan.metadata??{}),durationMinutes:resolved.durationMinutes,significance:resolved.significance};}
+  if(input.locationId||input.activityKey){const resolved=await resolvePlanOption(db,input.userId,input.locationId??plan.location_id,input.activityKey??plan.activity_key);await assertCharacterResidentInWorld({db,characterVersionId:String(plan.together_character_instances.character_version_id),worldId:String(resolved.location.world_id)});const start=new Date(plan.starts_at),end=new Date(start.getTime()+resolved.durationMinutes*60000);const availability=await validateAvailability(db,{userId:input.userId,characterInstanceId:plan.character_instance_id,characterVersionId:plan.together_character_instances.character_version_id,location:resolved.location,activityKey:resolved.activityKey,start,end,excludePlanId:plan.id});await validateAdditionalPlanParticipants(db,{userId:input.userId,continuityId:continuity.id,plan,location:resolved.location,activityKey:resolved.activityKey,start,end,excludePlanId:plan.id});patch.location_id=resolved.location.id;patch.world_id=resolved.location.world_id;patch.activity_key=resolved.activityKey;patch.title=resolved.title;patch.ends_at=end.toISOString();patch.world_timezone=availability.worldTimezone;patch.user_timezone=availability.userTimezone;patch.metadata={...(plan.metadata??{}),durationMinutes:resolved.durationMinutes,significance:resolved.significance};}
   const{data,error}=await db.from('together_shared_plans').update(patch).eq('id',plan.id).eq('user_id',input.userId).select('*').single();
   if(error||!data)throw new AppError('INTERNAL_ERROR','The plan could not be changed.',500,true);
   if(input.locationId||input.activityKey)await db.from('together_proactive_messages').delete().eq('user_id',input.userId).eq('status','queued').eq('context->>groupPlanId',plan.id);
@@ -178,9 +178,10 @@ export async function writeConversationEvent(db:any,input:{userId:string;charact
 
 export async function focusConversationOnPlan(db:any,userId:string,conversationId:string,planId:string){const{data}=await db.from('together_conversations').select('metadata').eq('id',conversationId).eq('user_id',userId).maybeSingle();if(data)await db.from('together_conversations').update({metadata:{...(data.metadata??{}),focus:{type:'plan',planId,updatedAt:new Date().toISOString()}}}).eq('id',conversationId).eq('user_id',userId);}
 
-async function resolvePlanOption(db:any,locationId:string,activityValue:string,titleValue?:string,durationValue?:number){
+async function resolvePlanOption(db:any,userId:string,locationId:string,activityValue:string,titleValue?:string,durationValue?:number){
   const{data:location}=await db.from('together_locations').select('*').eq('id',locationId).maybeSingle();
   if(!location)throw new AppError('VALIDATION_FAILED','Choose a real location in an available world.',400);
+  if(location.owner_user_id&&(location.owner_user_id!==userId||location.archived_at))throw new AppError('NOT_FOUND','That private place is unavailable.',404);
   const possible=(location.possible_activities??[]).map((value:string)=>normalize(value));
   const metadata=location.metadata??{};
   const dateTypes=(Array.isArray(metadata.date_types)?metadata.date_types:[]).map((value:unknown)=>normalize(String(value)));

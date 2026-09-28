@@ -65,7 +65,7 @@ export async function ensureCharacterSchedule(input:{db:SupabaseClient;userId:st
     .in('source',['recurring','generated']).is('generation_version',null)
     .gte('ends_at',from.toISOString());
   const[locationsResult,templatesResult,existingResult,historyResult,plansResult,legacyResult,edgesResult,instancesResult]=await Promise.all([
-    db.from('together_locations').select('*').eq('world_id',worldId),
+    db.from('together_locations').select('*').eq('world_id',worldId).is('owner_user_id',null),
     db.from('together_character_activity_templates').select('*').eq('character_version_id',instance.character_version_id),
     db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).gte('starts_at',from.toISOString()).lt('starts_at',until.toISOString()),
     db.from('together_character_schedule_events').select('*').eq('user_id',userId).eq('character_instance_id',characterInstanceId).gte('starts_at',new Date(from.getTime()-45*86400000).toISOString()).lt('starts_at',from.toISOString()).order('starts_at',{ascending:false}).limit(300),

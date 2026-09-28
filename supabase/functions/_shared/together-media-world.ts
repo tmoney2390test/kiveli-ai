@@ -76,6 +76,7 @@ const SETTING_FAMILIES: SettingFamily[] = [
 
 export async function resolveCanonicalMediaWorld(input: {
   db: SupabaseClient;
+  userId: string;
   characterVersionIds: string[];
   requestText?: string;
   authoritativeLocationId?: string;
@@ -99,7 +100,7 @@ export async function resolveCanonicalMediaWorld(input: {
 
   const [{ data: world, error: worldError }, { data: locations, error: locationsError }] = await Promise.all([
     input.db.from("together_worlds").select("id,slug,name,description,visual_context,published").eq("id", worldId).maybeSingle(),
-    input.db.from("together_locations").select("id,world_id,parent_location_id,slug,name,description,category,location_type,possible_activities,metadata,canonical_visual_context,canonical_lore,sort_order").eq("world_id", worldId).limit(250),
+    input.db.from("together_locations").select("id,world_id,parent_location_id,slug,name,description,category,location_type,possible_activities,metadata,canonical_visual_context,canonical_lore,sort_order").eq("world_id", worldId).or(`owner_user_id.is.null,owner_user_id.eq.${input.userId}`).is("archived_at",null).limit(250),
   ]);
   if (worldError || !world || world.published === false) throw new AppError("INTERNAL_ERROR", "The companion home world could not be loaded.", 500, true);
   if (locationsError) throw new AppError("INTERNAL_ERROR", "World locations could not be checked.", 500, true);

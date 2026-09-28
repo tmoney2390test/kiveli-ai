@@ -35,7 +35,7 @@ export async function queueMediaEdit(db:SupabaseClient,input:{userId:string;cont
     loadValidatedMediaSubjects(db,{userId:input.userId,characterInstanceId:String(source.character_instance_id),subjectCharacterInstanceIds:subjectIds,conversationId:typeof source.conversation_id==='string'?source.conversation_id:undefined}),
   ]);
   if(!subjects[0])throw new AppError('NOT_FOUND','That companion is unavailable in this Kivelle Life.',404);
-  const worldContainment=await resolveCanonicalMediaWorld({db,characterVersionIds:subjects.map((subject)=>String(subject.character_version_id)),requestText:instruction,presenceLocationId:String(source.location_id??'')||undefined,groupWorldId:String(source.world_id??'')||undefined});
+  const worldContainment=await resolveCanonicalMediaWorld({db,userId:input.userId,characterVersionIds:subjects.map((subject)=>String(subject.character_version_id)),requestText:instruction,presenceLocationId:String(source.location_id??'')||undefined,groupWorldId:String(source.world_id??'')||undefined});
   const resolvedPlace=worldContainment.locationId?await resolvePlaceContext({db,locationId:worldContainment.locationId,userId:input.userId,characterInstanceId:String(source.character_instance_id)}):null;
   const effectiveWorldContainment={...worldContainment,...(resolvedPlace?{locationName:resolvedPlace.location.name,locationPath:resolvedPlace.path}:{})};
   const preferences=(profile?.content_preferences??{}) as Record<string,unknown>;
