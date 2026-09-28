@@ -1844,17 +1844,13 @@ export default function GroupChatScreen() {
         onDetails={() => setShowGroupMenu((value) => !value)}
       />}
       <ConnectionBanner sendFailed={detail.messages.some((message)=>message.delivery_status==="failed")} sendScoped={showSendConnectionNotice}/>
-      {!showRightRail&&contextParticipant&&snapshot?<MobileChatContextCard
-        identityKey={`${detail.conversation.id}:${contextParticipant.character_instance_id}`}
-        name={contextParticipant.together_character_instances.together_character_templates.name}
+      {!showRightRail&&activeGroupPlan?<MobileChatContextCard
+        identityKey={`${detail.conversation.id}:${activeGroupPlan.id}`}
+        name={detail.conversation.title??"the group"}
         accessibilityName={detail.conversation.title??"this group"}
-        location={snapshot.locations.find((location)=>location.id===contextParticipant.together_character_instances.current_location_id)?.name??"Home"}
-        activity={naturalizeCharacterActivity(contextParticipant.together_character_instances.current_activity||"Taking some private time")}
-        next={(activeGroupPlan??waitingGroupPlan)?{title:(activeGroupPlan??waitingGroupPlan)!.title,detail:(activeGroupPlan??waitingGroupPlan)!.status==="active"?"Together now":new Date((activeGroupPlan??waitingGroupPlan)!.starts_at).toLocaleString([],{weekday:"short",hour:"numeric",minute:"2-digit"}),onPress:()=>navigateGroupSurface(`/plan/${(activeGroupPlan??waitingGroupPlan)!.id}`)}:null}
-        memoryCount={snapshot.memoryCounts?.[contextParticipant.character_instance_id]??snapshot.memories.filter((memory)=>memory.character_instance_id===contextParticipant.character_instance_id).length}
-        memoryLocked={snapshot.entitlements?.entitlement_keys?.includes("memory_inspector")!==true}
-        onMemory={()=>navigateGroupSurface(`/memories?character=${contextParticipant.together_character_instances.together_character_templates.slug}`)}
-        onPlan={activeGroupPlan?undefined:()=>openGroupPlanner(false)}
+        location={activeGroupPlan.together_locations?.name??snapshot?.locations.find((location)=>location.id===activeGroupPlan.location_id)?.name??"Shared place"}
+        activity={`Together now · ${activeGroupPlan.title}`}
+        next={{title:activeGroupPlan.title,detail:"Together now",kicker:"GROUP PLAN",onPress:()=>navigateGroupSurface(`/plan/${activeGroupPlan.id}`)}}
       />:null}
       {showGroupMenu ? <ConversationOverflowMenu
         title={detail.conversation.title ?? "Group"}
