@@ -10,6 +10,7 @@ import {
   configuredGroupImageRouteAvailable,
   configuredMediaRegistry,
   routeCanonicalMedia,
+  safeGroupIdentityBaseRequestText,
   VENICE_GROUP_ADULT_ROUTE_ID,
   VeniceMediaProvider,
   WAVESPEED_GROUP_QWEN_ROUTE_ID,
@@ -166,8 +167,20 @@ Deno.test("adult group prompt keeps the exact custom direction ahead of the base
   };
   const prompt = adultGroupEditPrompt({ ...input, mediaType: "image", adultPipelineAuthorized: true });
   assert(prompt.includes("Approved user request: Nude kissing"));
-  assert(prompt.indexOf("Approved user request") < prompt.indexOf("Keep both original people"));
+  assert(prompt.indexOf("Approved user request") < prompt.indexOf("Preserve the two original faces"));
+  assert(prompt.includes("do not redraw, blend, swap, or smooth them"));
+  assert(prompt.includes("Keep the original pose"));
   assert(prompt.includes("base photo clothing is not a restriction"));
+});
+
+Deno.test("adult group identity base matches safe pose without passing explicit wording", () => {
+  const kissing = safeGroupIdentityBaseRequestText("Mara and Priya, send me a photo showing exactly this: Nude kissing");
+  assert(kissing.includes("kissing with both faces visible"));
+  assert(kissing.includes("fully clothed"));
+  assert(!kissing.toLowerCase().includes("nude"));
+  const other = safeGroupIdentityBaseRequestText("Explicit scene with detailed anatomy");
+  assert(other.includes("standing close together"));
+  assert(!other.toLowerCase().includes("explicit"));
 });
 
 Deno.test("multireference provider input preserves both ordered identity references", () => {
@@ -514,6 +527,7 @@ Deno.test("adult group photos make a clothed identity base before the adult edit
     const result = await new VeniceMediaProvider(venice, wave).submit(canonical, routed.route.capability);
     assertEquals(waveInputs.length, 1);
     assertEquals(waveInputs[0]?.enable_safety_checker, true);
+    assert(String(waveInputs[0]?.prompt).includes("kissing with both faces visible"));
     assert(!String(waveInputs[0]?.prompt).includes("Nude"));
     assertEquals(veniceInputs[0]?.images, ["https://images.test/clothed-base.webp"]);
     assertEquals(veniceInputs[0]?.safeMode, false);

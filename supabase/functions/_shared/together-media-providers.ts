@@ -168,7 +168,10 @@ export class VeniceMediaProvider implements MediaGenerationProvider{
     if(!sourceUrl){
       const wave=this.waveClient??configuredWaveSpeedClient(),baseRoute=configuredMediaRegistry().find((item)=>item.id===WAVESPEED_GROUP_QWEN_ROUTE_ID&&item.enabled);
       if(!wave||!baseRoute)throw new AppError('PROVIDER_NOT_CONFIGURED','Two-person photos are temporarily unavailable. No credits were used.',503,false);
-      const neutral:CanonicalMediaRequest={...request,contentLevel:'romance',adultPipelineAuthorized:false,generationIntent:{requestText:'The two companions together in an ordinary fully clothed candid photograph.',requestedContentLevel:'romance'}};
+      // Build the safe identity photo in the closest non-explicit pose. A
+      // generic side-by-side portrait forces the adult edit to redraw both
+      // heads when the requested scene calls for an embrace or kiss.
+      const neutral:CanonicalMediaRequest={...request,contentLevel:'romance',adultPipelineAuthorized:false,generationIntent:{requestText:safeGroupIdentityBaseRequestText(request.generationIntent?.requestText),requestedContentLevel:'romance'}};
       try{
         const base=await runWaveSpeedPipelineStage({client:wave,attempts,attemptNumber:1,stage:'clothed_group_identity_base',routeId:route.id,model:baseRoute.model,input:waveSpeedInput(neutral,baseRoute),estimatedCost:baseRoute.estimatedCost??.07,timeoutMs:Math.max(15_000,Math.min(90_000,envNumber('KIVELLE_WAVESPEED_ADULT_STAGE_TIMEOUT_MS',75_000)))});
         sourceUrl=base.outputs[0];
@@ -465,12 +468,24 @@ export function adultGroupEditPrompt(request:CanonicalMediaRequest):string{
   const names=subjects.map((subject)=>`${subject.companion.name}, age ${subject.companion.age}`).join(' and ');
   const world=request.context.worldContainment;
   return[
-    `Edit the supplied photograph of two fictional adults: ${names}.`,
-    `Approved user request: ${clipVenicePrompt(direction,400)}. Follow this action, pose, and clothing direction exactly.`,
-    'Keep both original people distinct and recognizable, with their same faces, hair, complexions, and left/right identities. Reposition their bodies and change their clothing as required by the user request; the base photo clothing is not a restriction.',
+    `Make the smallest necessary edit to this photograph of two fictional adults: ${names}.`,
+    `Approved user request: ${clipVenicePrompt(direction,400)}. Follow this action and clothing direction exactly.`,
+    'Preserve the two original faces as photographed: the same facial contours, eyes, noses, mouths, skin texture, hair, complexions, expressions, and left/right identities. Keep both heads sharp and recognizable; do not redraw, blend, swap, or smooth them.',
+    'Keep the original pose, camera perspective, lighting, and setting wherever they already fit the request. Change clothing and body details only as needed for the approved request; the base photo clothing is not a restriction.',
     world?`Keep the scene in ${world.worldName}${world.locationName?` at ${world.locationName}`:''}.`:undefined,
-    'One coherent photorealistic camera photo of exactly these two adults. No added person, swapped faces, duplicated bodies, collage, text, watermark, or censoring.',
+    'One crisp photorealistic camera photo of exactly these two adults, with natural fine detail. No added person, duplicated bodies, collage, text, watermark, or censoring.',
   ].filter(Boolean).join(' ').slice(0,1_400);
+}
+
+/** Only fixed non-explicit directions may reach the clothed identity provider. */
+export function safeGroupIdentityBaseRequestText(requestText:string|undefined):string{
+  const direction=requestText?.replace(/^.*?\bsend me a photo showing exactly this:\s*/i,'').toLowerCase()??'';
+  let action='standing close together and facing each other';
+  if(/\bkiss(?:es|ed|ing)?\b/.test(direction))action='kissing with both faces visible in a three-quarter view';
+  else if(/\b(?:hug|hugs|hugging|embrace|embracing|cuddle|cuddling)\b/.test(direction))action='embracing with both faces visible';
+  else if(/\b(?:dance|dancing)\b/.test(direction))action='dancing together with both faces visible';
+  else if(/\b(?:sit|sitting|seated)\b/.test(direction))action='sitting close together with both faces visible';
+  return`The two companions ${action}, fully clothed, in one natural candid photograph. Keep both faces large, sharply detailed, and distinct.`;
 }
 function adultEditPrompt(request:CanonicalMediaRequest):string{
   const intent=request.generationIntent?.requestText?.trim();if(!intent)throw new AppError('PROVIDER_REQUEST_INVALID','The approved adult photo request was incomplete.',422,false);
