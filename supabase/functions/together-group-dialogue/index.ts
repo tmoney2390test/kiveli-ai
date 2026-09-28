@@ -1336,7 +1336,7 @@ async function maybeCreateGroupLocationPlanCandidate(db: any, input: {
   if (!locations.length) {
     const { data, error } = await db.from("together_locations").select(
       "id,world_id,name,slug,category,possible_activities,metadata,together_worlds(slug)",
-    ).eq("world_id", worldId);
+    ).eq("world_id", worldId).or(`owner_user_id.is.null,owner_user_id.eq.${input.userId}`).is("archived_at",null);
     if (error) return null;
     locations = (data ?? []).map((item: Record<string, any>) => ({
       id: String(item.id),
