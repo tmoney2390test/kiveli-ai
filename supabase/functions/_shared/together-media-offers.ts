@@ -11,6 +11,7 @@ import{loadValidatedMediaSubjects,normalizeMediaSubjectIds}from'./together-media
 import{dailyPhotoAllowanceStatus,dailyPhotoReservationKey,releaseDailyPhotoAllowance}from'./kivelle-subscription.ts';
 import{resolveCanonicalMediaWorld}from'./together-media-world.ts';
 import{resolveProductionSafePhotoRequest}from'../../../packages/together-domain/src/media.ts';
+import{configuredGroupImageRouteAvailable}from'./together-media-providers.ts';
 
 export type CreateMediaOfferInput={
   userId:string;characterInstanceId:string;source:MediaOfferSource;
@@ -24,6 +25,7 @@ export async function createMediaOffer(db:SupabaseClient,input:CreateMediaOfferI
   assertPhotoRequestAllowed({requestText:typeof input.previewMetadata?.requestText==='string'?input.previewMetadata.requestText:undefined,requestedContentLevel:input.contentLevel,adultPipelineAuthorized:input.adultPipelineAuthorized},{stage:'create_offer',userId:input.userId,characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,requestId:input.offerKey});
   const originalPreview=input.previewMetadata??{},productionRequest=resolveProductionSafePhotoRequest({requestText:typeof originalPreview.requestText==='string'?originalPreview.requestText:undefined,requestedContentLevel:input.contentLevel,fallbackLevel:input.source==='date'?'romance':'standard',adultPipelineAuthorized:input.adultPipelineAuthorized===true});
   const subjectIds=normalizeMediaSubjectIds(input.characterInstanceId,input.subjectCharacterInstanceIds);
+  if(subjectIds.length>1&&!configuredGroupImageRouteAvailable(productionRequest.contentLevel))throw new AppError('PROVIDER_UNAVAILABLE','This level of two-person photo needs a different image provider. No credits were used.',503,false);
   const[subjects,profileResult,tier]=await Promise.all([
     loadValidatedMediaSubjects(db,{userId:input.userId,characterInstanceId:input.characterInstanceId,subjectCharacterInstanceIds:subjectIds,conversationId:input.conversationId}),
     db.from('together_profiles').select('age_verified_at,photo_preferences,multimodal_preferences').eq('user_id',input.userId).maybeSingle(),

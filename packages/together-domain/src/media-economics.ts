@@ -71,6 +71,8 @@ export const mediaProviderCostRegistry:Readonly<Record<string,number>>={
   'wavespeed-wan22-realism-face-swap-adult':0.035,
   'wavespeed-qwen2-pro-adult-reference-edit':0.07,
   'wavespeed-qwen2-pro-group-multiref':0.07,
+  // Clothed two-reference base ($0.07), then one Venice adult source edit ($0.04).
+  'venice-group-adult-two-stage':0.11,
   'wavespeed-multiref':0.025,
   'wavespeed-video':0.10,
 };
