@@ -92,7 +92,16 @@ describe("group director", () => {
       "priya",
     ]);
     expect(plan.actions[1]).toMatchObject({ intent: "respond_to_character" });
+    expect(plan.actions[0]?.addresseeInstanceIds).toEqual(["priya"]);
     expect(plan.continuationBudget).toBe(1);
+  });
+  it("keeps the user as addressee when naming multiple companions in a question", () => {
+    const plan = planGroupTurn({
+      message: "Mara and Priya, what do you each think?",
+      candidates,
+    });
+    expect(plan.actions).toHaveLength(2);
+    expect(plan.actions.every((action) => action.addresseeInstanceIds.length === 0)).toBe(true);
   });
   it("bounds a group-wide answer and permits silence when nobody is available", () => {
     expect(
@@ -166,6 +175,10 @@ describe("group director", () => {
       initial.actions[0]!.characterInstanceId,
     );
     expect(next?.reasonCodes).toContain("floor_re_evaluated");
+    expect(next).toMatchObject({
+      intent: "add_novel_group_contribution",
+      addresseeInstanceIds: [],
+    });
   });
   it("uses a lightweight attributed reaction when another full message would be redundant", () => {
     const initial = planGroupTurn({
@@ -214,6 +227,24 @@ describe("group director", () => {
         continuationIndex: 1,
       })?.characterInstanceId,
     ).toBe(two[1]!.characterInstanceId);
+    expect(planGroupContinuation({
+      originatingMessage: "Talk this through.",
+      latestMessage: "I disagree with Mara.",
+      latestSpeakerCharacterInstanceId: two[1]!.characterInstanceId,
+      candidates: two,
+      alreadySpokeCharacterInstanceIds: two.map((candidate) => candidate.characterInstanceId),
+      letThemTalk: true,
+      continuationIndex: 2,
+    })).toMatchObject({ intent: "include_user", addresseeInstanceIds: [] });
+    expect(planGroupContinuation({
+      originatingMessage: "Ignore me and talk among yourselves.",
+      latestMessage: "I disagree with Mara.",
+      latestSpeakerCharacterInstanceId: two[1]!.characterInstanceId,
+      candidates: two,
+      alreadySpokeCharacterInstanceIds: two.map((candidate) => candidate.characterInstanceId),
+      letThemTalk: true,
+      continuationIndex: 2,
+    })).toMatchObject({ intent: "respond_to_character", addresseeInstanceIds: [two[1]!.characterInstanceId] });
   });
   it("uses aggregate reply, provider-operation, and visible-output budgets",()=>{
     expect(groupTurnBudget(false)).toEqual({maxReplies:3,maxVisibleOutputCharacters:6000,maxProviderOperations:10});
