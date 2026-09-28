@@ -98,13 +98,14 @@ export async function resolveCanonicalMediaWorld(input: {
   if (!worldId) throw new AppError("CHARACTER_WORLD_MISMATCH", "Selected companions must belong to the same world for one photo.", 409, true);
   if (input.groupWorldId && input.groupWorldId !== worldId) throw new AppError("CHARACTER_WORLD_MISMATCH", "This conversation and its companions belong to different worlds.", 409, true);
 
-  const [{ data: world, error: worldError }, { data: locations, error: locationsError }] = await Promise.all([
+  const [{ data: world, error: worldError }, { data: locations, error: locationsError }, { data: personalLocations, error: personalLocationsError }] = await Promise.all([
     input.db.from("together_worlds").select("id,slug,name,description,visual_context,published").eq("id", worldId).maybeSingle(),
-    input.db.from("together_locations").select("id,world_id,parent_location_id,slug,name,description,category,location_type,possible_activities,metadata,canonical_visual_context,canonical_lore,sort_order").eq("world_id", worldId).or(`owner_user_id.is.null,owner_user_id.eq.${input.userId}`).is("archived_at",null).limit(250),
+    input.db.from("together_locations").select("id,world_id,parent_location_id,slug,name,description,category,location_type,possible_activities,metadata,canonical_visual_context,canonical_lore,sort_order").eq("world_id", worldId).is("owner_user_id",null).is("archived_at",null).limit(250),
+    input.db.from("together_locations").select("id,world_id,parent_location_id,slug,name,description,category,location_type,possible_activities,metadata,canonical_visual_context,canonical_lore,sort_order").eq("world_id", worldId).eq("owner_user_id",input.userId).is("archived_at",null).limit(20),
   ]);
   if (worldError || !world || world.published === false) throw new AppError("INTERNAL_ERROR", "The companion home world could not be loaded.", 500, true);
-  if (locationsError) throw new AppError("INTERNAL_ERROR", "World locations could not be checked.", 500, true);
-  const candidates = (locations ?? []).map(toCandidate);
+  if (locationsError || personalLocationsError) throw new AppError("INTERNAL_ERROR", "World locations could not be checked.", 500, true);
+  const candidates = [...(locations ?? []), ...(personalLocations ?? [])].map(toCandidate);
   const byId = new Map(candidates.map((location) => [location.id, location]));
   const assertScopedLocation = (locationId?: string) => {
     if (!locationId) return undefined;
