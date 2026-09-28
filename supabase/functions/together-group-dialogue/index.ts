@@ -1436,6 +1436,7 @@ async function commitMessage(
     p_provider_metadata: {
       ...metadata,
       groupActionId: action.id,
+      groupIntent: action.intent,
       addresseeInstanceIds: action.addresseeInstanceIds,
     },
   });

@@ -235,10 +235,10 @@ export function planGroupTurn(input: GroupTurnInput): GroupTurnPlan {
   const energy = input.energy ?? "balanced";
   const maxMessages = input.letThemTalk
     ? Math.min(GROUP_LET_TALK_MAX_REPLIES, available.length + 2)
+    : explicitlyAddressed.length > 1
+    ? Math.min(GROUP_STANDARD_MAX_REPLIES, explicitlyAddressed.length)
     : broad
     ? (energy === "quiet" ? 1 : energy === "balanced" ? 2 : 3)
-    : crossAddressedExchange && energy !== "quiet"
-    ? 2
     : 1;
   const ranked = (explicitlyAddressed.length ? explicitlyAddressed : available)
     .map((candidate) => {
@@ -294,9 +294,11 @@ export function planGroupTurn(input: GroupTurnInput): GroupTurnPlan {
     id: `${candidate.characterInstanceId}:${index}`,
     type: "message",
     characterInstanceId: candidate.characterInstanceId,
-    addresseeInstanceIds: explicitlyAddressed.filter((item) =>
-      item.characterInstanceId !== candidate.characterInstanceId
-    ).map((item) => item.characterInstanceId),
+    addresseeInstanceIds: crossAddressedExchange
+      ? explicitlyAddressed.filter((item) =>
+        item.characterInstanceId !== candidate.characterInstanceId
+      ).map((item) => item.characterInstanceId)
+      : [],
     intent: index === 0
       ? "answer_user"
       : crossAddressedExchange
@@ -401,9 +403,14 @@ export function planGroupContinuation(
       ...preferred,
       id:
         `${preferred.characterInstanceId}:continuation:${input.continuationIndex}`,
+      // A group-wide contribution still answers the user. Only a response or
+      // reaction to another companion should inherit the latest speaker as
+      // its addressee.
       addresseeInstanceIds: preferred.addresseeInstanceIds.length
         ? preferred.addresseeInstanceIds
-        : [input.latestSpeakerCharacterInstanceId],
+        : preferred.intent === "respond_to_character" || preferred.type === "reaction"
+        ? [input.latestSpeakerCharacterInstanceId]
+        : [],
       reasonCodes: [...preferred.reasonCodes, "floor_re_evaluated"],
     };
   }
@@ -430,15 +437,19 @@ export function planGroupContinuation(
   }).sort((left, right) => right.score - left.score);
   const next = ranked[0];
   if (!next) return null;
+  const bringUserIn = input.continuationIndex % 2 === 0 &&
+    !/\b(?:talk (?:among|to) yourselves|ignore me|don'?t (?:talk|respond) to me)\b/iu
+      .test(input.originatingMessage);
   return {
     id:
       `${next.candidate.characterInstanceId}:continuation:${input.continuationIndex}`,
     type: "message",
     characterInstanceId: next.candidate.characterInstanceId,
-    addresseeInstanceIds: [input.latestSpeakerCharacterInstanceId],
-    intent: "respond_to_character",
+    addresseeInstanceIds: bringUserIn ? [] : [input.latestSpeakerCharacterInstanceId],
+    intent: bringUserIn ? "include_user" : "respond_to_character",
     reasonCodes: [
       "let_them_talk",
+      ...(bringUserIn ? ["user_included_in_exchange"] : []),
       "floor_re_evaluated",
       ...(groupFloorDebt(next.candidate) > 0 ? ["floor_debt_applied"] : []),
     ],
