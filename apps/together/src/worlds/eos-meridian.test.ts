@@ -30,6 +30,8 @@ describe('Eos Meridian playable world', () => {
     expect(EOS_MERIDIAN_CANONICAL_LORE.presentSeason).toContain('independence vote');
     expect(EOS_MERIDIAN_CANONICAL_LORE.editorialChronology.lyraEmergencyYear).toBe(20);
     expect(EOS_MERIDIAN_CANONICAL_LORE.editorialChronology.presentYear).toBe(38);
+    expect(EOS_MERIDIAN_CANONICAL_LORE.originStory).toContain('six hundred people');
+    expect(EOS_MERIDIAN_CANONICAL_LORE.originStory).toContain('Year 20 were a later, separate crisis');
   });
 
   it('makes editorial place details available in existing lore retrieval fields', () => {
@@ -40,7 +42,7 @@ describe('Eos Meridian playable world', () => {
     const memorial=eosMeridianLocations.find(place=>place.slug==='pioneer-memorial')!;
     expect(memorial.canonical_lore?.recurringPeople?.some(person=>person.label==='Ansel Keene')).toBe(true);
     expect(eosMeridianWorld.metadata.recurringEventCount).toBe(9);
-    expect(eosMeridianWorld.metadata.worldFactCount).toBe(37);
+    expect(eosMeridianWorld.metadata.worldFactCount).toBe(40);
   });
 
   it('packages six districts with eight distinct venues each', () => {
