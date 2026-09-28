@@ -15,15 +15,18 @@ create or replace function public.kivelle_limit_private_places()
 returns trigger language plpgsql set search_path=public as $$
 begin
   if new.owner_user_id is null or new.archived_at is not null then return new; end if;
+  if tg_op='UPDATE' and old.owner_user_id=new.owner_user_id and old.archived_at is null then
+    return new;
+  end if;
   perform pg_advisory_xact_lock(hashtextextended(new.owner_user_id::text,0));
   if (select count(*) from public.together_locations
-      where owner_user_id=new.owner_user_id and archived_at is null) >= 20 then
+      where owner_user_id=new.owner_user_id and archived_at is null and id<>new.id) >= 20 then
     raise exception 'Private place limit reached' using errcode='23514';
   end if;
   return new;
 end $$;
 drop trigger if exists together_locations_private_limit on public.together_locations;
-create trigger together_locations_private_limit before insert on public.together_locations
+create trigger together_locations_private_limit before insert or update on public.together_locations
   for each row execute function public.kivelle_limit_private_places();
 
 alter table public.together_locations
