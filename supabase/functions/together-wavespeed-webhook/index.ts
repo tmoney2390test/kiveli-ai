@@ -18,6 +18,7 @@ import '../_shared/kivelle-subscription.ts';
 import { kickMediaDispatcher } from '../_shared/together-media-base.ts';
 import { waitUntil } from '../_shared/background.ts';
 import '../_shared/together-media-quality.ts';
+import '../_shared/together-media-group-detail.ts';
 import '../_shared/together-video-quality.ts';
 import '../_shared/together-direct-video-frame.ts';
 import '../_shared/together-media-providers.ts';
