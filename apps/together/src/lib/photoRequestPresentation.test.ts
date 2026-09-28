@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { MediaOffer } from '../types';
-import { customPhotoRequestText, mediaWithoutActivePhotoOffer, photoMediaForOffer, photoOfferDismissAction, photoOfferForMessage, photoOffersAtTimelineTail, photoOffersWithoutVisibleMessages, shouldShowPhotoGenerationPending, visibleChatPhotoMedia } from './photoRequestPresentation';
+import { customPhotoRequestText, mediaWithoutActivePhotoOffer, photoCardAspectRatio, photoMediaForOffer, photoOfferDismissAction, photoOfferForMessage, photoOffersAtTimelineTail, photoOffersWithoutVisibleMessages, shouldShowPhotoGenerationPending, visibleChatPhotoMedia } from './photoRequestPresentation';
 
 function offer(id: string, status: MediaOffer['status'], source: MediaOffer['source'], createdAt: string): MediaOffer {
   return {id,continuity_id:'life',character_instance_id:'character',message_id:id.includes('orphan')?null:'photo-message',source,status,content_level:'standard',quality_tier:'standard',shot_type:'selfie',credit_action:'companion_photo',credit_cost:10,title:'Picture request',companion_message:'A picture is ready to confirm',preview_metadata:{},included_subscription_benefit:false,created_at:createdAt,updated_at:createdAt};
 }
 
 describe('photo request presentation', () => {
+  it('sizes a finished photo card to its actual image shape', () => {
+    expect(photoCardAspectRatio({ width: 1376, height: 768 })).toBeCloseTo(1376 / 768);
+    expect(photoCardAspectRatio({ width: 1024, height: 1280 })).toBe(0.8);
+    expect(photoCardAspectRatio({ width: null, height: 768 })).toBeNull();
+  });
   it('lets users cancel unpaid offers and remove failed requests, but not active generations', () => {
     expect(photoOfferDismissAction('pending')).toBe('cancel');
     expect(photoOfferDismissAction('failed')).toBe('remove');

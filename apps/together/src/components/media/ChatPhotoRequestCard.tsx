@@ -3,7 +3,7 @@ import { Image, type ImageSource } from 'expo-image';
 import { Camera, RefreshCw, Sparkles, X } from 'lucide-react-native';
 import type { GeneratedMedia, MediaOffer } from '../../types';
 import { generatedMediaImageSource } from '../../lib/mediaImageSource';
-import { photoOfferDismissAction } from '../../lib/photoRequestPresentation';
+import { photoCardAspectRatio, photoOfferDismissAction } from '../../lib/photoRequestPresentation';
 import { styles } from '../../styles/mediaStyles';
 import { KivelleCreditIcon } from '../KivelleCreditIcon';
 import { MediaFeedbackControls } from './MediaFeedbackControls';
@@ -56,8 +56,9 @@ export function ChatPhotoRequestCard({
       : "",
     dismissAction = photoOfferDismissAction(offer?.status, preparing, generating);
   if (ready && media?.signed_url) {
+    const aspectRatio = photoCardAspectRatio(media);
     return (
-      <View style={styles.chatPhotoCard}>
+      <View style={[styles.chatPhotoCard, aspectRatio ? { height: undefined, aspectRatio } : null]}>
         <Pressable
           accessibilityRole="imagebutton"
           accessibilityLabel="Open generated photo"

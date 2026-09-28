@@ -70,6 +70,7 @@ import {
 import { enforcePhotoSharingEntitlement } from "../_shared/kivelle-subscription.ts";
 import { track } from "../_shared/together.ts";
 import { createMediaOffer } from "../_shared/together-media-offers.ts";
+import { configuredGroupImageRouteAvailable } from "../_shared/together-media-providers.ts";
 import { classifyPhotoRequest } from "../_shared/together-media.ts";
 import { AppError } from "../_shared/types.ts";
 import { waitUntil } from "../_shared/background.ts";
@@ -869,6 +870,19 @@ function groupStream(input: any): Response {
           }
           if (action.intent === "media_offer") {
             const firstName = speakerName.trim().split(/\s+/)[0] || speakerName;
+            const photoSubjectIds = input.photoSubjectCharacterInstanceIds
+              .length
+              ? input.photoSubjectCharacterInstanceIds
+              : [action.characterInstanceId];
+            if (photoSubjectIds.length > 1 &&
+              !configuredGroupImageRouteAvailable(input.photoIntent.requestedContentLevel ?? "standard")) {
+              throw new AppError(
+                "PROVIDER_UNAVAILABLE",
+                "This level of two-person photo needs a different image provider. No credits were used.",
+                503,
+                false,
+              );
+            }
             const committed = await commitMessage(input, action, "[Photo]", {
               provider: "kivelle-media",
               mediaOnly: true,
@@ -884,10 +898,6 @@ function groupStream(input: any): Response {
               await cancelTurn("media_commit_rejected");
               return;
             }
-            const photoSubjectIds = input.photoSubjectCharacterInstanceIds
-              .length
-              ? input.photoSubjectCharacterInstanceIds
-              : [action.characterInstanceId];
             const offer = await createMediaOffer(input.db, {
               userId: input.userId,
               characterInstanceId: photoSubjectIds[0],

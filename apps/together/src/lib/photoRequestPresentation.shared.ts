@@ -60,6 +60,12 @@ export function customPhotoRequestText(description: string): string {
   return requested ? `Send me a photo showing exactly this: ${requested}` : '';
 }
 
+export function photoCardAspectRatio(media?: Pick<GeneratedMedia, 'width' | 'height'>): number | null {
+  const width = Number(media?.width), height = Number(media?.height);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  return Math.max(0.7, Math.min(2.4, width / height));
+}
+
 /**
  * Chat presents an edited photo as the current version of its source rather
  * than adding every edit in the chain as another image below the message.
