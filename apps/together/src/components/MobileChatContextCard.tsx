@@ -20,10 +20,10 @@ export function MobileChatContextCard({
   accessibilityName?: string;
   location: string;
   activity: string;
-  next?: { title: string; detail: string; onPress?: () => void } | null;
-  memoryCount: number;
-  memoryLocked: boolean;
-  onMemory: () => void;
+  next?: { title: string; detail: string; kicker?: string; onPress?: () => void } | null;
+  memoryCount?: number;
+  memoryLocked?: boolean;
+  onMemory?: () => void;
   onPlan?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -59,24 +59,24 @@ export function MobileChatContextCard({
             >
               <CalendarDays size={16} color={colors.rose} />
               <View style={styles.copy}>
-                <Text style={styles.kicker}>NEXT TOGETHER</Text>
+                <Text style={styles.kicker}>{next.kicker ?? "NEXT TOGETHER"}</Text>
                 <Text numberOfLines={1} style={styles.detailTitle}>{next.title}</Text>
                 <Text numberOfLines={1} style={styles.detailCopy}>{next.detail}</Text>
               </View>
             </Pressable>
           ) : null}
-          <View style={styles.actions}>
-            <Pressable accessibilityRole="button" onPress={onMemory} style={styles.action}>
+          {onMemory || onPlan ? <View style={styles.actions}>
+            {onMemory ? <Pressable accessibilityRole="button" onPress={onMemory} style={styles.action}>
               {memoryLocked ? <LockKeyhole size={16} color={colors.violet} /> : <Brain size={16} color={colors.violet} />}
-              <Text style={styles.actionText}>Memories · {memoryCount}</Text>
-            </Pressable>
+              <Text style={styles.actionText}>Memories · {memoryCount ?? 0}</Text>
+            </Pressable> : null}
             {onPlan ? (
               <Pressable accessibilityRole="button" onPress={onPlan} style={[styles.action, styles.planAction]}>
                 <CalendarDays size={16} color="#fff" />
                 <Text style={[styles.actionText, styles.planText]}>Plan something</Text>
               </Pressable>
             ) : null}
-          </View>
+          </View> : null}
         </View>
       ) : null}
     </View>
