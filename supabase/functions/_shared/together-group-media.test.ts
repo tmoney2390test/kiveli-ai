@@ -9,6 +9,7 @@ import {
   buildWaveSpeedGroupImagePrompt,
   configuredGroupImageRouteAvailable,
   configuredMediaRegistry,
+  refineAdultGroupFinalEdit,
   routeCanonicalMedia,
   safeGroupIdentityBaseRequestText,
   VENICE_GROUP_ADULT_ROUTE_ID,
@@ -534,6 +535,7 @@ Deno.test("adult group photos make a clothed identity base before the adult edit
     assertEquals(routed.route.capability.model, "qwen-edit-uncensored");
     assert(veniceInputs[0]?.prompt.includes("Nude kissing"));
     assertEquals(result.result?.providerMetadata?.pipeline, "clothed_group_identity_base_then_adult_edit");
+    assertEquals(result.result?.providerMetadata?.groupBaseSourceUrl, "https://images.test/clothed-base.webp");
     assertEquals(result.result?.providerAttempts?.length, 2);
     const source = { role: "previous_media" as const, signedUrl: "https://images.test/approved-group-photo.webp", contentType: "image/webp", name: "approved-group-photo.webp" };
     const edited = await new VeniceMediaProvider(venice, wave).submit({ ...canonical, generationKind: "photo_edit", sourceImage: source, referenceImages: [source, ...canonical.referenceImages] }, routed.route.capability);
@@ -543,6 +545,25 @@ Deno.test("adult group photos make a clothed identity base before the adult edit
   } finally {
     for (const name of names) restoreEnv(name, previous[name]);
   }
+});
+
+Deno.test("adult group detail refinement makes one bounded edit from the approved base", async () => {
+  const input = request();
+  input.contentLevel = "explicit";
+  input.generationIntent = { requestText: "Mara and Priya, send me a photo showing exactly this: Nude kissing", requestedContentLevel: "explicit" };
+  const edits: Array<{images:string[];prompt:string;safeMode:boolean;timeoutMs?:number}> = [];
+  const client = { edit: async (body: {images:string[];prompt:string;safeMode:boolean;timeoutMs?:number}) => {
+    edits.push(body);
+    return { bytes:new Uint8Array([1,2,3]), contentType:"image/webp", model:"qwen-edit-uncensored", providerRequestId:"refined", estimatedCost:.04, generationMs:200, safety:{blurred:false,contentViolation:false,adultModelContentViolation:false} };
+  } } as unknown as VeniceImageClient;
+  const result = await refineAdultGroupFinalEdit({client,request:{...input,mediaType:"image",adultPipelineAuthorized:true},baseSourceUrl:"https://images.test/clothed-base.webp",model:"qwen-edit-uncensored",reasonCodes:["face_low_detail"]});
+  assertEquals(result.providerRequestId,"refined");
+  assertEquals(edits.length,1);
+  assertEquals(edits[0]?.images,["https://images.test/clothed-base.webp"]);
+  assertEquals(edits[0]?.safeMode,false);
+  assertEquals(edits[0]?.timeoutMs,30_000);
+  assert(edits[0]?.prompt.includes("Nude kissing"));
+  assert(edits[0]?.prompt.includes("face_low_detail"));
 });
 
 function restoreEnv(name: string, value: string | undefined) {

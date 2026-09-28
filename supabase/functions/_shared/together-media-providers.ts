@@ -180,7 +180,7 @@ export class VeniceMediaProvider implements MediaGenerationProvider{
     if(!sourceUrl)throw new MediaProviderPipelineError(new AppError('PROVIDER_UNAVAILABLE','The two-person base photo was unavailable.',503,true),attempts);
     try{
       const final=await runVeniceAdultFinal({client:this.client,attempts,routeId:route.id,primaryModel:route.model,references:[sourceUrl],prompt,aspectRatio:request.composition.aspectRatio,compactSingleEdit:true});
-      return{provider:'venice',providerRequestId:final.providerRequestId,model:final.model,status:'completed',result:{bytes:final.bytes,contentType:final.contentType,providerRequestId:final.providerRequestId,model:final.model,estimatedCost:attempts.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:attempts.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:attempts,providerMetadata:{pipeline:request.generationKind==='photo_edit'?'adult_group_source_edit':'clothed_group_identity_base_then_adult_edit',stageCount:attempts.length}}};
+      return{provider:'venice',providerRequestId:final.providerRequestId,model:final.model,status:'completed',result:{bytes:final.bytes,contentType:final.contentType,providerRequestId:final.providerRequestId,model:final.model,estimatedCost:attempts.reduce((sum,item)=>sum+Number(item.estimatedCost??0),0),generationMs:attempts.reduce((sum,item)=>sum+Number(item.generationMs??0),0),providerAttempts:attempts,providerMetadata:{pipeline:request.generationKind==='photo_edit'?'adult_group_source_edit':'clothed_group_identity_base_then_adult_edit',stageCount:attempts.length,...(request.generationKind==='photo_edit'?{}:{groupBaseSourceUrl:sourceUrl})}}};
     }catch(error){throw new MediaProviderPipelineError(error,attempts);}
   }
 }
@@ -422,7 +422,7 @@ async function runVeniceAdultFinal(input:{client:VeniceImageClient;attempts:Prov
   throw lastError;
 }
 function optimizedVeniceEdit(input:Parameters<VeniceImageClient['edit']>[0]):Parameters<VeniceImageClient['edit']>[0]{
-  if(input.compactSingleEdit)return{model:input.model,prompt:input.prompt,images:input.images,aspectRatio:input.aspectRatio,safeMode:input.safeMode,compactSingleEdit:true};
+  if(input.compactSingleEdit)return{model:input.model,prompt:input.prompt,images:input.images,aspectRatio:input.aspectRatio,safeMode:input.safeMode,compactSingleEdit:true,...(input.timeoutMs?{timeoutMs:input.timeoutMs}:{})};
   // Every Kivelle Venice route is a photographic multi-edit. Asking Venice for
   // the canonical 1K WebP directly avoids retaining multi-megabyte PNG output
   // while keeping enough detail for later continuity-preserving photo edits.
@@ -475,6 +475,14 @@ export function adultGroupEditPrompt(request:CanonicalMediaRequest):string{
     world?`Keep the scene in ${world.worldName}${world.locationName?` at ${world.locationName}`:''}.`:undefined,
     'One crisp photorealistic camera photo of exactly these two adults, with natural fine detail. No added person, duplicated bodies, collage, text, watermark, or censoring.',
   ].filter(Boolean).join(' ').slice(0,1_400);
+}
+
+/** Reuse the approved clothed base; never send an adult result back to WaveSpeed. */
+export async function refineAdultGroupFinalEdit(input:{client:VeniceImageClient;request:CanonicalMediaRequest;baseSourceUrl:string;model:string;reasonCodes:string[]}):Promise<VeniceEditResult>{
+  if(input.request.subjects?.length!==2||input.request.adultPipelineAuthorized!==true||!ADULT_CONTENT_LEVELS.includes(input.request.contentLevel)||!input.baseSourceUrl.startsWith('https://'))throw new AppError('PROVIDER_REQUEST_INVALID','The two-person detail edit was not authorized.',403,false);
+  const detail=input.reasonCodes.filter((reason)=>['face_blur','face_low_detail','face_distortion','identity_mismatch','identity_swap','duplicate_features','anatomy_low_detail','non_photorealistic'].includes(reason)).join(', ');
+  const prompt=[adultGroupEditPrompt(input.request),`Improve these visible defects in the new output: ${detail}. Keep both original faces distinct, naturally textured, sharp, and faithful to the approved identity base. Preserve the exact approved action, anatomy, clothing scope, and world setting. Do not add or conceal content.`].join(' ').slice(0,1_700);
+  return input.client.edit(optimizedVeniceEdit({model:input.model,prompt,images:[input.baseSourceUrl],aspectRatio:input.request.composition.aspectRatio,safeMode:false,compactSingleEdit:true,timeoutMs:30_000}));
 }
 
 /** Only fixed non-explicit directions may reach the clothed identity provider. */
