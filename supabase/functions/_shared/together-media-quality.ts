@@ -86,7 +86,7 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   if(isCustomCharacterTerminalQualityFailure(verdict.reasonCodes,customAgeCheck))return{action:'reject',reasonCodes:verdict.reasonCodes};
   if(adultAuthorized&&customAgeCheck&&hasTerminalAdultOutputSafetyFailure(verdict.reasonCodes))return{action:'reject',reasonCodes:verdict.reasonCodes};
   if(adultAuthorized&&canonical&&result.bytes){
-    const refined=await tryAdultGroupDetailRefinement({db,job,media,original:result,request:{...canonical,mediaType:'image'},firstVerdict:verdict,providerMetadata,assess:async(candidate)=>{
+    const refined=await tryAdultGroupDetailRefinement({db,job,media,original:result,request:{...canonical,mediaType:'image'},firstVerdict:verdict,providerMetadata,allowWarningImprovement:shouldDeliverOfficialAdultImageWithWarnings({verdict,adultAuthorized,customCharacter:customAgeCheck}),assess:async(candidate)=>{
       const client=configuredVeniceClient(),prepared=await prepareQualityInput(db,job,media,candidate);
       if(!client||!prepared)return{status:'unavailable',reasonCodes:[]};
       try{

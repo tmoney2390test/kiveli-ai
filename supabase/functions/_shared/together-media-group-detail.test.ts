@@ -1,7 +1,7 @@
 import { assert, assertEquals } from 'jsr:@std/assert';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { VeniceImageClient } from './venice.ts';
-import { adultGroupDetailRetryRate, shouldRetryAdultGroupDetail, tryAdultGroupDetailRefinement } from './together-media-group-detail.ts';
+import { adultGroupDetailRetryRate, isBetterAdultGroupDetailCandidate, shouldRetryAdultGroupDetail, tryAdultGroupDetailRefinement } from './together-media-group-detail.ts';
 import { VENICE_GROUP_ADULT_ROUTE_ID } from './together-media-providers.ts';
 
 const eligible={routeId:VENICE_GROUP_ADULT_ROUTE_ID,pipeline:'clothed_group_identity_base_then_adult_edit',baseSourceUrl:'https://images.test/base.webp',model:'qwen-edit-uncensored',estimatedCost:.11,originalBytes:new Uint8Array([1]),reasonCodes:['face_low_detail'],alreadyAttempted:false,enabled:true,configuredRate:.25};
@@ -17,6 +17,7 @@ Deno.test('detail retry is limited by edit price and request sample',()=>{
 Deno.test('detail retry excludes unsafe, inapplicable, expensive and repeated candidates',()=>{
   const mediaId=Array.from({length:100},(_,index)=>`group-${index}`).find((id)=>shouldRetryAdultGroupDetail({...eligible,mediaId:id}));
   assert(mediaId);
+  assert(shouldRetryAdultGroupDetail({...eligible,mediaId,reasonCodes:['face_low_detail','requested_anatomy_missing','world_mismatch']}));
   assert(!shouldRetryAdultGroupDetail({...eligible,mediaId,reasonCodes:['face_low_detail','adult_safety_violation']}));
   assert(!shouldRetryAdultGroupDetail({...eligible,mediaId,reasonCodes:['requested_anatomy_missing']}));
   assert(!shouldRetryAdultGroupDetail({...eligible,mediaId,alreadyAttempted:true}));
@@ -25,6 +26,15 @@ Deno.test('detail retry excludes unsafe, inapplicable, expensive and repeated ca
   assert(!shouldRetryAdultGroupDetail({...eligible,mediaId,estimatedCost:.15}));
   assert(!shouldRetryAdultGroupDetail({...eligible,mediaId,baseSourceUrl:'http://unsafe.test/base.webp'}));
   assert(!shouldRetryAdultGroupDetail({...eligible,mediaId,enabled:false}));
+});
+
+Deno.test('mixed QA findings may retry, but only an objectively better safe candidate can replace the first',()=>{
+  const first={status:'fail' as const,reasonCodes:['face_low_detail','anatomy_low_detail','requested_anatomy_missing','world_mismatch']};
+  assert(isBetterAdultGroupDetailCandidate(first,{status:'fail',reasonCodes:['requested_anatomy_missing','world_mismatch']},true));
+  assert(!isBetterAdultGroupDetailCandidate(first,{status:'fail',reasonCodes:['face_low_detail','requested_anatomy_missing','world_mismatch','identity_swap']},true));
+  assert(!isBetterAdultGroupDetailCandidate(first,{status:'fail',reasonCodes:['world_mismatch','adult_safety_violation']},true));
+  assert(!isBetterAdultGroupDetailCandidate(first,{status:'fail',reasonCodes:['requested_anatomy_missing','world_mismatch']},false));
+  assert(isBetterAdultGroupDetailCandidate(first,{status:'pass',reasonCodes:[]},false));
 });
 
 Deno.test('a rejected detail edit preserves the original candidate and records its cost once',async()=>{
