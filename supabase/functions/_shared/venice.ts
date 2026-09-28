@@ -15,6 +15,7 @@ export type VeniceEditInput = {
   forceMultiEdit?: boolean;
   includeAspectRatio?: boolean;
   compactSingleEdit?: boolean;
+  timeoutMs?: number;
   resolution?: string;
   outputFormat?: 'png' | 'jpeg' | 'webp';
 };
@@ -48,7 +49,7 @@ export class VeniceImageClient {
   async edit(input: VeniceEditInput): Promise<VeniceEditResult> {
     const request = buildVeniceEditRequest(input);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeout = setTimeout(() => controller.abort(), Math.min(this.timeoutMs, input.timeoutMs ?? this.timeoutMs));
     const started = performance.now();
     try {
       const response = await this.fetcher(`${this.baseUrl}${request.endpoint}`, {

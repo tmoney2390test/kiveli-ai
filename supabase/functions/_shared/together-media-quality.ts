@@ -9,6 +9,7 @@ import{enforceMediaQualityRequirements,parseMediaQualityVerdict,type MediaQualit
 import{photoRequestAllowsHiddenFace,resolveAdultNudityScope,resolvePhotoDirection,resolveSpecificAnatomyExposure,visibleAdultAnatomyTargetLabels}from'../../../packages/together-domain/src/media.ts';
 import{completeMediaUsageAttempt,recordMediaUsageAttempt}from'./together-media-usage.ts';
 import{currentAdultMediaJobAuthorized}from'./web-adult-access.ts';
+import{tryAdultGroupDetailRefinement}from'./together-media-group-detail.ts';
 import{blockingQualityReasonsForAgePolicy,customCharacterAgeCheckFromMetadata,requiresCustomCharacterAgePresentationCheck}from'./together-media-character.ts';
 
 export type MediaQualityGateResult={action:'accept';result:ProviderCompletedMedia}|{action:'deferred'}|{action:'reject';reasonCodes:string[]};
@@ -46,7 +47,7 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   if(!adultAuthorized&&!providerSafetyFlag&&!gateEnabled)return{action:'accept',result};
   const canonical=await canonicalRequestForMedia(db,media).catch(()=>null);
   if(adultAuthorized&&!canonical)return{action:'reject',reasonCodes:['adult_safety_unverified']};
-  const requestText=canonical?.generationIntent?.requestText,faceRequired=!photoRequestAllowsHiddenFace(requestText),nudityScope=resolveAdultNudityScope(requestText),specificAnatomyExposure=resolveSpecificAnatomyExposure(requestText),requestedDirection=canonical?resolvePhotoDirection({requestText,shotType:canonical.composition.shotType,seed:canonical.mediaId}):null,subjects=canonical?.subjects?.length?canonical.subjects:[canonical?{characterInstanceId:'anchor',companion:canonical.companion,visualIdentity:canonical.visualIdentity,referenceImages:canonical.referenceImages.filter((item)=>item.role==='character_identity')}:null].filter(Boolean) as NonNullable<typeof canonical>['subjects'],anonymousAdultPartner=adultAuthorized&&metadata.anonymousAdultPartner===true;
+  const requestText=canonical?.generationIntent?.requestText,faceRequired=!photoRequestAllowsHiddenFace(requestText),nudityScope=resolveAdultNudityScope(requestText),specificAnatomyExposure=resolveSpecificAnatomyExposure(requestText),requestedDirection=canonical?resolvePhotoDirection({requestText,shotType:canonical.composition.shotType,seed:canonical.mediaId}):null,subjects=canonical?.subjects?.length?canonical.subjects:[canonical?{characterInstanceId:'anchor',companion:canonical.companion,visualIdentity:canonical.visualIdentity,referenceImages:canonical.referenceImages.filter((item)=>item.role==='character_identity')}:null].filter(Boolean) as NonNullable<typeof canonical>['subjects'],anonymousAdultPartner=adultAuthorized&&metadata.anonymousAdultPartner===true,captureLighting=canonical?mediaCaptureLightingForRequest(canonical):null;
   const customAgeCheck=customCharacterAgeCheckFromMetadata(metadata)??requiresCustomCharacterAgePresentationCheck(subjects??[]);
   const customAdultSafety=adultOutputSafetyFailClosed({adultAuthorized,customCharacter:customAgeCheck});
   if(shouldSkipGeneratedImageQualityGate({adultAuthorized,customCharacter:customAgeCheck,providerSafetyFlag,gateEnabled}))return{action:'accept',result};
@@ -59,7 +60,6 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   }else{
     const client=configuredVeniceClient();if(!client)return customAdultSafety?{action:'reject',reasonCodes:['adult_safety_unverified']}:{action:'accept',result};
     const prepared=await prepareQualityInput(db,job,media,result);if(!prepared)return customAdultSafety?{action:'reject',reasonCodes:['adult_safety_unverified']}:{action:'accept',result};
-    const captureLighting=canonical?mediaCaptureLightingForRequest(canonical):null;
     try{
       assessment=await assessImage(client,prepared.url,faceRequired,nudityScope,specificAnatomyExposure,requestText,requestedDirection?.source==='requested'?requestedDirection:null,subjects??[],canonical?.context.worldContainment,canonical?.referenceImages??[],captureLighting?.qualityInstruction,adultAuthorized,anonymousAdultPartner);
       if(!adultAuthorized&&isOrdinarySwimwearRequest(requestText)&&assessment.verdict.reasonCodes.includes('sexual_content')){
@@ -74,7 +74,8 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     await track(db,String(media.user_id),'media_quality_unavailable_sfw_delivered',{mediaId:media.id,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut});
     return{action:'accept',result:{...result,providerMetadata:{...(result.providerMetadata??{}),qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:['quality_review_unavailable']}}};
   }
-  const verdict=enforceMediaQualityRequirements(assessment.verdict,{requiresVisibleSpecificAnatomy:specificAnatomyExposure==='uncovered'&&(nudityScope==='specific_anatomy'||nudityScope==='full_nude'||nudityScope==='bottomless'||visibleAdultAnatomyTargetLabels(requestText).some((label)=>/genital|vulva|penis/i.test(label))),requiresWorldVerification:Boolean(canonical?.context.worldContainment)&&envEnabled('KIVELLE_MEDIA_WORLD_QA_REQUIRED',true),requiresAdultSafetyVerification:customAdultSafety}),qualityMetadata=assessmentMetadata({...assessment,verdict}),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata};
+  const requirements={requiresVisibleSpecificAnatomy:specificAnatomyExposure==='uncovered'&&(nudityScope==='specific_anatomy'||nudityScope==='full_nude'||nudityScope==='bottomless'||visibleAdultAnatomyTargetLabels(requestText).some((label)=>/genital|vulva|penis/i.test(label))),requiresWorldVerification:Boolean(canonical?.context.worldContainment)&&envEnabled('KIVELLE_MEDIA_WORLD_QA_REQUIRED',true),requiresAdultSafetyVerification:customAdultSafety};
+  const verdict=enforceMediaQualityRequirements(assessment.verdict,requirements),qualityMetadata=assessmentMetadata({...assessment,verdict}),providerMetadata={...((job.provider_metadata??{}) as Record<string,unknown>),...qualityMetadata};
   await db.from('together_media_provider_jobs').update({provider_metadata:providerMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
   await track(db,String(media.user_id),'media_quality_checked',compactRecord({mediaId:media.id,verdict:verdict.status,reasonCodes:verdict.reasonCodes,retryCount:Number(providerMetadata.qualityRetryCount??0),qaProviderRequestId:assessment.providerRequestId,qaProviderModel:assessment.providerModel,qaProviderStatus:assessment.providerStatus,qaErrorCode:assessment.errorCode,qaTimedOut:assessment.timedOut,qaInferenceMs:assessment.inferenceMs}));
   if(verdict.status!=='fail')return{action:'accept',result};
@@ -84,6 +85,17 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   const blockingReasons=blockingQualityReasonsForAgePolicy(verdict.reasonCodes,customAgeCheck);
   if(isCustomCharacterTerminalQualityFailure(verdict.reasonCodes,customAgeCheck))return{action:'reject',reasonCodes:verdict.reasonCodes};
   if(adultAuthorized&&customAgeCheck&&hasTerminalAdultOutputSafetyFailure(verdict.reasonCodes))return{action:'reject',reasonCodes:verdict.reasonCodes};
+  if(adultAuthorized&&canonical&&result.bytes){
+    const refined=await tryAdultGroupDetailRefinement({db,job,media,original:result,request:{...canonical,mediaType:'image'},firstVerdict:verdict,providerMetadata,allowWarningImprovement:shouldDeliverOfficialAdultImageWithWarnings({verdict,adultAuthorized,customCharacter:customAgeCheck}),assess:async(candidate)=>{
+      const client=configuredVeniceClient(),prepared=await prepareQualityInput(db,job,media,candidate);
+      if(!client||!prepared)return{status:'unavailable',reasonCodes:[]};
+      try{
+        const checked=await assessImage(client,prepared.url,faceRequired,nudityScope,specificAnatomyExposure,requestText,requestedDirection?.source==='requested'?requestedDirection:null,subjects??[],canonical.context.worldContainment,canonical.referenceImages,captureLighting?.qualityInstruction,adultAuthorized,anonymousAdultPartner);
+        return enforceMediaQualityRequirements(checked.verdict,requirements);
+      }finally{if(prepared.temporary)await db.storage.from('together-user-media').remove([prepared.temporary]);}
+    }});
+    if(refined)return{action:'accept',result:refined};
+  }
   if(shouldDeliverOfficialAdultImageWithWarnings({verdict,adultAuthorized,customCharacter:customAgeCheck})){
     await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
     await track(db,String(media.user_id),'media_quality_official_adult_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
