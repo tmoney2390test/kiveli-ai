@@ -170,6 +170,7 @@ import { chatMediaGalleryItems } from "../src/lib/chatMediaGallery";
 import { presentMemoryText } from "../src/lib/memoryPresentation";
 import { mediaWithoutActivePhotoOffer, photoMediaForOffer, visibleChatPhotoMedia } from "../src/lib/photoRequestPresentation";
 import { groupPhotoRequestText } from "../src/lib/groupPhotoRequest";
+import { mediaOfferActionBusy } from "../src/lib/mediaOfferBusy";
 import { spicyUnavailableCopy } from "../src/lib/mediaMomentPicker";
 import { characterCatalogForWorld, characterResidentWorld } from "../src/lib/place";
 import type { FeaturedCompanion } from "../src/lib/featuredCompanions";
@@ -2064,7 +2065,7 @@ export default function GroupChatScreen() {
                   item.message_id === message.id
                 )}
                 offer={offer}
-                offerBusy={mediaOfferBusy === offer?.id||mediaOfferBusy === offer?.generated_media_id}
+                offerBusy={mediaOfferActionBusy(mediaOfferBusy, offer)}
                 activeVoiceId={activeVoiceId}
                 onVoiceActive={setActiveVoiceId}
                 onOfferAccept={(item,paymentMethod) => void acceptMediaOffer(item,paymentMethod)}
@@ -2130,7 +2131,7 @@ export default function GroupChatScreen() {
             key={offer.id}
             offer={offer}
             media={photoMediaForOffer(detail.generatedMedia ?? [],offer.generated_media_id)}
-            busy={mediaOfferBusy === offer.id||mediaOfferBusy === offer.generated_media_id}
+            busy={mediaOfferActionBusy(mediaOfferBusy, offer)}
             onAccept={(paymentMethod) => void acceptMediaOffer(offer,paymentMethod)}
             onDecline={() => void declineMediaOffer(offer)}
             onBuyCredits={() => navigateGroupSurface(creditsSubscriptionHref)}
