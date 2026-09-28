@@ -1,4 +1,4 @@
-import { classifyPhotoIntent, resolveProductionSafePhotoRequest } from './media';
+import { classifyPhotoIntent, resolveProductionSafePhotoRequest } from './media.ts';
 
 export const PHOTO_CONTENT_BLOCKED = 'PHOTO_CONTENT_BLOCKED';
 export const PHOTO_REQUEST_BLOCKED_MESSAGE = 'Nude and explicit photos are not available in this app session. Edit your request to ask for a non-explicit photo.';
