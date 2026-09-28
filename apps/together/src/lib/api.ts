@@ -96,7 +96,7 @@ export const loadCharacterSchedule = (characterTemplateId:string) => invoke<{cha
 export const loadCharacterProfileDetails = (characterTemplateId:string,worldId?:string|null) => invoke<CharacterProfileDetails>(`together-bootstrap?scope=character_profile&characterTemplateId=${encodeURIComponent(characterTemplateId)}${worldId?`&worldId=${encodeURIComponent(worldId)}`:''}`,undefined,'GET');
 export const loadPlaceDetail = (locationId:string) => invoke<{place:PlaceContext}>('together-place',{locationId});
 export const listPersonalPlaces = (worldId?:string) => invoke<{places:Location[]}>('together-place',{action:'list',worldId});
-export const createPersonalPlace = (input:{worldId:string;parentLocationId?:string;kind:'home'|'other';name:string;description:string;activities:string[]}) => invoke<{place:Location}>('together-place',{action:'create',...input});
+export const createPersonalPlace = (input:{worldId:string;parentLocationId?:string;kind:'home'|'bar'|'restaurant'|'hotel'|'outdoors'|'other';name:string;description:string;activities:string[]}) => invoke<{place:Location}>('together-place',{action:'create',...input});
 export const updatePersonalPlace = (input:{locationId:string;name:string;description:string;activities:string[]}) => invoke<{place:Location}>('together-place',{action:'update',...input});
 export const archivePersonalPlace = (locationId:string) => invoke<{archived:boolean}>('together-place',{action:'archive',locationId});
 export const preparePersonalPlaceImage = (locationId:string) => invoke<{upload:{bucket:string;path:string;token:string}}> ('together-place',{action:'prepare_image',locationId});

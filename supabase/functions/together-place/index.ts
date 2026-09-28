@@ -10,7 +10,7 @@ const fields=z.object({name:z.string().trim().min(2).max(80),description:z.strin
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('detail'),locationId:id}),
   z.object({action:z.literal('list'),worldId:id.optional()}),
-  fields.extend({action:z.literal('create'),worldId:id,parentLocationId:id.optional(),kind:z.enum(['home','other'])}),
+  fields.extend({action:z.literal('create'),worldId:id,parentLocationId:id.optional(),kind:z.enum(['home','bar','restaurant','hotel','outdoors','other'])}),
   fields.extend({action:z.literal('update'),locationId:id}),
   z.object({action:z.literal('archive'),locationId:id}),
   z.object({action:z.literal('prepare_image'),locationId:id}),
@@ -36,7 +36,8 @@ serve(async(request,correlationId)=>{
     if((count??0)>=20)throw new AppError('CONFLICT','You can keep up to 20 personal places. Archive one to add another.',409);
     if(input.parentLocationId){const{data:parent}=await db.from('together_locations').select('id,world_id,location_type,owner_user_id').eq('id',input.parentLocationId).maybeSingle();if(!parent||parent.owner_user_id||parent.world_id!==input.worldId||!['district','neighborhood'].includes(parent.location_type))throw new AppError('VALIDATION_FAILED','Choose a district in this world.',400);}
     const locationId=crypto.randomUUID();
-    const place={id:locationId,owner_user_id:user.id,world_id:input.worldId,parent_location_id:input.parentLocationId??null,depth:input.parentLocationId?1:0,name:input.name,slug:`personal-${locationId}`,description:input.description,category:input.kind==='home'?'home':'social',location_type:input.kind==='home'?'residence':'venue',hours:{open:'00:00',close:'00:00'},possible_activities:uniqueActivities(input.activities),metadata:{private:true,directoryVisibility:'private',userCreated:true,kind:input.kind},canonical_visual_context:{canonicalPrompt:input.description,indoorOutdoor:input.kind==='home'?'indoor':'mixed'},canonical_lore:{summary:input.description},sort_order:9999};
+    const category={home:'home',bar:'bar',restaurant:'restaurant',hotel:'hotel',outdoors:'outdoors',other:'social'}[input.kind];
+    const place={id:locationId,owner_user_id:user.id,world_id:input.worldId,parent_location_id:input.parentLocationId??null,depth:input.parentLocationId?1:0,name:input.name,slug:`personal-${locationId}`,description:input.description,category,location_type:input.kind==='home'||input.kind==='hotel'?'residence':input.kind==='outdoors'?'outdoor':'venue',hours:{open:'00:00',close:'00:00'},possible_activities:uniqueActivities(input.activities),metadata:{private:true,directoryVisibility:'private',userCreated:true,kind:input.kind},canonical_visual_context:{canonicalPrompt:input.description,indoorOutdoor:input.kind==='outdoors'?'outdoor':input.kind==='other'?'mixed':'indoor'},canonical_lore:{summary:input.description},sort_order:9999};
     const{data,error}=await db.from('together_locations').insert(place).select('*').single();
     if(error||!data)throw new AppError('INTERNAL_ERROR','Your place could not be saved.',500,true);
     return json({data:{place:data},correlationId},200,correlationId);
