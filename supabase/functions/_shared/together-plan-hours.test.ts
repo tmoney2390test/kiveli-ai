@@ -4,6 +4,14 @@ function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message);
 }
 
+Deno.test('plans honor individual days and overnight spillover', () => {
+  const hours = { default: { open: '09:00', close: '18:00' }, fri: { open: '18:00', close: '02:00' }, sat: { closed: true } };
+  assert(planFitsLocationHours(hours, 23 * 60, 60, 5), 'Friday night should continue until Saturday 2 AM');
+  assert(!planFitsLocationHours(hours, 10 * 60, 11 * 60, 6), 'Saturday should be closed');
+  assert(locationClosingWindow(hours, 60, 6).closingMinute === 120, 'Saturday early morning belongs to Friday service');
+  assert(closedLocationPlanMessage({name:'My place',hours,weekday:6,startMinute:600,durationMinutes:60}).includes('closed that day'), 'closed-day message should be clear');
+});
+
 Deno.test('a closed overnight venue tells the user when it opens', () => {
   const hours = { open: '18:00', close: '02:00' };
   assert(!planFitsLocationHours(hours, 15 * 60, 16 * 60 + 30), 'Velours should be closed at 3 PM');

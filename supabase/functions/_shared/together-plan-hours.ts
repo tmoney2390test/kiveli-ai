@@ -1,4 +1,5 @@
-type PlaceHours = { open?: unknown; close?: unknown } | null | undefined;
+import { placeHoursOnDay, placeOpeningWindow, placeVisitFitsHours } from '../../../packages/together-domain/src/place-hours.ts';
+type PlaceHours = Record<string, unknown> | null | undefined;
 
 export type LocationClosingWindow = {
   isOpen: boolean;
@@ -17,7 +18,8 @@ export type LocationClosingWindow = {
  * This deliberately checks only the start. Immediate plans may then be
  * shortened to `closingMinute` instead of rejecting an otherwise valid visit.
  */
-export function locationClosingWindow(hours: PlaceHours, startMinute: number): LocationClosingWindow {
+export function locationClosingWindow(hours: PlaceHours, startMinute: number, weekday?: number): LocationClosingWindow {
+  if (weekday !== undefined) return placeOpeningWindow(hours, weekday, startMinute);
   const parsedOpen = parseMinute(hours?.open);
   const close = parseMinute(hours?.close);
   const open = parsedOpen === 1440 ? 0 : parsedOpen;
@@ -36,7 +38,8 @@ export function locationClosingWindow(hours: PlaceHours, startMinute: number): L
   return { isOpen: false, closingMinute: null };
 }
 
-export function planFitsLocationHours(hours: PlaceHours, startMinute: number, endMinute: number) {
+export function planFitsLocationHours(hours: PlaceHours, startMinute: number, endMinute: number, weekday?: number) {
+  if (weekday !== undefined) return placeVisitFitsHours(hours, weekday, startMinute, endMinute > startMinute ? endMinute - startMinute : 1440 + endMinute - startMinute);
   const open = parseMinute(hours?.open);
   const close = parseMinute(hours?.close);
   if (open === null || close === null || open === close || (open === 0 && (close === 1439 || close === 1440))) return true;
@@ -52,9 +55,16 @@ export function closedLocationPlanMessage(input: {
   hours: PlaceHours;
   startMinute: number;
   durationMinutes: number;
+  weekday?: number;
 }) {
-  const open = parseMinute(input.hours?.open);
-  const close = parseMinute(input.hours?.close);
+  const hours = input.weekday === undefined ? input.hours : placeHoursOnDay(input.hours, input.weekday);
+  if (input.weekday !== undefined) {
+    const window = placeOpeningWindow(input.hours, input.weekday, input.startMinute);
+    if (window.isOpen && window.closingMinute !== null) return `${input.name} closes at ${minuteLabel(window.closingMinute)}. Try ${minuteLabel(window.closingMinute - Math.max(30, input.durationMinutes))} or choose another place.`;
+  }
+  if (hours?.closed === true) return `${input.name} is closed that day. Choose another day or place.`;
+  const open = parseMinute(hours?.open);
+  const close = parseMinute(hours?.close);
   if (open === null || close === null) return `${input.name} is closed at that time. Choose another time or place.`;
 
   if (!locationStartsOpen(open, close, input.startMinute)) {

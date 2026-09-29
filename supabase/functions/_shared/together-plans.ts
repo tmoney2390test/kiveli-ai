@@ -203,8 +203,8 @@ async function validateAvailability(db:any,input:{userId:string;characterInstanc
   let shortenedForClosingTime=false;
   let closesAt:string|undefined;
   if(input.immediate){
-    const window=locationClosingWindow(input.location.hours,clock.minuteOfDay);
-    if(!window.isOpen){const duration=Math.max(30,(input.end.getTime()-input.start.getTime())/60000);throw new AppError('LOCATION_CLOSED',closedLocationPlanMessage({name:String(input.location.name),hours:input.location.hours,startMinute:clock.minuteOfDay,durationMinutes:duration}),409,true);}
+    const window=locationClosingWindow(input.location.hours,clock.minuteOfDay,clock.weekday);
+    if(!window.isOpen){const duration=Math.max(30,(input.end.getTime()-input.start.getTime())/60000);throw new AppError('LOCATION_CLOSED',closedLocationPlanMessage({name:String(input.location.name),hours:input.location.hours,startMinute:clock.minuteOfDay,weekday:clock.weekday,durationMinutes:duration}),409,true);}
     if(window.closingMinute!==null){
       const closingBoundary=localToUtc(clock.localDate,window.closingMinute,timezone);
       if(closingBoundary.getTime()<=input.start.getTime())throw new AppError('LOCATION_CLOSED',`${input.location.name} is closing now. Choose another place.`,409,true);
@@ -213,7 +213,7 @@ async function validateAvailability(db:any,input:{userId:string;characterInstanc
     }
   }else{
     validateVenueProgram(input.location,input.activityKey,input.start,timezone);
-    if(!locationIsOpen(input.location,input.start,end,timezone)){const duration=Math.max(30,(end.getTime()-input.start.getTime())/60000);throw new AppError('LOCATION_CLOSED',closedLocationPlanMessage({name:String(input.location.name),hours:input.location.hours,startMinute:clock.minuteOfDay,durationMinutes:duration}),409,true);}
+    if(!locationIsOpen(input.location,input.start,end,timezone)){const duration=Math.max(30,(end.getTime()-input.start.getTime())/60000);throw new AppError('LOCATION_CLOSED',closedLocationPlanMessage({name:String(input.location.name),hours:input.location.hours,startMinute:clock.minuteOfDay,weekday:clock.weekday,durationMinutes:duration}),409,true);}
   }
   const conflictStatuses=input.replacingActivePlan?['proposed','scheduled']:['proposed','scheduled','active'];
   let plans=db.from('together_shared_plans').select('id,title,starts_at,ends_at').eq('user_id',input.userId).contains('participant_instance_ids',[input.characterInstanceId]).in('status',conflictStatuses).lt('starts_at',end.toISOString()).gt('ends_at',input.start.toISOString());
@@ -248,8 +248,8 @@ async function validateAdditionalPlanParticipants(db:any,input:{userId:string;co
 
 function locationIsOpen(location:any,start:Date,end:Date,timezone:string){
   if(!location.hours)return true;
-  const startMinute=experienceClock(timezone,start).minuteOfDay;const endMinute=experienceClock(timezone,end).minuteOfDay;
-  return planFitsLocationHours(location.hours,startMinute,endMinute);
+  const clock=experienceClock(timezone,start);const endMinute=experienceClock(timezone,end).minuteOfDay;
+  return planFitsLocationHours(location.hours,clock.minuteOfDay,endMinute,clock.weekday);
 }
 
 function validateVenueProgram(location:any,activityKey:string,start:Date,timezone:string){

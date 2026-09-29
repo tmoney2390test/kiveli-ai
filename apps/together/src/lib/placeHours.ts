@@ -1,4 +1,5 @@
 import type { Location } from '../types';
+import { PLACE_DAYS, placeHoursOnDay, placeOpeningWindow } from '@together/domain/src/place-hours';
 
 export type PlaceHoursStatus = {
   state: 'open' | 'closed' | 'unknown';
@@ -12,49 +13,59 @@ export function placeHoursStatus(
   now = new Date(),
   timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
 ): PlaceHoursStatus {
-  const open = parseMinute(hours?.open);
-  const close = parseMinute(hours?.close);
+  const clock = localClock(now, timezone);
+  const weekly = PLACE_DAYS.some(day => hours?.[day] !== undefined);
+  const today = placeHoursOnDay(hours, clock.weekday);
+  const window = placeOpeningWindow(hours, clock.weekday, clock.minute);
+  const open = parseMinute(today?.open);
+  const close = parseMinute(today?.close);
+  if (today?.closed === true) return { state: window.isOpen ? 'open' : 'closed', isOpen: window.isOpen, statusLabel: window.isOpen && window.closingMinute !== null ? `Open now · until ${formatMinute(window.closingMinute)}` : 'Closed today', scheduleLabel: 'Today · Closed' };
   if (open === null || close === null) {
     return { state: 'unknown', isOpen: false, statusLabel: 'Hours not published', scheduleLabel: 'Hours not published' };
   }
 
   const scheduleLabel = open === close || (open === 0 && (close === 1439 || close === 1440))
     ? 'Open 24 hours'
-    : `Daily ${formatMinute(open)}–${formatMinute(close)}`;
+    : `${weekly ? 'Today' : 'Daily'} ${formatMinute(open)}–${formatMinute(close)}`;
   if (open === close || (open === 0 && (close === 1439 || close === 1440))) {
     return { state: 'open', isOpen: true, statusLabel: 'Open now · 24 hours', scheduleLabel };
   }
 
-  const minute = localMinute(now, timezone);
-  const isOpen = close > open ? minute >= open && minute < close : minute >= open || minute < close;
+  const isOpen = window.isOpen;
   return {
     state: isOpen ? 'open' : 'closed',
     isOpen,
-    statusLabel: isOpen ? `Open now · until ${formatMinute(close)}` : `Closed · opens ${formatMinute(open)}`,
+    statusLabel: isOpen ? `Open now · until ${formatMinute(window.closingMinute ?? close)}` : `Closed · opens ${formatMinute(open)}`,
     scheduleLabel,
   };
 }
 
 export function hasPublishedPlaceHours(hours: Location['hours']) {
+  if (PLACE_DAYS.some(day => hours?.[day] !== undefined)) return PLACE_DAYS.every((_, index) => {
+    const row = placeHoursOnDay(hours, index);
+    return row?.closed === true || (parseMinute(row?.open) !== null && parseMinute(row?.close) !== null);
+  });
   return parseMinute(hours?.open) !== null && parseMinute(hours?.close) !== null;
 }
 
-function localMinute(now: Date, timezone: string) {
+function localClock(now: Date, timezone: string) {
   try {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
       hour: '2-digit',
       minute: '2-digit',
       hourCycle: 'h23',
+      weekday: 'short',
     }).formatToParts(now);
     const part = (type: string) => Number(parts.find((item) => item.type === type)?.value);
     const hour = part('hour');
     const minute = part('minute');
-    if (Number.isFinite(hour) && Number.isFinite(minute)) return hour * 60 + minute;
+    const weekday = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(parts.find(item => item.type === 'weekday')?.value ?? '');
+    if (Number.isFinite(hour) && Number.isFinite(minute) && weekday >= 0) return { minute: hour * 60 + minute, weekday };
   } catch {
     // Fall back to the device clock when a stored timezone is invalid.
   }
-  return now.getHours() * 60 + now.getMinutes();
+  return { minute: now.getHours() * 60 + now.getMinutes(), weekday: now.getDay() };
 }
 
 function parseMinute(value: unknown) {

@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { hasPublishedPlaceHours, placeHoursStatus } from './placeHours';
 
 describe('place hours', () => {
+  it('uses the local weekday for individual and closed days', () => {
+    const hours = { default: { open: '09:00', close: '18:00' }, fri: { closed: true } };
+    expect(placeHoursStatus(hours, new Date('2026-08-21T01:00:00Z'), 'America/Los_Angeles')).toMatchObject({ isOpen: false, scheduleLabel: 'Today 9 AM–6 PM' });
+    expect(placeHoursStatus(hours, new Date('2026-08-21T01:00:00Z'), 'UTC')).toMatchObject({ isOpen: false, statusLabel: 'Closed today' });
+    expect(hasPublishedPlaceHours(hours)).toBe(true);
+  });
   it('uses the viewer timezone for daytime hours', () => {
     const now = new Date('2026-08-20T14:30:00Z');
     expect(placeHoursStatus({ open: '09:00', close: '17:00' }, now, 'America/New_York').isOpen).toBe(true);
