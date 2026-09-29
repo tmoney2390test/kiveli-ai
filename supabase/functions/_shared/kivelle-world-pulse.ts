@@ -63,7 +63,7 @@ export async function loadAroundTown(input:{db:SupabaseClient;userId:string;cont
   const now=input.now??new Date();
   const window={from:new Date(now.getTime()-2*3600000),to:new Date(now.getTime()+7*86400000)};
   let loaded=await loadWorldPulse({...input,...window});
-  if(loaded.length){
+  if(loaded.some(event=>event.metadata?.source==='world_pulse_v1')){
     // Existing events are useful immediately; refresh the next week away from
     // the response path. Event status is derived from its timestamps below.
     const{data:recentMaterialization,error:freshnessError}=await input.db.from('together_world_event_instances').select('id')

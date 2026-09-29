@@ -23,7 +23,7 @@ Deno.test('home reads an already materialized pulse without rewriting it and der
   const now=new Date('2026-09-29T12:00:00Z');
   const event={id:'event',template_id:'template',world_id:'world',location_id:null,district_location_id:null,
     starts_at:'2026-09-29T11:00:00Z',ends_at:'2026-09-29T13:00:00Z',status:'scheduled',simulation_key:'world-pulse-v1:template:2026-09-29',
-    public_summary:'A gathering is underway.',metadata:{},together_world_event_templates:{title:'The gathering',event_type:'community',knowledge_scope:'public',significance:.7},together_world_event_participants:[]};
+    public_summary:'A gathering is underway.',metadata:{source:'world_pulse_v1'},together_world_event_templates:{title:'The gathering',event_type:'community',knowledge_scope:'public',significance:.7},together_world_event_participants:[]};
   let materializationReads=0;
   const db={from:(table:string)=>{
     if(table!=='together_world_event_instances')materializationReads++;
