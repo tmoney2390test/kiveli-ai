@@ -10,6 +10,7 @@ import { isAuthenticatedAccountSwap, isPublicAppPath, shouldHoldPrivateWebRouteF
 import { consumeWebEntryHref, effectiveWebEntryHref, entryPathname, initialWebEntryHref, shouldRecoverWebEntry } from '../lib/webEntryRoute';
 import { clearSessionSnapshot } from '../lib/sessionSnapshotCache';
 import { clearPrivateClientCaches } from '../lib/privateClientCache';
+import { hasCompletedStartupInThisTab } from '../lib/startupLoadingSession';
 import { useTogether } from '../store/useTogether';
 
 const AuthenticatedSessionGate = lazy(() => import('./AuthenticatedSessionGate').then((module) => ({ default: module.AuthenticatedSessionGate })));
@@ -23,9 +24,12 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
     : routerPathname;
   const href = useUnstableGlobalHref();
   const { session, loading: authLoading, signingOut } = useAuth();
+  const snapshotReady=useTogether((state)=>Boolean(state.snapshot));
   const webHydrated = useWebHydrated();
   const redirectTarget = useRef<string | null>(null);
   const previousUserId=useRef<string|null>(null);
+  const initialEntryComplete=useRef(hasCompletedStartupInThisTab());
+  if(snapshotReady && pathname !== '/') initialEntryComplete.current=true;
   const sessionResetSequence=useRef(0);
   const [sessionResetInProgress,setSessionResetInProgress]=useState(false);
   const publicPath = isPublicAppPath(pathname);
@@ -83,7 +87,9 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
   }, [authLoading, session?.user.id, publicPath, href]);
 
   if (shouldHoldPrivateWebRouteForHydration({ platform: Platform.OS, hydrated: webHydrated, pathname })) {
-    return <View style={styles.hydration}><StartupLoadingState /></View>;
+    // Keep SSR and the first browser render identical; the next render knows
+    // whether this tab has already shown its one startup presentation.
+    return <View style={styles.hydration} />;
   }
 
   if(session&&(sessionResetInProgress||isAuthenticatedAccountSwap(previousUserId.current,session.user.id))){
@@ -98,13 +104,13 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
   }
 
   if (demoMode || session) {
-    return <Suspense fallback={<StartupLoadingState />}>
+    return <Suspense fallback={initialEntryComplete.current?<RouteLoadingState pathname={pathname}/>:<StartupLoadingState />}>
       <AuthenticatedSessionGate>{children}</AuthenticatedSessionGate>
     </Suspense>;
   }
 
   let blocker = null;
-  if (authLoading && !publicPath) blocker = <StartupLoadingState />;
+  if (authLoading && !publicPath) blocker = initialEntryComplete.current?<RouteLoadingState pathname={pathname}/>:<StartupLoadingState />;
   else if (!session && !publicPath) blocker = <LoadingSkeleton label={signingOut ? 'Signing you out…' : 'Taking you to sign in…'} />;
 
   return <>

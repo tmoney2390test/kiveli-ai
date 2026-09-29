@@ -18,6 +18,7 @@ import { authenticatedRoutePathname, consumeWebEntryHref, initialWebEntryHref, s
 import { mostRecentlyUsedConversation } from '../lib/conversation';
 import { prefetchConversationMessagePage } from '../lib/conversationMessageWarmup';
 import { manageConversation } from '../lib/api';
+import { hasCompletedStartupInThisTab, markStartupCompleteInThisTab } from '../lib/startupLoadingSession';
 import { prefetchProfileAvatarUrl } from '../hooks/useProfileAvatarUrl';
 
 const demoMode = __DEV__ && process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === 'true';
@@ -36,9 +37,15 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   const recentConversationId = useMemo(() => mostRecentlyUsedConversation((snapshot?.conversations ?? []).filter((conversation) => conversation.kind !== 'group'))?.id, [snapshot?.conversations]);
   const redirectTarget = useRef<string | null>(null);
   const hydrationUserId=useRef<string|null>(null);
+  const initialEntryComplete=useRef(hasCompletedStartupInThisTab());
   const publicPath = isPublicAppPath(pathname);
   const snapshotOwnerUserId=(snapshot?.profile as {user_id?:string}|null)?.user_id;
   const snapshotOwnerMismatch=Boolean(session?.user.id&&snapshotOwnerUserId&&snapshotOwnerUserId!==session.user.id);
+  if(snapshot && !snapshotOwnerMismatch && pathname !== '/') initialEntryComplete.current=true;
+
+  useEffect(()=>{
+    if(snapshot && !snapshotOwnerMismatch && pathname !== '/') markStartupCompleteInThisTab();
+  },[pathname,snapshot,snapshotOwnerMismatch]);
 
   useEffect(()=>{
     if(!snapshotOwnerMismatch)return;
@@ -126,7 +133,10 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   if (!snapshot && !publicPath) {
     blocker = error
       ? <ErrorState message={error} onRetry={() => void refresh()} />
-      : <StartupLoadingState />;
+      : initialEntryComplete.current ? <RouteLoadingState pathname={pathname} /> : <StartupLoadingState />;
+  } else if (snapshot && pathname === '/' && !initialEntryComplete.current) {
+    // Keep one startup presentation through the root-to-home handoff.
+    blocker = <StartupLoadingState />;
   } else if (snapshot && !publicPath) {
     const stage = resolveKivelleAccountStage(snapshot.profile);
     if (onboardingRouteRedirect(stage, pathname)) {
