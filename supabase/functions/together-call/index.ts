@@ -56,6 +56,8 @@ import {
 } from "../_shared/voice-routes.ts";
 import { verifyVoiceRelayUsageProof } from "../_shared/voice-relay-token.ts";
 import { normalizeChatLanguage } from "../../../packages/together-domain/src/chat-language.ts";
+import { verifyWebSurfaceAssertion } from "../_shared/web-adult-access.ts";
+import { resolveAdultEligibility } from "../../../packages/together-domain/src/platform-content-policy.ts";
 
 const transcriptEvent = z.object({
   sequence: z.number().int().positive().max(1_000_000),
@@ -217,7 +219,7 @@ serve(async (request, correlationId) => {
           continuity.id,
         ).eq("character_instance_id", input.characterInstanceId).maybeSingle(),
       db.from("together_profiles").select(
-        "multimodal_preferences,age_verified_at,content_preferences",
+        "multimodal_preferences,age_verified_at,adult_eligible_at,date_of_birth,content_preferences",
       ).eq("user_id", user.id).single(),
       db.from("together_entitlements").select("*").eq("user_id", user.id)
         .maybeSingle(),
@@ -277,6 +279,7 @@ serve(async (request, correlationId) => {
       const duplicateProvider = configuredRealtimeVoiceProvider(duplicateRoute, user.id);
       if (!duplicateProvider) throw new AppError("PROVIDER_UNAVAILABLE", "That voice route is temporarily unavailable.", 503, true);
       const prepared = await prepareProviderSession({
+        request,
         db,
         userId: user.id,
         call: duplicate,
@@ -395,6 +398,7 @@ serve(async (request, correlationId) => {
         route,
       });
       const prepared = await prepareProviderSession({
+        request,
         db,
         userId: user.id,
         call: created,
@@ -629,9 +633,10 @@ serve(async (request, correlationId) => {
       .select("*").eq("id", call.conversation_id).eq("user_id", user.id)
       .single();
     const { data: profile } = await db.from("together_profiles").select(
-      "age_verified_at,content_preferences",
+      "age_verified_at,adult_eligible_at,date_of_birth,content_preferences",
     ).eq("user_id", user.id).single();
     const prepared = await prepareProviderSession({
+      request,
       db,
       userId: user.id,
       call,
@@ -996,6 +1001,7 @@ serve(async (request, correlationId) => {
   ) {
     try {
       const { context } = await buildCallContext({
+        request,
         db,
         userId: user.id,
         instanceId: String(call.character_instance_id),
@@ -1094,6 +1100,7 @@ serve(async (request, correlationId) => {
 
 async function prepareProviderSession(
   input: {
+    request: Request;
     db: any;
     userId: string;
     call: Record<string, any>;
@@ -1147,6 +1154,7 @@ async function prepareProviderSession(
     input.profile,
     input.instance,
     input.conversation,
+    await verifyWebSurfaceAssertion(input.request, input.userId),
   );
   const voiceUsageSequenceStart = Math.max(
     0,
@@ -1186,6 +1194,7 @@ async function prepareProviderSession(
     metadata: {
       ...record(input.call.metadata),
       contextVersion: 2,
+      contentMode: context.contentMode,
       route: normalizeVoiceCallRoute(input.call.route),
       chatLanguage:normalizeChatLanguage(context.chatLanguage),
       providerMetadata,
@@ -1205,6 +1214,7 @@ async function prepareProviderSession(
 
 async function buildCallContext(
   input: {
+    request: Request;
     db: any;
     userId: string;
     instanceId: string;
@@ -1219,7 +1229,7 @@ async function buildCallContext(
     .select("*").eq("id", input.conversationId).eq("user_id", input.userId)
     .single();
   const { data: profile } = await input.db.from("together_profiles").select(
-    "age_verified_at,content_preferences",
+    "age_verified_at,adult_eligible_at,date_of_birth,content_preferences",
   ).eq("user_id", input.userId).single();
   const now = new Date(),
     lifeRun = await resolveVoiceCallLifeRun({
@@ -1247,6 +1257,7 @@ async function buildCallContext(
     profile,
     instance,
     conversation,
+    await verifyWebSurfaceAssertion(input.request, input.userId),
   );
   return { context, instance, conversation };
 }
@@ -1294,6 +1305,7 @@ function resolvedRealtimeContentMode(
   profile: Record<string, any> | null,
   instance: Record<string, any>,
   conversation: Record<string, any> | null,
+  verifiedWebSurface: boolean,
 ): "standard" | "romance" | "mature" | "explicit" {
   const characterAge = Number(
     instance.together_character_templates?.age ??
@@ -1302,13 +1314,17 @@ function resolvedRealtimeContentMode(
   const relationship = record(context.relationship);
   return resolveRealtimeVoiceContentMode({
     requestedMode: conversationDialogueContentMode(profile, conversation),
-    ageVerified: Boolean(profile?.age_verified_at),
+    ageVerified: resolveAdultEligibility({
+      adultEligibleAt: profile?.adult_eligible_at,
+      ageVerifiedAt: profile?.age_verified_at,
+      dateOfBirth: profile?.date_of_birth,
+    }).allowed,
     characterAge,
     romanceEnabled: profile?.content_preferences?.romanceEnabled !== false &&
       relationship.romance_enabled !== false,
     friendsOnly: relationship.romance_path_status === "friends_only",
-    explicitProviderEnabled: Deno.env.get("KIVELLE_XAI_ENABLED") === "true" &&
-      Deno.env.get("KIVELLE_XAI_EXPLICIT_ENABLED") === "true",
+    verifiedWebSurface,
+    webAdultEnabled: Deno.env.get("WEB_ADULT_MODE_ENABLED") === "true",
   });
 }
 

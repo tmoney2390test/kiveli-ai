@@ -112,10 +112,16 @@ export function realtimeTranscriptionKeyterms(
 }
 
 export function buildKivelleRealtimeInstructions(context: Record<string, unknown>): string {
-  const character=record(context.character),relationship=record(context.relationship),scene=record(context.currentScene??context.life),contentMode=normalizeContentMode(context.contentMode);
-  const intimacyPolicy=realtimeRomancePolicy(relationship);
-  const truth = {...compactContext(context),intimacyPolicy};
-  const romanticBoundaryRule=intimacyPolicy.shouldReciprocate
+  const relationship=record(context.relationship),contentMode=normalizeContentMode(context.contentMode);
+  const intimacyPolicy=realtimeRomancePolicy(relationship,contentMode);
+  const truth = {...compactContext(context),contentMode,intimacyPolicy};
+  const explicitAllowed=contentMode==='explicit'&&intimacyPolicy.active;
+  const contentRule=explicitAllowed
+    ? "- Follow Kivelle's contentMode and boundaries exactly. This adult private call inherits the chat's Spicy setting, including consensual adult sexual dialogue. Match the caller's requested tone without unsolicited escalation. Preserve character boundaries and consent; never allow sexual content involving minors, coercion, or exploitation. Provider safety rules still apply."
+    : "- Follow Kivelle's contentMode and boundaries exactly. Keep spoken dialogue non-sexual. If the caller asks for sexual content, give one concise in-character boundary and redirect toward romance, affection, conversation, or a fade-to-black moment without moralizing.";
+  const romanticBoundaryRule=explicitAllowed
+    ?'- Handle intimacy according to the canonical relationship, recent conversation, and mutual consent. A voice call remains verbal; never pretend physical contact is occurring. Switching from text to voice does not reset the relationship or discard the recent conversation.'
+    :intimacyPolicy.shouldReciprocate
     ?'- The companion may reciprocate attraction through affectionate, romantic, or flirtatious spoken dialogue, but must not describe sexual acts, nudity, intimate anatomy, arousal, genital sensation, or sexual violence. A voice call remains verbal; never pretend physical contact is occurring.'
     :'- Handle romantic advances according to KIVELLE_TRUTH.intimacyPolicy. Keep the call non-sexual, and never pretend physical contact is occurring.';
   return `You are speaking in a private live voice call as the adult companion described in KIVELLE_TRUTH.
@@ -130,7 +136,7 @@ Rules:
 - Keep the call reciprocal. React to a specific detail, contribute the companion's own perspective, and regularly open space back to the caller. Prefer one concrete question or playful invitation over generic or stacked questions. After two substantive companion turns without a conversational handoff, make the next suitable turn invite the caller back; after two question-ending turns, use disclosure or a statement instead.
 - Follow character.character_bible.voice.curiosity for what this companion genuinely wants to know and how they ask. Do not turn curiosity into an interview or therapist script.
 - Stay emotionally and stylistically consistent with the companion. Treat the supplied Persona as the caller, not as the companion.
-- Follow Kivelle's contentMode and boundaries exactly. Romance and affection are allowed; sexual or explicit spoken dialogue is not. Every reply must not describe sexual acts, nudity, intimate anatomy, arousal, genital sensation, or sexual violence. If the caller asks for sexual content, give one concise in-character boundary and redirect toward romance, affection, conversation, or a fade-to-black moment without moralizing.
+${contentRule}
 ${romanticBoundaryRule}
 - Do not use tools or claim an external action occurred. Do not create a confirmed Plan or Date from voice alone.
 
@@ -138,28 +144,29 @@ KIVELLE_TRUTH:
 ${JSON.stringify(truth)}`;
 }
 
-function realtimeRomancePolicy(relationship:Record<string,unknown>){
+function realtimeRomancePolicy(relationship:Record<string,unknown>,contentMode:DialogueContentMode){
   const stage=String(relationship.relationship_stage??relationship.stage??'stranger');
   const friendsOnly=relationship.romance_path_status==='friends_only'||relationship.friendsOnly===true;
   const romanceAllowed=relationship.romance_enabled!==false&&!friendsOnly;
   const shouldReciprocate=romanceAllowed&&['flirting','dating','exclusive','long_term'].includes(stage);
+  const explicitAllowed=contentMode==='explicit'&&romanceAllowed;
   return{
     active:romanceAllowed,
     disposition:shouldReciprocate?'open':romanceAllowed?'warm_but_unestablished':'friends_only',
     consentState:shouldReciprocate?'romantically_receptive':'none',
     outcome:shouldReciprocate?'accepted_romance':'nonsexual_boundary',
-    interactionScope:'verbal_nonsexual',
+    interactionScope:explicitAllowed?'verbal_adult':'verbal_nonsexual',
     shouldReciprocate,
     reasonCodes:[friendsOnly?'friends_only':shouldReciprocate?'established_romance':'romance_not_established'],
-    relationshipReadiness:shouldReciprocate?'The relationship supports willing non-sexual romance and affection.':'Keep affection proportional to the canonical relationship.',
-    expressionStyle:'Natural, character-specific, and non-sexual.',
-    responseRule:shouldReciprocate?'Romance, affection, kissing, and fade-to-black intimacy are available; sexual dialogue is not.':'Do not imply romantic or sexual access beyond canonical relationship state.',
+    relationshipReadiness:shouldReciprocate?'The relationship supports willing romance and affection.':'Keep affection proportional to the canonical relationship.',
+    expressionStyle:explicitAllowed?'Natural, character-specific, and consistent with the chat content mode.':'Natural, character-specific, and non-sexual.',
+    responseRule:explicitAllowed?'Follow the selected adult content mode and current mutual consent; relationship status never substitutes for consent.':shouldReciprocate?'Romance, affection, kissing, and fade-to-black intimacy are available; sexual dialogue is not.':'Do not imply romantic or sexual access beyond canonical relationship state.',
   };
 }
 
 function normalizeContentMode(value:unknown):DialogueContentMode{
   if(value==='romance')return'romance';
-  if(value==='mature'||value==='explicit')return'mature';
+  if(value==='mature'||value==='explicit')return value;
   return'standard';
 }
 

@@ -9,11 +9,12 @@ const eligible = {
   characterAge: 29,
   romanceEnabled: true,
   friendsOnly: false,
-  explicitProviderEnabled: true,
+  verifiedWebSurface: true,
+  webAdultEnabled: true,
 };
 
-Deno.test("realtime voice caps legacy explicit mode at mature", () => {
-  assert(resolveRealtimeVoiceContentMode(eligible) === "mature");
+Deno.test("verified adult website calls inherit explicit chat mode", () => {
+  assert(resolveRealtimeVoiceContentMode(eligible) === "explicit");
   assert(
     resolveRealtimeVoiceContentMode({ ...eligible, ageVerified: false }) !==
       "explicit",
@@ -33,9 +34,16 @@ Deno.test("realtime voice caps legacy explicit mode at mature", () => {
   assert(
     resolveRealtimeVoiceContentMode({
       ...eligible,
-      explicitProviderEnabled: false,
+      webAdultEnabled: false,
     }) === "mature",
   );
+});
+
+Deno.test("native and unverified calls retain the non-explicit cap", () => {
+  assert(resolveRealtimeVoiceContentMode({ ...eligible, verifiedWebSurface: false }) === "mature");
+  for (const characterAge of [undefined, null, 0, 17, "unknown"]) {
+    assert(resolveRealtimeVoiceContentMode({ ...eligible, characterAge }) !== "explicit");
+  }
 });
 
 Deno.test("realtime non-explicit modes preserve romance boundaries", () => {
@@ -43,14 +51,14 @@ Deno.test("realtime non-explicit modes preserve romance boundaries", () => {
     resolveRealtimeVoiceContentMode({
       ...eligible,
       requestedMode: "romance",
-      explicitProviderEnabled: false,
+      webAdultEnabled: false,
     }) === "romance",
   );
   assert(
     resolveRealtimeVoiceContentMode({
       ...eligible,
       requestedMode: "mature",
-      explicitProviderEnabled: false,
+      webAdultEnabled: false,
     }) === "mature",
   );
   assert(

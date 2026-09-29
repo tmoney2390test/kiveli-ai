@@ -18,15 +18,19 @@ Deno.test('call greetings and instructions honor the selected chat language',()=
   assert(instructions.includes('"chatLanguage":"fr"'));
 });
 
-Deno.test('realtime calls keep a receptive romantic stance non-sexual', () => {
+Deno.test('eligible spicy calls preserve chat mode without contradictory non-sexual instructions', () => {
   const instructions = buildKivelleRealtimeInstructions({
     character: { name: 'Brooke', age: 29, spice_level: 3, personality_config: { directness: .8 } },
     relationship: { relationship_stage: 'long_term', romance_enabled: true, romance_path_status: 'open', trust: 80, comfort: 82, attraction: 78, respect: 80, romantic_interest: 74, chemistry_heat: 70 },
     currentScene: { availability: 'available' },
     contentMode: 'explicit',
   });
-  assert(instructions.includes('sexual or explicit spoken dialogue is not'));
-  assert(instructions.includes('must not describe sexual acts'));
+  assert(instructions.includes('"contentMode":"explicit"'));
+  assert(instructions.includes('consensual adult sexual dialogue'));
+  assert(!instructions.includes('non-sexual'));
+  assert(!instructions.includes('sexual dialogue is not'));
+  assert(!instructions.includes('must not describe sexual acts'));
+  assert(instructions.includes('relationship status never substitutes for consent'));
   assert(instructions.includes('"shouldReciprocate":true'));
   assert(instructions.includes('A voice call remains verbal'));
 });
@@ -41,6 +45,19 @@ Deno.test('realtime intimacy preserves friends-only boundaries', () => {
   assert(!instructions.includes('reciprocate clearly and continue as explicit spoken dialogue'));
   assert(instructions.includes('"shouldReciprocate":false'));
   assert(instructions.includes('friends_only'));
+  assert(!instructions.includes('consensual adult sexual dialogue'));
+});
+
+Deno.test('non-explicit calls keep the spoken boundary for every lower mode', () => {
+  for (const contentMode of ['standard', 'romance', 'mature']) {
+    const instructions = buildKivelleRealtimeInstructions({
+      character: { name: 'Brooke', age: 29 },
+      relationship: { relationship_stage: 'long_term' },
+      contentMode,
+    });
+    assert(instructions.includes('Keep spoken dialogue non-sexual'));
+    assert(!instructions.includes('consensual adult sexual dialogue'));
+  }
 });
 
 Deno.test('realtime calls inherit the required companion curiosity and reciprocity contract',()=>{
