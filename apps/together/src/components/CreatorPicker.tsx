@@ -9,7 +9,7 @@ const modalStack: symbol[] = [];
 export const creatorGenders = [{ value: 'woman', label: 'Woman' }, { value: 'man', label: 'Man' }, { value: 'nonbinary', label: 'Nonbinary' }];
 export const creatorPronouns = ['she/her', 'he/him', 'they/them', 'she/they', 'he/they'].map((value) => ({ value, label: value }));
 
-export function CreatorModal({ visible, title, onClose, children, footer, large = false }: { visible: boolean; title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; large?: boolean }) {
+export function CreatorModal({ visible, title, onClose, children, footer, large = false, cardChooser = false }: { visible: boolean; title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; large?: boolean; cardChooser?: boolean }) {
   const { width, height } = useWindowDimensions();
   const close = useRef(onClose); close.current = onClose;
   useEffect(() => {
@@ -24,8 +24,8 @@ export function CreatorModal({ visible, title, onClose, children, footer, large 
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
     <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':Platform.OS==='android'?'height':undefined} style={styles.backdrop}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={StyleSheet.absoluteFill} />
-      <View accessibilityViewIsModal style={[styles.modal, { width: Math.min(width - 24, large ? 1200 : 640), maxHeight: height - 32 }, width < 600 && styles.mobile]}>
-        <View style={styles.header}>{large ? <Pressable accessibilityRole="button" accessibilityLabel="Back to portrait" onPress={onClose} style={styles.close}><ArrowLeft size={23} color={colors.text} /></Pressable> : null}<Text accessibilityRole="header" style={[styles.title, large && { textAlign: 'center' }]}>{title}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={styles.close}><X size={23} color={colors.text} /></Pressable></View>
+      <View accessibilityViewIsModal style={[styles.modal, cardChooser && styles.cardChooserModal, { width: Math.min(width - 24, large ? 1200 : cardChooser ? 860 : 640), maxHeight: height - 32 }, width < 600 && styles.mobile]}>
+        <View style={[styles.header, cardChooser && styles.cardChooserHeader]}>{large ? <Pressable accessibilityRole="button" accessibilityLabel="Back to portrait" onPress={onClose} style={styles.close}><ArrowLeft size={23} color={colors.text} /></Pressable> : cardChooser ? <View style={styles.headerSpacer} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" /> : null}<Text accessibilityRole="header" style={[styles.title, (large || cardChooser) && { textAlign: 'center' }, cardChooser && styles.cardChooserTitle]}>{title}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={styles.close}><X size={23} color={colors.text} /></Pressable></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>{children}{footer?<View style={{gap:12,paddingTop:20}}>{footer}</View>:null}</ScrollView>
       </View>
     </KeyboardAvoidingView>
@@ -55,7 +55,9 @@ export function CreatorPicker({ label, title, value, options, onChange, custom =
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,.72)', alignItems: 'center', justifyContent: 'center', padding: 12 },
   modal: { backgroundColor: '#191919', borderRadius: 32, padding: 24, flexShrink: 1 }, mobile: { padding: 16, borderRadius: 24 },
+  cardChooserModal: { backgroundColor: '#17121D', borderColor: 'rgba(207,166,227,.22)', borderWidth: 1, borderRadius: 24, padding: 26, shadowColor: '#000', shadowOpacity: .5, shadowRadius: 32, shadowOffset: { width: 0, height: 18 } },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 }, title: { flex: 1, color: colors.text, fontSize: 23, fontWeight: '700' }, close: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#282828', alignItems: 'center', justifyContent: 'center' }, content: { gap: 20, paddingBottom: 4 },
+  cardChooserHeader: { marginBottom: 22 }, cardChooserTitle: { fontFamily: 'Georgia', fontSize: 30, fontWeight: '700', color: '#FFF8FE' }, headerSpacer: { width: 48, height: 48 },
   field: { flexGrow: 1, flexShrink: 0, minWidth: 120, gap: 8 }, label: { color: colors.text, fontSize: 13, fontWeight: '700' }, trigger: { minHeight: 56, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, flexDirection: 'row', alignItems: 'center', gap: 12 }, thumbnail: { width: 48, height: 36, borderRadius: 8 }, value: { flex: 1, color: colors.text, fontSize: 15 },
   list: { gap: 8 }, grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }, option: { padding: 18, minHeight: 58, borderRadius: 16, borderWidth: 2, borderColor: 'transparent', backgroundColor: '#282828', flexDirection: 'row', alignItems: 'center', gap: 8, overflow: 'hidden' }, selected: { borderColor: colors.rose }, world: { flexBasis: '47%', flexGrow: 1, minHeight: 158, alignItems: 'flex-end' }, worldName: { color: '#fff', fontSize: 18, fontWeight: '800' }, custom: { gap: 12, marginTop: 4 }, input: { minHeight: 54, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, color: colors.text }, apply: { padding: 15, borderRadius: 14, alignItems: 'center', backgroundColor: colors.rose }, applyText: { color: '#fff', fontWeight: '800' },
 });
