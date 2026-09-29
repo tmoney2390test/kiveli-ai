@@ -16,15 +16,17 @@ export function PlaceHoursEditor({ value, onChange, disabled = false }: Props) {
     onChange({ ...value, repeatDaily, ...(initializeDays ? { days: Object.fromEntries(PLACE_DAYS.map(day => [day, { ...value.daily, closed: false }])) as PlaceHoursDraft['days'] } : {}) });
   };
   const timeField = (label: string, time: string, change: (time: string) => void) => Platform.OS === 'web'
-    ? createElement('input', { type: 'time', 'aria-label': label, value: time === '24:00' ? '00:00' : time, disabled, step: 900,
+    ? createElement('input', { type: 'time', className: 'place-hours-time', 'aria-label': label, value: time === '24:00' ? '00:00' : time, disabled, step: 900,
+        onClick: (event: { currentTarget: HTMLInputElement }) => { try { event.currentTarget.showPicker?.(); } catch { /* Editable time segments remain available when a browser has no picker. */ } },
         onChange: (event: { target: { value: string } }) => change(event.target.value),
-        style: { width: '100%', minWidth: 0, minHeight: 42, boxSizing: 'border-box', border: '1px solid rgba(215,175,225,.22)', borderRadius: 9, background: '#110B19', color: colors.text, colorScheme: 'dark', fontSize: 16, padding: '0 8px' } })
+        style: { width: '100%', minWidth: 0, minHeight: 42, boxSizing: 'border-box', border: '1px solid rgba(215,175,225,.22)', borderRadius: 9, background: '#110B19', color: colors.text, colorScheme: 'dark', fontFamily: 'system-ui, sans-serif', fontSize: 16, padding: '0 5px' } })
     : <Pressable accessibilityRole="button" accessibilityLabel={`${label}: ${timeLabel(time)}`} disabled={disabled} onPress={() => setTimePicker({ label, value: time, select: change })} style={styles.time}><Text style={styles.timeText}>{timeLabel(time)}</Text><ChevronDown size={12} color={colors.muted}/></Pressable>;
   const windowFields = (label: string, row: { open: string; close: string }, change: (patch: Partial<typeof row>) => void) => <View style={styles.times}>
     <View style={styles.timeWrap}>{timeField(`${label} opens`, row.open, open => change({ open }))}</View><Text style={styles.to}>–</Text>
     <View style={styles.timeWrap}>{timeField(`${label} closes`, row.close, close => change({ close }))}</View>
   </View>;
   return <View style={styles.section}>
+    {Platform.OS === 'web' ? createElement('style', null, '.place-hours-time::-webkit-calendar-picker-indicator{display:none}.place-hours-time::-webkit-datetime-edit{padding:0}') : null}
     <View style={styles.heading}><Clock3 size={17} color={colors.rose}/><Text style={styles.title}>Opening hours</Text></View>
     <Pressable accessibilityRole="checkbox" accessibilityLabel="Open 24/7" accessibilityState={{ checked: value.alwaysOpen, disabled }} disabled={disabled} onPress={() => onChange({ ...value, alwaysOpen: !value.alwaysOpen })} style={styles.checkRow}>
       <View style={[styles.checkbox, value.alwaysOpen && styles.checked]}>{value.alwaysOpen ? <Check size={14} strokeWidth={3} color="#fff"/> : null}</View>
