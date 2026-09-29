@@ -9,6 +9,8 @@ import type { Location, Snapshot, World } from '../types';
 import { archivePersonalPlace, confirmPersonalPlaceImage, createPersonalPlace, listPersonalPlaces, prepareNewPersonalPlaceImage, preparePersonalPlaceImage, updatePersonalPlace } from '../lib/api';
 import { defaultPlaceHoursDraft, placeHoursDraft, serializePlaceHours, validPersonalPlaceHours } from '@together/domain/src/place-hours';
 import { PlaceHoursEditor } from './PlaceHoursEditor';
+import { useTogether } from '../store/useTogether';
+import { locationImageSource } from '../lib/locationImageSource';
 import { cleanupNormalizedImage, normalizeUserImage, userImagePickerOptions } from '../lib/imageUploads';
 import { uploadPreparedChatPhoto } from '../lib/chatPhotoStorageUpload';
 import { supabase } from '../lib/supabase';
@@ -63,7 +65,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
   const districts=snapshot.locations.filter((place)=>place.world_id===selectedWorldId&&!place.owner_user_id&&['district','neighborhood'].includes(place.location_type));
   const district=districts.find((place)=>place.id===districtId);
   const visiblePlaces=places.filter((place)=>place.world_id===selectedWorldId);
-  const imageSource=photo?{uri:photo.uri}:editing?.custom_image_url?{uri:editing.custom_image_url}:worldHeroAsset(selectedWorld?.slug);
+  const imageSource=photo?{uri:photo.uri}:locationImageSource(selectedWorld?.slug,editing);
 
   const startCreate=()=>{
     setEditing(null);setName('');setDescription('');setActivities('Talking, relaxing');setKind('home');
@@ -112,13 +114,14 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
         }finally{cleanupNormalizedImage(normalized.uri);}
       }
       if(editing){
-        if(photo&&uploaded)await confirmPersonalPlaceImage({locationId:editing.id,path:uploaded.path,width:uploaded.width,height:uploaded.height});
+        if(photo&&uploaded){saved=(await confirmPersonalPlaceImage({locationId:editing.id,path:uploaded.path,width:uploaded.width,height:uploaded.height})).place;useTogether.getState().upsertPersonalPlace(saved);}
         saved=(await updatePersonalPlace({locationId:editing.id,name:name.trim(),description:description.trim(),activities:parsedActivities,hours:savedHours})).place;
       }else{
         if(!uploaded)throw new Error('Upload an image for your place before saving.');
         saved=(await createPersonalPlace({locationId:uploaded.locationId,worldId:selectedWorldId,parentLocationId:districtId,kind,name:name.trim(),description:description.trim(),activities:parsedActivities,hours:savedHours,image:{path:uploaded.path,width:uploaded.width,height:uploaded.height}})).place;
       }
       pendingImage.current=null;
+      useTogether.getState().upsertPersonalPlace(saved);
       const updated=[saved,...places.filter((item)=>item.id!==saved!.id)];
       setPlaces(updated);onPlacesChange?.(updated);setFormOpen(false);
       if(!onSelect)onClose();
@@ -132,7 +135,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
   const archive=async()=>{
     if(!editing)return;
     setBusy(true);setError('');
-    try{await archivePersonalPlace(editing.id);const updated=places.filter((item)=>item.id!==editing.id);setPlaces(updated);onPlacesChange?.(updated);setFormOpen(false);setNotice(`${editing.name} was archived.`);}
+    try{await archivePersonalPlace(editing.id);useTogether.getState().upsertPersonalPlace({...editing,archived_at:new Date().toISOString()});const updated=places.filter((item)=>item.id!==editing.id);setPlaces(updated);onPlacesChange?.(updated);setFormOpen(false);setNotice(`${editing.name} was archived.`);}
     catch(cause){setError(cause instanceof Error?cause.message:'Your place could not be archived.');}
     finally{setBusy(false);}
   };
@@ -175,7 +178,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
             <Pressable accessibilityRole="button" onPress={()=>openSelector('world')} style={styles.listWorld}><Image source={worldHeroAsset(selectedWorld?.slug)} contentFit="cover" style={styles.listWorldImage}/><View style={styles.selectCopy}><Text style={styles.listWorldEyebrow}>WORLD</Text><Text style={styles.selectTitle}>{selectedWorld?.name??'Choose a world'}</Text></View><ChevronDown size={18} color={colors.muted}/></Pressable>
             {notice?<Text style={styles.notice}>{notice}</Text>:null}
             <Pressable accessibilityRole="button" onPress={startCreate} style={styles.create}><Plus size={20} color="#fff"/><Text style={styles.createText}>Create a place</Text></Pressable>
-            {visiblePlaces.map((place)=><View key={place.id} style={styles.placeCard}><View style={styles.placeMain}><Image source={place.custom_image_url?{uri:place.custom_image_url}:worldHeroAsset(selectedWorld?.slug)} contentFit="cover" style={styles.thumb}/><View style={styles.placeCopy}><Text style={styles.placeName}>{place.name}</Text><Text style={styles.placeDescription} numberOfLines={2}>{place.description}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Edit ${place.name}`} onPress={()=>startEdit(place)} style={styles.edit}><Text style={styles.editText}>Edit</Text></Pressable></View><View style={styles.activityList}>{place.possible_activities.map((activity)=><Pressable key={activity} accessibilityRole="button" disabled={!onSelect||place.world_id!==worldId} onPress={()=>{onSelect?.(place,activity);onClose();}} style={[styles.activityRow,(!onSelect||place.world_id!==worldId)&&styles.selectDisabled]}><Text style={styles.activityText}>{activity}</Text><ChevronRight size={16} color={colors.muted}/></Pressable>)}</View>{place.world_id!==worldId?<Text style={styles.fieldHint}>Open a plan with someone in {selectedWorld?.name??'this world'} to visit here.</Text>:null}</View>)}
+            {visiblePlaces.map((place)=><View key={place.id} style={styles.placeCard}><View style={styles.placeMain}><Image source={locationImageSource(selectedWorld?.slug,place)} contentFit="cover" style={styles.thumb}/><View style={styles.placeCopy}><Text style={styles.placeName}>{place.name}</Text><Text style={styles.placeDescription} numberOfLines={2}>{place.description}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Edit ${place.name}`} onPress={()=>startEdit(place)} style={styles.edit}><Text style={styles.editText}>Edit</Text></Pressable></View><View style={styles.activityList}>{place.possible_activities.map((activity)=><Pressable key={activity} accessibilityRole="button" disabled={!onSelect||place.world_id!==worldId} onPress={()=>{onSelect?.(place,activity);onClose();}} style={[styles.activityRow,(!onSelect||place.world_id!==worldId)&&styles.selectDisabled]}><Text style={styles.activityText}>{activity}</Text><ChevronRight size={16} color={colors.muted}/></Pressable>)}</View>{place.world_id!==worldId?<Text style={styles.fieldHint}>Open a plan with someone in {selectedWorld?.name??'this world'} to visit here.</Text>:null}</View>)}
             {!visiblePlaces.length?<View style={styles.empty}><MapPin size={24} color={colors.violet}/><Text style={styles.emptyTitle}>No places here yet</Text><Text style={styles.emptyText}>Add a photo, set the hours, and invite companions to your own private place.</Text></View>:null}
             {error?<Text accessibilityRole="alert" style={styles.error}>{error}</Text>:null}
           </>}

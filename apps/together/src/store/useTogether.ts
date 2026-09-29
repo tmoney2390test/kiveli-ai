@@ -1,7 +1,7 @@
 import { reconcileCompanion } from '../lib/companionReconciliation';
 import { create } from 'zustand';
 import { loadCharacterPresence, loadSnapshot } from '../lib/api';
-import type { CharacterInstance, Conversation, ConversationAction, GeneratedMedia, Memory, Moment, Relationship, SceneSession, SharedPlan, Snapshot, SnapshotDelta } from '../types';
+import type { CharacterInstance, Conversation, ConversationAction, GeneratedMedia, Location, Memory, Moment, Relationship, SceneSession, SharedPlan, Snapshot, SnapshotDelta } from '../types';
 import{beginPendingDialogue,finishPendingDialogue,type PendingDialogue,type PendingDialogueMap}from'../lib/pendingDialogue';
 import { mergeReconciledMedia } from '../lib/mediaReconciliation';
 import { mergeInboxConversations } from '../lib/messageInbox';
@@ -22,6 +22,7 @@ type State={
   removeMemory:(memoryId:string)=>void;
   upsertMoment:(moment:Moment)=>void;
   upsertPlan:(plan:SharedPlan)=>void;
+  upsertPersonalPlace:(place:Location)=>void;
   upsertMedia:(media:GeneratedMedia)=>void;
   removeMedia:(mediaId:string)=>void;
   upsertConversationAction:(action:ConversationAction)=>void;
@@ -57,6 +58,14 @@ export const useTogether=create<State>((set)=>{
     removeMemory:(memoryId)=>patchSnapshot((snapshot)=>({...snapshot,memories:snapshot.memories.filter((item)=>item.id!==memoryId)})),
     upsertMoment:(moment)=>patchSnapshot((snapshot)=>({...snapshot,moments:upsert(snapshot.moments,moment)})),
     upsertPlan:(plan)=>patchSnapshot((snapshot)=>({...snapshot,sharedPlans:upsert(snapshot.sharedPlans,plan)})),
+    upsertPersonalPlace:(place)=>set((state)=>{
+      const snapshot=state.snapshot;
+      const owner=snapshot?.activeContinuity?.user_id??(snapshot?.profile as {user_id?:string}|null)?.user_id;
+      if(!snapshot||!owner||place.owner_user_id!==owner)return state;
+      // A refresh begun before saving must not restore an old image or remove a new place.
+      refreshGeneration+=1;refreshSequence+=1;refreshRequest=null;presenceRequests.clear();
+      return{snapshot:{...snapshot,locations:upsert(snapshot.locations,place)},loading:false,error:null};
+    }),
     upsertMedia:(media)=>patchSnapshot((snapshot)=>{
       const current=(snapshot.generatedMedia??[]).find((item)=>item.id===media.id);
       return{...snapshot,generatedMedia:upsert(snapshot.generatedMedia??[],mergeReconciledMedia(current,media))};

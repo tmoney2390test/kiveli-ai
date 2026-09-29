@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, CalendarDays, Clock3, MapPin, Sparkles } from 'lucide-react-native';
-import { locationHeroAsset } from '../../src/assets';
+import { locationImageSource } from '../../src/lib/locationImageSource';
 import { EmptyState, GlassCard, GradientButton, LoadingSkeleton, MediaGallery, PlanningCompanionPicker, Screen, SectionHeader } from '../../src/components';
 import { colors, radius } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
@@ -105,7 +105,7 @@ export default function LocationDetail() {
   };
   return <Screen>
     <View style={styles.header}><Pressable accessibilityLabel="Back to Explore" onPress={() => router.canGoBack() ? router.back() : router.replace(`/(tabs)/explore?world=${locationWorld?.slug ?? ''}`)} style={styles.back}><ArrowLeft size={19} color={colors.text} /></Pressable><Text style={styles.kicker}>{breadcrumb.toUpperCase()}</Text></View>
-    <Image source={locationHeroAsset(locationWorld?.slug, location.slug, ancestry.map((item)=>item.slug))} style={styles.hero} contentFit="cover" />
+    <Image source={locationImageSource(locationWorld?.slug, location, {ancestorSlugs:ancestry.map((item)=>item.slug)})} style={styles.hero} contentFit="cover" />
     <Text style={styles.title}>{location.name}</Text>
     <View accessibilityLabel={`${availability.statusLabel}. ${availability.scheduleLabel}. Times use your local timezone.`} style={[styles.hoursCard,availability.state==='open'&&styles.hoursCardOpen]}><View style={[styles.hoursIcon,availability.state==='open'&&styles.hoursIconOpen]}><Clock3 size={18} color={availability.state==='open'?'#BFEBCB':colors.muted}/></View><View style={styles.flex}><Text style={[styles.hoursStatus,availability.state==='open'&&styles.hoursStatusOpen]}>{availability.statusLabel}</Text><Text style={styles.hoursSchedule}>{availability.scheduleLabel} · your local time</Text></View></View>
     {planningMismatch?<View accessibilityRole="alert" style={styles.worldMismatch}><Text style={styles.worldMismatchTitle}>Choose someone from {locationWorld?.name??'this world'}</Text><Text style={styles.worldMismatchCopy}>{requestedCharacter?`${requestedCharacter.together_character_templates.name} belongs to another world.`:'That companion is no longer available in this Life.'}</Text></View>:null}

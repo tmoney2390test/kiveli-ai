@@ -10,7 +10,7 @@ import { selectActiveCompanion, selectPortraitVersion } from '../../src/lib/sele
 import { locationAncestry, worldForLocation } from '../../src/lib/place';
 import { buildMomentsFeed, planSummary, videoMomentFrameUrl, type MomentsFeedEntry, type MomentsFeedFilter } from '../../src/lib/momentsFeed';
 import { mostRecentlyMessagedConversation } from '../../src/lib/conversation';
-import { locationHeroAsset } from '../../src/assets';
+import { locationImageSource } from '../../src/lib/locationImageSource';
 import { explicitMomentsCompanionSelection, loadMomentsCompanionSelection, restoredMomentsCompanionSelection, saveMomentsCompanionSelection } from '../../src/lib/momentsCompanionPreference';
 import type { Moment, Snapshot } from '../../src/types';
 import { uniqueHttpsImageUris } from '../../src/lib/imageWarmup';
@@ -111,9 +111,7 @@ function FeedCard({entry,companionId,onMediaLoad}:{entry:MomentsFeedEntry;compan
   const mediaUrl=entryMediaUrl(snapshot,entry);
   const videoUrl=videoMomentFrameUrl(entry);
   const locationFallback=place
-    ?place.custom_image_url
-      ?{uri:place.custom_image_url}
-      :locationHeroAsset(world?.slug,place.slug,locationAncestry(snapshot,place.id).map((ancestor)=>ancestor.slug))
+    ?locationImageSource(world?.slug,place,{ancestorSlugs:locationAncestry(snapshot,place.id).map((ancestor)=>ancestor.slug)})
     :undefined;
   const open=()=>{
     if(entry.kind==='moment')router.push(`/moment/${entry.id}` as never);

@@ -4,7 +4,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimen
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Edit3, MapPin, Plus, RefreshCw, X } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { DateTimeFields } from './DateTimeFields';
-import { locationHeroAsset } from '../assets';
+import { locationImageSource } from '../lib/locationImageSource';
 import { colors, radius } from '../theme';
 import type { CharacterInstance, ConversationAction, SharedPlan, Snapshot } from '../types';
 import { companionPick, companionPickQuote, defaultPlanTimeFields, formatQuickPlanClock, isVenueProgramTime, localPlanDateValue, nextAvailableGroupPlanTime, parseCustomPlanTime, planOptionCanStartNow, previewPlanTiming, recommendPlanOptions, resolveGroupPlanAvailability, type PlanDiscoveryIntent, type PlanOption, type PlanTimingChoice, type PlanTimingSelection } from '../lib/plans';
@@ -266,7 +266,7 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
         <ScrollView ref={carousel} horizontal showsHorizontalScrollIndicator={false} snapToInterval={heroCardWidth + 12} decelerationRate="fast" contentContainerStyle={styles.carouselContent} onMomentumScrollEnd={(event) => { const index = Math.round(event.nativeEvent.contentOffset.x / (heroCardWidth + 12)); if (heroOptions[index]) selectHero(index); }}>
           {heroOptions.map((option, index) => { const isActive = index === activeHeroIndex; const optionLocation = allLocations.find((item) => item.id === option.locationId); const optionWorld = optionLocation ? snapshot.worlds.find((item)=>item.id===optionLocation.world_id) : selectedWorld; const hours=placeHoursStatus(optionLocation?.hours??option.hours); return <View key={option.id} style={[styles.heroCard,{width:heroCardWidth}]}>
             <View style={[styles.hero,isActive&&styles.heroActive]}>
-              <Image source={optionLocation?.custom_image_url?{uri:optionLocation.custom_image_url}:locationHeroAsset(optionWorld?.slug, optionLocation?.slug)} contentFit="cover" transition={220} priority={isActive ? 'high' : 'low'} style={StyleSheet.absoluteFill} />
+              <Image source={locationImageSource(optionWorld?.slug,optionLocation)} contentFit="cover" transition={220} priority={isActive ? 'high' : 'low'} style={StyleSheet.absoluteFill} />
               <View style={styles.heroShade} />
               <View style={styles.heroContent}>
                 <Text style={styles.heroStatus}>{index === 0 ? pluralCompanions?'Group pick':`${companionName}'s pick` : isActive ? availability : pluralCompanions?'Check everyone below':`${companionName} should be free`}</Text>

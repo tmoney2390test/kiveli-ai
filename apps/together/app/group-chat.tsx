@@ -126,7 +126,8 @@ import {
   type VoiceNoteQuote,
 } from "../src/lib/api";
 import { ReportMessageModal } from "../src/components/ReportMessageModal";
-import { characterAssets, locationHeroAsset } from "../src/assets";
+import { characterAssets } from "../src/assets";
+import { locationImageSource } from "../src/lib/locationImageSource";
 import { endPlanExperience, getPlanExperience, joinCommitment, switchPlanExperience } from "../src/lib/commitments";
 import { activePlanForGroup, collapsePlanTimelineEvents, isPlanLifecycleDividerEvent, joinablePlanForGroup, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanTimelineEvent } from "../src/lib/planActions";
 import type { PlanOption, PlanTimingSelection } from "../src/lib/plans";
@@ -2888,7 +2889,7 @@ function GroupLocationPlanSuggestion({action,participants,locationRecord,busy,on
   const hours=placeHoursStatus(locationRecord?.hours);
   return <View style={styles.groupPlanSuggestion}>
     <View style={styles.groupPlanSuggestionHero}>
-      <Image source={locationHeroAsset(worldSlug,locationSlug)} style={StyleSheet.absoluteFill} contentFit="cover"/>
+      <Image source={locationImageSource(worldSlug,locationRecord??{slug:locationSlug??""})} style={StyleSheet.absoluteFill} contentFit="cover"/>
       <View style={styles.groupPlanSuggestionShade}/>
       <View style={styles.groupPlanSuggestionCopy}><View style={styles.groupPlanSuggestionTop}><Text style={styles.groupPlanEventKicker}>PLAN WITH THE GROUP</Text><Pressable accessibilityLabel="Dismiss group plan suggestion" disabled={busy} onPress={onDismiss} style={styles.groupPlanSuggestionClose}><X size={16} color="#fff"/></Pressable></View><Text style={styles.groupPlanSuggestionTitle}>Go to {location} together?</Text><View style={styles.groupPlanInvitationPeople}><AvatarStack participants={participants}/><Text numberOfLines={1} style={styles.groupPlanSuggestionBody}>{groupCompanionLabel(participants)}</Text></View><Text style={[styles.groupPlanSuggestionBody,hours.state==='open'?styles.groupPlanHoursOpen:hours.state==='closed'?styles.groupPlanHoursClosed:undefined]}>{hours.statusLabel} · {hours.scheduleLabel}</Text></View>
     </View>
