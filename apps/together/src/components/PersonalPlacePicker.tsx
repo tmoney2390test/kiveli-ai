@@ -16,7 +16,7 @@ import { compareWorldSelectorOrder } from '../lib/worldSelectorOrder';
 import { isWorldCatalogVisible } from '@together/domain/src/world-access';
 import { colors } from '../theme';
 
-type Props={visible:boolean;worldId:string;snapshot:Snapshot;onClose:()=>void;onSelect:(place:Location,activity:string)=>void;onPlacesChange:(places:Location[])=>void};
+type Props={visible:boolean;worldId:string;snapshot:Snapshot;onClose:()=>void;onSelect?:(place:Location,activity:string)=>void;onPlacesChange?:(places:Location[])=>void;startInCreateMode?:boolean};
 type Selector='world'|'district'|'kind'|null;
 type PlaceKind='home'|'bar'|'restaurant'|'hotel'|'outdoors'|'other';
 const placeKinds:{value:PlaceKind;label:string;detail:string}[]=[
@@ -33,7 +33,7 @@ const storedKind=(place:Location):PlaceKind=>{
   return placeKinds.some((option)=>option.value===value)?value as PlaceKind:place.category==='home'?'home':'other';
 };
 
-export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,onPlacesChange}:Props){
+export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,onPlacesChange,startInCreateMode=false}:Props){
   const {width,height}=useWindowDimensions();
   const insets=useSafeAreaInsets();
   const compact=width<680;
@@ -41,7 +41,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
   const [selectedWorldId,setSelectedWorldId]=useState(worldId);
   const [places,setPlaces]=useState<Location[]>([]);
   const [editing,setEditing]=useState<Location|null>(null);
-  const [formOpen,setFormOpen]=useState(false);
+  const [formOpen,setFormOpen]=useState(startInCreateMode);
   const [selector,setSelector]=useState<Selector>(null);
   const [name,setName]=useState('');
   const [description,setDescription]=useState('');
@@ -60,19 +60,19 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
   const visiblePlaces=places.filter((place)=>place.world_id===selectedWorldId);
   const imageSource=photo?{uri:photo.uri}:editing?.custom_image_url?{uri:editing.custom_image_url}:worldHeroAsset(selectedWorld?.slug);
 
-  useEffect(()=>{
-    if(!visible)return;
-    let alive=true;
-    setSelectedWorldId(worldId);setFormOpen(false);setSelector(null);setError('');setNotice('');
-    void listPersonalPlaces().then(({places:rows})=>{if(alive){setPlaces(rows);onPlacesChange(rows);}})
-      .catch((cause)=>{if(alive)setError(cause instanceof Error?cause.message:'Your places could not be loaded.');});
-    return()=>{alive=false;};
-  },[visible,worldId]);
-
   const startCreate=()=>{
     setEditing(null);setName('');setDescription('');setActivities('Talking, relaxing');setKind('home');
     setDistrictId(undefined);setPhoto(null);setError('');setNotice('');setArchiveConfirm(false);setFormOpen(true);
   };
+  useEffect(()=>{
+    if(!visible)return;
+    let alive=true;
+    setSelectedWorldId(worldId);setFormOpen(false);setSelector(null);setError('');setNotice('');
+    if(startInCreateMode)startCreate();
+    void listPersonalPlaces().then(({places:rows})=>{if(alive){setPlaces(rows);onPlacesChange?.(rows);}})
+      .catch((cause)=>{if(alive)setError(cause instanceof Error?cause.message:'Your places could not be loaded.');});
+    return()=>{alive=false;};
+  },[visible,worldId,startInCreateMode]);
   const startEdit=(place:Location)=>{
     setSelectedWorldId(place.world_id);setEditing(place);setName(place.name);setDescription(place.description);
     setActivities(place.possible_activities.join(', '));setKind(storedKind(place));
@@ -102,18 +102,19 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
         }finally{cleanupNormalizedImage(normalized.uri);}
       }
       const updated=[saved,...places.filter((item)=>item.id!==saved!.id)];
-      setPlaces(updated);onPlacesChange(updated);setFormOpen(false);
-      if(saved.world_id===worldId){onSelect(saved,saved.possible_activities[0]??'Talking');onClose();}
+      setPlaces(updated);onPlacesChange?.(updated);setFormOpen(false);
+      if(!onSelect)onClose();
+      else if(saved.world_id===worldId){onSelect(saved,saved.possible_activities[0]??'Talking');onClose();}
       else setNotice(`${saved.name} is ready in ${selectedWorld?.name??'its world'}. Choose a companion there to plan a visit.`);
     }catch(cause){
       setError(cause instanceof Error?cause.message:'Your place could not be saved.');
-      if(saved){const updated=[saved,...places.filter((item)=>item.id!==saved!.id)];setPlaces(updated);onPlacesChange(updated);setEditing(saved);}
+      if(saved){const updated=[saved,...places.filter((item)=>item.id!==saved!.id)];setPlaces(updated);onPlacesChange?.(updated);setEditing(saved);}
     }finally{setBusy(false);}
   };
   const archive=async()=>{
     if(!editing)return;
     setBusy(true);setError('');
-    try{await archivePersonalPlace(editing.id);const updated=places.filter((item)=>item.id!==editing.id);setPlaces(updated);onPlacesChange(updated);setFormOpen(false);setNotice(`${editing.name} was archived.`);}
+    try{await archivePersonalPlace(editing.id);const updated=places.filter((item)=>item.id!==editing.id);setPlaces(updated);onPlacesChange?.(updated);setFormOpen(false);setNotice(`${editing.name} was archived.`);}
     catch(cause){setError(cause instanceof Error?cause.message:'Your place could not be archived.');}
     finally{setBusy(false);}
   };
@@ -123,7 +124,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
     <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':undefined} style={[styles.backdrop,!compact&&styles.backdropWide]}>
       <View style={[styles.panel,compact?{height,maxHeight:height,paddingTop:insets.top,paddingBottom:Math.max(insets.bottom,12)}:{maxHeight:Math.min(height-40,900),borderBottomLeftRadius:25,borderBottomRightRadius:25}]}>
         <View style={styles.header}>
-          <Pressable accessibilityRole="button" accessibilityLabel={formOpen?'Back to your places':'Close your places'} onPress={formOpen?()=>{setFormOpen(false);setError('');}:onClose} style={styles.headerButton}><ArrowLeft size={22} color={colors.text}/></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={formOpen?(startInCreateMode?'Close create a place':'Back to your places'):'Close your places'} onPress={formOpen&&!startInCreateMode?()=>{setFormOpen(false);setError('');}:onClose} style={styles.headerButton}><ArrowLeft size={22} color={colors.text}/></Pressable>
           <View style={styles.headerTitle}><Text style={styles.title}>{formOpen?editing?'Edit your place':'Create a place':'Your places'}</Text><Text style={styles.subtitle}>{formOpen?'Build somewhere you and your companions can visit.':'Make a private place and invite someone through a plan.'}</Text></View>
           <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.headerButton}><X size={20} color={colors.muted}/></Pressable>
         </View>
@@ -155,7 +156,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
             <Pressable accessibilityRole="button" onPress={()=>openSelector('world')} style={styles.listWorld}><Image source={worldHeroAsset(selectedWorld?.slug)} contentFit="cover" style={styles.listWorldImage}/><View style={styles.selectCopy}><Text style={styles.listWorldEyebrow}>WORLD</Text><Text style={styles.selectTitle}>{selectedWorld?.name??'Choose a world'}</Text></View><ChevronDown size={18} color={colors.muted}/></Pressable>
             {notice?<Text style={styles.notice}>{notice}</Text>:null}
             <Pressable accessibilityRole="button" onPress={startCreate} style={styles.create}><Plus size={20} color="#fff"/><Text style={styles.createText}>Create a place</Text></Pressable>
-            {visiblePlaces.map((place)=><View key={place.id} style={styles.placeCard}><View style={styles.placeMain}><Image source={place.custom_image_url?{uri:place.custom_image_url}:worldHeroAsset(selectedWorld?.slug)} contentFit="cover" style={styles.thumb}/><View style={styles.placeCopy}><Text style={styles.placeName}>{place.name}</Text><Text style={styles.placeDescription} numberOfLines={2}>{place.description}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Edit ${place.name}`} onPress={()=>startEdit(place)} style={styles.edit}><Text style={styles.editText}>Edit</Text></Pressable></View><View style={styles.activityList}>{place.possible_activities.map((activity)=><Pressable key={activity} accessibilityRole="button" disabled={place.world_id!==worldId} onPress={()=>{onSelect(place,activity);onClose();}} style={[styles.activityRow,place.world_id!==worldId&&styles.selectDisabled]}><Text style={styles.activityText}>{activity}</Text><ChevronRight size={16} color={colors.muted}/></Pressable>)}</View>{place.world_id!==worldId?<Text style={styles.fieldHint}>Open a plan with someone in {selectedWorld?.name??'this world'} to visit here.</Text>:null}</View>)}
+            {visiblePlaces.map((place)=><View key={place.id} style={styles.placeCard}><View style={styles.placeMain}><Image source={place.custom_image_url?{uri:place.custom_image_url}:worldHeroAsset(selectedWorld?.slug)} contentFit="cover" style={styles.thumb}/><View style={styles.placeCopy}><Text style={styles.placeName}>{place.name}</Text><Text style={styles.placeDescription} numberOfLines={2}>{place.description}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Edit ${place.name}`} onPress={()=>startEdit(place)} style={styles.edit}><Text style={styles.editText}>Edit</Text></Pressable></View><View style={styles.activityList}>{place.possible_activities.map((activity)=><Pressable key={activity} accessibilityRole="button" disabled={!onSelect||place.world_id!==worldId} onPress={()=>{onSelect?.(place,activity);onClose();}} style={[styles.activityRow,(!onSelect||place.world_id!==worldId)&&styles.selectDisabled]}><Text style={styles.activityText}>{activity}</Text><ChevronRight size={16} color={colors.muted}/></Pressable>)}</View>{place.world_id!==worldId?<Text style={styles.fieldHint}>Open a plan with someone in {selectedWorld?.name??'this world'} to visit here.</Text>:null}</View>)}
             {!visiblePlaces.length?<View style={styles.empty}><MapPin size={24} color={colors.violet}/><Text style={styles.emptyTitle}>No places here yet</Text><Text style={styles.emptyText}>Create a home or favorite spot. Its image is optional, and only you can invite companions there.</Text></View>:null}
             {error?<Text accessibilityRole="alert" style={styles.error}>{error}</Text>:null}
           </>}
