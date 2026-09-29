@@ -7,15 +7,19 @@ import { router, usePathname } from 'expo-router';
 import {
   Bell,
   CalendarDays,
+  ChevronRight,
   Compass,
   Home,
   Images,
+  MapPin,
   MessageCircle,
   Plus,
   Settings,
   UsersRound,
 } from 'lucide-react-native';
 import { CharacterAvatar } from '../components/ui';
+import { CreatorModal } from '../components/CreatorPicker';
+import { PersonalPlacePicker } from '../components/PersonalPlacePicker';
 import { KivelleLogo } from '../components/KivelleLogo';
 import { KivelleCreditIcon } from '../components/KivelleCreditIcon';
 import { useSubscriptionStatus } from '../hooks/useSubscriptionStatus';
@@ -29,6 +33,7 @@ import { subscriptionHref } from '../lib/subscriptionPresentation';
 import { conversationRouteTarget, navigateLocalRouteOnWeb, webConversationHref } from '../lib/conversationNavigation';
 import { characterConversationHref } from '../lib/chatRoute';
 import { privateStoredImageSource } from '../lib/mediaImageSource';
+import { canAccessWorld } from '../lib/place';
 import { isWorldCatalogVisible } from '@together/domain/src/world-access';
 
 type Props = { expanded: boolean; onHoverChange: (hovered: boolean) => void };
@@ -36,6 +41,8 @@ type NavItem = { key: DesktopNavigationKey; label: string; href: string; icon: (
 
 export function DesktopSidebar({ expanded, onHoverChange }: Props) {
   const [accountOpen, setAccountOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [personalPlaceOpen, setPersonalPlaceOpen] = useState(false);
   const pathname = usePathname();
   const settingsOpen = pathname === '/settings';
   const snapshot = useTogether((state) => state.snapshot);
@@ -59,9 +66,12 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
   const currentWorld = snapshot?.worlds.find((world) => world.id === browsedWorldId)
     ?? (snapshot?.currentPlaceContext ? snapshot.worlds.find((world) => world.id === snapshot.currentPlaceContext?.world.id) : undefined)
     ?? snapshot?.worlds.find(isWorldCatalogVisible);
+  const placeWorld = snapshot?.worlds.find((world) => world.id === currentWorld?.id && canAccessWorld(snapshot, world))
+    ?? snapshot?.worlds.find((world) => isWorldCatalogVisible(world) && canAccessWorld(snapshot, world));
   const personaName = snapshot?.activePersona?.display_name ?? snapshot?.profile?.display_name ?? 'You';
   const showProfileAvatar = Boolean(profileAvatarSource && !profileAvatarFailed);
   const navigate = (href: string) => {
+    setCreateOpen(false);
     // Keep the rail expanded while its action swaps the active route. A genuine
     // pointer leave still collapses it through ResponsiveAppShell.
     onHoverChange(true);
@@ -103,7 +113,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.navGroup}>
           {mainItems.map((item) => <SidebarAction key={item.key} expanded={expanded} label={item.label} icon={item.icon(activeKey === item.key ? '#E3A4F2' : colors.muted)} active={activeKey === item.key && !pathname.startsWith('/create/companion')} count={item.count} onWarm={()=>warmRoute(item.href,(value)=>router.prefetch(value as never))} onPress={() => navigate(item.href)} />)}
-          <SidebarAction expanded={expanded} label="Create +" icon={<Plus size={24} color={colors.rose} />} active={pathname.startsWith('/create/companion')} onWarm={() => warmRoute('/create/companion', (value) => router.prefetch(value as never))} onPress={() => navigate('/create/companion')} />
+          <SidebarAction expanded={expanded} label="Create" icon={<Plus size={24} color={colors.rose} />} active={pathname.startsWith('/create/companion') || personalPlaceOpen} onWarm={() => warmRoute('/create/companion', (value) => router.prefetch(value as never))} onPress={() => setCreateOpen(true)} />
         </View>
 
       {expanded && currentWorld ? <View style={styles.section}>
@@ -150,6 +160,19 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
       </View>
     </View>
     <AccountMenu visible={accountOpen} onClose={() => setAccountOpen(false)}/>
+    <CreatorModal visible={createOpen} title="What would you like to create?" onClose={() => setCreateOpen(false)}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Create a character" onPress={() => navigate('/create/companion')} style={({pressed}) => [styles.createChoice, pressed && styles.rowPressed]}>
+        <View style={styles.createChoiceIcon}><UsersRound size={22} color={colors.rose}/></View>
+        <View style={styles.createChoiceCopy}><Text style={styles.createChoiceTitle}>Create a character</Text><Text style={styles.createChoiceDetail}>Make a companion of your own.</Text></View>
+        <ChevronRight size={19} color={colors.muted}/>
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Create a place" disabled={!placeWorld} onPress={() => {setCreateOpen(false);setPersonalPlaceOpen(true);}} style={({pressed}) => [styles.createChoice, !placeWorld && styles.createChoiceDisabled, pressed && styles.rowPressed]}>
+        <View style={styles.createChoiceIcon}><MapPin size={22} color={colors.rose}/></View>
+        <View style={styles.createChoiceCopy}><Text style={styles.createChoiceTitle}>Create a place</Text><Text style={styles.createChoiceDetail}>{placeWorld ? 'Build somewhere you and your companions can visit.' : 'Your worlds are still loading.'}</Text></View>
+        <ChevronRight size={19} color={colors.muted}/>
+      </Pressable>
+    </CreatorModal>
+    {snapshot && placeWorld ? <PersonalPlacePicker visible={personalPlaceOpen} worldId={placeWorld.id} snapshot={snapshot} onClose={() => setPersonalPlaceOpen(false)} startInCreateMode/> : null}
   </View>;
 }
 
@@ -230,5 +253,11 @@ const styles = StyleSheet.create({
   accountName: { color: colors.text, fontSize: 14, fontWeight: '900' },
   accountTier: { color: colors.dimmed, fontSize: 11, marginTop: 3 },
   rowPressed: { backgroundColor: 'rgba(255,255,255,.055)' },
+  createChoice: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 13, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(214,151,230,.22)', backgroundColor: 'rgba(155,78,184,.09)' },
+  createChoiceDisabled: { opacity: .45 },
+  createChoiceIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(155,78,184,.17)' },
+  createChoiceCopy: { flex: 1, minWidth: 0, gap: 3 },
+  createChoiceTitle: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  createChoiceDetail: { color: colors.muted, fontSize: 12, lineHeight: 17 },
   pressed: { opacity: .72 },
 });
