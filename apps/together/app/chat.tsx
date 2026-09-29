@@ -728,7 +728,7 @@ function ChatSession() {
   const chatContext=buildClientConversationContext(snapshot,character,new Date(presenceNow),conversation.id);
   const joinableSharedPlan=joinablePlanForChat(snapshot.sharedPlans??[],character.id);
   const location = chatContext.scene.location;
-  const generatedMedia=snapshot.generatedMedia??[];
+  const generatedMedia=(snapshot.generatedMedia??[]).filter((item)=>item.conversation_id===conversation.id);
   const galleryGeneratedMedia=mergeGeneratedMediaCollections(loadedGalleryMedia,generatedMedia);
   const chatGalleryItems=chatMediaGalleryItems(galleryGeneratedMedia,visibleMessages,conversation.id,loadedGalleryAttachments);
   const activePlace=snapshot.locations.find((item)=>item.id===(chatContext.scene.locationId??character.current_location_id));

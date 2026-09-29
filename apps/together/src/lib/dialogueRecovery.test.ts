@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DIALOGUE_RECOVERY_DELAYS_MS, STALE_DIALOGUE_REPLAY_AFTER_MS, dialogueFailureMayHavePersisted, dialogueRecoveryShouldContinue, latestUnansweredDialogueRequest, persistedDialogueResponseForRequest, staleDialogueReplayDelay } from './dialogueRecovery';
+const requestId='10000000-0000-4000-8000-000000000001';
 
 describe('dialogue failure recovery',()=>{
   it('keeps checking beyond a slow fifteen-second first token',()=>{
@@ -49,7 +50,7 @@ describe('dialogue failure recovery',()=>{
   it('finds a persisted user turn that has no later response',()=>{
     const messages=[
       {id:'older-reply',role:'assistant',delivery_status:'complete',created_at:'2026-09-05T20:00:00Z'},
-      {id:'request',role:'user',delivery_status:'complete',created_at:'2026-09-05T20:01:00Z',client_request_id:'request-1'},
+      {id:'request',role:'user',delivery_status:'complete',created_at:'2026-09-05T20:01:00Z',client_request_id:requestId},
     ];
     expect(latestUnansweredDialogueRequest(messages)?.id).toBe('request');
     expect(staleDialogueReplayDelay(messages[1]!,Date.parse('2026-09-05T20:01:00Z')+STALE_DIALOGUE_REPLAY_AFTER_MS-1_000)).toBe(1_000);
@@ -58,14 +59,24 @@ describe('dialogue failure recovery',()=>{
 
   it('does not replay answered, failed, or hidden control turns',()=>{
     expect(latestUnansweredDialogueRequest([
-      {role:'user',delivery_status:'complete',created_at:'2026-09-05T20:01:00Z',client_request_id:'request-1'},
+      {role:'user',delivery_status:'complete',created_at:'2026-09-05T20:01:00Z',client_request_id:requestId},
       {role:'assistant',delivery_status:'complete',created_at:'2026-09-05T20:01:05Z'},
     ])).toBeNull();
     expect(latestUnansweredDialogueRequest([
-      {role:'user',delivery_status:'failed',created_at:'2026-09-05T20:01:00Z',client_request_id:'request-1'},
+      {role:'user',delivery_status:'failed',created_at:'2026-09-05T20:01:00Z',client_request_id:requestId},
     ])).toBeNull();
     expect(latestUnansweredDialogueRequest([
-      {role:'user',delivery_status:'complete',created_at:'2026-09-05T20:01:00Z',client_request_id:'request-1',provider_metadata:{uiHidden:true}},
+      {role:'user',delivery_status:'complete',created_at:'2026-09-05T20:01:00Z',client_request_id:requestId,provider_metadata:{uiHidden:true}},
     ])).toBeNull();
+  });
+  it('never resends a voice transcript or legacy non-UUID request as text dialogue',()=>{
+    const earlier={role:'user',delivery_status:'complete',client_request_id:requestId};
+    for(const transcript of [
+      {client_request_id:'voice-call:20000000-0000-4000-8000-000000000002:11',provider_metadata:{source:'voice_call'}},
+      {client_request_id:requestId,provider_metadata:{source:'voice_call'}},
+      {client_request_id:'legacy-request'},
+    ]){
+      expect(latestUnansweredDialogueRequest([earlier,{role:'user',delivery_status:'complete',...transcript}])).toBeNull();
+    }
   });
 });

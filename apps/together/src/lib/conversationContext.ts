@@ -1,6 +1,8 @@
 import type { CharacterInstance, InteractionMode, SceneEntryReason, SharedPlan, Snapshot } from '../types';
 import { characterHomeLocationId, isCharacterHomeLocation, worldForLocation } from './place';
 import { buildCharacterDaySchedule } from './characterDaySchedule';
+import { activeConversationFor } from './conversation';
+import { latestConversationHeaderImage } from './chatHeaderMedia';
 import { characterActivityClause, naturalizeCharacterActivity } from '@together/domain/src/character-language';
 
 type Commitment={id:string;title:string;startsAt:string;endsAt?:string;kind:'plan'|'date';location?:string};
@@ -29,7 +31,7 @@ export function buildClientConversationContext(snapshot:Snapshot,character:Chara
   const activeSceneRow=(snapshot.sceneSessions??[]).find((scene)=>scene.character_instance_id===character.id&&!scene.ended_at&&sceneIsCurrent(scene,now));
   const conversation=conversationId
     ? snapshot.conversations.find((item)=>item.id===conversationId&&item.character_instance_id===character.id&&!item.archived_at)
-    : snapshot.conversations.find((item)=>item.character_instance_id===character.id&&!item.archived_at);
+    : activeConversationFor(snapshot.conversations,character.id);
   const scenarioHere=character.scenario_state?.conversationId===conversation?.id?character.scenario_state:null;
   const storedScene=readSceneMetadata(conversation?.metadata?.activeScene);
   const storedValid=Boolean(storedScene?.interactionMode==='co_present'&&(!storedScene.validUntil||new Date(storedScene.validUntil)>now));
@@ -44,7 +46,7 @@ export function buildClientConversationContext(snapshot:Snapshot,character:Chara
   const sceneLocation=atHome?'Home':snapshot.locations.find((item)=>item.id===activeLocationId)?.name??scheduleStatus?.location??location;
   const sceneWorld=worldForLocation(snapshot,activeLocationId);
   const localTime=formatUserTime(now,snapshot.profile?.experience_timezone);
-  const media=(snapshot.generatedMedia??[]).filter((item)=>item.character_instance_id===character.id&&item.status==='ready'&&item.signed_url&&(item.location_id===activeLocationId||item.location_id===character.current_location_id)).sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())[0];
+  const media=conversation&&activeLocationId?latestConversationHeaderImage((snapshot.generatedMedia??[]).filter((item)=>item.character_instance_id===character.id&&item.location_id===activeLocationId),conversation.id):null;
   const plans=characterPlans.filter((plan)=>plan.status==='scheduled'&&new Date(plan.starts_at)>now).map((plan)=>planCommitment(plan,snapshot));
   const dates=snapshot.dates.filter((date)=>date.character_instance_id===character.id&&date.status==='upcoming'&&date.scheduled_for&&new Date(date.scheduled_for)>now).map((date)=>({id:date.id,title:date.together_date_templates.name,startsAt:date.scheduled_for!,kind:'date' as const,location:snapshot.locations.find((item)=>item.id===date.together_date_templates.location_id)?.name}));
   const nextCommitment=[...plans,...dates].sort((a,b)=>new Date(a.startsAt).getTime()-new Date(b.startsAt).getTime())[0];

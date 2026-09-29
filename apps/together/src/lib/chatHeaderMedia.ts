@@ -8,11 +8,13 @@ export function latestConversationHeaderImage(
   media: GeneratedMedia[],
   conversationId: string,
 ): GeneratedMedia | null {
+  if (!conversationId) return null;
   return media
     .filter((item) =>
       item.conversation_id === conversationId &&
       item.media_type === 'image' &&
       item.status === 'ready' &&
+      item.metadata?.hiddenIntermediate !== true &&
       Boolean(item.signed_url)
     )
     .sort((left, right) =>
