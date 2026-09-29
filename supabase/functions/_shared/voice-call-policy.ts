@@ -38,12 +38,16 @@ export function resolveRealtimeVoiceContentMode(input: {
   characterAge: unknown;
   romanceEnabled: boolean;
   friendsOnly: boolean;
-  explicitProviderEnabled: boolean;
+  verifiedWebSurface: boolean;
+  webAdultEnabled: boolean;
 }): RealtimeVoiceContentMode {
   const requested = normalizeMode(input.requestedMode);
   const age = Number(input.characterAge);
   const adultEligible = input.ageVerified && Number.isFinite(age) && age >= 18;
   const romanceAllowed = input.romanceEnabled && !input.friendsOnly;
+
+  if (requested === "explicit" && adultEligible && romanceAllowed &&
+    input.verifiedWebSurface && input.webAdultEnabled) return "explicit";
 
   if (requested === "explicit" || requested === "mature") {
     return adultEligible && romanceAllowed

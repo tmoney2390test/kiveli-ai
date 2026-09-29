@@ -65,7 +65,7 @@ KIVELLE_EXPRESS_VOICE_CREDITS_PER_MINUTE=20
 
 `KIVELLE_XAI_TTS_MODEL` is a telemetry label. The current xAI TTS REST contract does not accept a selectable model field. Live calls pin the production model `grok-voice-think-fast-2.0`; `grok-voice-latest` is intentionally not used so a provider alias cannot silently change production behavior.
 
-The enable switches fail closed. A canary value of `0` exposes xAI voice to no accounts, `100` exposes it to every otherwise eligible account, and intermediate values select a deterministic cohort from the user ID. Voice is capped at non-sexual romance independently of the retired xAI chat flags. Provider configuration errors do not affect text chat.
+The enable switches fail closed. A canary value of `0` exposes xAI voice to no accounts, `100` exposes it to every otherwise eligible account, and intermediate values select a deterministic cohort from the user ID. Verified adult website calls inherit the conversation's Spicy content mode when `WEB_ADULT_MODE_ENABLED=true`; both call routes use the same policy. Native and unverified requests retain the non-explicit cap. Session creation and reconnect verify the gateway-signed website assertion and current adult eligibility again. Relationship boundaries and provider safety rules remain in effect. Voice does not depend on the retired xAI chat flags. Provider configuration errors do not affect text chat.
 
 No `EXPO_PUBLIC_*` variable contains an xAI secret.
 
@@ -155,7 +155,7 @@ The client handles microphone permission, a connection timeout, two bounded reco
 
 `buildKivelleConversationContext()` remains the source of call context. The server compacts only the current companion identity and style, Persona, relationship stance, current scene/life state, active Plan or Date, selected memories, open threads, recent conversation, world context, and validated content mode/boundaries.
 
-The realtime instruction tells xAI to speak only as the companion, use short spoken turns, accept interruptions, not expose context, not claim to be Grok, and never make permanent Kivelle changes. Romance, affection, flirting, and non-sexual intimacy are allowed when Kivelle relationship state permits them; sexual or explicit spoken dialogue is not. Historical sexual messages are also refused by voice-note quote, generation, and media-refresh endpoints. Voice does not bypass account preferences, character boundaries, consent logic, credit authorization, feature flags, or the provider route.
+The realtime instruction tells xAI to speak only as the companion, use short spoken turns, accept interruptions, not expose context, not claim to be Grok, and never make permanent Kivelle changes. Eligible website calls follow the chat's selected content mode and recent conversation; native calls remain non-explicit. A call stays verbal and does not imply physical contact or change consent. Historical sexual messages remain subject to the separate voice-note policy at quote, generation, and media-refresh endpoints. Voice does not bypass account preferences, character boundaries, consent logic, credit authorization, feature flags, or provider safety rules.
 
 ## Transcripts and canonical history
 
