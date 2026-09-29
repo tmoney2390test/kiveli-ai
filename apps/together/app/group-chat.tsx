@@ -27,6 +27,7 @@ import {
 } from "react-native";
 import { shouldKeepChatPinned } from "../src/lib/chatScroll";
 import { useMobileChatKeyboardPin } from "../src/hooks/useMobileChatKeyboardPin";
+import { ChatKeyboardFrame } from "../src/components/ChatKeyboardFrame";
 import { uploadPreparedChatPhoto } from "../src/lib/chatPhotoStorageUpload";
 import { shouldConsumeComposerEnter, shouldSendComposerOnEnter } from "../src/lib/composerKeyboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -1809,10 +1810,7 @@ export default function GroupChatScreen() {
     }
   };
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined}
-    >
+    <ChatKeyboardFrame style={styles.screen}>
       <View style={styles.shell}>
         {showConversationRail && snapshot
           ? <ChatConversationRail snapshot={snapshot} activeConversationId={detail.conversation.id} />
@@ -2517,7 +2515,7 @@ export default function GroupChatScreen() {
           />
           : null}
       </View>
-    </KeyboardAvoidingView>
+    </ChatKeyboardFrame>
   );
 }
 
