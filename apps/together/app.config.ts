@@ -6,8 +6,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // existing development builds can still finish an in-flight auth callback.
   name: 'Kivelle.AI', slug: 'together', scheme: ['kivelli','together'], version: '1.0.0', orientation: 'default', userInterfaceStyle: 'dark',
   icon: './assets/icon.png',
-  ios: { supportsTablet: true, bundleIdentifier: 'app.kivelli', usesAppleSignIn:true, infoPlist: { NSAppTransportSecurity:{NSAllowsArbitraryLoads:false,NSAllowsLocalNetworking:process.env.EAS_BUILD_PROFILE==='development'},CFBundleAllowMixedLocalizations:true,ITSAppUsesNonExemptEncryption:false,NSPhotoLibraryUsageDescription: 'Choose a photo to share privately in Kivelle Chat.',NSMicrophoneUsageDescription:'Use your microphone for private voice-to-text and live calls with your Kivelle companion.',UIBackgroundModes:['audio'] } },
-  android: { package: 'app.kivelli', adaptiveIcon: { foregroundImage: './assets/icon.png', backgroundColor: '#080B13' }, permissions: ['POST_NOTIFICATIONS','RECORD_AUDIO','MODIFY_AUDIO_SETTINGS'] },
+  ios: { supportsTablet: true, bundleIdentifier: 'app.kivelli', usesAppleSignIn:true, icon: { light: './assets/icon.png', dark: './assets/icon-dark.png', tinted: './assets/icon-tinted.png' }, infoPlist: { NSAppTransportSecurity:{NSAllowsArbitraryLoads:false,NSAllowsLocalNetworking:process.env.EAS_BUILD_PROFILE==='development'},CFBundleAllowMixedLocalizations:true,ITSAppUsesNonExemptEncryption:false,NSPhotoLibraryUsageDescription: 'Choose a photo to share privately in Kivelle Chat.',NSMicrophoneUsageDescription:'Use your microphone for private voice-to-text and live calls with your Kivelle companion.',UIBackgroundModes:['audio'] } },
+  android: { package: 'app.kivelli', adaptiveIcon: { foregroundImage: './assets/icon-android-adaptive.png', monochromeImage: './assets/icon-android-monochrome.png', backgroundColor: '#030014' }, permissions: ['POST_NOTIFICATIONS','RECORD_AUDIO','MODIFY_AUDIO_SETTINGS'] },
   web: { bundler: 'metro', output: 'static', favicon: './assets/kivelle-icon-transparent.png' },
   plugins: [[
     'expo-router',
@@ -15,7 +15,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       origin: 'https://kivelli.app',
       asyncRoutes: { web: true, default: 'development' },
     },
-  ],'expo-secure-store','expo-system-ui','expo-notifications',['expo-audio',{enableBackgroundPlayback:false}],'expo-image','expo-video','@edkimmel/expo-audio-stream','expo-apple-authentication',['expo-image-picker',{photosPermission:'Choose a photo to share privately in Kivelle Chat.',cameraPermission:'Take a photo to share privately in Kivelle Chat.'}],['expo-splash-screen',{image:'./assets/icon.png',imageWidth:180,resizeMode:'contain',backgroundColor:'#080B13'}]],
+  ],'expo-secure-store','expo-system-ui','expo-notifications',['expo-audio',{enableBackgroundPlayback:false}],'expo-image','expo-video','@edkimmel/expo-audio-stream','expo-apple-authentication',['expo-image-picker',{photosPermission:'Choose a photo to share privately in Kivelle Chat.',cameraPermission:'Take a photo to share privately in Kivelle Chat.'}],['expo-splash-screen',{image:'./assets/icon-dark.png',imageWidth:180,resizeMode:'contain',backgroundColor:'#030014'}]],
   experiments: { typedRoutes: true },
   extra: {
     eas: {
