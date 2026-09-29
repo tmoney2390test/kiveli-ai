@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AccountMenu } from '../components/AccountMenu';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { router, usePathname } from 'expo-router';
@@ -11,7 +11,6 @@ import {
   Compass,
   Home,
   Images,
-  MapPin,
   MessageCircle,
   Plus,
   Settings,
@@ -19,6 +18,7 @@ import {
 } from 'lucide-react-native';
 import { CharacterAvatar } from '../components/ui';
 import { CreatorModal } from '../components/CreatorPicker';
+import { CreateChoiceArtwork } from '../components/CreateChoiceArtwork';
 import { PersonalPlacePicker } from '../components/PersonalPlacePicker';
 import { KivelleLogo } from '../components/KivelleLogo';
 import { KivelleCreditIcon } from '../components/KivelleCreditIcon';
@@ -43,6 +43,8 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
   const [accountOpen, setAccountOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [personalPlaceOpen, setPersonalPlaceOpen] = useState(false);
+  const [hoveredChoice, setHoveredChoice] = useState<'character' | 'place' | null>(null);
+  const { width: viewportWidth } = useWindowDimensions();
   const pathname = usePathname();
   const settingsOpen = pathname === '/settings';
   const snapshot = useTogether((state) => state.snapshot);
@@ -160,17 +162,17 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
       </View>
     </View>
     <AccountMenu visible={accountOpen} onClose={() => setAccountOpen(false)}/>
-    <CreatorModal visible={createOpen} title="What would you like to create?" onClose={() => setCreateOpen(false)}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Create a character" onPress={() => navigate('/create/companion')} style={({pressed}) => [styles.createChoice, pressed && styles.rowPressed]}>
-        <View style={styles.createChoiceIcon}><UsersRound size={22} color={colors.rose}/></View>
-        <View style={styles.createChoiceCopy}><Text style={styles.createChoiceTitle}>Create a character</Text><Text style={styles.createChoiceDetail}>Make a companion of your own.</Text></View>
-        <ChevronRight size={19} color={colors.muted}/>
-      </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel="Create a place" disabled={!placeWorld} onPress={() => {setCreateOpen(false);setPersonalPlaceOpen(true);}} style={({pressed}) => [styles.createChoice, !placeWorld && styles.createChoiceDisabled, pressed && styles.rowPressed]}>
-        <View style={styles.createChoiceIcon}><MapPin size={22} color={colors.rose}/></View>
-        <View style={styles.createChoiceCopy}><Text style={styles.createChoiceTitle}>Create a place</Text><Text style={styles.createChoiceDetail}>{placeWorld ? 'Build somewhere you and your companions can visit.' : 'Your worlds are still loading.'}</Text></View>
-        <ChevronRight size={19} color={colors.muted}/>
-      </Pressable>
+    <CreatorModal visible={createOpen} title="What would you like to create?" onClose={() => setCreateOpen(false)} cardChooser>
+      <View style={[styles.createChoices, viewportWidth < 720 && styles.createChoicesStack]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Create a character" onHoverIn={() => setHoveredChoice('character')} onHoverOut={() => setHoveredChoice(null)} onFocus={() => setHoveredChoice('character')} onBlur={() => setHoveredChoice(null)} onPress={() => navigate('/create/companion')} style={({pressed}) => [styles.createCard, hoveredChoice === 'character' && styles.createCardHover, pressed && styles.createCardPressed]}>
+          <View pointerEvents="none" style={[styles.createArtwork, viewportWidth < 720 && styles.createArtworkCompact]}><CreateChoiceArtwork kind="character" /></View>
+          <View style={styles.createCardFooter}><View style={styles.createCardCopy}><Text style={styles.createCardTitle}>Create a character</Text><Text style={styles.createCardDetail}>Make a companion of your own.</Text></View><ChevronRight size={20} color="#F9E9FC" /></View>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Create a place" accessibilityState={{disabled:!placeWorld}} disabled={!placeWorld} onHoverIn={() => setHoveredChoice('place')} onHoverOut={() => setHoveredChoice(null)} onFocus={() => setHoveredChoice('place')} onBlur={() => setHoveredChoice(null)} onPress={() => {setCreateOpen(false);setPersonalPlaceOpen(true);}} style={({pressed}) => [styles.createCard, hoveredChoice === 'place' && styles.createCardHover, !placeWorld && styles.createChoiceDisabled, pressed && styles.createCardPressed]}>
+          <View pointerEvents="none" style={[styles.createArtwork, viewportWidth < 720 && styles.createArtworkCompact]}><CreateChoiceArtwork kind="place" /></View>
+          <View style={styles.createCardFooter}><View style={styles.createCardCopy}><Text style={styles.createCardTitle}>Create a place</Text><Text style={styles.createCardDetail}>{placeWorld ? 'Build somewhere you can visit together.' : 'Your worlds are still loading.'}</Text></View><ChevronRight size={20} color="#F9E9FC" /></View>
+        </Pressable>
+      </View>
     </CreatorModal>
     {snapshot && placeWorld ? <PersonalPlacePicker visible={personalPlaceOpen} worldId={placeWorld.id} snapshot={snapshot} onClose={() => setPersonalPlaceOpen(false)} startInCreateMode/> : null}
   </View>;
@@ -253,11 +255,17 @@ const styles = StyleSheet.create({
   accountName: { color: colors.text, fontSize: 14, fontWeight: '900' },
   accountTier: { color: colors.dimmed, fontSize: 11, marginTop: 3 },
   rowPressed: { backgroundColor: 'rgba(255,255,255,.055)' },
-  createChoice: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 13, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(214,151,230,.22)', backgroundColor: 'rgba(155,78,184,.09)' },
+  createChoices: { flexDirection: 'row', alignItems: 'stretch', gap: 16 },
+  createChoicesStack: { flexDirection: 'column' },
+  createCard: { flex: 1, minWidth: 0, overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(204,163,230,.28)', backgroundColor: '#100D17' },
+  createCardHover: { borderColor: '#BA82E8', shadowColor: '#AF63D5', shadowOpacity: .3, shadowRadius: 15, shadowOffset: { width: 0, height: 0 } },
+  createCardPressed: { opacity: .84 },
   createChoiceDisabled: { opacity: .45 },
-  createChoiceIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(155,78,184,.17)' },
-  createChoiceCopy: { flex: 1, minWidth: 0, gap: 3 },
-  createChoiceTitle: { color: colors.text, fontSize: 15, fontWeight: '800' },
-  createChoiceDetail: { color: colors.muted, fontSize: 12, lineHeight: 17 },
+  createArtwork: { height: 250, backgroundColor: '#261B36' },
+  createArtworkCompact: { height: 165 },
+  createCardFooter: { minHeight: 92, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingVertical: 16, backgroundColor: '#100D17' },
+  createCardCopy: { flex: 1, minWidth: 0, gap: 5 },
+  createCardTitle: { color: '#FFF9FE', fontFamily: 'Georgia', fontSize: 23, fontWeight: '700' },
+  createCardDetail: { color: '#C1B2C9', fontSize: 12, lineHeight: 18 },
   pressed: { opacity: .72 },
 });
