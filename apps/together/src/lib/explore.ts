@@ -7,7 +7,7 @@ import { characterCatalogForWorld } from './place';
 export type ExploreCategoryId='food'|'nightlife'|'lodging'|'quiet'|'entertainment';
 export type ExploreRecommendation={id:'tonight'|'companion'|'different'|'liked';title:string;subtitle:string;option:PlanOption;location:Location};
 export type ExploreContext={locations:Location[];featuredLocations:Location[];categories:Array<{id:ExploreCategoryId;label:string;count:number}>;recommendations:ExploreRecommendation[];worldEvents:Snapshot['lifeEvents'];people:FeaturedCompanion[]};
-export type ExplorePeopleOptions={gender?:FeaturedGenderFilter;limit?:number};
+export type ExplorePeopleOptions={gender?:FeaturedGenderFilter;limit?:number;includeActive?:boolean};
 export type ExploreEventStatus='HAPPENING NOW'|'UPCOMING';
 
 export const EXPLORE_CATEGORIES:Array<{id:ExploreCategoryId;label:string}>=[{id:'food',label:'Food'},{id:'nightlife',label:'Nightlife'},{id:'lodging',label:'Lodging'},{id:'quiet',label:'Quiet Spots'},{id:'entertainment',label:'Entertainment'}];
@@ -123,7 +123,7 @@ function peopleForWorld(snapshot:Snapshot,worldId:string,active:CharacterInstanc
     .filter((item):item is{person:FeaturedCompanion;score:number}=>Boolean(item))
     .sort((left,right)=>right.score-left.score||left.person.name.localeCompare(right.person.name));
   const withoutActive=ranked.filter((item)=>item.person.id!==activeTemplateId);
-  const results=withoutActive.length?withoutActive:ranked;
+  const results=options.includeActive?ranked:withoutActive.length?withoutActive:ranked;
   return results.slice(0,options.limit??24).map((item)=>item.person);
 }
 function friendly(value:string){return value.replace(/_/g,' ').replace(/\b\w/g,(letter)=>letter.toUpperCase())}

@@ -72,6 +72,23 @@ describe('Explore view model',()=>{
     expect(people.map((person)=>person.name)).toEqual(['Best Match']);
   });
 
+  it('includes the active resident and every gender when browsing the full cast',()=>{
+    const active={...companion,character_template_id:'active-template'} as CharacterInstance;
+    const scoped={
+      ...snapshot,
+      characters:[active],
+      discoverableCharacters:[
+        {id:'active-template',name:'Active Person',slug:'active',age:29,occupation:'Photographer',biography:'',can_be_selected:true,lifecycle_status:'published',together_character_versions:{id:'active-version',portrait_asset_key:'active',interests:[],personality_config:{},pronouns:'she/her'}},
+        {id:'other-template',name:'Other Person',slug:'other',age:32,occupation:'Engineer',biography:'',can_be_selected:true,lifecycle_status:'published',together_character_versions:{id:'other-version',portrait_asset_key:'other',interests:[],personality_config:{},pronouns:'he/him'}},
+      ],
+      characterWorldPresence:[
+        {id:'active-home',character_version_id:'active-version',world_id:'neon',presence_type:'resident',familiarity:1,visited_count:1,metadata:{}},
+        {id:'other-home',character_version_id:'other-version',world_id:'neon',presence_type:'resident',familiarity:1,visited_count:1,metadata:{}},
+      ],
+    } as unknown as Snapshot;
+    expect(buildExploreContext(scoped,active,'neon',{gender:'any',includeActive:true}).people.map((person)=>person.name)).toEqual(['Other Person','Active Person']);
+  });
+
   it('uses relationship-aware badges and limits repetitive new labels',()=>{
     const connected={id:'connected',name:'Connected',slug:'connected',age:28,occupation:'Writer',biography:'',together_character_versions:{id:'connected-version',portrait_asset_key:'connected',interests:[],personality_config:{}}} as Snapshot['discoverableCharacters'][number];
     const fresh={id:'fresh',name:'Fresh',slug:'fresh',age:28,occupation:'Writer',biography:'',discovery_metadata:{new:true},together_character_versions:{id:'fresh-version',portrait_asset_key:'fresh',interests:[],personality_config:{}}} as Snapshot['discoverableCharacters'][number];
