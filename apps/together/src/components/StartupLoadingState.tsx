@@ -15,7 +15,7 @@ export function StartupLoadingState() {
   const { width, height } = useWindowDimensions();
   const [reduceMotion, setReduceMotion] = useState(prefersReducedMotion);
   const [animationFailed, setAnimationFailed] = useState(false);
-  const artworkSize = Math.min(384, Math.max(280, width * .82));
+  const artworkSize = Math.min(128, Math.max(96, width * .28));
 
   useEffect(() => {
     let mounted = true;
