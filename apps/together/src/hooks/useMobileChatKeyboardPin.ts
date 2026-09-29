@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
-import { isMobileChatComposerElement } from '../lib/mobileChatKeyboard';
+import { chatRootFrameForVisibleViewport, isMobileChatComposerElement } from '../lib/mobileChatKeyboard';
 
 const KEYBOARD_SETTLE_DELAYS_MS = [0, 48, 140, 280, 520, 820] as const;
 
@@ -39,33 +39,48 @@ export function useMobileChatKeyboardPin(enabled: boolean, onPin: () => void) {
     const root = document.getElementById('root');
     const previousHeight = root?.style.height;
     const previousTransform = root?.style.transform;
+    let appliedTranslateY = 0;
     let blurTimer: ReturnType<typeof setTimeout> | undefined;
+    const fitTimers = new Set<ReturnType<typeof setTimeout>>();
 
     const restoreRoot = () => {
       if (!root) return;
       root.style.height = previousHeight ?? '';
       root.style.transform = previousTransform ?? '';
+      appliedTranslateY = 0;
     };
     const fitVisibleViewport = () => {
       if (!root || !isMobileChatComposerElement(document.activeElement)) return;
-      const height = visualViewport?.height ?? window.innerHeight;
-      if (!Number.isFinite(height) || height < 200) return;
-      // pageTop is more reliable than offsetTop during iOS keyboard panning.
-      const top = visualViewport
-        ? Math.max(0, visualViewport.pageTop - window.scrollY)
-        : 0;
-      root.style.height = `${Math.round(height)}px`;
-      root.style.transform = top > 0 ? `translateY(${Math.round(top)}px)` : previousTransform ?? '';
+      // Account for our own previous translation while measuring. Safari may
+      // already have panned the root, so applying the full offset twice leaves
+      // the composer far from the keyboard.
+      const frame = chatRootFrameForVisibleViewport({
+        rootTop: root.getBoundingClientRect().top - appliedTranslateY,
+        viewportTop: visualViewport?.offsetTop ?? 0,
+        viewportHeight: visualViewport?.height ?? window.innerHeight,
+      });
+      if (!frame) return;
+      root.style.height = `${Math.round(frame.height)}px`;
+      root.style.transform = frame.translateY > 0 ? `translateY(${Math.round(frame.translateY)}px)` : previousTransform ?? '';
+      appliedTranslateY = frame.translateY;
+    };
+    const settleViewportFit = () => {
+      for (const timer of fitTimers) clearTimeout(timer);
+      fitTimers.clear();
+      for (const delay of KEYBOARD_SETTLE_DELAYS_MS) {
+        const timer = setTimeout(() => { fitTimers.delete(timer); fitVisibleViewport(); }, delay);
+        fitTimers.add(timer);
+      }
     };
     const handleViewportChange = () => {
       if (isMobileChatComposerElement(document.activeElement)) {
-        fitVisibleViewport();
+        settleViewportFit();
         pinThroughKeyboardTransition();
       }
     };
     const handleFocusIn = () => {
       if (blurTimer) clearTimeout(blurTimer);
-      fitVisibleViewport();
+      settleViewportFit();
     };
     const handleFocusOut = () => {
       if (blurTimer) clearTimeout(blurTimer);
@@ -80,6 +95,7 @@ export function useMobileChatKeyboardPin(enabled: boolean, onPin: () => void) {
     document.addEventListener('focusout', handleFocusOut);
     return () => {
       if (blurTimer) clearTimeout(blurTimer);
+      for (const timer of fitTimers) clearTimeout(timer);
       visualViewport?.removeEventListener('resize', handleViewportChange);
       visualViewport?.removeEventListener('scroll', handleViewportChange);
       window.removeEventListener('resize', handleViewportChange);

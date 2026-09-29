@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isMobileChatComposerElement } from './mobileChatKeyboard';
+import { chatRootFrameForVisibleViewport, isMobileChatComposerElement } from './mobileChatKeyboard';
 
 describe('mobile chat keyboard pin', () => {
   it('recognizes the direct and group chat composers', () => {
@@ -11,5 +11,17 @@ describe('mobile chat keyboard pin', () => {
     expect(isMobileChatComposerElement({ id: 'explore-search' })).toBe(false);
     expect(isMobileChatComposerElement({})).toBe(false);
     expect(isMobileChatComposerElement(null)).toBe(false);
+  });
+});
+
+describe('chat viewport alignment', () => {
+  it('fills the visible area above the keyboard', () => {
+    expect(chatRootFrameForVisibleViewport({rootTop:0,viewportTop:0,viewportHeight:390})).toEqual({translateY:0,height:390});
+    expect(chatRootFrameForVisibleViewport({rootTop:0,viewportTop:80,viewportHeight:390})).toEqual({translateY:80,height:390});
+  });
+
+  it('does not pan a root that Safari has already moved', () => {
+    expect(chatRootFrameForVisibleViewport({rootTop:80,viewportTop:80,viewportHeight:390})).toEqual({translateY:0,height:390});
+    expect(chatRootFrameForVisibleViewport({rootTop:40,viewportTop:0,viewportHeight:390})).toEqual({translateY:0,height:350});
   });
 });
