@@ -656,7 +656,7 @@ export const styles = StyleSheet.create({
     paddingRight: 7,
     paddingVertical: 10,
     color: colors.text,
-    fontSize: 15,
+    fontSize: 16,
     backgroundColor: "transparent",
     ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as never) : {}),
   },
