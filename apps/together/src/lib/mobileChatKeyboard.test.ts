@@ -17,11 +17,16 @@ describe('mobile chat keyboard pin', () => {
 describe('chat viewport alignment', () => {
   it('fills the visible area above the keyboard', () => {
     expect(chatRootFrameForVisibleViewport({rootTop:0,viewportTop:0,viewportHeight:390})).toEqual({translateY:0,height:390});
-    expect(chatRootFrameForVisibleViewport({rootTop:0,viewportTop:80,viewportHeight:390})).toEqual({translateY:80,height:390});
+    expect(chatRootFrameForVisibleViewport({rootTop:0,viewportTop:80,viewportHeight:390})).toEqual({translateY:0,height:470});
   });
 
-  it('does not pan a root that Safari has already moved', () => {
+  it('does not create an empty top gap when Safari pans the visual viewport', () => {
+    expect(chatRootFrameForVisibleViewport({rootTop:0,viewportTop:550,viewportHeight:190})).toEqual({translateY:0,height:740});
+  });
+
+  it('only corrects an actual root shift', () => {
     expect(chatRootFrameForVisibleViewport({rootTop:80,viewportTop:80,viewportHeight:390})).toEqual({translateY:0,height:390});
     expect(chatRootFrameForVisibleViewport({rootTop:40,viewportTop:0,viewportHeight:390})).toEqual({translateY:0,height:350});
+    expect(chatRootFrameForVisibleViewport({rootTop:-80,viewportTop:80,viewportHeight:390})).toEqual({translateY:80,height:470});
   });
 });
