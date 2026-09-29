@@ -1,6 +1,6 @@
 # Private places
 
-Users can create up to 20 account-owned places within worlds they can access. A place can be a home or another private setting, with a name, description, activities, optional district, and optional photo. Creation, selection, editing, and archiving live in the plan picker, so an individual or group can invite companions through the same planning flow as authored venues.
+Users can create up to 20 account-owned places within worlds they can access. A place can be a home or another private setting, with a name, description, activities, optional district, required photo, and opening hours (24/7 by default). Creation, selection, editing, and archiving live in the plan picker, so an individual or group can invite companions through the same planning flow as authored venues.
 
 ## Data and access
 
@@ -14,7 +14,7 @@ Users can create up to 20 account-owned places within worlds they can access. A 
 1. The picker saves a private place and offers its specific activities. The selected location and activity go through the existing single/group plan validation and attendance path.
 2. Active plans and scenes resolve that same ID into the place's description, visual prompt, district ancestry, and image reference. Dialogue and media can therefore recognize the actual setting rather than substituting a generic home.
    An explicit personal location takes precedence over the companion's usual “at home” schedule fallback.
-3. The main snapshot includes the owner's place and a short-lived signed image URL for plan cards. Explore and public world directories continue showing authored places only.
+3. The main snapshot includes the owner's place and a short-lived signed image URL. The shared `locationImageSource` resolver prefers the uploaded image for chat backgrounds, scene panels, location details, plans, and Moments, with a storage-path cache key that survives renewed signatures. Saving or replacing a place updates the owner's current snapshot immediately and invalidates older in-flight reads. Explore and public world directories continue showing authored places only.
 4. The video location selector includes the owner's private places. The same owner and world checks apply when a location is submitted directly.
 
 ## Release checks
