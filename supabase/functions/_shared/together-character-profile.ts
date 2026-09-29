@@ -8,6 +8,23 @@ const relationOne = (value: unknown): Row | null => {
   return row && typeof row === 'object' ? row as Row : null;
 };
 
+// Some imported worlds supplied an editorial note in place of a public
+// relationship history. It is useful to the simulation, but reads like
+// behind-the-scenes copy on a character profile.
+export function publicRelationshipHistory(value: unknown): string | null {
+  const history = String(value ?? '').trim();
+  if (!history) return null;
+  if (history === 'An established personal connection; details require direct knowledge.') return null;
+  if (history === 'They belong to an authored Vespormoor social circle, but closeness and what they share remain relationship-specific.') return null;
+  if (/^They know one another through [^,]+, (?:shared work|house work), faction overlap, or repeated (?:travel|nights under lantern law)\.$/.test(history)) return null;
+  return history.slice(0, 500);
+}
+
+function publicRelationshipLabel(value: unknown): string {
+  const label = String(value ?? '').trim().replaceAll('_', ' ').replace(/\s+/g, ' ');
+  return (label || 'Connection').slice(0, 100);
+}
+
 export type PublicCharacterConnection = {
   id: string;
   worldId: string;
@@ -73,17 +90,18 @@ export function projectPublicCharacterConnections(input: {
     const versions = Array.isArray(target.together_character_versions) ? target.together_character_versions : [];
     const version = versions.find((item: Row) => Number(item.version) === Number(target.current_published_version)) ?? versions[0] ?? {};
     const primary = pair.outgoing ?? pair.incoming ?? {};
+    const history = publicRelationshipHistory(primary.history);
     const scores = [pair.outgoing, pair.incoming].filter(Boolean) as Row[];
     const salience = Math.max(...scores.map((edge) => Math.abs(Number(edge.affinity ?? 50) - 50) + Math.abs(Number(edge.trust ?? 50) - 50)), 0)
       + (pair.outgoing && pair.incoming ? 20 : 0)
-      + (String(primary.history ?? '').trim() ? 5 : 0);
+      + (history ? 5 : 0);
     return {
       connection: {
         id: `${input.worldId}:${otherId}`,
         worldId: input.worldId,
         direction: pair.outgoing && pair.incoming ? 'mutual' as const : pair.outgoing ? 'outgoing' as const : 'incoming' as const,
-        relationshipLabel: String(primary.relationship_type ?? 'connection').trim().slice(0, 100) || 'connection',
-        history: String(primary.history ?? '').trim().slice(0, 500) || null,
+        relationshipLabel: publicRelationshipLabel(primary.relationship_type),
+        history,
         character: {
           id: otherId,
           name: String(target.name ?? 'Unknown character').slice(0, 100),
