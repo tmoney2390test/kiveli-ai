@@ -38,10 +38,9 @@ import {
   voiceMeterMinuteAvailable,
 } from "../_shared/voice-usage.ts";
 import {
-  resolveRealtimeVoiceContentMode,
+  resolveConversationVoiceContentMode,
   voiceCallFallbackLifeRun,
 } from "../_shared/voice-call-policy.ts";
-import { conversationDialogueContentMode } from "../_shared/conversation-content-mode.ts";
 import { XAI_REALTIME_VOICE_MODEL } from "../_shared/xai-voice.ts";
 import {
   voiceCallBlockingStatuses,
@@ -57,7 +56,6 @@ import {
 import { verifyVoiceRelayUsageProof } from "../_shared/voice-relay-token.ts";
 import { normalizeChatLanguage } from "../../../packages/together-domain/src/chat-language.ts";
 import { verifyWebSurfaceAssertion } from "../_shared/web-adult-access.ts";
-import { resolveAdultEligibility } from "../../../packages/together-domain/src/platform-content-policy.ts";
 
 const transcriptEvent = z.object({
   sequence: z.number().int().positive().max(1_000_000),
@@ -210,7 +208,7 @@ serve(async (request, correlationId) => {
       { data: entitlement },
       { data: duplicate },
     ] = await Promise.all([
-      db.from("together_character_instances").select("*")
+      db.from("together_character_instances").select("*,together_character_templates(*),together_character_versions(*)")
         .eq("id", input.characterInstanceId).eq("user_id", user.id)
         .eq("continuity_id", continuity.id).maybeSingle(),
       db.from("together_conversations").select("*")
@@ -1112,6 +1110,17 @@ async function prepareProviderSession(
   },
 ): Promise<{ call: Record<string, any>; session: RealtimeVoiceSession }> {
   const preparationStartedAt = Date.now();
+  // Reconnects may supply only the instance row. Voice needs canonical age,
+  // identity, and character voice just as the initial session does.
+  if (!input.instance.together_character_templates || !input.instance.together_character_versions) {
+    const { data: instance, error } = await input.db.from('together_character_instances')
+      .select('*,together_character_templates(*),together_character_versions(*)')
+      .eq('id', input.instance.id).eq('user_id', input.userId).single();
+    if (error || !instance) throw new AppError('INTERNAL_ERROR', 'The companion could not be loaded for this call.', 500, true);
+    input = { ...input, instance };
+  }
+  const verifiedWebSurface = await verifyWebSurfaceAssertion(input.request, input.userId);
+  const authorizedAdultHistory = resolvedRealtimeContentMode({}, input.profile, input.instance, input.conversation, verifiedWebSurface) === 'explicit';
   const lifeRun = await resolveVoiceCallLifeRun({
     db: input.db,
     userId: input.userId,
@@ -1133,6 +1142,8 @@ async function prepareProviderSession(
       semanticRows: [],
       now: new Date(),
       correlationId: input.correlationId,
+      authorizedWebAdult: authorizedAdultHistory,
+      authorizedPrivateAdultText: authorizedAdultHistory,
     }),
     (async () => {
       const voicePreset = storedVoicePreset
@@ -1154,7 +1165,7 @@ async function prepareProviderSession(
     input.profile,
     input.instance,
     input.conversation,
-    await verifyWebSurfaceAssertion(input.request, input.userId),
+    verifiedWebSurface,
   );
   const voiceUsageSequenceStart = Math.max(
     0,
@@ -1231,6 +1242,8 @@ async function buildCallContext(
   const { data: profile } = await input.db.from("together_profiles").select(
     "age_verified_at,adult_eligible_at,date_of_birth,content_preferences",
   ).eq("user_id", input.userId).single();
+  const verifiedWebSurface = await verifyWebSurfaceAssertion(input.request, input.userId);
+  const authorizedAdultHistory = resolvedRealtimeContentMode({}, profile, instance, conversation, verifiedWebSurface) === 'explicit';
   const now = new Date(),
     lifeRun = await resolveVoiceCallLifeRun({
       db: input.db,
@@ -1251,13 +1264,15 @@ async function buildCallContext(
     semanticRows: [],
     now,
     correlationId: input.correlationId,
+    authorizedWebAdult: authorizedAdultHistory,
+    authorizedPrivateAdultText: authorizedAdultHistory,
   });
   context.contentMode = resolvedRealtimeContentMode(
     context,
     profile,
     instance,
     conversation,
-    await verifyWebSurfaceAssertion(input.request, input.userId),
+    verifiedWebSurface,
   );
   return { context, instance, conversation };
 }
@@ -1312,17 +1327,11 @@ function resolvedRealtimeContentMode(
       instance.together_character_versions?.age ?? context.character?.age ?? 0,
   );
   const relationship = record(context.relationship);
-  return resolveRealtimeVoiceContentMode({
-    requestedMode: conversationDialogueContentMode(profile, conversation),
-    ageVerified: resolveAdultEligibility({
-      adultEligibleAt: profile?.adult_eligible_at,
-      ageVerifiedAt: profile?.age_verified_at,
-      dateOfBirth: profile?.date_of_birth,
-    }).allowed,
+  return resolveConversationVoiceContentMode({
+    profile,
+    conversation,
     characterAge,
-    romanceEnabled: profile?.content_preferences?.romanceEnabled !== false &&
-      relationship.romance_enabled !== false,
-    friendsOnly: relationship.romance_path_status === "friends_only",
+    relationship,
     verifiedWebSurface,
     webAdultEnabled: Deno.env.get("WEB_ADULT_MODE_ENABLED") === "true",
   });

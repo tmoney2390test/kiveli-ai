@@ -1,5 +1,6 @@
 import {
   resolveRealtimeVoiceContentMode,
+  resolveConversationVoiceContentMode,
   voiceCallFallbackLifeRun,
 } from "./voice-call-policy.ts";
 
@@ -12,6 +13,16 @@ const eligible = {
   verifiedWebSurface: true,
   webAdultEnabled: true,
 };
+
+Deno.test('real saved Spicy preferences reach voice authorization without the text-provider cap',()=>{
+  const input={profile:{age_verified_at:'2026-09-22T01:43:38Z',adult_eligible_at:'2026-09-22T01:43:38Z',content_preferences:{contentMode:'explicit',romanceEnabled:true}},conversation:{metadata:{chatPreferences:{contentMode:'explicit'}}},characterAge:18,verifiedWebSurface:true,webAdultEnabled:true};
+  assert(resolveConversationVoiceContentMode(input)==='explicit');
+  assert(resolveConversationVoiceContentMode({...input,verifiedWebSurface:false})==='mature');
+  assert(resolveConversationVoiceContentMode({...input,characterAge:undefined})!=='explicit');
+  assert(resolveConversationVoiceContentMode({...input,profile:{...input.profile,age_verified_at:null,adult_eligible_at:null}})!=='explicit');
+  assert(resolveConversationVoiceContentMode({...input,relationship:{romance_path_status:'friends_only'}})==='standard');
+  assert(resolveConversationVoiceContentMode({...input,conversation:{metadata:{chatPreferences:{contentMode:'romance'}}}})==='romance');
+});
 
 Deno.test("verified adult website calls inherit explicit chat mode", () => {
   assert(resolveRealtimeVoiceContentMode(eligible) === "explicit");
