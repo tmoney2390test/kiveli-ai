@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { authErrorMessage } from '../lib/authErrors';
 import { createTogetherAccount, manageAccount } from '../lib/api';
 import { getValidatedPersistedSession } from '../lib/authSession';
-import { appleUserMetadata, parseOAuthCallbackUrl, resolveSocialAuthCapabilities, socialAuthErrorMessage, type SocialAuthCapabilities, type SocialAuthProvider } from '../lib/socialAuth';
+import { appleUserMetadata, parseOAuthCallbackUrl, resolveSocialAuthCapabilities, socialAuthErrorMessage, socialOAuthCallbackPath, type SocialAuthCapabilities, type SocialAuthProvider } from '../lib/socialAuth';
 
 type SignUpResult = { needsEmailConfirmation: boolean };
 type AuthValue = {
@@ -164,8 +164,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           return;
         }
 
-        const suffix = next ? `?next=${encodeURIComponent(next)}` : '';
-        const redirectTo = authRedirectUrl(`/auth/callback${suffix}`);
+        const redirectTo = authRedirectUrl(socialOAuthCallbackPath(Platform.OS,next));
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider,
           options: {

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { appleUserMetadata, parseOAuthCallbackUrl, resolveSocialAuthCapabilities, socialAuthErrorMessage } from './socialAuth';
+import { appleUserMetadata, parseOAuthCallbackUrl, resolveSocialAuthCapabilities, socialAuthErrorMessage, socialOAuthCallbackPath } from './socialAuth';
 
 describe('social authentication foundation',()=>{
+  it('uses the exact allowlisted callback for native OAuth even with a return destination',()=>{
+    expect(socialOAuthCallbackPath('ios','/chat?conversation=123')).toBe('/auth/callback');
+    expect(socialOAuthCallbackPath('android','/chat?conversation=123')).toBe('/auth/callback');
+    expect(socialOAuthCallbackPath('web','/chat?conversation=123')).toBe('/auth/callback?next=%2Fchat%3Fconversation%3D123');
+  });
   it('keeps providers fail-closed until explicitly enabled',()=>{
     expect(resolveSocialAuthCapabilities({})).toEqual({google:false,apple:false});
     expect(resolveSocialAuthCapabilities({google:'true',apple:'TRUE'})).toEqual({google:true,apple:true});

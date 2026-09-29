@@ -6,6 +6,12 @@ export function resolveSocialAuthCapabilities(input:{google?:string;apple?:strin
   return{google:input.google?.toLowerCase()==='true',apple:input.apple?.toLowerCase()==='true'};
 }
 
+export function socialOAuthCallbackPath(platform:string,next?:string|null):string{
+  // Native OAuth must use the exact callback in Supabase's production allowlist.
+  // The native auth screen retains its return destination after the popup closes.
+  return platform==='web'&&next?`/auth/callback?next=${encodeURIComponent(next)}`:'/auth/callback';
+}
+
 export function parseOAuthCallbackUrl(value:string):{code?:string;error?:string}{
   try{const url=new URL(value),fragment=new URLSearchParams(url.hash.replace(/^#/,'')),code=url.searchParams.get('code')??fragment.get('code')??undefined,error=url.searchParams.get('error_description')??url.searchParams.get('error')??fragment.get('error_description')??fragment.get('error')??undefined;return{...(code?{code}:{}),...(error?{error}: {})};}
   catch{return{error:'The sign-in callback was invalid.'};}
