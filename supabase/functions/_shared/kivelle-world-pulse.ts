@@ -24,7 +24,7 @@ export async function materializeWorldPulse(input:{db:SupabaseClient;userId:stri
       const probability=Math.max(0,Math.min(1,Number(template.probability??1))),roll=(stableWorldPulseHash(`${input.continuityId}:${template.id}:${localDate}`)%10000)/10000;if(roll>probability)continue;
       const startsAt=localToUtc(localDate,Number(template.start_minute??720),input.timezone),endsAt=new Date(startsAt.getTime()+Number(template.duration_minutes??120)*60000),simulationKey=`world-pulse-v1:${template.id}:${localDate}`;
       const status=endsAt<=now?'completed':startsAt<=now?'active':'scheduled';
-      candidates.push({template,row:{user_id:input.userId,continuity_id:input.continuityId,template_id:template.id,world_id:input.worldId,location_id:template.location_id??null,district_location_id:template.district_location_id??null,local_date:localDate,starts_at:startsAt.toISOString(),ends_at:endsAt.toISOString(),status,public_summary:template.summary,atmosphere:template.atmosphere??null,weather:template.weather??{},simulation_key:simulationKey,metadata:{source:'world_pulse_v1'}}});
+      candidates.push({template,row:{user_id:input.userId,continuity_id:input.continuityId,template_id:template.id,world_id:input.worldId,location_id:template.location_id??null,district_location_id:template.district_location_id??null,local_date:localDate,starts_at:startsAt.toISOString(),ends_at:endsAt.toISOString(),status,public_summary:template.summary,atmosphere:template.atmosphere??null,weather:template.weather??{},simulation_key:simulationKey,metadata:{source:'world_pulse_v1'},updated_at:now.toISOString()}});
     }
   }
   if(!candidates.length)return{templates:Number(templates?.length??0),materialized:0};
@@ -47,11 +47,11 @@ export function worldPulseCharactersBySlug(characters:Row[],worldId:string):Map<
   return result;
 }
 
-export async function loadWorldPulse(input:{db:SupabaseClient;userId:string;continuityId:string;worldId:string;from?:Date;to?:Date;limit?:number}):Promise<WorldPulseEvent[]>{
-  const now=new Date(),from=input.from??new Date(now.getTime()-18*3600000),to=input.to??new Date(now.getTime()+7*86400000);
+export async function loadWorldPulse(input:{db:SupabaseClient;userId:string;continuityId:string;worldId:string;from?:Date;to?:Date;limit?:number;now?:Date}):Promise<WorldPulseEvent[]>{
+  const now=input.now??new Date(),from=input.from??new Date(now.getTime()-18*3600000),to=input.to??new Date(now.getTime()+7*86400000);
   const {data,error}=await input.db.from('together_world_event_instances').select(WORLD_PULSE_EVENT_SELECT).eq('user_id',input.userId).eq('continuity_id',input.continuityId).eq('world_id',input.worldId).neq('status','cancelled').gte('ends_at',from.toISOString()).lte('starts_at',to.toISOString()).order('starts_at').limit(Math.max(1,Math.min(96,input.limit??72)));
   if(error)throw error;
-  return(data??[]).map(mapWorldPulseEvent);
+  return(data??[]).map(row=>mapWorldPulseEvent(row,now));
 }
 
 export async function resolveRelevantWorldPulse(input:{db:SupabaseClient;userId:string;continuityId:string;worldId:string;userMessage:string;currentLocationId?:string|null;districtLocationId?:string|null;characterInstanceId?:string|null;characterIsLocal?:boolean;now?:Date;maximumResults?:number}):Promise<WorldPulseContextEvent[]>{
@@ -59,15 +59,40 @@ export async function resolveRelevantWorldPulse(input:{db:SupabaseClient;userId:
   return selectWorldPulseForContext(events,{now:input.now,userMessage:input.userMessage,currentLocationId:input.currentLocationId,districtLocationId:input.districtLocationId,characterInstanceId:input.characterInstanceId,characterIsLocal:input.characterIsLocal,maximumResults:input.maximumResults});
 }
 
-export async function loadAroundTown(input:{db:SupabaseClient;userId:string;continuityId:string;worldId:string;timezone:string;now?:Date;limit?:number}):Promise<{events:WorldPulseEvent[];items:AroundTownItem[]} >{
-  const now=input.now??new Date();await materializeWorldPulse({...input,now});const loaded=await loadWorldPulse({...input,from:new Date(now.getTime()-2*3600000),to:new Date(now.getTime()+7*86400000)});const events=loaded.filter((event)=>event.knowledgeScope==='public'||event.knowledgeScope==='local');return{events,items:buildAroundTownFeed(events,{now,limit:input.limit})};
+export async function loadAroundTown(input:{db:SupabaseClient;userId:string;continuityId:string;worldId:string;timezone:string;now?:Date;limit?:number;refreshInBackground?:(task:Promise<unknown>)=>void}):Promise<{events:WorldPulseEvent[];items:AroundTownItem[]} >{
+  const now=input.now??new Date();
+  const window={from:new Date(now.getTime()-2*3600000),to:new Date(now.getTime()+7*86400000)};
+  let loaded=await loadWorldPulse({...input,...window});
+  if(loaded.some(event=>event.metadata?.source==='world_pulse_v1')){
+    // Existing events are useful immediately; refresh the next week away from
+    // the response path. Event status is derived from its timestamps below.
+    const{data:recentMaterialization,error:freshnessError}=await input.db.from('together_world_event_instances').select('id')
+      .eq('user_id',input.userId).eq('continuity_id',input.continuityId).eq('world_id',input.worldId)
+      .neq('status','cancelled').like('simulation_key','world-pulse-v1:%')
+      .gte('updated_at',new Date(now.getTime()-30*60000).toISOString()).limit(1);
+    if(freshnessError)throw freshnessError;
+    if(!recentMaterialization?.length){
+      const refresh=materializeWorldPulse({...input,now}).catch(error=>console.error('World Pulse refresh failed',error));
+      if(input.refreshInBackground)input.refreshInBackground(refresh);
+      else await refresh;
+    }
+  }else{
+    // A new Life/world still needs its first set of events before rendering.
+    await materializeWorldPulse({...input,now});
+    loaded=await loadWorldPulse({...input,...window});
+  }
+  const events=loaded.filter((event)=>event.knowledgeScope==='public'||event.knowledgeScope==='local');
+  return{events,items:buildAroundTownFeed(events,{now,limit:input.limit})};
 }
 
-function mapWorldPulseEvent(row:Row):WorldPulseEvent{
+function mapWorldPulseEvent(row:Row,now:Date):WorldPulseEvent{
   const template=Array.isArray(row.together_world_event_templates)?row.together_world_event_templates[0]:row.together_world_event_templates??{},location=Array.isArray(row.together_locations)?row.together_locations[0]:row.together_locations??{};
   const participants=(row.together_world_event_participants??[]) as Row[];
   const metadata={...(template.metadata??{}),...(row.metadata??{})};
-  return{id:String(row.id),templateId:String(row.template_id),worldId:String(row.world_id),locationId:row.location_id?String(row.location_id):null,districtLocationId:row.district_location_id?String(row.district_location_id):null,title:String(metadata.narrativeTitle??template.title??row.public_summary??'Around town'),summary:String(row.public_summary??''),eventType:String(metadata.narrativeEventType??template.event_type??'community'),startsAt:String(row.starts_at),endsAt:String(row.ends_at),status:String(row.status) as WorldPulseEvent['status'],knowledgeScope:String(metadata.narrativeKnowledgeScope??template.knowledge_scope??'public') as WorldPulseEvent['knowledgeScope'],significance:Number(metadata.narrativeSignificance??template.significance??.5),topicTags:[...new Set([...stringArray(template.topic_tags),...stringArray(metadata.consequences)])],activityTags:stringArray(template.activity_tags),participantCharacterInstanceIds:participants.map(item=>String(item.character_instance_id)),participantNames:participants.map(item=>{const instance=Array.isArray(item.together_character_instances)?item.together_character_instances[0]:item.together_character_instances;const character=Array.isArray(instance?.together_character_templates)?instance.together_character_templates[0]:instance?.together_character_templates;return String(character?.name??'');}).filter(Boolean),locationName:location.name?String(location.name):null,locationSlug:location.slug?String(location.slug):null,atmosphere:row.atmosphere?String(row.atmosphere):null,weather:row.weather??{},planAffordances:template.plan_affordances??{},metadata};
+  const status=String(row.simulation_key??'').startsWith('world-pulse-v1:')
+    ? new Date(row.ends_at).getTime()<=now.getTime()?'completed':new Date(row.starts_at).getTime()<=now.getTime()?'active':'scheduled'
+    : String(row.status) as WorldPulseEvent['status'];
+  return{id:String(row.id),templateId:String(row.template_id),worldId:String(row.world_id),locationId:row.location_id?String(row.location_id):null,districtLocationId:row.district_location_id?String(row.district_location_id):null,title:String(metadata.narrativeTitle??template.title??row.public_summary??'Around town'),summary:String(row.public_summary??''),eventType:String(metadata.narrativeEventType??template.event_type??'community'),startsAt:String(row.starts_at),endsAt:String(row.ends_at),status,knowledgeScope:String(metadata.narrativeKnowledgeScope??template.knowledge_scope??'public') as WorldPulseEvent['knowledgeScope'],significance:Number(metadata.narrativeSignificance??template.significance??.5),topicTags:[...new Set([...stringArray(template.topic_tags),...stringArray(metadata.consequences)])],activityTags:stringArray(template.activity_tags),participantCharacterInstanceIds:participants.map(item=>String(item.character_instance_id)),participantNames:participants.map(item=>{const instance=Array.isArray(item.together_character_instances)?item.together_character_instances[0]:item.together_character_instances;const character=Array.isArray(instance?.together_character_templates)?instance.together_character_templates[0]:instance?.together_character_templates;return String(character?.name??'');}).filter(Boolean),locationName:location.name?String(location.name):null,locationSlug:location.slug?String(location.slug):null,atmosphere:row.atmosphere?String(row.atmosphere):null,weather:row.weather??{},planAffordances:template.plan_affordances??{},metadata};
 }
 function stringArray(value:unknown){return Array.isArray(value)?value.map(String):[];}
 function addLocalDays(date:string,days:number){const value=new Date(`${date}T12:00:00Z`);value.setUTCDate(value.getUTCDate()+days);return value.toISOString().slice(0,10);}
