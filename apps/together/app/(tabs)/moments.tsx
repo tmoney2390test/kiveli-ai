@@ -7,7 +7,7 @@ import { CharacterAvatar, EmptyState, FrostedSurface, GlassCard, MomentCard, Pag
 import { colors, radius } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { selectActiveCompanion, selectPortraitVersion } from '../../src/lib/selectors';
-import { worldForLocation } from '../../src/lib/place';
+import { locationAncestry, worldForLocation } from '../../src/lib/place';
 import { buildMomentsFeed, planSummary, videoMomentFrameUrl, type MomentsFeedEntry, type MomentsFeedFilter } from '../../src/lib/momentsFeed';
 import { mostRecentlyMessagedConversation } from '../../src/lib/conversation';
 import { locationHeroAsset } from '../../src/assets';
@@ -110,7 +110,11 @@ function FeedCard({entry,companionId,onMediaLoad}:{entry:MomentsFeedEntry;compan
   const meta=[entryLabel(entry),companionId==='all'?character?.together_character_templates.name:null,place?.name,world?.name].filter(Boolean).join(' · ');
   const mediaUrl=entryMediaUrl(snapshot,entry);
   const videoUrl=videoMomentFrameUrl(entry);
-  const locationFallback=entry.kind==='memory'&&place?locationHeroAsset(world?.slug,place.slug):undefined;
+  const locationFallback=place
+    ?place.custom_image_url
+      ?{uri:place.custom_image_url}
+      :locationHeroAsset(world?.slug,place.slug,locationAncestry(snapshot,place.id).map((ancestor)=>ancestor.slug))
+    :undefined;
   const open=()=>{
     if(entry.kind==='moment')router.push(`/moment/${entry.id}` as never);
     else if(entry.kind==='photo'||entry.kind==='video')router.push(`/media/${entry.id}?gallery=moments&character=${encodeURIComponent(companionId)}` as never);
