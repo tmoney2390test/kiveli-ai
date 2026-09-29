@@ -77,7 +77,7 @@ export function resolveDialogueRunGenerationProfile(input:{
     ...profile,
     visibleTokenBudget,
     reasoningTokenReserve:0,
-    providerMaxOutputTokens:visibleTokenBudget,
+    providerMaxOutputTokens:visibleTokenBudget+Math.max(160,Math.ceil(visibleTokenBudget/2)),
     reasonCodes:[...profile.reasonCodes,'fast_response_budget'],
   };
 }

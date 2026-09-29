@@ -173,19 +173,19 @@ describe('generation profile resolution', () => {
     const profiles = CHAT_DYNAMISM_VALUES.map((chatDynamism) => resolveDialogueGenerationProfile({ ...baseInput, preferences: { chatDynamism, reasoningPreference: 'high' } }));
     expect(new Set(profiles.map((profile) => profile.visibleTokenBudget))).toEqual(new Set([160]));
     expect(new Set(profiles.map((profile) => profile.reasoningTokenReserve))).toEqual(new Set([REASONING_TOKEN_RESERVES.high]));
-    expect(new Set(profiles.map((profile) => profile.providerMaxOutputTokens))).toEqual(new Set([160 + REASONING_TOKEN_RESERVES.high]));
+    expect(new Set(profiles.map((profile) => profile.providerMaxOutputTokens))).toEqual(new Set([320 + REASONING_TOKEN_RESERVES.high]));
   });
 
   it.each(['none', 'low', 'medium', 'high'] as const)('reserves the expected provider output allowance for %s', (reasoningPreference) => {
     const profile = resolveDialogueGenerationProfile({ ...baseInput, preferences: { chatDynamism: 50, reasoningPreference } });
     expect(profile.reasoningTokenReserve).toBe(REASONING_TOKEN_RESERVES[reasoningPreference]);
-    expect(profile.providerMaxOutputTokens).toBe(profile.visibleTokenBudget + profile.reasoningTokenReserve);
+    expect(profile.providerMaxOutputTokens).toBe(profile.visibleTokenBudget + 160 + profile.reasoningTokenReserve);
   });
 
   it('clamps the reasoning reserve to a provider maximum while retaining the visible budget separately', () => {
     const profile = resolveDialogueGenerationProfile({ ...baseInput, responseStyle: 'paragraph', targetLength: 'long', preferences: { chatDynamism: 50, reasoningPreference: 'high' }, providerCapabilities: { supportedReasoningEfforts: ['none', 'low', 'medium', 'high'], supportsTemperature: false, supportsTemperatureWithReasoning: false, maxOutputTokens: 700 } });
     expect(profile.visibleTokenBudget).toBe(520);
-    expect(profile.reasoningTokenReserve).toBe(180);
+    expect(profile.reasoningTokenReserve).toBe(0);
     expect(profile.providerMaxOutputTokens).toBe(700);
     expect(profile.reasonCodes).toContain('provider_output_token_clamp');
   });
@@ -242,8 +242,8 @@ describe('visible output enforcement',()=>{
 describe('rollout modes and plan choices',()=>{
   it('keeps off and shadow provider behavior identical to the legacy path',()=>{
     const profile=resolveDialogueGenerationProfile({...baseInput,preferences:{chatDynamism:100,reasoningPreference:'high'}});
-    expect(providerGenerationControls(profile,'off')).toEqual({reasoningEffort:'none',maxOutputTokens:profile.visibleTokenBudget,promptDynamismApplied:false});
-    expect(providerGenerationControls(profile,'shadow')).toEqual({reasoningEffort:'none',maxOutputTokens:profile.visibleTokenBudget,promptDynamismApplied:false});
+    expect(providerGenerationControls(profile,'off')).toEqual({reasoningEffort:'none',maxOutputTokens:profile.providerMaxOutputTokens-profile.reasoningTokenReserve,promptDynamismApplied:false});
+    expect(providerGenerationControls(profile,'shadow')).toEqual({reasoningEffort:'none',maxOutputTokens:profile.providerMaxOutputTokens-profile.reasoningTokenReserve,promptDynamismApplied:false});
     expect(providerGenerationControls(profile,'on')).toEqual({reasoningEffort:'high',maxOutputTokens:profile.providerMaxOutputTokens,promptDynamismApplied:true});
     const noReasoning=resolveDialogueGenerationProfile({...baseInput,preferences:{chatDynamism:100,reasoningPreference:'none'}});
     expect(providerGenerationControls(noReasoning,'on').temperature).toBe(1.15);

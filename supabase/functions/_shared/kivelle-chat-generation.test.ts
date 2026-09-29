@@ -37,7 +37,7 @@ Deno.test('Fast Grok replies use a lower-cost bounded visible response budget',(
     assertEquals(profile.effectiveReasoning,'none');
     assertEquals(profile.latencyProfile,'fast');
     assertEquals(profile.visibleTokenBudget,240);
-    assertEquals(profile.providerMaxOutputTokens,240);
+    assertEquals(profile.providerMaxOutputTokens,400);
     assertEquals(profile.reasonCodes.includes('fast_response_budget'),true);
     assertEquals(xaiFastVisibleTokenCap('9999'),520);
     assertEquals(xaiFastVisibleTokenCap('invalid'),240);

@@ -1,5 +1,37 @@
 import { assertEquals,assertRejects } from 'jsr:@std/assert';
-import { executeResponsesWithTemperatureFallback,geminiDialogueRequestBody,isUnsupportedServiceTierResponse,openAIDialogueModel,openAIFastServiceTier,xaiDialogueModel } from './together-ai.ts';
+import { ConfiguredDialogueProvider,executeResponsesWithTemperatureFallback,geminiDialogueRequestBody,isUnsupportedServiceTierResponse,openAIDialogueModel,openAIFastServiceTier,xaiDialogueModel } from './together-ai.ts';
+
+Deno.test('completed streamed replies retain the full answer beyond the writing target',async()=>{
+  const originalFetch=globalThis.fetch,key=Deno.env.get('OPENAI_API_KEY'),mode=Deno.env.get('KIVELLE_CHAT_GENERATION_CONTROLS_MODE');
+  Deno.env.set('OPENAI_API_KEY','test-only');Deno.env.set('KIVELLE_CHAT_GENERATION_CONTROLS_MODE','on');
+  const answer='The kingdom is unsettled. '+ 'The lower city is bearing the cost. '.repeat(25)+'The court hears petitions tomorrow.';
+  let requestedMaximum=0;
+  globalThis.fetch=((_url,init)=>{
+    requestedMaximum=Number((JSON.parse(String(init?.body)) as {max_output_tokens:number}).max_output_tokens);
+    const events=[
+      {type:'response.output_text.delta',delta:answer.slice(0,150)},
+      {type:'response.output_text.delta',delta:answer.slice(150)},
+      {type:'response.completed',response:{usage:{input_tokens:100,output_tokens:180}}},
+    ];
+    return Promise.resolve(new Response(events.map(event=>`data: ${JSON.stringify(event)}\n\n`).join(''),{headers:{'Content-Type':'text/event-stream'}}));
+  }) as typeof fetch;
+  try{
+    const context={character:{name:'Rooke',age:30},userMessage:'Please explain the current status of this world',recent:[],relationship:{},memories:[],conversationStyle:'texting',subscription:{tier:'kivelle_max'}} as never;
+    const route={provider:'openai',requestedMode:'standard',resolvedMode:'standard',reason:'standard_default',classification:'safe',explicit:false,adultEligible:false,hardBlocked:false} as never;
+    let delivered='',complete=false;
+    for await(const event of new ConfiguredDialogueProvider().stream(context,{route,strictRoute:true} as never)){
+      if(event.type==='token')delivered+=event.token;
+      else complete=true;
+    }
+    assertEquals(complete,true);
+    assertEquals(delivered,answer);
+    assertEquals(requestedMaximum>300,true);
+  }finally{
+    globalThis.fetch=originalFetch;
+    if(key===undefined)Deno.env.delete('OPENAI_API_KEY');else Deno.env.set('OPENAI_API_KEY',key);
+    if(mode===undefined)Deno.env.delete('KIVELLE_CHAT_GENERATION_CONTROLS_MODE');else Deno.env.set('KIVELLE_CHAT_GENERATION_CONTROLS_MODE',mode);
+  }
+});
 
 Deno.test('temperature compatibility retry removes only temperature and runs once',async()=>{
   const bodies:Record<string,unknown>[]=[];
@@ -99,7 +131,7 @@ Deno.test('Gemini fallback applies dynamism, group hierarchy, reasoning, and vis
   const body=geminiDialogueRequestBody(context,options,'gemini-2.5-flash') as {contents:Array<{parts:Array<{text:string}>}>;generationConfig:Record<string,unknown>};
   assertEquals(body.generationConfig.temperature,1.15);
   assertEquals(body.generationConfig.thinkingConfig,{thinkingBudget:2048,includeThoughts:false});
-  assertEquals(body.generationConfig.maxOutputTokens,1324);
+  assertEquals(body.generationConfig.maxOutputTokens,1484);
   assertEquals(body.contents[0]?.parts[0]?.text.includes('<CHAT_DYNAMISM>'),true);
   assertEquals(body.contents[0]?.parts[0]?.text.includes('Do not make the participants sound alike.'),true);
 });
