@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '../types';
-import { homeCompanionRecommendations } from './homeCompanionRecommendations';
+import { homeCompanionRecommendations, homeUnmetCompanionRecommendations } from './homeCompanionRecommendations';
 import { featuredCompanionGender } from './featuredCompanions';
 
 const now = Date.parse('2026-09-15T12:00:00Z');
@@ -46,5 +46,27 @@ describe('Home companion recommendations', () => {
     const result = homeCompanionRecommendations(s, 'home', undefined, now);
     expect(result.map(x => x.id)).toEqual(['only-woman', 'local-man']);
     expect(new Set(result.map(x => x.id)).size).toBe(result.length);
+  });
+  it('fills sixteen unseen companions from other published worlds after the selected world', () => {
+    const s = fixture();
+    s.worlds = [
+      { id: 'home', slug: 'home', name: 'Home', published: true },
+      { id: 'other', slug: 'other', name: 'Other', published: true },
+      { id: 'hidden', slug: 'hidden', name: 'Hidden', published: false },
+      { id: 'soon', slug: 'soon', name: 'Soon', published: true, metadata: { coming_soon: true } },
+    ] as unknown as Snapshot['worlds'];
+    s.discoverableCharacters = [
+      ...Array.from({ length: 8 }, (_, i) => person(`home-${i}`, i % 2 ? 'female' : 'male')),
+      ...Array.from({ length: 14 }, (_, i) => person(`other-${i}`, i % 2 ? 'female' : 'male', 'other')),
+      person('hidden-1', 'female', 'hidden'),
+      person('soon-1', 'female', 'soon'),
+    ] as unknown as Snapshot['discoverableCharacters'];
+    s.characters = s.discoverableCharacters.slice(0, 2).map(p => ({ id: p.id, character_template_id: p.id, together_character_templates: p, together_character_versions: p.together_character_versions })) as unknown as Snapshot['characters'];
+    const result = homeUnmetCompanionRecommendations(s, 'home', 16, now);
+    expect(result).toHaveLength(16);
+    expect(result.slice(0, 6).every((item) => item.world.id === 'home')).toBe(true);
+    expect(result.slice(6).every((item) => item.world.id === 'other')).toBe(true);
+    expect(result.some((item) => ['home-0', 'home-1', 'hidden-1', 'soon-1'].includes(item.companion.id))).toBe(false);
+    expect(new Set(result.map((item) => item.companion.id)).size).toBe(16);
   });
 });

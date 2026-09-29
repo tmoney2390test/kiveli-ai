@@ -9,7 +9,7 @@ import { DetailPreservingArtwork } from './DetailPreservingArtwork';
 import { warmRoute } from '../lib/routeWarmup';
 import { SpiceBadge } from './SpiceBadge';
 
-export function CompanionPortraitCard({ companion, width, height = 390, favorite, favoriteBusy, subtitle, actionLabel = 'View profile', loading = 'eager', badgeLabel, compact=false, preserveArtwork=true, onFavorite, onPress }: {
+export function CompanionPortraitCard({ companion, width, height = 390, favorite, favoriteBusy, subtitle, actionLabel = 'View profile', loading = 'eager', badgeLabel, compact=false, dense=false, preserveArtwork=true, onFavorite, onPress }: {
   companion: FeaturedCompanion;
   width: number;
   height?: number;
@@ -20,6 +20,7 @@ export function CompanionPortraitCard({ companion, width, height = 390, favorite
   loading?: 'eager' | 'lazy';
   badgeLabel?: string|null;
   compact?: boolean;
+  dense?: boolean;
   preserveArtwork?: boolean;
   onFavorite: () => void;
   onPress: () => void;
@@ -35,14 +36,14 @@ export function CompanionPortraitCard({ companion, width, height = 390, favorite
     <View style={styles.cardShade} />
     {label?<View style={styles.badge}><Sparkles size={11} color="#FFE1A8" /><Text style={styles.badgeText}>{label}</Text></View>:null}
     <SpiceBadge level={companion.spice_level} overlay compact={compact} />
-    <View style={[styles.cardCopy,compact&&styles.cardCopyCompact]}>
+    <View style={[styles.cardCopy,compact&&styles.cardCopyCompact,dense&&styles.cardCopyDense]}>
       <View style={styles.nameRow}>
-        <Text numberOfLines={compact?2:1} style={[styles.name,compact&&styles.nameCompact]}>{companion.name} <Text style={styles.age}>{companion.age}</Text></Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${favorite ? 'Remove' : 'Add'} ${companion.name} ${favorite ? 'from' : 'to'} favorites`} accessibilityState={{ selected: favorite, disabled: favoriteBusy }} disabled={favoriteBusy} hitSlop={4} onPress={(event) => { event.stopPropagation(); onFavorite(); }} style={({ pressed }) => [styles.favoriteButton, favorite && styles.favoriteButtonActive, (pressed || favoriteBusy) && styles.favoriteButtonPressed]}>
-          <Star size={19} strokeWidth={2.1} color={favorite ? '#FFD27A' : '#fff'} fill={favorite ? '#FFD27A' : 'transparent'} />
+        <Text numberOfLines={compact?2:1} style={[styles.name,compact&&styles.nameCompact,dense&&styles.nameDense]}>{companion.name} <Text style={styles.age}>{companion.age}</Text></Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${favorite ? 'Remove' : 'Add'} ${companion.name} ${favorite ? 'from' : 'to'} favorites`} accessibilityState={{ selected: favorite, disabled: favoriteBusy }} disabled={favoriteBusy} hitSlop={4} onPress={(event) => { event.stopPropagation(); onFavorite(); }} style={({ pressed }) => [styles.favoriteButton,dense&&styles.favoriteButtonDense, favorite && styles.favoriteButtonActive, (pressed || favoriteBusy) && styles.favoriteButtonPressed]}>
+          <Star size={dense?16:19} strokeWidth={2.1} color={favorite ? '#FFD27A' : '#fff'} fill={favorite ? '#FFD27A' : 'transparent'} />
         </Pressable>
       </View>
-      <Text numberOfLines={1} style={styles.occupation}>{subtitle ?? companion.occupation}</Text>
+      <Text numberOfLines={1} style={[styles.occupation,dense&&styles.occupationDense]}>{subtitle ?? companion.occupation}</Text>
       <View style={styles.action}><Text style={styles.actionText}>{actionLabel}</Text><ChevronRight size={15} color="#fff" /></View>
     </View>
   </Pressable>;
@@ -58,14 +59,18 @@ const styles = StyleSheet.create({
   badgeText: { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: .7 },
   cardCopy: { zIndex: 1, gap: 3, padding: 16 },
   cardCopyCompact:{padding:14},
+  cardCopyDense:{padding:9},
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   name: { flex: 1, color: '#fff', fontFamily: typography.display, fontSize: 29, lineHeight: 34, fontWeight: '600', textShadowColor: '#000', textShadowRadius: 10 },
   nameCompact:{fontSize:24,lineHeight:27},
+  nameDense:{fontSize:18,lineHeight:21},
   age: { color: 'rgba(255,255,255,.72)' },
   favoriteButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,8,14,.64)', borderWidth: 1, borderColor: 'rgba(255,255,255,.28)' },
+  favoriteButtonDense:{width:32,height:32,borderRadius:16},
   favoriteButtonActive: { backgroundColor: 'rgba(103,62,22,.74)', borderColor: 'rgba(255,210,122,.68)' },
   favoriteButtonPressed: { opacity: .68, transform: [{ scale: .93 }] },
   occupation: { color: '#F6D6DF', fontSize: 12, fontWeight: '800' },
+  occupationDense:{fontSize:10},
   action: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 8 },
   actionText: { color: '#fff', fontSize: 11, fontWeight: '900' },
 });

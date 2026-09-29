@@ -17,7 +17,7 @@ import { buildHomeViewModel, mostRecentHomeCompanion, type HomeTargetAction } fr
 import { getHomeWorldScopes } from '../../src/lib/homePresentation';
 import { selectPortraitVersion } from '../../src/lib/selectors';
 import type { FeaturedCompanion } from '../../src/lib/featuredCompanions';
-import { homeCompanionRecommendations } from '../../src/lib/homeCompanionRecommendations';
+import { homeUnmetCompanionRecommendations } from '../../src/lib/homeCompanionRecommendations';
 import { homeWorldDiscoveryOptions } from '../../src/lib/homeWorldDiscovery';
 import { useSubscriptionStatus } from '../../src/hooks/useSubscriptionStatus';
 import { useAppShell } from '../../src/shell/AppShellContext';
@@ -97,12 +97,12 @@ export default function Home() {
   };
   const model = homeModel;
   if (!model) {
-    const featuredCompanions=fallbackWorld?homeCompanionRecommendations(snapshot,fallbackWorld.id):[];
+    const featuredCompanions=fallbackWorld?homeUnmetCompanionRecommendations(snapshot,fallbackWorld.id):[];
     return <Screen contentStyle={desktop?styles.contentDesktop:styles.content}>
       <View pointerEvents="none" style={styles.ambientGlow}/>
       {!desktop?<HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name??snapshot.profile?.display_name??'You'} onCredits={()=>router.push(subscriptionHref({intent:'credits'}) as never)}/>:null}
       <View style={styles.emptyLife}><Text accessibilityRole="header" style={styles.emptyLifeTitle}>Start a conversation</Text><GradientButton label="Explore" onPress={()=>router.push('/(tabs)/explore')}/></View>
-      {fallbackWorld?<FeaturedCompanionsSection companions={featuredCompanions} world={fallbackWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds??[]} onOpen={(item)=>router.push(`/character/${item.public_handle??item.slug}`)} onViewAll={()=>{setBrowsedWorldId(fallbackWorld.id);router.push(`/(tabs)/singles?world=${fallbackWorld.slug}`);}} onToggleFavorite={toggleFavorite}/>:null}
+      {fallbackWorld?<FeaturedCompanionsSection companions={featuredCompanions} world={fallbackWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds??[]} onOpen={(item)=>router.push(`/character/${item.public_handle??item.slug}`)} onExplore={()=>{setBrowsedWorldId(fallbackWorld.id);router.push(`/(tabs)/explore?world=${fallbackWorld.slug}`);}} onToggleFavorite={toggleFavorite}/>:null}
     </Screen>;
   }
 
@@ -112,7 +112,7 @@ export default function Home() {
   const portraitVersion = startupPortraitVersion??selectPortraitVersion(snapshot, companion);
   const portraitSource = startupPortraitSource??resolveCharacterPortraitSource(template, portraitVersion, template.slug);
   const { pulseWorld, selectedWorld } = getHomeWorldScopes(model, publishedWorlds, browsedWorldId);
-  const featuredCompanions = selectedWorld ? homeCompanionRecommendations(snapshot, selectedWorld.id, template.id) : [];
+  const featuredCompanions = selectedWorld ? homeUnmetCompanionRecommendations(snapshot, selectedWorld.id) : [];
   const discoveryWorlds=homeWorldDiscoveryOptions(snapshot.worlds,model.currentWorld?.id);
   const topStageWide=width>=900;
 
@@ -136,7 +136,7 @@ export default function Home() {
     {secondaryWorkReady?<>
       {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Pressable accessibilityRole="button" accessibilityLabel="View all recently shared moments" hitSlop={6} onPress={() => router.push('/(tabs)/moments')} style={({pressed})=>[styles.sectionActionButton,pressed&&styles.sectionActionPressed]}><Text style={styles.sectionAction}>View all →</Text></Pressable></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
       {pulseWorld&&worldPulse?.worldId===pulseWorld.id?<AroundTownSection worldName={pulseWorld.name} items={worldPulse.items.slice(0,5)} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${pulseWorld.slug}`);router.push(`/(tabs)/explore?world=${pulseWorld.slug}`);}}/>:null}
-      {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onViewAll={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/singles?world=${selectedWorld.slug}`); }} onToggleFavorite={toggleFavorite} /> : null}
+      {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onExplore={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/explore?world=${selectedWorld.slug}`); }} onToggleFavorite={toggleFavorite} /> : null}
     </>:<HomeSecondaryLoading/>}
   </Screen>;
 }
