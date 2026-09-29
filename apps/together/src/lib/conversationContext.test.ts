@@ -1,11 +1,32 @@
 import{describe,expect,it}from'vitest';
 import{buildClientConversationContext}from'./conversationContext';
-import type{CharacterInstance,Snapshot}from'../types';
+import type{CharacterInstance,GeneratedMedia,Snapshot}from'../types';
 
 const character={id:'maya-instance',user_id:'user',character_template_id:'maya',character_version_id:'maya-v1',relationship_stage:'friend',current_mood:'playful',current_activity:'editing photos',current_location_id:'apartment',current_energy:'medium',contact_added_at:'2026-08-01',introduced_at:'2026-08-01',met_at:'2026-08-01',last_simulated_at:'2026-08-14',together_character_templates:{id:'maya',name:'Maya',slug:'maya',age:26,occupation:'Photographer',biography:''},together_character_versions:{id:'maya-v1',portrait_asset_key:'maya',interests:['photography'],personality_config:{}}}satisfies CharacterInstance;
 const snapshot={profile:null,discoverableCharacters:[],worlds:[],locations:[{id:'apartment',name:"Maya's Apartment",slug:'apartment',description:'',category:'home',possible_activities:[]},{id:'juniper',name:'Juniper Café',slug:'juniper',description:'',category:'cafe',possible_activities:[]}],characters:[character],schedules:[],relationships:[],dates:[],moments:[],memories:[],openThreads:[],conversations:[],sharedPlans:[],conversationEvents:[],lifeEvents:[],proactiveMessages:[],entitlements:null,notificationPreferences:null}as unknown as Snapshot;
 
 describe('client conversation context',()=>{
+  it('keeps group photos out of a direct scene, including when no direct photo exists',()=>{
+    const conversations:Snapshot['conversations']=[
+      {id:'group',character_instance_id:character.id,kind:'group',title:'Maya & Sofia',last_message_at:null,metadata:{}},
+      {id:'direct',character_instance_id:character.id,kind:'direct',title:null,last_message_at:null,metadata:{}},
+    ];
+    const direct:GeneratedMedia={id:'direct-photo',character_instance_id:character.id,conversation_id:'direct',location_id:'apartment',media_type:'image',status:'ready',content_level:'standard',signed_url:'direct.jpg',created_at:'2026-08-14T18:00:00Z'};
+    const group:GeneratedMedia={...direct,id:'group-photo',conversation_id:'group',signed_url:'group.jpg',created_at:'2026-08-14T19:00:00Z'};
+    const state={...snapshot,conversations,generatedMedia:[group,direct]};
+    const now=new Date('2026-08-14T19:00:00Z');
+    expect(buildClientConversationContext(state,character,now,'direct').scene.mediaUrl).toBe('direct.jpg');
+    expect(buildClientConversationContext(state,character,now).scene.mediaUrl).toBe('direct.jpg');
+    expect(buildClientConversationContext(state,character,now,'group').scene.mediaUrl).toBe('group.jpg');
+    expect(buildClientConversationContext({...state,generatedMedia:[group]},character,now,'direct').scene.mediaUrl).toBeUndefined();
+    expect(buildClientConversationContext({...state,conversations:[]},character,now).scene.mediaUrl).toBeUndefined();
+  });
+  it('never uses an image from the stale character location after moving to another scene',()=>{
+    const state={...snapshot,conversations:[{id:'direct',character_instance_id:character.id,kind:'direct' as const,title:null,last_message_at:null,metadata:{activeScene:{interactionMode:'co_present',locationId:'juniper',validUntil:'2026-08-14T21:00:00Z'}}}],generatedMedia:[{id:'old-photo',character_instance_id:character.id,conversation_id:'direct',location_id:'apartment',media_type:'image' as const,status:'ready' as const,content_level:'standard' as const,signed_url:'old.jpg',created_at:'2026-08-14T18:00:00Z'}]};
+    const context=buildClientConversationContext(state,character,new Date('2026-08-14T19:00:00Z'),'direct');
+    expect(context.scene.locationId).toBe('juniper');
+    expect(context.scene.mediaUrl).toBeUndefined();
+  });
   it('renders the scene clock in the user timezone rather than the world timezone',()=>{const context=buildClientConversationContext({...snapshot,profile:{experience_timezone:'America/New_York'},worlds:[{id:'neon',slug:'neon-kyo',name:'Neon Kyo',description:'',access_type:'free',timezone:'Asia/Tokyo',sort_order:0,featured:true,published:true,visual_context:{},metadata:{}}],locations:snapshot.locations.map((location)=>({...location,world_id:'neon'}))}as unknown as Snapshot,character,new Date('2026-08-20T16:50:00Z'));expect(context.scene.localTime).toMatch(/12:50\s*PM/i);});
   it('does not render a future event as the current scene',()=>{const context=buildClientConversationContext({...snapshot,lifeEvents:[{id:'future',character_instance_id:character.id,title:'Dinner',narrative_summary:'Dinner at Juniper.',starts_at:'2026-08-14T20:00:00Z',ends_at:'2026-08-14T21:00:00Z',location_id:'juniper'}]},character,new Date('2026-08-14T18:00:00Z'));expect(context.scene.location).toBe("Maya's Apartment");expect(context.scene.summary).toContain('editing photos');expect(context.nextCommitment?.title).toBeUndefined();});
   it('does not treat an undated historical event as the current scene',()=>{const context=buildClientConversationContext({...snapshot,lifeEvents:[{id:'history',character_instance_id:character.id,title:'Old coffee',narrative_summary:'A coffee meeting from last week.',starts_at:'2026-08-07T18:00:00Z',location_id:'juniper'}]},character,new Date('2026-08-14T18:00:00Z'));expect(context.scene.location).toBe("Maya's Apartment");expect(context.scene.summary).toContain('editing photos');});

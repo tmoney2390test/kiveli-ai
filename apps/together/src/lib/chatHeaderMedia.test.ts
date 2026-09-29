@@ -25,12 +25,13 @@ describe('latestConversationHeaderImage', () => {
     expect(result?.id).toBe('new');
   });
 
-  it('ignores pending, failed, non-image, and unsigned media', () => {
+  it('ignores pending, failed, non-image, hidden intermediate, and unsigned media', () => {
     const result = latestConversationHeaderImage([
       image({ id: 'pending', status: 'generating' }),
       image({ id: 'failed', status: 'failed' }),
       image({ id: 'voice', media_type: 'voice_note' }),
       image({ id: 'unsigned', signed_url: null }),
+      image({ id: 'hidden', metadata: { hiddenIntermediate: true } }),
     ], 'conversation-a');
 
     expect(result).toBeNull();

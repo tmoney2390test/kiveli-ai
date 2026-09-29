@@ -10,9 +10,9 @@ describe('media offer preview',()=>{
     expect(latestMediaOfferPreviewUri(media,'brooke','chat')).toBe('new.jpg');
   });
 
-  it('falls back to the latest companion photo and ignores unfinished media',()=>{
+  it('never falls back to a group or older conversation photo for the same companion',()=>{
     const media=[image('pending','chat','2026-08-21T13:00:00Z'),image('ready','other-chat','2026-08-21T12:00:00Z','ready.jpg')];
-    expect(latestMediaOfferPreviewUri(media,'brooke','chat')).toBe('ready.jpg');
+    expect(latestMediaOfferPreviewUri(media,'brooke','chat')).toBeNull();
     expect(latestMediaOfferPreviewUri(media,'someone-else','chat')).toBeNull();
   });
 });

@@ -1,4 +1,7 @@
 const PERSISTED_FAILURE_CODES=new Set(['STREAM_INTERRUPTED','PROVIDER_TIMEOUT','PROVIDER_UNAVAILABLE','CONFLICT','UNKNOWN']);
+// Match the dialogue endpoint's request IDs. Voice transcripts have separate
+// idempotency keys and must never be replayed as a new text turn.
+const DIALOGUE_REQUEST_ID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // A disconnected browser can lose the terminal stream event while the edge
 // function continues normally. Keep looking beyond the current p95 first-token
@@ -47,7 +50,8 @@ export function latestUnansweredDialogueRequest<T extends RecoverableMessage>(me
     if(message.role==='assistant'||message.role==='system')return null;
     if(message.role==='user')return message.delivery_status==='complete'&&
         typeof message.client_request_id==='string'&&
-        message.client_request_id.length>0&&
+        DIALOGUE_REQUEST_ID.test(message.client_request_id)&&
+        message.provider_metadata?.source!=='voice_call'&&
         message.provider_metadata?.uiHidden!==true
       ?message
       :null;
