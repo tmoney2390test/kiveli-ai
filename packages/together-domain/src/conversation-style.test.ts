@@ -17,6 +17,7 @@ describe('conversation style', () => {
     expect(conversationResponseLength({ style:'texting', intent:'casual', interactionQuality:'normal', message:"I don't think this relationship is working anymore." })).toBe('medium');
     expect(conversationResponseLength({ style:'texting', intent:'conflicted', interactionQuality:'major_relationship_event', message:"I don't think this relationship is working anymore." })).toBe('medium');
     expect(conversationResponseLength({ style:'texting', intent:'storytelling', interactionQuality:'normal', message:'Tell me what happened.' })).toBe('medium');
+    expect(conversationResponseLength({ style:'texting', intent:'casual', interactionQuality:'normal', message:'Please explain the current status of this world' })).toBe('medium');
   });
 
   it('allows fuller paragraph responses while keeping trivial reactions small', () => {
@@ -24,6 +25,7 @@ describe('conversation style', () => {
     expect(conversationResponseLength({ style:'paragraph', intent:'casual', interactionQuality:'normal', message:'Where should we go tonight?' })).toBe('short');
     expect(conversationResponseLength({ style:'paragraph', intent:'vulnerable', interactionQuality:'meaningful', message:'I need to tell you something personal.' })).toBe('medium');
     expect(conversationResponseLength({ style:'paragraph', intent:'storytelling', interactionQuality:'normal', message:'Tell me the whole story.' })).toBe('long');
+    expect(conversationResponseLength({ style:'paragraph', intent:'casual', interactionQuality:'normal', message:'Describe the kingdom and its politics.' })).toBe('long');
   });
 
   it('uses lower normal-case generation budgets for texting', () => {

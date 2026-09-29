@@ -67,6 +67,7 @@ import {
   releaseProviderSlot,
 } from "./kivelle-provider-concurrency.ts";
 import { chatGenerationControlsMode,resolveDialogueRunGenerationProfile,type DialogueGenerationContext } from './kivelle-chat-generation.ts';
+import { estimateContextTokens } from '../../../packages/together-domain/src/context-budget.ts';
 import type { ChatGenerationControlsMode,DialogueGenerationProfile } from '../../../packages/together-domain/src/chat-generation.ts';
 import {
   classifyHighStakesStoryRequest,
@@ -593,11 +594,11 @@ async function generateResponses(
       ),
       usage = normalizeResponsesUsage(provider, data.usage),
       rawText = extractResponsesText(data),
-      visible = limitVisibleDialogue(rawText, options.generationProfile?.visibleTokenBudget ?? responseTokenBudget(context)),
-      text = visible.text;
+      text = rawText.trim();
+    if(data.status==='incomplete'||data.status==='failed')throw new Error('incomplete_provider_response');
     options.appliedServiceTier=typeof data.service_tier==='string'?data.service_tier:undefined;
-    options.visibleOutputTruncated = visible.truncated;
-    options.deliveredVisibleOutputTokensEstimate = visible.estimatedTokens;
+    options.visibleOutputTruncated = false;
+    options.deliveredVisibleOutputTokensEstimate = estimateContextTokens(text);
     const latency = Date.now() - started;
     await recordAiUsage(options.usageScope, {
       provider,
@@ -613,7 +614,7 @@ async function generateResponses(
         firstByteLatencyMs,
         bodyLatencyMs: Math.max(0, latency - (firstByteLatencyMs ?? latency)),
         visibleOutputTokens:usage.outputTokens,
-        deliveredVisibleOutputTokensEstimate:visible.estimatedTokens,
+        deliveredVisibleOutputTokensEstimate:options.deliveredVisibleOutputTokensEstimate,
         totalOutputTokens:usage.outputTokens,
         ...generationTelemetry(options),
       },
@@ -702,8 +703,7 @@ async function* streamResponses(
     }
     let usage: NormalizedAiUsage | null = null;
     let deliveredText = "";
-    let visibleLimitReached = false;
-    const visibleBudget = options.generationProfile?.visibleTokenBudget ?? responseTokenBudget(context);
+    let completed = false;
     for await (
       const data of sseData(response.body, {
         inactivityMs: dialogueProviderInactivityMs(),
@@ -711,25 +711,20 @@ async function* streamResponses(
       })
     ) {
       const parsed = parseResponsesStreamEvent(JSON.parse(data));
-      if (parsed.token && !visibleLimitReached) {
-        const candidate = `${deliveredText}${parsed.token}`;
-        const limited = visibleDialoguePrefix(candidate, visibleBudget);
-        const deliverable = limited.slice(deliveredText.length);
-        if (limited.length < candidate.length) {
-          options.visibleOutputTruncated = true;
-          visibleLimitReached = true;
-        }
-        deliveredText = limited;
-        if (deliverable) {
-          firstTokenLatencyMs ??= Date.now() - started;
-          yield { type: "token", token: deliverable };
-        }
+      if (parsed.completion==='incomplete') throw new Error('incomplete_provider_response');
+      if (parsed.completion==='complete') completed = true;
+      if (parsed.token) {
+        deliveredText += parsed.token;
+        firstTokenLatencyMs ??= Date.now() - started;
+        yield { type: "token", token: parsed.token };
       }
       if (parsed.usage) usage = normalizeResponsesUsage(provider, parsed.usage);
       if (parsed.serviceTier) options.appliedServiceTier=parsed.serviceTier;
     }
     const latency = Date.now() - started;
-    options.deliveredVisibleOutputTokensEstimate = limitVisibleDialogue(deliveredText, visibleBudget).estimatedTokens;
+    if(!completed||!deliveredText.trim())throw new Error('incomplete_provider_response');
+    options.visibleOutputTruncated = false;
+    options.deliveredVisibleOutputTokensEstimate = estimateContextTokens(deliveredText.trim());
     await recordAiUsage(options.usageScope, {
       provider,
       model: modelName,
@@ -878,7 +873,7 @@ function generationTelemetry(options:DialogueRunOptions):Record<string,unknown>{
     appliedServiceTier:options.appliedServiceTier??null,
     serviceTierFallback:options.serviceTierFallback===true,
     appliedReasoningTokenReserve:applied?profile.reasoningTokenReserve:0,
-    appliedProviderMaxOutputTokens:applied?profile.providerMaxOutputTokens:profile.visibleTokenBudget,
+    appliedProviderMaxOutputTokens:applied?profile.providerMaxOutputTokens:profile.providerMaxOutputTokens-profile.reasoningTokenReserve,
     reasonCodes:profile.reasonCodes,
     reasoningReasonCodes:profile.reasonCodes,
     generationProfileVersion:profile.profileVersion,

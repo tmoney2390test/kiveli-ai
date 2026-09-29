@@ -123,7 +123,7 @@ export interface ProviderGenerationControls {
 }
 
 export function providerGenerationControls(profile:DialogueGenerationProfile,mode:ChatGenerationControlsMode):ProviderGenerationControls{
-  if(mode!=='on')return{reasoningEffort:'none',maxOutputTokens:profile.visibleTokenBudget,promptDynamismApplied:false};
+  if(mode!=='on')return{reasoningEffort:'none',maxOutputTokens:profile.providerMaxOutputTokens-profile.reasoningTokenReserve,promptDynamismApplied:false};
   return{reasoningEffort:profile.effectiveReasoning,maxOutputTokens:profile.providerMaxOutputTokens,promptDynamismApplied:true,...(profile.temperature!==undefined?{temperature:profile.temperature}:{})};
 }
 
@@ -250,12 +250,15 @@ export function resolveDialogueGenerationProfile(input: ResolveDialogueGeneratio
   effort = providerEffort;
 
   const visibleTokenBudget = conversationResponseTokenBudget({ style: input.responseStyle, length: input.targetLength });
+  const completionHeadroom = Math.max(160, Math.ceil(visibleTokenBudget / 2));
   let reasoningTokenReserve = REASONING_TOKEN_RESERVES[effort];
-  let providerMaxOutputTokens = visibleTokenBudget + reasoningTokenReserve;
+  // The visible budget is a writing target, not a point where a streamed sentence may be severed.
+  // Allow completion headroom for token-estimator differences and a natural final sentence.
+  let providerMaxOutputTokens = visibleTokenBudget + completionHeadroom + reasoningTokenReserve;
   const providerMaximum = input.providerCapabilities.maxOutputTokens;
   if (providerMaximum !== undefined && providerMaxOutputTokens > providerMaximum) {
     providerMaxOutputTokens = providerMaximum;
-    reasoningTokenReserve = Math.max(0, providerMaxOutputTokens - visibleTokenBudget);
+    reasoningTokenReserve = Math.max(0, providerMaxOutputTokens - visibleTokenBudget - completionHeadroom);
     reasonCodes.push('provider_output_token_clamp');
   }
   const canUseTemperature = input.providerCapabilities.supportsTemperature &&

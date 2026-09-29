@@ -25,18 +25,20 @@ export function conversationResponseLength(input: {
   if (tinyReaction || quality === 'trivial') return 'micro';
 
   const storytelling = intent === 'storytelling' || /\b(tell me (?:a story|about)|what happened|walk me through)\b/i.test(message);
+  const explanation = /\b(?:explain|describe|give me (?:an? )?(?:overview|summary)|tell me about)\b/i.test(message)
+    && /\b(?:world|kingdom|colony|city|situation|status|history|politics|conflict|war)\b/i.test(message);
   const emotionallyComplex = ['vulnerable', 'supportive', 'conflicted', 'repair'].includes(intent)
     || /\b(break up|relationship is not working|don't think (?:this |our )?relationship is working|quit my job|apolog|betray|grief|died|trauma)\b/i.test(message);
   const complicatedPlanning = intent === 'practical' && /\b(conflict|reschedule|cancel|overlap|available|complicated|instead)\b/i.test(message);
 
   if (style === 'texting') {
     if (quality === 'major_relationship_event') return 'medium';
-    if (storytelling || emotionallyComplex || quality === 'shared_experience' || message.length > 500 || complicatedPlanning) return 'medium';
+    if (storytelling || explanation || emotionallyComplex || quality === 'shared_experience' || message.length > 500 || complicatedPlanning) return 'medium';
     if (quality === 'meaningful' && (emotionallyComplex || message.length > 220)) return 'medium';
     return 'short';
   }
 
-  if (quality === 'major_relationship_event' || storytelling) return 'long';
+  if (quality === 'major_relationship_event' || storytelling || explanation) return 'long';
   if (quality === 'meaningful' || quality === 'shared_experience' || emotionallyComplex || complicatedPlanning || message.length > 180) return 'medium';
   return 'short';
 }

@@ -17,7 +17,8 @@ describe('Kivelle Responses provider adapter',()=>{
   it('parses non-streaming text and streaming completion usage',()=>{
     expect(extractResponsesText({output_text:' hi '})).toBe('hi');
     expect(parseResponsesStreamEvent({type:'response.output_text.delta',delta:'hey'})).toEqual({token:'hey'});
-    expect(parseResponsesStreamEvent({type:'response.completed',response:{usage:{input_tokens:5},service_tier:'priority'}})).toEqual({usage:{input_tokens:5},serviceTier:'priority'});
+    expect(parseResponsesStreamEvent({type:'response.completed',response:{usage:{input_tokens:5},service_tier:'priority'}})).toEqual({usage:{input_tokens:5},serviceTier:'priority',completion:'complete'});
+    expect(parseResponsesStreamEvent({type:'response.incomplete',response:{incomplete_details:{reason:'max_output_tokens'}}})).toEqual({completion:'incomplete'});
   });
   it('derives a stable opaque cache key without exposing conversation identifiers',async()=>{
     const scope={conversationId:'conversation-private',continuityId:'life-private',characterInstanceId:'character-private'};
