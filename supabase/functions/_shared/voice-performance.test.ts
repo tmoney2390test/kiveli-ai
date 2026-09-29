@@ -4,9 +4,15 @@ import { prepareCompanionSpeech } from './voice-performance.ts';
 const voice:CompanionVoiceProfile={characterTemplateId:'character-1',voiceKey:'character-1-default',characteristics:{pace:.4,energy:.5}};
 
 Deno.test('voice performance removes visual markdown and preserves authored words',()=>{
-  const result=prepareCompanionSpeech({canonicalText:'**Hey.** *sighs* Meet me at 7:00 PM.',voiceProfile:voice,mood:'tender'});
-  assert(result.spokenText==='Hey. [sigh] Meet me at 7 pm.');
+  const result=prepareCompanionSpeech({canonicalText:'Hey. *sighs* Meet me at 7:00 PM.',voiceProfile:voice,mood:'tender'});
+  assert(result.spokenText==='Hey. Meet me at 7 pm.');
   assert(result.speed>=.7&&result.speed<=1.5);
+});
+
+Deno.test('voice notes omit long and bold action spans as well as performance cues',()=>{
+  const result=prepareCompanionSpeech({canonicalText:`**She looks up.** Hello. *${'She considers the view. '.repeat(12)}* [laugh] (whispers) Come in.`,voiceProfile:voice});
+  assert(result.spokenText==='Hello. Come in.');
+  assert(prepareCompanionSpeech({canonicalText:'*She waves.*',voiceProfile:voice}).spokenText==='');
 });
 
 Deno.test('voice performance removes unspoken stage directions without inventing content',()=>{

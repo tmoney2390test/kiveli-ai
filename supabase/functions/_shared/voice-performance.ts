@@ -1,5 +1,6 @@
 import { normalizeSpeechText, type CompanionVoiceProfile } from '../../../packages/together-domain/src/multimodal.ts';
 import { VOICE_NOTE_FULL_SYNTHESIS_CHARACTER_LIMIT } from '../../../packages/together-domain/src/entitlements.ts';
+import { spokenDialogueText } from '../../../packages/together-domain/src/spoken-dialogue.ts';
 
 export type CompanionSpeechPerformance = {
   spokenText: string;
@@ -11,9 +12,7 @@ export type CompanionSpeechPerformance = {
 
 /**
  * Converts canonical chat copy into spoken delivery without changing what the
- * companion said. This layer may remove visual markup and translate an
- * explicitly authored performance cue, but it must never invent dialogue or
- * canonical actions.
+ * companion said. Actions and performance cues stay in text, never in audio.
  */
 export function prepareCompanionSpeech(input: {
   canonicalText: string;
@@ -24,19 +23,7 @@ export function prepareCompanionSpeech(input: {
   const canonical = input.canonicalText.trim();
   if (!canonical) return { spokenText: '', speed: 1, characterCount: 0, sourceCharacterCount: 0, shortened: false };
 
-  const normalized = normalizeSpeechText(
-    canonical
-      .replace(/```[\s\S]*?```/g, ' ')
-      .replace(/`([^`]+)`/g, '$1')
-      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-      .replace(/^(?:#{1,6}|>|[-+])\s+/gm, '')
-      .replace(/\*\*(.*?)\*\*/g, '$1')
-      .replace(/__(.*?)__/g, '$1')
-      .replace(/(?:\*|_)(laughs?|chuckles?|giggles?|sighs?|inhales?|exhales?|breathes?)(?:\*|_)/gi, (_match, cue: string) => performanceTag(cue))
-      .replace(/(?:\*|_)[^*_\n]{1,100}(?:\*|_)/g, ' ')
-      .replace(/\s+([,.;!?])/g, '$1'),
-  );
+  const normalized = normalizeSpeechText(spokenDialogueText(canonical));
   const shouldShorten = canonical.length > VOICE_NOTE_FULL_SYNTHESIS_CHARACTER_LIMIT;
   const spokenText = shouldShorten ? faithfulExtract(normalized, VOICE_NOTE_FULL_SYNTHESIS_CHARACTER_LIMIT) : normalized;
 
@@ -75,17 +62,6 @@ function wordBoundedTail(text: string, limit: number): string {
   const slice = text.slice(-Math.max(1, limit)).trimStart();
   const boundary = slice.indexOf(' ');
   return boundary >= 0 && boundary < Math.floor(limit * .35) ? slice.slice(boundary + 1) : slice;
-}
-
-function performanceTag(value: string): string {
-  const cue = value.toLowerCase();
-  if (cue.startsWith('laugh')) return '[laugh]';
-  if (cue.startsWith('chuckle')) return '[chuckle]';
-  if (cue.startsWith('giggle')) return '[giggle]';
-  if (cue.startsWith('sigh')) return '[sigh]';
-  if (cue.startsWith('inhale')) return '[inhale]';
-  if (cue.startsWith('exhale')) return '[exhale]';
-  return '[breath]';
 }
 
 function finiteUnit(value: unknown, fallback: number): number {

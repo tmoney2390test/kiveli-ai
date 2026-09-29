@@ -1,6 +1,24 @@
 import { assert } from 'jsr:@std/assert@1';
 import { buildKivelleRealtimeInstructions, companionCallGreeting } from './kivelle-realtime-voice.ts';
 
+Deno.test('every live voice mode requires dialogue only without actions or performance cues',()=>{
+  for(const contentMode of ['standard','romance','mature','explicit']){
+    const instructions=buildKivelleRealtimeInstructions({character:{name:'Brooke',age:29},relationship:{relationship_stage:'friend'},contentMode});
+    assert(instructions.includes('Output only the words the companion says aloud'));
+    assert(instructions.includes('do not read or continue their narration aloud'));
+    assert(!instructions.includes('little narration'));
+  }
+});
+
+Deno.test('calls retain the latest chat turns instead of the oldest part of the context window',()=>{
+  const recent=Array.from({length:18},(_,index)=>({role:index%2?'assistant':'user',content:`Recent turn ${index}.`}));
+  const instructions=buildKivelleRealtimeInstructions({character:{name:'Brooke',age:29},relationship:{relationship_stage:'friend'},contentMode:'explicit',recent});
+  const truth=JSON.parse(instructions.split('KIVELLE_TRUTH:\n')[1]!);
+  assert(truth.recentConversation.length===12);
+  assert(truth.recentConversation[0].content==='Recent turn 6.');
+  assert(truth.recentConversation[11].content==='Recent turn 17.');
+});
+
 Deno.test('call greetings use the companion first name with stable natural variations',()=>{
   const greetings=new Set(Array.from({length:20},(_,index)=>companionCallGreeting({character:{name:'Brooke Sullivan'}},`call-${index}`)));
   assert(greetings.has('Hey, this is Brooke.'));

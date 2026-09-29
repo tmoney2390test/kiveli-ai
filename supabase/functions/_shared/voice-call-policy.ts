@@ -1,3 +1,29 @@
+import { requestedConversationDialogueContentMode } from './conversation-content-mode.ts';
+import { resolveAdultEligibility } from '../../../packages/together-domain/src/platform-content-policy.ts';
+
+export function resolveConversationVoiceContentMode(input: {
+  profile: Record<string, any> | null;
+  conversation: Record<string, any> | null;
+  characterAge: unknown;
+  relationship?: Record<string, any>;
+  verifiedWebSurface: boolean;
+  webAdultEnabled: boolean;
+}): RealtimeVoiceContentMode {
+  return resolveRealtimeVoiceContentMode({
+    requestedMode: requestedConversationDialogueContentMode(input.profile, input.conversation),
+    ageVerified: resolveAdultEligibility({
+      adultEligibleAt: input.profile?.adult_eligible_at,
+      ageVerifiedAt: input.profile?.age_verified_at,
+      dateOfBirth: input.profile?.date_of_birth,
+    }).allowed,
+    characterAge: input.characterAge,
+    romanceEnabled: input.profile?.content_preferences?.romanceEnabled !== false && input.relationship?.romance_enabled !== false,
+    friendsOnly: input.relationship?.romance_path_status === 'friends_only',
+    verifiedWebSurface: input.verifiedWebSurface,
+    webAdultEnabled: input.webAdultEnabled,
+  });
+}
+
 export type RealtimeVoiceContentMode =
   | "standard"
   | "romance"

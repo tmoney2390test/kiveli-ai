@@ -1,10 +1,11 @@
 import { DurableObject } from 'cloudflare:workers';
+import { spokenDialogueText } from '../../../../packages/together-domain/src/spoken-dialogue';
 
 export type VoiceConfiguration={transport:'xai_cascade';route:'standard';url:string;model:string;voice:string;sampleRate:number;greeting?:string;session:{instructions:string;voice:string;sttModel:string;dialogueModel:string;ttsModel:string;language?:string;transcriptionLanguage?:string|null;keyterms?:string[];promptCacheKey:string;usageSequenceStart?:number;turnDetection?:{threshold?:number;silenceDurationMs?:number;smartTurn?:boolean;smartTurnTimeoutMs?:number}}};
 export type VoiceClientConfiguration={transport:'xai_cascade';route:'standard';url:string;model:string;voice:string;sampleRate:number;greeting?:string;session:Record<string,never>;relayEnvelope:string};
 type RelayClaims={sub:string;callSessionId:string;route:'standard';jti:string;configHash:string;iat:number;exp:number};
 type PipelineUsage={sequence:number;sttBillableMs:number;inputSpeechMs:number;dialogueInputTokens:number;dialogueCachedInputTokens:number;dialogueOutputTokens:number;ttsCharacters:number;outputAudioMs:number;discardedOutputAudioMs:number;sttFinalLatencyMs?:number;dialogueFirstTokenLatencyMs?:number;ttsFirstAudioLatencyMs?:number;status:'success'|'interrupted'|'failure';failureCode?:string};
-type TurnState={id:string;sequence:number;userText:string;assistantText:string;sentText:string;startedAt:number;sttFinalAt:number;firstTokenAt?:number;firstAudioAt?:number;inputSpeechMs:number;outputAudioMs:number;usage:PipelineUsage;dialogueDone:boolean;audioDone:boolean;interrupted:boolean};
+type TurnState={id:string;sequence:number;userText:string;rawAssistantText:string;assistantText:string;sentText:string;startedAt:number;sttFinalAt:number;firstTokenAt?:number;firstAudioAt?:number;inputSpeechMs:number;outputAudioMs:number;usage:PipelineUsage;dialogueDone:boolean;audioDone:boolean;interrupted:boolean};
 type QueuedTtsTurn={id:string;text:string;greeting:boolean;sequence:number;startedAt:number;firstAudioAt?:number;outputAudioMs:number};
 type VoiceRelayEnv=Env&Readonly<{XAI_API_KEY:string;KIVELLE_VOICE_RELAY_VERIFY_SECRET:string;VOICE_CALL_GUARD:DurableObjectNamespace<VoiceCallGuard>}>;
 
@@ -124,11 +125,11 @@ class CascadeSession{
   private async generateTurn(userText:string,speechDurationMs:number,speechStartedAt:number){
     if(this.activeTurn&&!this.activeTurn.interrupted)return;this.turnSequence+=1;const now=Date.now(),sttBillableMs=Math.max(0,this.inputAudioMs-this.inputAtLastTurn);this.inputAtLastTurn=this.inputAudioMs;const sequence=++this.usageSequence;
     const inputSpeechMs=speechDurationMs||sttBillableMs,sttFinalLatencyMs=Math.max(0,now-speechStartedAt);
-    const turn:TurnState={id:`turn-${this.claims!.callSessionId}-${this.turnSequence}`,sequence,userText,assistantText:'',sentText:'',startedAt:speechStartedAt,sttFinalAt:now,inputSpeechMs,outputAudioMs:0,usage:{sequence,sttBillableMs,inputSpeechMs,dialogueInputTokens:0,dialogueCachedInputTokens:0,dialogueOutputTokens:0,ttsCharacters:0,outputAudioMs:0,discardedOutputAudioMs:0,sttFinalLatencyMs,status:'success'},dialogueDone:false,audioDone:false,interrupted:false};
+    const turn:TurnState={id:`turn-${this.claims!.callSessionId}-${this.turnSequence}`,sequence,userText,rawAssistantText:'',assistantText:'',sentText:'',startedAt:speechStartedAt,sttFinalAt:now,inputSpeechMs,outputAudioMs:0,usage:{sequence,sttBillableMs,inputSpeechMs,dialogueInputTokens:0,dialogueCachedInputTokens:0,dialogueOutputTokens:0,ttsCharacters:0,outputAudioMs:0,discardedOutputAudioMs:0,sttFinalLatencyMs,status:'success'},dialogueDone:false,audioDone:false,interrupted:false};
     this.activeTurn=turn;this.history.push({role:'user',content:userText});this.history=this.history.slice(-40);this.abort=new AbortController();
     try{
       const response=await fetch(this.env.XAI_RESPONSES_URL||'https://api.x.ai/v1/responses',{method:'POST',headers:{Authorization:`Bearer ${this.env.XAI_API_KEY}`,'Content-Type':'application/json',Accept:'text/event-stream'},body:JSON.stringify({model:this.configuration!.session.dialogueModel,instructions:this.configuration!.session.instructions,input:this.history,stream:true,store:false,reasoning:{effort:'low'},prompt_cache_key:this.configuration!.session.promptCacheKey,max_output_tokens:700}),signal:this.abort.signal});
-      if(!response.ok||!response.body)throw new Error(`dialogue_${response.status}`);await this.readDialogueStream(response,turn);if(turn.interrupted)return;turn.dialogueDone=true;const remainder=turn.assistantText.slice(turn.sentText.length);if(remainder.trim())this.sendTtsText(remainder);this.tts?.send(JSON.stringify({type:'text.done'}));
+      if(!response.ok||!response.body)throw new Error(`dialogue_${response.status}`);await this.readDialogueStream(response,turn);if(turn.interrupted)return;turn.dialogueDone=true;const remainder=turn.assistantText.slice(turn.sentText.length);if(remainder.trim())this.sendTtsText(remainder);if(turn.assistantText.trim())this.tts?.send(JSON.stringify({type:'text.done'}));else{turn.audioDone=true;this.safeSend({type:'response.output_audio.done',response_id:turn.id});this.emitUsage(turn);this.activeTurn=null;}
     }catch{if(turn.interrupted||this.abort?.signal.aborted)return;turn.usage.status='failure';turn.usage.failureCode='dialogue_failed';this.emitUsage(turn);this.fail('dialogue_failed',true);}
   }
   private async readDialogueStream(response:Response,turn:TurnState){
@@ -139,7 +140,7 @@ class CascadeSession{
   private consumeDialogueFrame(frame:string,turn:TurnState){
     const data=frame.split('\n').find((line)=>line.startsWith('data: '))?.slice(6);if(!data||data==='[DONE]')return;let event:Record<string,unknown>;try{event=record(JSON.parse(data));}catch{return;}const type=text(event.type);
     if(type==='response.output_text.delta'&&typeof event.delta==='string'){
-      if(!turn.firstTokenAt){turn.firstTokenAt=Date.now();turn.usage.dialogueFirstTokenLatencyMs=turn.firstTokenAt-turn.sttFinalAt;}turn.assistantText+=event.delta;this.safeSend({type:'response.output_audio_transcript.delta',delta:event.delta,response_id:turn.id});this.flushSpeakableText(turn);
+      if(!turn.firstTokenAt){turn.firstTokenAt=Date.now();turn.usage.dialogueFirstTokenLatencyMs=turn.firstTokenAt-turn.sttFinalAt;}turn.rawAssistantText+=event.delta;const dialogue=spokenDialogueText(turn.rawAssistantText),delta=dialogue.slice(turn.assistantText.length);turn.assistantText=dialogue;if(delta)this.safeSend({type:'response.output_audio_transcript.delta',delta,response_id:turn.id});this.flushSpeakableText(turn);
     }
     if(type==='response.completed'){
       const responseRecord=record(event.response),usage=record(responseRecord.usage??event.usage),inputDetails=record(usage.input_tokens_details);
