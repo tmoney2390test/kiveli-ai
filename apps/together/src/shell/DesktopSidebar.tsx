@@ -164,12 +164,12 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
     <AccountMenu visible={accountOpen} onClose={() => setAccountOpen(false)}/>
     <CreatorModal visible={createOpen} title="What would you like to create?" onClose={() => setCreateOpen(false)} cardChooser>
       <View style={[styles.createChoices, viewportWidth < 720 && styles.createChoicesStack]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Create a character" onHoverIn={() => setHoveredChoice('character')} onHoverOut={() => setHoveredChoice(null)} onFocus={() => setHoveredChoice('character')} onBlur={() => setHoveredChoice(null)} onPress={() => navigate('/create/companion')} style={({pressed}) => [styles.createCard, hoveredChoice === 'character' && styles.createCardHover, pressed && styles.createCardPressed]}>
-          <View pointerEvents="none" style={[styles.createArtwork, viewportWidth < 720 && styles.createArtworkCompact]}><CreateChoiceArtwork kind="character" /></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Create a character" onHoverIn={() => setHoveredChoice('character')} onHoverOut={() => setHoveredChoice(null)} onFocus={() => setHoveredChoice('character')} onBlur={() => setHoveredChoice(null)} onPress={() => navigate('/create/companion')} style={({pressed}) => [styles.createCard, viewportWidth < 720 && styles.createCardStack, hoveredChoice === 'character' && styles.createCardHover, pressed && styles.createCardPressed]}>
+          <View pointerEvents="none" style={styles.createArtwork}><CreateChoiceArtwork kind="character" /></View>
           <View style={styles.createCardFooter}><View style={styles.createCardCopy}><Text style={styles.createCardTitle}>Create a character</Text><Text style={styles.createCardDetail}>Make a companion of your own.</Text></View><ChevronRight size={20} color="#F9E9FC" /></View>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Create a place" accessibilityState={{disabled:!placeWorld}} disabled={!placeWorld} onHoverIn={() => setHoveredChoice('place')} onHoverOut={() => setHoveredChoice(null)} onFocus={() => setHoveredChoice('place')} onBlur={() => setHoveredChoice(null)} onPress={() => {setCreateOpen(false);setPersonalPlaceOpen(true);}} style={({pressed}) => [styles.createCard, hoveredChoice === 'place' && styles.createCardHover, !placeWorld && styles.createChoiceDisabled, pressed && styles.createCardPressed]}>
-          <View pointerEvents="none" style={[styles.createArtwork, viewportWidth < 720 && styles.createArtworkCompact]}><CreateChoiceArtwork kind="place" /></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Create a place" accessibilityState={{disabled:!placeWorld}} disabled={!placeWorld} onHoverIn={() => setHoveredChoice('place')} onHoverOut={() => setHoveredChoice(null)} onFocus={() => setHoveredChoice('place')} onBlur={() => setHoveredChoice(null)} onPress={() => {setCreateOpen(false);setPersonalPlaceOpen(true);}} style={({pressed}) => [styles.createCard, viewportWidth < 720 && styles.createCardStack, hoveredChoice === 'place' && styles.createCardHover, !placeWorld && styles.createChoiceDisabled, pressed && styles.createCardPressed]}>
+          <View pointerEvents="none" style={styles.createArtwork}><CreateChoiceArtwork kind="place" /></View>
           <View style={styles.createCardFooter}><View style={styles.createCardCopy}><Text style={styles.createCardTitle}>Create a place</Text><Text style={styles.createCardDetail}>{placeWorld ? 'Build somewhere you can visit together.' : 'Your worlds are still loading.'}</Text></View><ChevronRight size={20} color="#F9E9FC" /></View>
         </Pressable>
       </View>
@@ -257,13 +257,13 @@ const styles = StyleSheet.create({
   rowPressed: { backgroundColor: 'rgba(255,255,255,.055)' },
   createChoices: { flexDirection: 'row', alignItems: 'stretch', gap: 16 },
   createChoicesStack: { flexDirection: 'column' },
-  createCard: { flex: 1, minWidth: 0, overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(204,163,230,.28)', backgroundColor: '#100D17' },
+  createCard: { position: 'relative', flex: 1, height: 380, minWidth: 0, overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(204,163,230,.28)', backgroundColor: '#100D17' },
+  createCardStack: { height: 260 },
   createCardHover: { borderColor: '#BA82E8', shadowColor: '#AF63D5', shadowOpacity: .3, shadowRadius: 15, shadowOffset: { width: 0, height: 0 } },
   createCardPressed: { opacity: .84 },
   createChoiceDisabled: { opacity: .45 },
-  createArtwork: { height: 250, backgroundColor: '#261B36' },
-  createArtworkCompact: { height: 165 },
-  createCardFooter: { minHeight: 92, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingVertical: 16, backgroundColor: '#100D17' },
+  createArtwork: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#261B36' },
+  createCardFooter: { position: 'absolute', right: 0, bottom: 0, left: 0, minHeight: 116, flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 20, paddingBottom: 22, paddingTop: 38, backgroundColor: 'rgba(11,8,18,.83)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'linear-gradient(transparent, rgba(11,8,18,.84) 30%, #100D17)' } as never) : {}) },
   createCardCopy: { flex: 1, minWidth: 0, gap: 5 },
   createCardTitle: { color: '#FFF9FE', fontFamily: 'Georgia', fontSize: 23, fontWeight: '700' },
   createCardDetail: { color: '#C1B2C9', fontSize: 12, lineHeight: 18 },
