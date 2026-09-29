@@ -8,6 +8,7 @@ import {getActiveConversation,mergeConversationSceneMetadata} from '../_shared/t
 import {activeContinuity} from '../_shared/together-continuity.ts';
 import {enforceActiveConversationLimit} from '../_shared/kivelle-subscription.ts';
 import {resolveWorldAccess} from '../_shared/together-place.ts';
+import {ensureConversationOpener} from '../_shared/conversation-opener.ts';
 
 const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('set_active'),characterInstanceId:z.string().uuid(),source:z.enum(['home_switcher','discover_profile','companion_manager']).default('home_switcher')}),
@@ -73,7 +74,7 @@ serve(async(request,correlationId)=>{
   }
   if(!instance){
     const meeting=(template.first_meeting??{}) as Record<string,unknown>;
-    let locationId=typeof meeting.location_id==='string'?meeting.location_id:null;
+    let locationId=typeof (meeting.location_id??meeting.locationId)==='string'?String(meeting.location_id??meeting.locationId):null;
     let worldId:string|null=null;
     if(locationId){const{data:valid}=await db.from('together_locations').select('id,world_id').eq('id',locationId).maybeSingle();if(!valid)locationId=null;else worldId=String(valid.world_id);}
     if(!locationId){const{data:presences}=await db.from('together_character_world_presence').select('world_id,home_location_id,together_worlds(default_arrival_location_id)').eq('character_version_id',version.id).neq('presence_type','unavailable').order('presence_type',{ascending:true}).limit(20);for(const presence of presences??[]){const access=await resolveWorldAccess({db,userId:user.id,worldId:String(presence.world_id)});if(access==='locked'||access==='available')continue;locationId=presence.home_location_id??relationOne(presence.together_worlds)?.default_arrival_location_id??null;if(locationId){worldId=String(presence.world_id);break;}}}
@@ -95,10 +96,12 @@ serve(async(request,correlationId)=>{
   }
   await Promise.all([db.from('together_continuities').update({active_companion_instance_id:instance.id,updated_at:now}).eq('id',continuity.id).eq('user_id',user.id),db.from('together_profiles').update({active_companion_instance_id:instance.id,updated_at:now}).eq('user_id',user.id)]);
   const conversation=await getActiveConversation(db,user.id,instance.id,true);
+  if(!conversation)throw new AppError('INTERNAL_ERROR','Your conversation could not be opened. Please try again.',500,true);
   const meeting=(template.first_meeting??{}) as Record<string,unknown>;
-  if(conversation?.id&&typeof meeting.opening_line==='string'){
-    const{count}=await db.from('together_messages').select('id',{count:'exact',head:true}).eq('conversation_id',conversation.id).eq('user_id',user.id);
-    if(!count && template.creator_id===user.id && meeting.location_id && meeting.world_id){
+  if(conversation.id){
+    const{count,error:messageCountError}=await db.from('together_messages').select('id',{count:'exact',head:true}).eq('conversation_id',conversation.id).eq('user_id',user.id);
+    if(messageCountError)throw new AppError('INTERNAL_ERROR','Your conversation could not be opened. Please try again.',500,true);
+    if(!count && !(conversation.metadata as Record<string,unknown>|null)?.freshChatRequestId && template.creator_id===user.id && meeting.location_id && meeting.world_id){
       // A creator-selected introduction is a real shared scene, not a passive schedule slot.
       // Reuse the session on retry and leave established conversations untouched.
       const {data:existingScene}=await db.from('together_scene_sessions').select('*').eq('user_id',user.id).eq('conversation_id',conversation.id).is('ended_at',null).order('started_at',{ascending:false}).limit(1).maybeSingle();
@@ -114,7 +117,7 @@ serve(async(request,correlationId)=>{
       const sceneUpdate=await db.from('together_conversations').update({metadata:mergeConversationSceneMetadata(conversation.metadata??{},scene),updated_at:now}).eq('id',conversation.id).eq('user_id',user.id);
       if(sceneUpdate.error)throw new AppError('INTERNAL_ERROR','Your first meeting scene could not begin. Please try again.',500,true);
     }
-    if(!count)await db.from('together_messages').insert({conversation_id:conversation.id,user_id:user.id,character_instance_id:instance.id,role:'assistant',content:meeting.opening_line,delivery_status:'complete'});
+    if(!count)await ensureConversationOpener({db,userId:user.id,conversation,characterInstanceId:instance.id,meeting});
   }
   await track(db,user.id,'companion_selected',{continuity_id:continuity.id,character_template_id:template.id,character_instance_id:instance.id,source:input.source});
   await track(db,user.id,'first_meeting_started',{character_instance_id:instance.id,source:input.source});

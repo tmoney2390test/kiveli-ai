@@ -26,6 +26,7 @@ import { characterAdultStatusFromInstance, privateTextProjectionAuthorizedForCon
 import { chatBubbleColorValues, normalizeChatBubbleColor } from '../../../packages/together-domain/src/chat-appearance.ts';
 import { startConfirmedFreshChat } from '../_shared/fresh-chat.ts';
 import { setCompanionSchedulePause } from '../_shared/companion-schedule-pause.ts';
+import { ensureConversationOpener } from '../_shared/conversation-opener.ts';
 
 const schema = z.discriminatedUnion('action', [
   z.object({action:z.literal('schedule_pause'),conversationId:z.string().uuid(),paused:z.boolean(),confirmation:z.enum(['pause_schedule','resume_schedule']),expectedPausedAt:z.string().datetime({offset:true}).nullable()}),
@@ -205,8 +206,13 @@ serve(async (request, correlationId) => {
     if(!conversation)throw new AppError('INTERNAL_ERROR','The conversation could not be opened.',500,true);
     const adultTextAuthorized=await privateTextProjectionAuthorizedForConversation({db,userId:user.id,continuityId:continuity.id,conversation,access:adultAccess});
     const fetchLimit=adultTextAuthorized?input.limit+1:Math.min(241,Math.max(input.limit+1,input.limit*4));
-    const{data,error}=await db.from('together_messages').select('*,together_conversation_attachments(*),together_message_reactions(*)').eq('user_id',user.id).eq('conversation_id',String(conversation.id)).order('conversation_sequence',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(fetchLimit);
+    let{data,error}=await db.from('together_messages').select('*,together_conversation_attachments(*),together_message_reactions(*)').eq('user_id',user.id).eq('conversation_id',String(conversation.id)).order('conversation_sequence',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(fetchLimit);
     if(error)throw new AppError('INTERNAL_ERROR','Messages could not be loaded.',500,true);
+    if(!data?.length){
+      await ensureConversationOpener({db,userId:user.id,conversation,characterInstanceId:input.characterInstanceId});
+      ({data,error}=await db.from('together_messages').select('*,together_conversation_attachments(*),together_message_reactions(*)').eq('user_id',user.id).eq('conversation_id',String(conversation.id)).order('conversation_sequence',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(fetchLimit));
+      if(error)throw new AppError('INTERNAL_ERROR','Messages could not be loaded.',500,true);
+    }
     const readAt=performance.now(),raw=(data??[])as Record<string,unknown>[];
     const projected=projectConversationRows(raw,{authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText:adultTextAuthorized});
     const messages=await signProjectedAttachments(db,projected.slice(0,input.limit),adultAccess.authorized_web_adult,{request,access:adultAccess,userId:user.id});
@@ -311,6 +317,7 @@ serve(async (request, correlationId) => {
 
   if (input.action === 'new') {
     const result = await startConfirmedFreshChat(db,user.id,input);
+    await ensureConversationOpener({db,userId:user.id,conversation:result.conversation,characterInstanceId:input.characterInstanceId});
     if (!result.replayed) await track(db,user.id,'conversation_started',{characterInstanceId:input.characterInstanceId,conversationId:result.conversation.id,previousConversationId:input.expectedConversationId,requestId:input.requestId,source:'confirmed_fresh_chat'});
     return json({ data: projectConversation(result.conversation,false), correlationId }, 200, correlationId);
   }

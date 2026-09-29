@@ -12,6 +12,7 @@ import { accountGenderPronouns, accountGenderValues, ageFromBirthdate, normalize
 import { loadCharacterProfileDetails } from '../_shared/together-character-profile.ts';
 import { resolveWorldAccess } from '../_shared/together-place.ts';
 import { isWorldCatalogVisible } from '../../../packages/together-domain/src/world-access.ts';
+import { ensureConversationOpener } from '../_shared/conversation-opener.ts';
 
 const onboardingSchema = z.object({
   action: z.literal('complete_onboarding').optional(),
@@ -106,7 +107,7 @@ serve(async (request, correlationId) => {
     if(versionResult.error||!versionResult.data)throw new AppError('INTERNAL_ERROR','That companion is not ready to meet yet.',500,true);
     selectedVersion=versionResult.data;
     meeting=(selectedTemplate.first_meeting??{}) as Record<string,unknown>;
-    const meetingLocationId=typeof meeting.location_id==='string'?meeting.location_id:null;
+    const meetingLocationId=typeof (meeting.location_id??meeting.locationId)==='string'?String(meeting.location_id??meeting.locationId):null;
     if(!meetingLocationId)throw new AppError('CONFLICT','That companion does not have a published first-meeting place yet.',409);
     // Query the canonical location directly. Embedding together_worlds here is
     // ambiguous because worlds also point back to their default arrival place.
@@ -141,7 +142,8 @@ serve(async (request, correlationId) => {
   await Promise.all([db.from('together_continuities').update({active_companion_instance_id:companion.id,updated_at:now}).eq('id',continuity.id).eq('user_id',user.id),db.from('together_profiles').update({ active_companion_instance_id: companion.id,active_continuity_id:continuity.id, updated_at: now }).eq('user_id', user.id)]);
 
   const conversation=await getActiveConversation(db, user.id, companion.id, true);
-  if(conversation?.id&&typeof meeting.opening_line==='string'){const{count}=await db.from('together_messages').select('id',{count:'exact',head:true}).eq('conversation_id',conversation.id).eq('user_id',user.id);if(!count)await db.from('together_messages').insert({conversation_id:conversation.id,user_id:user.id,character_instance_id:companion.id,role:'assistant',content:meeting.opening_line,delivery_status:'complete'});}
+  if(!conversation)throw new AppError('INTERNAL_ERROR','Your conversation could not be opened. Please try again.',500,true);
+  await ensureConversationOpener({db,userId:user.id,conversation,characterInstanceId:companion.id,meeting});
   await unlockOnboardingWorlds(db,user.id,String(meetingLocation.world_id),now);
 
   const { data: schedules } = await db.from('together_schedule_templates').select('*,together_locations(name,world_id)').eq('character_version_id', selectedVersion.id);
