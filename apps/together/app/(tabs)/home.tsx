@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { Image } from 'expo-image';
 import { Asset } from 'expo-asset';
 import { router as expoRouter } from 'expo-router';
@@ -37,6 +37,26 @@ export default function Home() {
   const { snapshot, loading, error, refresh, browsedWorldId, setBrowsedWorldId, setCoreState } = useTogether();
   const { desktop } = useAppShell();
   const secondaryWorkReady=useDeferredHomeWork();
+  const recommendationBatchSize=desktop?8:4;
+  const [visibleRecommendationCount,setVisibleRecommendationCount]=useState(recommendationBatchSize);
+  const visibleRecommendationCountRef=useRef(recommendationBatchSize);
+  const lastRecommendationLoadHeight=useRef(0);
+  useEffect(()=>{
+    visibleRecommendationCountRef.current=recommendationBatchSize;
+    lastRecommendationLoadHeight.current=0;
+    setVisibleRecommendationCount(recommendationBatchSize);
+  },[browsedWorldId,recommendationBatchSize]);
+  const revealRecommendationsOnScroll=(event:NativeSyntheticEvent<NativeScrollEvent>,total:number)=>{
+    if(visibleRecommendationCountRef.current>=total)return;
+    const{contentOffset,contentSize,layoutMeasurement}=event.nativeEvent;
+    if(contentOffset.y+layoutMeasurement.height<contentSize.height-280)return;
+    // Reveal one row group per scroll into the end of the page. Wait for the
+    // content height to grow before accepting another scroll event.
+    if(contentSize.height<=lastRecommendationLoadHeight.current)return;
+    lastRecommendationLoadHeight.current=contentSize.height;
+    visibleRecommendationCountRef.current=Math.min(total,visibleRecommendationCountRef.current+recommendationBatchSize);
+    setVisibleRecommendationCount(visibleRecommendationCountRef.current);
+  };
   const { data: subscription = null } = useSubscriptionStatus(Boolean(snapshot)&&secondaryWorkReady);
   const { width } = useWindowDimensions();
   const analyticsEnabled=snapshot?.profile?.privacy_settings?.analytics!==false;
@@ -72,7 +92,7 @@ export default function Home() {
   const homeCompanionId=homeCompanion?.id;
   const homeModel=snapshot?buildHomeViewModel(snapshot):undefined;
   const pulseWorldId=homeModel?.currentWorld?.id??null;
-  const {data:worldPulse}=useWorldPulse(pulseWorldId,Boolean(snapshot&&pulseWorldId&&secondaryWorkReady));
+  const {data:worldPulse}=useWorldPulse(pulseWorldId,Boolean(snapshot&&pulseWorldId));
 
   const simulationStale=!homeCompanion||Date.now()-new Date(homeCompanion.last_simulated_at).getTime()>2*60000||!(snapshot?.scheduleEvents??[]).some((item)=>item.character_instance_id===homeCompanionId&&new Date(item.ends_at)>new Date());
   useEffect(()=>{if(!secondaryWorkReady||!homeCompanionId||!simulationStale)return;let cancelled=false;void simulate(homeCompanionId).then(()=>cancelled?undefined:refresh({scope:'presence',characterInstanceId:homeCompanionId})).catch(()=>undefined);return()=>{cancelled=true;};},[homeCompanionId,refresh,secondaryWorkReady,simulationStale]);
@@ -98,11 +118,11 @@ export default function Home() {
   const model = homeModel;
   if (!model) {
     const featuredCompanions=fallbackWorld?homeUnmetCompanionRecommendations(snapshot,fallbackWorld.id):[];
-    return <Screen contentStyle={desktop?styles.contentDesktop:styles.content}>
+    return <Screen contentStyle={desktop?styles.contentDesktop:styles.content} onScroll={(event)=>revealRecommendationsOnScroll(event,featuredCompanions.length)}>
       <View pointerEvents="none" style={styles.ambientGlow}/>
       {!desktop?<HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name??snapshot.profile?.display_name??'You'} onCredits={()=>router.push(subscriptionHref({intent:'credits'}) as never)}/>:null}
       <View style={styles.emptyLife}><Text accessibilityRole="header" style={styles.emptyLifeTitle}>Start a conversation</Text><GradientButton label="Explore" onPress={()=>router.push('/(tabs)/explore')}/></View>
-      {fallbackWorld?<FeaturedCompanionsSection companions={featuredCompanions} world={fallbackWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds??[]} onOpen={(item)=>router.push(`/character/${item.public_handle??item.slug}`)} onExplore={()=>{setBrowsedWorldId(fallbackWorld.id);router.push(`/(tabs)/explore?world=${fallbackWorld.slug}`);}} onToggleFavorite={toggleFavorite}/>:null}
+      {fallbackWorld?<FeaturedCompanionsSection companions={featuredCompanions.slice(0,visibleRecommendationCount)} world={fallbackWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds??[]} onOpen={(item)=>router.push(`/character/${item.public_handle??item.slug}`)} onExplore={()=>{setBrowsedWorldId(fallbackWorld.id);router.push(`/(tabs)/explore?world=${fallbackWorld.slug}`);}} onToggleFavorite={toggleFavorite}/>:null}
     </Screen>;
   }
 
@@ -126,7 +146,7 @@ export default function Home() {
     if (action.kind === 'date') return router.push(`/date/${action.id}`);
     router.push(`${Platform.OS === 'web' ? '/(tabs)/chat-tab' : '/chat'}?character=${encodeURIComponent(handle)}&plan=1`);
   };
-  return <Screen contentStyle={desktop ? styles.contentDesktop : styles.content}>
+  return <Screen contentStyle={desktop ? styles.contentDesktop : styles.content} onScroll={(event)=>revealRecommendationsOnScroll(event,featuredCompanions.length)}>
     <View pointerEvents="none" style={styles.ambientGlow} />
     {!desktop ? <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push(subscriptionHref({intent:'credits'}) as never)} /> : null}
     <View style={[styles.topStage,!topStageWide&&styles.topStageStack]}>
@@ -136,7 +156,7 @@ export default function Home() {
     {secondaryWorkReady?<>
       {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Pressable accessibilityRole="button" accessibilityLabel="View all recently shared moments" hitSlop={6} onPress={() => router.push('/(tabs)/moments')} style={({pressed})=>[styles.sectionActionButton,pressed&&styles.sectionActionPressed]}><Text style={styles.sectionAction}>View all →</Text></Pressable></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
       {pulseWorld&&worldPulse?.worldId===pulseWorld.id?<AroundTownSection worldName={pulseWorld.name} items={worldPulse.items.slice(0,5)} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${pulseWorld.slug}`);router.push(`/(tabs)/explore?world=${pulseWorld.slug}`);}}/>:null}
-      {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions} world={selectedWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onExplore={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/explore?world=${selectedWorld.slug}`); }} onToggleFavorite={toggleFavorite} /> : null}
+      {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions.slice(0,visibleRecommendationCount)} world={selectedWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onExplore={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/explore?world=${selectedWorld.slug}`); }} onToggleFavorite={toggleFavorite} /> : null}
     </>:<HomeSecondaryLoading/>}
   </Screen>;
 }
