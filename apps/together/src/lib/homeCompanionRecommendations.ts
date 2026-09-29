@@ -1,10 +1,38 @@
-import type { Snapshot } from '../types';
+import type { Snapshot, World } from '../types';
 import { featuredCompanionGender, featuredCompanionsForWorld, type CompanionGender, type FeaturedCompanion } from './featuredCompanions';
+import { isWorldCatalogVisible } from '@together/domain/src/world-access';
+import { isComingSoonWorld } from './comingSoonWorlds';
+import { canAccessWorld } from './place';
+
+export type NewCompanionSuggestion = { companion: FeaturedCompanion; world: World };
+
+export function homeUnmetCompanionRecommendations(snapshot: Snapshot, preferredWorldId: string, limit = 16, now = Date.now()): NewCompanionSuggestion[] {
+  if (limit <= 0) return [];
+  const metTemplateIds = new Set(snapshot.characters.map((character) => character.character_template_id));
+  const worlds = snapshot.worlds.filter((world) => isWorldCatalogVisible(world) && !isComingSoonWorld(world));
+  worlds.sort((left, right) => Number(right.id === preferredWorldId) - Number(left.id === preferredWorldId)
+    || Number(canAccessWorld(snapshot, right)) - Number(canAccessWorld(snapshot, left)));
+  const suggestions: NewCompanionSuggestion[] = [];
+  for (const world of worlds) {
+    const candidates = featuredCompanionsForWorld(snapshot, world.id).filter((companion) => !metTemplateIds.has(companion.id));
+    for (const companion of rankHomeCandidates(snapshot, candidates, now)) {
+      if (metTemplateIds.has(companion.id)) continue;
+      suggestions.push({ companion, world });
+      metTemplateIds.add(companion.id);
+      if (suggestions.length >= limit) return suggestions;
+    }
+  }
+  return suggestions;
+}
 
 // Recommendation signals come from this account's engagement, never the user's
 // gender or the device-wide Explore filter. No message contents are inspected.
 export function homeCompanionRecommendations(snapshot: Snapshot, worldId: string, activeTemplateId?: string, now = Date.now()): FeaturedCompanion[] {
   const candidates = featuredCompanionsForWorld(snapshot, worldId, activeTemplateId);
+  return rankHomeCandidates(snapshot, candidates, now);
+}
+
+function rankHomeCandidates(snapshot: Snapshot, candidates: FeaturedCompanion[], now: number): FeaturedCompanion[] {
   const relationships = new Map((snapshot.relationships ?? []).map(item => [item.character_instance_id, item]));
   const recent = new Map<string, number>();
   const archived = new Set<string>();
