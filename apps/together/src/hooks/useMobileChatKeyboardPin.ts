@@ -51,9 +51,9 @@ export function useMobileChatKeyboardPin(enabled: boolean, onPin: () => void) {
     };
     const fitVisibleViewport = () => {
       if (!root || !isMobileChatComposerElement(document.activeElement)) return;
-      // Account for our own previous translation while measuring. Safari may
-      // already have panned the root, so applying the full offset twice leaves
-      // the composer far from the keyboard.
+      // Account for our own previous translation while measuring. Safari can
+      // pan the visual viewport without moving the root; offsetTop identifies
+      // the visible bottom edge, not a distance to push the chat downward.
       const frame = chatRootFrameForVisibleViewport({
         rootTop: root.getBoundingClientRect().top - appliedTranslateY,
         viewportTop: visualViewport?.offsetTop ?? 0,

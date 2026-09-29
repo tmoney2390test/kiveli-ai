@@ -16,7 +16,10 @@ export function chatRootFrameForVisibleViewport(input: {
 }): { translateY: number; height: number } | null {
   const { rootTop, viewportTop, viewportHeight } = input;
   if (![rootTop, viewportTop, viewportHeight].every(Number.isFinite) || viewportHeight < 120) return null;
-  const translateY = Math.max(0, viewportTop - rootTop);
+  // Safari can pan its visual viewport toward a focused textarea without
+  // moving the app root. Translating the root by offsetTop then creates a
+  // large empty area above chat. Only correct an actual upward root shift.
+  const translateY = Math.max(0, -rootTop);
   const top = rootTop + translateY;
   const height = viewportTop + viewportHeight - top;
   return height >= 120 ? { translateY, height } : null;
