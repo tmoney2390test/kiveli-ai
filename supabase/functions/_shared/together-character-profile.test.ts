@@ -1,4 +1,4 @@
-import { characterTemplateVisibleToViewer, projectPublicCharacterConnections } from './together-character-profile.ts';
+import { characterTemplateVisibleToViewer, projectPublicCharacterConnections, publicRelationshipHistory } from './together-character-profile.ts';
 
 function assert(condition: unknown, message: string) { if (!condition) throw new Error(message); }
 
@@ -37,4 +37,21 @@ Deno.test('incoming-only relationships keep their direction explicit', () => {
     edges: [{ world_id: 'world', source_template_id: 'target', target_template_id: 'source', relationship_type: 'protected heir', history: 'Target protects Source.' }],
   });
   assert(result[0]?.direction === 'incoming', 'an incoming relationship must not be presented as an outgoing claim');
+});
+
+Deno.test('public profiles suppress imported editorial placeholders but keep authored history', () => {
+  const placeholders = [
+    'An established personal connection; details require direct knowledge.',
+    'They belong to an authored Vespormoor social circle, but closeness and what they share remain relationship-specific.',
+    'They know one another through ashlands, shared work, faction overlap, or repeated travel.',
+    'They know one another through crownspire, house work, faction overlap, or repeated nights under lantern law.',
+  ];
+  for (const placeholder of placeholders) assert(publicRelationshipHistory(placeholder) === null, 'editorial placeholders must stay off profiles');
+  assert(publicRelationshipHistory('They repaired the old bridge together.') === 'They repaired the old bridge together.', 'specific history must remain visible');
+  const result = projectPublicCharacterConnections({
+    sourceTemplateId: 'source', worldId: 'world', viewerUserId: 'viewer', targets: [official('target', 'Target')],
+    edges: [{ world_id: 'world', source_template_id: 'source', target_template_id: 'target', relationship_type: 'old_friend', history: placeholders[0] }],
+  });
+  assert(result[0]?.history === null, 'the projection must use the public history filter');
+  assert(result[0]?.relationshipLabel === 'old friend', 'relationship labels should be readable without changing their meaning');
 });
