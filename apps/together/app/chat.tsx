@@ -13,7 +13,7 @@ import { useMessageRewrite } from '../src/hooks/useMessageRewrite';
 import { useContextQuote } from '../src/hooks/useContextQuote';
 import { ContextCostConfirmation } from '../src/components/settings/ContextCostConfirmation';
 import { Children, isValidElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
-import { ActivityIndicator, Alert, Animated, AppState, FlatList, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type FlatListProps } from 'react-native';
+import { ActivityIndicator, Alert, Animated, AppState, FlatList, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type FlatListProps } from 'react-native';
 import { type ImageSource } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Brain, CalendarDays, Camera, Check, ChevronRight, Copy, FastForward, Flag, Heart, Images, LockKeyhole, MapPin, MessageCircle, Mic, MoreHorizontal, Pause, Phone, Play, Send, Sparkles, Square, Trash2, Undo2, Volume2, Wand2, X } from 'lucide-react-native';
@@ -76,6 +76,7 @@ import { useAuth } from '../src/hooks/useAuth';
 import { useNetworkStatus } from '../src/providers/NetworkStatusProvider';
 import { usePersistentMessageDraft } from '../src/hooks/usePersistentMessageDraft';
 import { useMobileChatKeyboardPin } from '../src/hooks/useMobileChatKeyboardPin';
+import { ChatKeyboardFrame } from '../src/components/ChatKeyboardFrame';
 import { wasUnreadWhenChatOpened } from '../src/lib/chatUnreadWindow';
 import { latestConversationHeaderImage } from '../src/lib/chatHeaderMedia';
 import { newGroupPrefillHref } from '../src/lib/groupInvite';
@@ -1206,7 +1207,7 @@ function ChatSession() {
     }
   };
 
-  return <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}>
+  return <ChatKeyboardFrame style={styles.screen}>
     <View style={[styles.shell,desktopChat&&styles.shellDesktop]}>
       {showLeft ? <ChatConversationRail snapshot={snapshot} activeConversationId={conversation.id} /> : null}
       <View style={[styles.conversation,width<720&&styles.conversationWithLocation]}>
@@ -1359,7 +1360,7 @@ function ChatSession() {
       </View>
       {showRight ? <ContextRail snapshot={snapshot} character={character} context={chatContext} activePlan={activeSharedPlan} onPrompt={stageManualInput} onPlan={openPlanPicker} /> : null}
     </View>
-  </KeyboardAvoidingView>;
+  </ChatKeyboardFrame>;
 }
 
 type VirtualizedConversationListProps=Omit<FlatListProps<ReactElement>,'data'|'renderItem'|'keyExtractor'>&{
