@@ -6,6 +6,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { ErrorState } from '../components/RouteState';
 import { RouteLoadingState } from '../components/RouteLoadingState';
+import { StartupLoadingState } from '../components/StartupLoadingState';
 import { resolveKivelleAccountStage } from '../lib/authRouting';
 import { authenticatedShellEnabled } from '../lib/desktopNavigation';
 import { isPublicAppPath } from '../lib/sessionRouting';
@@ -125,7 +126,7 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   if (!snapshot && !publicPath) {
     blocker = error
       ? <ErrorState message={error} onRetry={() => void refresh()} />
-      : <RouteLoadingState pathname={pathname} />;
+      : <StartupLoadingState />;
   } else if (snapshot && !publicPath) {
     const stage = resolveKivelleAccountStage(snapshot.profile);
     if (onboardingRouteRedirect(stage, pathname)) {

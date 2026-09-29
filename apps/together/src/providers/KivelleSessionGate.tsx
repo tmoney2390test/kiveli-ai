@@ -3,6 +3,7 @@ import { router, usePathname, useUnstableGlobalHref } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 import { LoadingSkeleton } from '../components/RouteState';
 import { RouteLoadingState } from '../components/RouteLoadingState';
+import { StartupLoadingState } from '../components/StartupLoadingState';
 import { useAuth } from '../hooks/useAuth';
 import { useWebHydrated } from '../hooks/useWebHydrated';
 import { isAuthenticatedAccountSwap, isPublicAppPath, shouldHoldPrivateWebRouteForHydration, shouldKeepAuthTransitionMounted, signInPathFor } from '../lib/sessionRouting';
@@ -82,7 +83,7 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
   }, [authLoading, session?.user.id, publicPath, href]);
 
   if (shouldHoldPrivateWebRouteForHydration({ platform: Platform.OS, hydrated: webHydrated, pathname })) {
-    return <View style={styles.hydration}><LoadingSkeleton label="Opening Kivelle…" /></View>;
+    return <View style={styles.hydration}><StartupLoadingState /></View>;
   }
 
   if(session&&(sessionResetInProgress||isAuthenticatedAccountSwap(previousUserId.current,session.user.id))){
@@ -97,13 +98,13 @@ export function KivelleSessionGate({ children }: PropsWithChildren) {
   }
 
   if (demoMode || session) {
-    return <Suspense fallback={<RouteLoadingState pathname={pathname} />}>
+    return <Suspense fallback={<StartupLoadingState />}>
       <AuthenticatedSessionGate>{children}</AuthenticatedSessionGate>
     </Suspense>;
   }
 
   let blocker = null;
-  if (authLoading && !publicPath) blocker = <RouteLoadingState pathname={pathname} label="Restoring your session…" />;
+  if (authLoading && !publicPath) blocker = <StartupLoadingState />;
   else if (!session && !publicPath) blocker = <LoadingSkeleton label={signingOut ? 'Signing you out…' : 'Taking you to sign in…'} />;
 
   return <>

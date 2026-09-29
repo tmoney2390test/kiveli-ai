@@ -14,6 +14,7 @@
     "web:budget": "node scripts/check-web-performance-budget.mjs",
     "artwork:generate": "node scripts/catalog-artwork.mjs",
     "app-icon:prepare": "node scripts/prepare-app-icon.mjs",
+    "startup-loader:prepare": "node scripts/prepare-startup-loader.mjs",
     "artwork:verify": "node --test scripts/catalog-artwork.test.mjs",
     "artwork:publish": "node scripts/publish-catalog-artwork.mjs",
     "native:asset-budget": "node scripts/check-native-asset-budget.mjs",

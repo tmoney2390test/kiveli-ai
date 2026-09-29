@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import Head from 'expo-router/head';
-import { RouteLoadingState } from '../src/components/RouteLoadingState';
+import { StartupLoadingState } from '../src/components/StartupLoadingState';
 import { useAuth } from '../src/hooks/useAuth';
 import { rootEntryPresentation } from '../src/lib/rootRoute';
 import { PublicLandingPage } from '../src/components/landing/PublicLandingPage';
@@ -20,9 +20,9 @@ export default function Index() {
       <style>{publicLandingWebCss}</style>
     </Head>
     {presentation === 'loading'
-      ? <RouteLoadingState pathname="/home" label="Restoring your session…" />
+      ? <StartupLoadingState />
       : presentation === 'public'
         ? <PublicLandingPage />
-        : <Suspense fallback={<RouteLoadingState pathname="/home" label="Opening your world…" />}><AuthenticatedIndex /></Suspense>}
+        : <Suspense fallback={<StartupLoadingState />}><AuthenticatedIndex /></Suspense>}
   </>;
 }
