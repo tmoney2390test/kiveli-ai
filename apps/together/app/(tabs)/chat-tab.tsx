@@ -422,8 +422,6 @@ export default function MessageInbox() {
     : "Your conversations will appear here.";
   return (
     <SafeAreaView edges={["top"]} style={styles.screen}>
-      <View pointerEvents="none" style={styles.glowTop} />
-      <View pointerEvents="none" style={styles.glowBottom} />
       <SectionList
         accessibilityLabel="Messages list"
         sections={sections}
