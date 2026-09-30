@@ -50,5 +50,5 @@ export function ChatKeyboardFrame({ children, style }: PropsWithChildren<{ style
   }, [measureOverlap]);
 
   if (Platform.OS === 'android') return <KeyboardAvoidingView style={style} behavior="height">{children}</KeyboardAvoidingView>;
-  return <View ref={frameRef} style={[style, Platform.OS === 'ios' && bottomInset > 0 ? { paddingBottom: bottomInset } : null]} onLayout={measureOverlap}>{children}</View>;
+  return <View ref={frameRef} style={[style, Platform.OS === 'web' ? { minHeight: 0, overflow: 'hidden' } : null, Platform.OS === 'ios' && bottomInset > 0 ? { paddingBottom: bottomInset } : null]} onLayout={measureOverlap}>{children}</View>;
 }

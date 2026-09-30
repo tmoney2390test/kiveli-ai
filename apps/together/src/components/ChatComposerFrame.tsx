@@ -19,7 +19,7 @@ export function ChatComposerFrame({ floating, bottomInset, onLayout, style, chil
 }
 
 const styles = StyleSheet.create({
-  slot: { paddingHorizontal: 12, paddingTop: 8, backgroundColor: 'transparent', zIndex: 2 },
+  slot: { flexShrink: 0, paddingHorizontal: 12, paddingTop: 8, backgroundColor: 'transparent', zIndex: 2 },
   glass: {
     borderRadius: 28,
     borderCurve: 'continuous',
