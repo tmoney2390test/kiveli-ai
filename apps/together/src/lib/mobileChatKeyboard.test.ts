@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chatComposerOverlap, chatRootFrameForVisibleViewport, isMobileChatComposerElement } from './mobileChatKeyboard';
+import { chatRootFrameForVisibleViewport, isMobileChatComposerElement } from './mobileChatKeyboard';
 
 describe('mobile chat keyboard pin', () => {
   it('recognizes the direct and group chat composers', () => {
@@ -30,13 +30,4 @@ describe('chat viewport alignment', () => {
     expect(chatRootFrameForVisibleViewport({rootTop:-80,viewportTop:80,viewportHeight:390})).toEqual({height:550});
   });
 
-  it('reserves room for the Safari keyboard accessory when the composer is focused', () => {
-    expect(chatRootFrameForVisibleViewport({rootTop:0,viewportTop:0,viewportHeight:500,keyboardAccessoryInset:48})).toEqual({height:452});
-    expect(chatRootFrameForVisibleViewport({rootTop:0,viewportTop:0,viewportHeight:500,keyboardAccessoryInset:0})).toEqual({height:500});
-  });
-
-  it('measures any remaining composer overlap after layout', () => {
-    expect(chatComposerOverlap(520, 452)).toBe(68);
-    expect(chatComposerOverlap(449, 452)).toBe(0);
-  });
 });

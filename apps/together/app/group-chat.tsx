@@ -256,6 +256,7 @@ export default function GroupChatScreen() {
     consumeDailyMessageAllowance = useTogether((state) => state.consumeDailyMessageAllowance),
     exhaustDailyMessageAllowance = useTogether((state) => state.exhaustDailyMessageAllowance);
   const screenInsets=useSafeAreaInsets();
+  const [floatingComposerHeight,setFloatingComposerHeight]=useState(110);
   const{session,loading:authLoading}=useAuth(),{online,phase:connectionPhase}=useNetworkStatus();
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined" || !params.id || window.location.pathname !== "/group-chat") return;
@@ -480,7 +481,7 @@ export default function GroupChatScreen() {
     setShowJumpToLatest(false);
   },[beginInitialBottomPin,cancelInitialBottomPin]);
   const pinLatestForMobileKeyboard=useCallback(()=>{
-    if(width>=720||!params.id)return;
+    if(width>=720||!params.id||!keepPinnedToBottom.current)return;
     keepPinnedToBottom.current=true;
     forcePinnedUntil.current=Date.now()+1_400;
     setShowJumpToLatest(false);
@@ -1784,7 +1785,7 @@ export default function GroupChatScreen() {
         {showConversationRail && snapshot
           ? <ChatConversationRail snapshot={snapshot} activeConversationId={params.id} />
           : null}
-        <View style={styles.conversation}>
+        <View style={[styles.conversation,Platform.OS==='web'&&width<720&&{paddingBottom:floatingComposerHeight}]}>
           <View style={styles.center}>
             <EmptyState
               title="Group unavailable"
@@ -2160,7 +2161,7 @@ export default function GroupChatScreen() {
         removeClippedSubviews={Platform.OS !== "web"}
       />
       {timelineReveal.hidden?<View pointerEvents="none" style={[StyleSheet.absoluteFill,{alignItems:"center",justifyContent:"center"}]}><ActivityIndicator accessibilityLabel="Opening conversation" color={colors.rose}/></View>:null}</View>
-      <JumpToLatestButton visible={showJumpToLatest} bottom={width<720?104:92} onPress={()=>{if(params.id)clearChatScrollPosition(params.id);settleGroupAtBottom(true);}}/>
+      <JumpToLatestButton visible={showJumpToLatest} bottom={width<720?floatingComposerHeight+12:92} onPress={()=>{if(params.id)clearChatScrollPosition(params.id);settleGroupAtBottom(true);}}/>
       {error&&groupTimelineReady ? <ChatRecoveryNotice error={error} onDismiss={()=>setError("")} /> : null}
       {mentionOptions.length
         ? (
@@ -2299,6 +2300,7 @@ export default function GroupChatScreen() {
         onDictationError={setError}
         onDictationStart={() => setActiveVoiceId(null)}
         onFocus={onMobileComposerFocus}
+        onFrameLayout={(height)=>{if(Platform.OS==='web'&&width<720)setFloatingComposerHeight((current)=>current===height?current:height);}}
       />
       <Modal
         animationType="fade"
@@ -2549,6 +2551,7 @@ function GroupComposer({
   onDictationError,
   onDictationStart,
   onFocus,
+  onFrameLayout,
 }: {
   compact: boolean;
   conversationId: string;
@@ -2567,6 +2570,7 @@ function GroupComposer({
   onDictationError: (value: string) => void;
   onDictationStart: () => void;
   onFocus?: () => void;
+  onFrameLayout?: (height: number) => void;
 }) {
   const insets=useSafeAreaInsets();
   const [composerFocused, setComposerFocused] = useState(false);
@@ -2583,7 +2587,7 @@ function GroupComposer({
     sendDisabled = stopping || !ready || (!sending && (dictationBusy || overLimit ||
       (!input.trim() && !hasPendingImage)));
   return (
-    <ChatComposerFrame floating={compact} bottomInset={insets.bottom} onLayout={()=>{if(Platform.OS==='web'&&compact&&document.activeElement?.id==='group-chat-message-composer')onFocus?.();}} style={styles.composerWrap}>
+    <ChatComposerFrame floating={compact} bottomInset={insets.bottom} onLayout={(event)=>{onFrameLayout?.(Math.ceil(event.nativeEvent.layout.height));if(Platform.OS==='web'&&compact&&document.activeElement?.id==='group-chat-message-composer')onFocus?.();}} style={styles.composerWrap}>
       <View style={styles.composer}>
         <View style={[
           styles.composerInputShell,
