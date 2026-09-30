@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chatRootFrameForVisibleViewport, isMobileChatComposerElement } from './mobileChatKeyboard';
+import { chatComposerTopForVisibleViewport, chatRootFrameForVisibleViewport, isMobileChatComposerElement } from './mobileChatKeyboard';
 
 describe('mobile chat keyboard pin', () => {
   it('recognizes the direct and group chat composers', () => {
@@ -15,6 +15,14 @@ describe('mobile chat keyboard pin', () => {
 });
 
 describe('chat viewport alignment', () => {
+  it('positions a panned Safari composer with pageTop, not offsetTop or innerHeight', () => {
+    expect(chatComposerTopForVisibleViewport({pageTop:280,viewportHeight:390,composerHeight:90})).toBe(580);
+  });
+
+  it('corrects the composer against screen coordinates after WebKit moves it', () => {
+    expect(chatComposerTopForVisibleViewport({pageTop:280,viewportHeight:390,composerHeight:90,actualBottomOnScreen:300})).toBe(670);
+  });
+
   it('fills the visible area above the keyboard', () => {
     expect(chatRootFrameForVisibleViewport({rootTop:0,viewportTop:0,viewportHeight:390})).toEqual({height:390});
     expect(chatRootFrameForVisibleViewport({rootTop:0,viewportTop:80,viewportHeight:390})).toEqual({height:470});
