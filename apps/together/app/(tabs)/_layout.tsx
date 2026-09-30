@@ -79,7 +79,7 @@ export default function TabsLayout() {
       listeners={{tabPress:(event)=>{const href=latestChatHref??messagesInboxHref;prepare(href);event.preventDefault();router.push(href as never);}}}
     />
     <Tabs.Screen name="moments" options={{ title: 'Moments', tabBarIcon: ({ color, size, focused }) => <Images color={color} size={focused ? size + 1 : size} /> }} listeners={{tabPress:()=>prepare('/moments')}} />
-    <Tabs.Screen name="create" options={{ title: 'Create', tabBarIcon: ({ color, size }) => <Plus color={color} size={size + 2} /> }} listeners={{tabPress:(event)=>{event.preventDefault();setCreateOpen(true);}}} />
+    <Tabs.Screen name="create" options={{ title: 'Create', tabBarIcon: ({ color, size }) => <Plus color={color} size={size + 2} />, tabBarButton: (props) => <MobileTabButton {...props} href={undefined} onPress={(event) => { event.preventDefault(); setCreateOpen(true); }} /> }} listeners={{tabPress:(event)=>{event.preventDefault();setCreateOpen(true);}}} />
     <Tabs.Screen name="upgrade" options={{ href: null }} />
     <Tabs.Screen name="profile" options={{ href: null }} />
     <Tabs.Screen name="dates" options={{ href: null }} />
