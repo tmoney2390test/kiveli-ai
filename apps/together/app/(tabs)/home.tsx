@@ -41,21 +41,37 @@ export default function Home() {
   const [visibleRecommendationCount,setVisibleRecommendationCount]=useState(recommendationBatchSize);
   const visibleRecommendationCountRef=useRef(recommendationBatchSize);
   const lastRecommendationLoadHeight=useRef(0);
+  const recommendationRevealTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const [recommendationsRevealing,setRecommendationsRevealing]=useState(false);
   useEffect(()=>{
+    if(recommendationRevealTimer.current)clearTimeout(recommendationRevealTimer.current);
+    recommendationRevealTimer.current=null;
+    setRecommendationsRevealing(false);
     visibleRecommendationCountRef.current=recommendationBatchSize;
     lastRecommendationLoadHeight.current=0;
     setVisibleRecommendationCount(recommendationBatchSize);
+    return()=>{if(recommendationRevealTimer.current)clearTimeout(recommendationRevealTimer.current);};
   },[browsedWorldId,recommendationBatchSize]);
+  const revealMoreRecommendations=(total:number)=>{
+    if(recommendationRevealTimer.current||visibleRecommendationCountRef.current>=total)return;
+    setRecommendationsRevealing(true);
+    // A brief reveal transition keeps the next row from abruptly changing page height.
+    recommendationRevealTimer.current=setTimeout(()=>{
+      recommendationRevealTimer.current=null;
+      visibleRecommendationCountRef.current=Math.min(total,visibleRecommendationCountRef.current+recommendationBatchSize);
+      setVisibleRecommendationCount(visibleRecommendationCountRef.current);
+      setRecommendationsRevealing(false);
+    },220);
+  };
   const revealRecommendationsOnScroll=(event:NativeSyntheticEvent<NativeScrollEvent>,total:number)=>{
-    if(visibleRecommendationCountRef.current>=total)return;
+    if(recommendationRevealTimer.current||visibleRecommendationCountRef.current>=total)return;
     const{contentOffset,contentSize,layoutMeasurement}=event.nativeEvent;
     if(contentOffset.y+layoutMeasurement.height<contentSize.height-280)return;
     // Reveal one row group per scroll into the end of the page. Wait for the
     // content height to grow before accepting another scroll event.
     if(contentSize.height<=lastRecommendationLoadHeight.current)return;
     lastRecommendationLoadHeight.current=contentSize.height;
-    visibleRecommendationCountRef.current=Math.min(total,visibleRecommendationCountRef.current+recommendationBatchSize);
-    setVisibleRecommendationCount(visibleRecommendationCountRef.current);
+    revealMoreRecommendations(total);
   };
   const { data: subscription = null } = useSubscriptionStatus(Boolean(snapshot)&&secondaryWorkReady);
   const { width } = useWindowDimensions();
@@ -122,7 +138,7 @@ export default function Home() {
       <View pointerEvents="none" style={styles.ambientGlow}/>
       {!desktop?<HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name??snapshot.profile?.display_name??'You'} onCredits={()=>router.push(subscriptionHref({intent:'credits'}) as never)}/>:null}
       <View style={styles.emptyLife}><Text accessibilityRole="header" style={styles.emptyLifeTitle}>Start a conversation</Text><GradientButton label="Explore" onPress={()=>router.push('/(tabs)/explore')}/></View>
-      {fallbackWorld?<FeaturedCompanionsSection companions={featuredCompanions.slice(0,visibleRecommendationCount)} world={fallbackWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds??[]} onOpen={(item)=>router.push(`/character/${item.public_handle??item.slug}`)} onExplore={()=>{setBrowsedWorldId(fallbackWorld.id);router.push(`/(tabs)/explore?world=${fallbackWorld.slug}`);}} onToggleFavorite={toggleFavorite}/>:null}
+      {fallbackWorld?<FeaturedCompanionsSection initialCount={recommendationBatchSize} totalCount={featuredCompanions.length} revealing={recommendationsRevealing} onRevealMore={()=>revealMoreRecommendations(featuredCompanions.length)} companions={featuredCompanions.slice(0,visibleRecommendationCount)} world={fallbackWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds??[]} onOpen={(item)=>router.push(`/character/${item.public_handle??item.slug}`)} onExplore={()=>{setBrowsedWorldId(fallbackWorld.id);router.push(`/(tabs)/explore?world=${fallbackWorld.slug}`);}} onToggleFavorite={toggleFavorite}/>:null}
     </Screen>;
   }
 
@@ -156,7 +172,7 @@ export default function Home() {
     {secondaryWorkReady?<>
       {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Pressable accessibilityRole="button" accessibilityLabel="View all recently shared moments" hitSlop={6} onPress={() => router.push('/(tabs)/moments')} style={({pressed})=>[styles.sectionActionButton,pressed&&styles.sectionActionPressed]}><Text style={styles.sectionAction}>View all →</Text></Pressable></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
       {pulseWorld&&worldPulse?.worldId===pulseWorld.id?<AroundTownSection worldName={pulseWorld.name} items={worldPulse.items.slice(0,5)} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${pulseWorld.slug}`);router.push(`/(tabs)/explore?world=${pulseWorld.slug}`);}}/>:null}
-      {selectedWorld ? <FeaturedCompanionsSection companions={featuredCompanions.slice(0,visibleRecommendationCount)} world={selectedWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onExplore={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/explore?world=${selectedWorld.slug}`); }} onToggleFavorite={toggleFavorite} /> : null}
+      {selectedWorld ? <FeaturedCompanionsSection initialCount={recommendationBatchSize} totalCount={featuredCompanions.length} revealing={recommendationsRevealing} onRevealMore={()=>revealMoreRecommendations(featuredCompanions.length)} companions={featuredCompanions.slice(0,visibleRecommendationCount)} world={selectedWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onExplore={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/explore?world=${selectedWorld.slug}`); }} onToggleFavorite={toggleFavorite} /> : null}
     </>:<HomeSecondaryLoading/>}
   </Screen>;
 }
