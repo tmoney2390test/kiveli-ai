@@ -3,19 +3,18 @@ import { DESKTOP_SIDEBAR_EXPANDED_WIDTH } from '../lib/desktopNavigation';
 import { colors, radius, spacing, typography } from '../theme';
 
 export const styles = StyleSheet.create({
-  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden', paddingHorizontal: 12, backgroundColor: 'rgba(0,0,0,.65)' },
+  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', overflow: 'hidden', paddingHorizontal: 12, backgroundColor: 'rgba(0,0,0,.65)' },
   // Reserve the rail's full hover width so it can never cover Settings' own
   // section navigation or steal its pointer events while expanded.
   backdropDesktop: { justifyContent: 'center', ...(Platform.OS === 'web' ? ({ position: 'fixed', top: 0, right: 0, bottom: 0, left: DESKTOP_SIDEBAR_EXPANDED_WIDTH, zIndex: 1200, padding: 18 } as never) : {}) },
   modal: { width: '100%', backgroundColor: '#17121E', overflow: 'hidden', borderColor: '#40334F' },
   modalDesktop: { maxWidth: 1100, borderRadius: 24, borderWidth: 1, shadowColor: '#000', shadowOpacity: .48, shadowRadius: 44, shadowOffset: { width: 0, height: 22 } },
   modalMobile: { maxWidth: 460, borderRadius: 24, borderWidth: 1 },
-  header: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: '#3B3047' },
+  header: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: '#3B3047' },
   brandMark: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(151,116,171,.085)', borderWidth: 1, borderColor: 'rgba(204,176,221,.18)' },
   brandInitial: { color: '#CFB6DD', fontFamily: typography.display, fontSize: 18 },
   headerCopy: { flex: 1, minWidth: 0 }, title: { color: colors.text, fontFamily: typography.display, fontWeight: '600', fontSize: 25 },
-  headerMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 3 },
-  close: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.018)', borderWidth: 1, borderColor: 'rgba(255,255,255,.08)' },
+  close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: .72, transform: [{ scale: .98 }] },
   body: { flex: 1, flexDirection: 'row', minHeight: 0 }, contentColumn: { flex: 1, minWidth: 0 },
   sidebar: { width: 280, paddingTop: 18, paddingBottom: spacing.lg, borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,.075)', backgroundColor: 'rgba(11,10,14,.23)' },
@@ -25,11 +24,9 @@ export const styles = StyleSheet.create({
   sidebarLinkText: { color: colors.textSecondary, fontSize: 15, fontWeight: '700' }, sidebarLinkTextActive: { color: '#F1E7F3' },
   logoutButton: { minHeight: 48, marginTop: 'auto', marginHorizontal: 18, paddingHorizontal: 14, borderRadius: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: 'rgba(255,113,129,.055)', borderWidth: 1, borderColor: 'rgba(255,113,129,.2)' },
   logoutButtonMobile: { width: '100%', maxWidth: 780, alignSelf: 'center', marginTop: 2, marginHorizontal: 0 }, logoutButtonDisabled: { opacity: .55 }, logoutButtonText: { color: colors.danger, fontSize: 13, fontWeight: '900' },
-  mobileSectionHeader: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: 'rgba(12,10,16,.36)' },
-  mobileBack: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14 }, mobileSectionTitle: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '900' },
-  main: { flex: 1 }, mainContent: { flexGrow: 1, padding: spacing.xl, paddingBottom: 70 }, mainContentDesktop: { paddingTop: 28, paddingHorizontal: 28, paddingBottom: 64 },
-  panel: { width: '100%', maxWidth: 1060, alignSelf: 'flex-start', gap: 24 },
-  panelHeading: { gap: 8, marginBottom: 4 }, panelTitle: { color: colors.text, fontFamily: typography.display, fontSize: 37, fontWeight: '600' }, panelBody: { color: colors.textSecondary, fontSize: 14, lineHeight: 21, maxWidth: 760 },
+  mobileBack: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
+  main: { flex: 1 }, mainContent: { flexGrow: 1, padding: spacing.lg, paddingBottom: 54 }, mainContentDesktop: { paddingTop: 24, paddingHorizontal: 28, paddingBottom: 64 },
+  panel: { width: '100%', maxWidth: 1060, alignSelf: 'flex-start', gap: 18 },
   searchBox: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(255,255,255,.11)', backgroundColor: 'rgba(8,7,11,.35)' }, searchInput: { flex: 1, minHeight: 50, color: colors.text, fontSize: 15, outlineStyle: 'none' } as never,
   emptySearch: { minHeight: 210, alignItems: 'center', justifyContent: 'center', padding: 28, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: 'rgba(255,255,255,.018)' }, emptySearchTitle: { color: colors.text, fontSize: 17, fontWeight: '900', marginTop: 12 }, emptySearchBody: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 6 },
   summaryCard: { minHeight: 110, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: 'rgba(104,82,116,.075)', borderWidth: 1, borderColor: 'rgba(217,192,228,.11)' }, summaryIcon: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(155,126,172,.075)' }, summaryKicker: { color: '#CCB5D7', fontSize: 10.5, fontWeight: '900', letterSpacing: 1.1 }, summaryTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 3 }, verified: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }, verifiedText: { fontSize: 11, fontWeight: '800' },

@@ -60,7 +60,6 @@ import {
   type SettingsSection,
 } from '../src/lib/settingsExperience';
 import { LoadingSkeleton } from '../src/components';
-import { ContactSupportModal } from '../src/components/ContactSupportModal';
 import { ErrorState } from '../src/components/RouteState';
 
 type SaveNotice = { kind: 'success' | 'error'; message: string } | null;
@@ -80,7 +79,7 @@ const sections: SectionDefinition[] = [
   { id: 'experience', label: 'Chat & media', description: 'Notifications, content, photos, video, voice, and calls.', searchTerms: 'push romance upload generation autoplay audio', icon: <Heart size={20} /> },
   { id: 'relationships', label: 'Relationships', description: 'Companions, conversations, archives, and memories.', searchTerms: 'chat reset history memory moments', icon: <UsersRound size={20} /> },
   { id: 'privacy', label: 'Privacy & safety', description: 'Personalization, analytics, data, policies, and deletion.', searchTerms: 'export delete account terms refund community ai disclosure', icon: <Shield size={20} /> },
-  { id: 'support', label: 'Help & support', description: 'Find answers or send the support team a private request.', searchTerms: 'contact report problem ticket', icon: <LifeBuoy size={20} /> },
+  { id: 'support', label: 'Help & Support', description: 'Help center and support requests.', searchTerms: 'contact report problem ticket', icon: <LifeBuoy size={20} /> },
 ];
 
 export default function Settings() {
@@ -106,7 +105,6 @@ export default function Settings() {
   const [searchQuery, setSearchQuery] = useState('');
   const [signingOut, setSigningOut] = useState(false);
   const [accountBusy, setAccountBusy] = useState<'resend' | 'sessions' | null>(null);
-  const [supportVisible, setSupportVisible] = useState(false);
   const avatar = useProfileAvatarUrl(avatarPath);
   useEffect(() => { setWebHydrated(true); }, []);
 
@@ -250,18 +248,17 @@ export default function Settings() {
     });
   };
 
-  const modalHeight = desktop ? Math.min(760, Math.max(520, height - 36)) : Math.min(760, height - insets.top - Math.max(insets.bottom, 12) - 24);
+  const modalHeight = desktop ? Math.min(760, Math.max(520, height - 36)) : Math.min(760, height - insets.top - Math.max(insets.bottom, 8) - 8);
   const browserPath = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.pathname : null;
   if (!shouldRenderSettingsRoute({ platform: Platform.OS, routerPathname: pathname, browserPathname: browserPath })) return null;
 
-  const settingsSurface = <View style={[styles.backdrop, desktop ? styles.backdropDesktop : { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 12) }]} accessibilityViewIsModal={!desktop}>
+  const settingsSurface = <View style={[styles.backdrop, desktop ? styles.backdropDesktop : { paddingTop: Math.max(insets.top, 8), paddingBottom: Math.max(insets.bottom, 8) }]} accessibilityViewIsModal={!desktop}>
     <Pressable accessible={false} onPress={close} style={StyleSheet.absoluteFill} />
     <View style={[styles.modal, desktop ? styles.modalDesktop : styles.modalMobile, { height: modalHeight }]}>
       <View style={styles.header}>
-        <View style={styles.brandMark}><Text style={styles.brandInitial}>{(name || 'Y')[0]?.toUpperCase()}</Text></View>
+        {!desktop && activeSection ? <Pressable accessibilityRole="button" accessibilityLabel="Back to all settings" onPress={showOverview} hitSlop={6} style={({ pressed }) => [styles.mobileBack, pressed && styles.pressed]}><ArrowLeft size={21} color={colors.text} /></Pressable> : <View style={styles.brandMark}><Text style={styles.brandInitial}>{(name || 'Y')[0]?.toUpperCase()}</Text></View>}
         <View style={styles.headerCopy}>
-          <Text accessibilityRole="header" style={styles.title}>Settings</Text>
-          <Text numberOfLines={1} style={styles.headerMeta}>{(snapshot?.activePersona?.display_name ?? name) || 'Your Kivelle account'} · {snapshot?.activeContinuity?.title ?? 'Main Life'}</Text>
+          <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{sections.find((item) => item.id === activeSection)?.label ?? 'Settings'}</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Close settings" onPress={close} hitSlop={6} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><X size={22} color={colors.textSecondary} /></Pressable>
       </View>
@@ -274,11 +271,6 @@ export default function Settings() {
         </View> : null}
 
         <View style={styles.contentColumn}>
-          {!desktop && activeSection ? <View style={styles.mobileSectionHeader}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Back to all settings" onPress={showOverview} hitSlop={6} style={({ pressed }) => [styles.mobileBack, pressed && styles.pressed]}><ArrowLeft size={21} color={colors.text} /></Pressable>
-            <Text numberOfLines={1} style={styles.mobileSectionTitle}>{sections.find((item) => item.id === activeSection)?.label}</Text>
-          </View> : null}
-
           <ScrollView
             ref={scroll}
             style={styles.main}
@@ -293,7 +285,7 @@ export default function Settings() {
               {activeSection === 'experience' ? <ExperiencePanel snapshot={snapshot} onRoute={openRoute} /> : null}
               {activeSection === 'relationships' ? <RelationshipsPanel snapshot={snapshot} onRoute={openRoute} /> : null}
               {activeSection === 'privacy' ? <PrivacyPanel onRoute={openRoute} onDisclosure={() => showActionAlert('About Kivelle characters', 'Kivelle companions are fictional AI characters. They can remember shared context and simulate a life, but they are not real people and do not have human consciousness.')} /> : null}
-              {activeSection === 'support' ? <SupportPanel onRoute={openRoute} onContact={() => setSupportVisible(true)} /> : null}
+              {activeSection === 'support' ? <SupportPanel onRoute={openRoute} /> : null}
             </> : <SettingsOverview snapshot={snapshot} name={name} verified={providerState.verifiedEmail} tier={subscriptionLabel(snapshot.entitlements?.tier)} query={searchQuery} onQuery={setSearchQuery} onSelect={selectSection} signingOut={signingOut} onLogout={logout} />}
           </ScrollView>
 
@@ -305,10 +297,7 @@ export default function Settings() {
   const settingsModal = desktop
     ? settingsSurface
     : <Modal visible transparent animationType="fade" onRequestClose={close}>{settingsSurface}</Modal>;
-  return <>
-    {settingsModal}
-    <ContactSupportModal visible={supportVisible} email={session?.user.email} onClose={() => setSupportVisible(false)} />
-  </>;
+  return settingsModal;
 }
 
 function SectionTab({ item, active, onPress }: { item: SectionDefinition; active: boolean; onPress: () => void }) {
@@ -328,7 +317,6 @@ function SettingsOverview({ snapshot, name, verified, tier, query, onQuery, onSe
   };
   const filtered = sections.filter((item) => settingsSearchMatches(query, item.label, item.description, item.searchTerms));
   return <View style={styles.panel}>
-    <PanelHeading title="All settings" body="Choose an area or search for the control you need." />
     <View style={styles.searchBox}><Search size={19} color={colors.muted} /><TextInput accessibilityLabel="Search settings" value={query} onChangeText={onQuery} placeholder="Search settings" placeholderTextColor={colors.dimmed} returnKeyType="search" style={styles.searchInput} />{query ? <Pressable accessibilityRole="button" accessibilityLabel="Clear settings search" onPress={() => onQuery('')} hitSlop={8}><X size={18} color={colors.muted} /></Pressable> : null}</View>
     {filtered.length ? <SettingsGroup>{filtered.map((item) => <SettingsRow key={item.id} icon={item.icon} title={item.label} body={item.description} value={statuses[item.id]} onPress={() => onSelect(item.id)} />)}</SettingsGroup> : <View style={styles.emptySearch}><Search size={24} color={colors.muted} /><Text style={styles.emptySearchTitle}>No settings found</Text><Text style={styles.emptySearchBody}>Try a broader word such as “photo,” “privacy,” or “password.”</Text></View>}
     <LogoutButton signingOut={signingOut} onPress={onLogout} mobile />
@@ -336,7 +324,7 @@ function SettingsOverview({ snapshot, name, verified, tier, query, onQuery, onSe
 }
 
 function AccountPanel({ email, providerLabel, verified, pendingEmail, tier, busy, onRoute, onResend, onSignOutOthers }: { email?: string; providerLabel: string; verified: boolean; pendingEmail: string | null; tier: string; busy: 'resend' | 'sessions' | null; onRoute: (route: string) => void; onResend: () => void; onSignOutOthers: () => void }) {
-  return <View style={styles.panel}><PanelHeading title="Account & billing" body="Manage sign-in, subscription, credits, and account security." />
+  return <View style={styles.panel}>
     <View style={styles.summaryCard}><View style={styles.summaryIcon}><KeyRound color={colors.violet} /></View><View style={{ flex: 1 }}><Text style={styles.summaryKicker}>{providerLabel.toUpperCase()}</Text><Text style={styles.summaryTitle}>{email ?? 'Your Kivelle account'}</Text><View style={styles.verified}><Check size={12} color={verified ? colors.success : colors.warm} /><Text style={[styles.verifiedText, { color: verified ? colors.success : colors.warm }]}>{verified ? 'Verified email' : 'Email verification pending'}</Text></View>{pendingEmail ? <Text style={styles.verifiedText}>Pending change: {pendingEmail}</Text> : null}</View></View>
     <SettingsGroup>
       <SettingsRow icon={<UserRound />} title="Account & security" body="Change your email or manage active sessions." onPress={() => onRoute('/account')} />
@@ -351,7 +339,7 @@ function IdentityPanel({ snapshot, onRoute }: { snapshot: Snapshot; onRoute: (ro
   const persona = snapshot.activePersona;
   const life = snapshot.activeContinuity;
   const lifeCount = snapshot.continuities?.length ?? 1;
-  return <View style={styles.panel}><PanelHeading title="Personas & Lives" body="A Persona defines who you are. A Life keeps that identity’s relationships and history isolated." />
+  return <View style={styles.panel}>
     <View style={styles.lifeHero}><View style={styles.lifeAvatar}><Text style={styles.lifeInitial}>{(persona?.display_name ?? snapshot.profile?.display_name ?? 'Y')[0]}</Text></View><View style={{ flex: 1 }}><Text style={styles.summaryKicker}>{life?.kind === 'alternate' ? 'ACTIVE ALTERNATE LIFE' : 'ACTIVE MAIN LIFE'}</Text><Text style={styles.lifeName}>{persona?.display_name ?? snapshot.profile?.display_name ?? 'You'}</Text><Text style={styles.lifeMeta}>{[persona?.occupation, persona?.age].filter(Boolean).join(' · ') || life?.title || 'Main Life'}</Text></View><View style={styles.activePill}><Check size={12} color="#fff" /><Text style={styles.activePillText}>ACTIVE</Text></View></View>
     <SettingsGroup><SettingsRow icon={<Sparkles />} title="Manage Personas & Lives" body="Switch identities or create another separate Life." value={`${lifeCount} ${lifeCount === 1 ? 'Life' : 'Lives'}`} onPress={() => onRoute('/personas')} /><SettingsRow icon={<UserRound />} title="Edit active Persona" body="Name, pronouns, occupation, interests, and in-world identity." onPress={() => onRoute(`/persona-editor?persona=${persona?.id ?? ''}`)} /></SettingsGroup>
     <InfoCard title="Why this is separate">Your account is how you sign in. Your Persona is who companions know inside this Life. Switching Personas never relabels an existing relationship.</InfoCard>
@@ -361,7 +349,7 @@ function IdentityPanel({ snapshot, onRoute }: { snapshot: Snapshot; onRoute: (ro
 function ExperiencePanel({ snapshot, onRoute }: { snapshot: Snapshot; onRoute: (route: string) => void }) {
   const media = snapshot.profile?.multimodal_preferences;
   const enabledMedia = [media?.userPhotoUploads !== false, media?.generatedPhotos !== false, media?.generatedVideos !== false, media?.companionVoiceNotes !== false, media?.liveVoiceCalls !== false].filter(Boolean).length;
-  return <View style={styles.panel}><PanelHeading title="Chat & media" body="Choose how Kivelle communicates and which relationship experiences appear." /><SettingsGroup>
+  return <View style={styles.panel}><SettingsGroup>
     <SettingsRow icon={<Heart />} title="Content preferences" body="Relationship tone and romantic interactions." value={snapshot.profile?.content_preferences?.romanceEnabled === false ? 'Friendship only' : 'Romance on'} onPress={() => onRoute('/content-settings')} />
     <SettingsRow icon={<Bell />} title="Notifications" body="Push alerts, initiative, reminders, and quiet hours." value={snapshot.notificationPreferences?.push_enabled ? 'On' : 'Off'} onPress={() => onRoute('/notifications')} />
     <SettingsRow icon={<Camera />} title="Companion photos" body="Contextual photos and automatic photo moments." value={snapshot.profile?.photo_preferences?.companionPhotos === false ? 'Off' : 'On'} onPress={() => onRoute('/photo-settings')} />
@@ -372,29 +360,28 @@ function ExperiencePanel({ snapshot, onRoute }: { snapshot: Snapshot; onRoute: (
 function RelationshipsPanel({ snapshot, onRoute }: { snapshot: Snapshot; onRoute: (route: string) => void }) {
   const companion = activeCompanion(snapshot);
   const memoryCount = companion ? snapshot.memoryCounts?.[companion.id] ?? snapshot.memories.filter((item) => item.character_instance_id === companion.id).length : 0;
-  return <View style={styles.panel}><PanelHeading title="Relationships" body="Manage companions, shared history, and the memories that shape each relationship." />
+  return <View style={styles.panel}>
     <View style={styles.metricRow}><Metric value={snapshot.characters.length} label="Companions" /><Metric value={snapshot.moments.length} label="Moments" /><Metric value={snapshot.sharedPlans.filter((plan) => ['scheduled', 'active'].includes(plan.status)).length} label="Upcoming" /></View>
     <SettingsGroup><SettingsRow icon={<UsersRound />} title="Your companions" body="Switch the active relationship or meet someone new." value={`${snapshot.characters.length}`} onPress={() => onRoute('/companions')} /><SettingsRow icon={<MessageCircle />} title="Conversations & resets" body="Conversation history, fresh threads, and complete character reset." onPress={() => onRoute('/conversation-controls')} /><SettingsRow icon={<Archive />} title="Archived chats" body="Restore deleted chats for up to 30 days." onPress={() => onRoute('/archived-chats')} /><SettingsRow icon={<Brain />} title="Memory Center" body={companion ? `Review memories with ${companion.together_character_templates.name}.` : 'Review and control relationship memories.'} value={companion ? `${memoryCount}` : undefined} onPress={() => onRoute('/memories')} /></SettingsGroup>
   </View>;
 }
 
 function PrivacyPanel({ onRoute, onDisclosure }: { onRoute: (route: string) => void; onDisclosure: () => void }) {
-  return <View style={styles.panel}><PanelHeading title="Privacy & safety" body="Control your data, understand Kivelle’s safeguards, and review the policies that protect your account." />
+  return <View style={styles.panel}>
     <Text style={styles.groupLabel}>YOUR DATA</Text><SettingsGroup><SettingsRow icon={<Shield />} title="Privacy and data controls" body="Personalization, analytics, memory controls, export, and account deletion." onPress={() => onRoute('/privacy')} /><SettingsRow icon={<Shield />} title="Community & Safety Guidelines" body="Rules for age, content, real people, and reports." onPress={() => onRoute('/community-guidelines')} /><SettingsRow icon={<FileText />} title="AI character disclosure" body="How fictional Kivelle characters and simulation work." onPress={onDisclosure} /></SettingsGroup>
     <Text style={styles.groupLabel}>POLICIES</Text><SettingsGroup><SettingsRow icon={<FileText />} title="Privacy Policy" body="How Kivelle processes, protects, and retains information." onPress={() => onRoute('/privacy-policy')} /><SettingsRow icon={<FileText />} title="Terms of Service" body="Account, billing, content, and acceptable use." onPress={() => onRoute('/terms')} /><SettingsRow icon={<CreditCard />} title="Refund & Cancellation Policy" body="Subscriptions, credit packs, failed generations, and refunds." onPress={() => onRoute('/refund-policy')} /></SettingsGroup>
     <Text style={styles.version}>Kivelle.AI</Text>
   </View>;
 }
 
-function SupportPanel({ onRoute, onContact }: { onRoute: (route: string) => void; onContact: () => void }) {
-  return <View style={styles.panel}><PanelHeading title="Help & support" body="Find answers, contact the support team, or review an existing request." /><SettingsGroup><SettingsRow icon={<LifeBuoy />} title="Help center" body="Answers for accounts, conversations, media, billing, privacy, and safety." onPress={() => onRoute('/help')} /><SettingsRow icon={<MessageCircle />} title="Contact support" body="Send a private request to the support team." onPress={onContact} /></SettingsGroup><InfoCard title="For a specific chat message">Use the message menu in chat to report a generated response. Support requests never attach unrelated conversation history.</InfoCard></View>;
+function SupportPanel({ onRoute }: { onRoute: (route: string) => void }) {
+  return <View style={styles.panel}><SettingsGroup><SettingsRow icon={<LifeBuoy />} title="Help center" body="Answers for accounts, conversations, media, billing, privacy, and safety." onPress={() => onRoute('/help')} /><SettingsRow icon={<MessageCircle />} title="Contact support" body="Send a private request to the support team." onPress={() => onRoute('/support')} /></SettingsGroup></View>;
 }
 
 function LogoutButton({ signingOut, onPress, mobile = false }: { signingOut: boolean; onPress: () => void; mobile?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel="Sign out" accessibilityState={{ disabled: signingOut }} disabled={signingOut} onPress={onPress} style={({ pressed }) => [styles.logoutButton, mobile && styles.logoutButtonMobile, signingOut && styles.logoutButtonDisabled, pressed && styles.pressed]}><LogOut size={18} color={colors.danger} /><Text style={styles.logoutButtonText}>{signingOut ? 'Signing out…' : 'Sign out'}</Text></Pressable>;
 }
 
-function PanelHeading({ title, body }: { title: string; body: string }) { return <View style={styles.panelHeading}><Text accessibilityRole="header" style={styles.panelTitle}>{title}</Text><Text style={styles.panelBody}>{body}</Text></View>; }
 function SettingsGroup({ children }: { children: ReactNode }) { return <View style={styles.group}>{children}</View>; }
 function SettingsRow({ icon, title, body, value, onPress, danger = false, disabled = false }: { icon: ReactElement<{ color?: string; size?: number }>; title: string; body?: string; value?: string; onPress: () => void; danger?: boolean; disabled?: boolean }) { return <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.settingRow, disabled && styles.disabledRow, pressed && styles.rowPressed]}><View style={styles.rowIcon}>{cloneElement(icon, { color: danger ? colors.danger : colors.muted, size: 20 })}</View><View style={styles.rowCopy}><Text style={[styles.rowTitle, danger && styles.rowTitleDanger]}>{title}</Text>{body ? <Text style={styles.rowBody}>{body}</Text> : null}</View>{value ? <Text numberOfLines={1} style={[styles.rowValue, danger && styles.rowValueDanger]}>{value}</Text> : null}<ChevronRight size={18} color={danger ? colors.danger : colors.textSecondary} /></Pressable>; }
 function Metric({ value, label }: { value: number; label: string }) { return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>; }
