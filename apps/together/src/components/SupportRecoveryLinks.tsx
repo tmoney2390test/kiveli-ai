@@ -4,9 +4,7 @@ import { ArrowUpRight, LifeBuoy } from "lucide-react-native";
 import { recoveryTopics } from "../lib/supportRecovery";
 import { colors } from "../theme";
 
-export function SupportRecoveryLinks(
-  { onTopic }: { onTopic?: (topic: typeof recoveryTopics[number]) => void },
-) {
+export function SupportRecoveryLinks() {
   return (
     <View style={s.root}>
       <View style={s.heading}>
@@ -29,17 +27,6 @@ export function SupportRecoveryLinks(
             >
               <Text style={s.link}>{topic.action}</Text>
               <ArrowUpRight size={16} color="#CBA6EF" />
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Get support: ${topic.title}`}
-              onPress={() =>
-                onTopic
-                  ? onTopic(topic)
-                  : router.push(`/support?topic=${topic.id}` as never)}
-              style={s.action}
-            >
-              <Text style={s.link}>Get support</Text>
             </Pressable>
           </View>
         </View>

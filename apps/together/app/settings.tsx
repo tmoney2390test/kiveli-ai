@@ -375,7 +375,7 @@ function PrivacyPanel({ onRoute, onDisclosure }: { onRoute: (route: string) => v
 }
 
 function SupportPanel({ onRoute }: { onRoute: (route: string) => void }) {
-  return <View style={styles.panel}><SettingsGroup><SettingsRow icon={<LifeBuoy />} title="Help center" body="Answers for accounts, conversations, media, billing, privacy, and safety." onPress={() => onRoute('/help')} /><SettingsRow icon={<MessageCircle />} title="Contact support" body="Send a private request to the support team." onPress={() => onRoute('/support')} /></SettingsGroup></View>;
+  return <View style={styles.panel}><SettingsGroup><SettingsRow icon={<LifeBuoy />} title="Help center" body="Answers for accounts, conversations, media, billing, privacy, and safety." onPress={() => onRoute('/help')} /><SettingsRow icon={<MessageCircle />} title="Contact support" body="Send a private request to the support team." onPress={() => onRoute('/support/new')} /></SettingsGroup></View>;
 }
 
 function LogoutButton({ signingOut, onPress, mobile = false }: { signingOut: boolean; onPress: () => void; mobile?: boolean }) {

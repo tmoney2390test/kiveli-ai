@@ -11,7 +11,7 @@ export function MediaRecoveryActions({ media, offer, checking, busy, notice, onC
 }) {
   const [confirmRetry, setConfirmRetry] = useState(false);
   const failure = mediaFailurePresentation(media, offer);
-  const support = () => router.push({ pathname: '/support', params: { topic: 'media',
+  const support = () => router.push({ pathname: '/support/new', params: { topic: 'media',
     ...(media?.id ? { mediaId: media.id } : {}),
     ...(media?.conversation_id ?? offer?.conversation_id ? { conversationId: media?.conversation_id ?? offer?.conversation_id } : {}),
   } });
