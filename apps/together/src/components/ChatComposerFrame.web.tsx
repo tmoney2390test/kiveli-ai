@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 import { FrostedSurface } from './FrostedGlass';
+import { chatComposerTopForVisibleViewport } from '../lib/mobileChatKeyboard';
 
 export function ChatComposerFrame({ floating, bottomInset, onLayout, style, children }: {
   floating: boolean;
@@ -16,33 +17,43 @@ export function ChatComposerFrame({ floating, bottomInset, onLayout, style, chil
     if (!floating) return;
     const node = document.createElement('div');
     node.id = 'kivelli-chat-composer-portal';
-    node.style.position = 'fixed';
+    // Fixed inputs are anchored to Safari's layout viewport, which can extend
+    // below the keyboard. Place this layer in document coordinates instead.
+    node.style.position = 'absolute';
     node.style.zIndex = '120';
     node.style.pointerEvents = 'auto';
+    node.style.top = '0';
+    node.style.visibility = 'hidden';
     document.body.appendChild(node);
     setHost(node);
 
     const viewport = window.visualViewport;
+    const observer = new ResizeObserver(() => schedulePlace());
+    observer.observe(node);
     let scheduledFrame = 0;
     let trackingFrame = 0;
     let trackingUntil = 0;
     const place = () => {
-      // This node is outside Expo Router's animated/clipped chat tree. Safari
-      // can pan that tree when the keyboard opens without moving the composer.
-      const visibleBottom = (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight);
-      // A panned visual viewport can extend below the layout viewport. Keep
-      // this signed; clamping it to zero strands the card above or below view.
-      const layoutBottom = window.innerHeight - visibleBottom;
-      node.style.left = `${Math.round(viewport?.offsetLeft ?? 0)}px`;
+      // Safari can pan the visual viewport without updating scrollY or even
+      // offsetTop. pageTop is the viewport's document position; innerHeight
+      // describes the layout viewport and can include the keyboard.
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const viewportPageTop = viewport?.pageTop ?? window.scrollY;
+      const composerHeight = node.getBoundingClientRect().height;
+      if (composerHeight < 1) return;
+      node.style.left = `${Math.round(viewport?.pageLeft ?? window.scrollX)}px`;
       node.style.width = `${Math.round(viewport?.width ?? window.innerWidth)}px`;
-      node.style.bottom = `${Math.round(layoutBottom)}px`;
+      const top = chatComposerTopForVisibleViewport({ pageTop: viewportPageTop, viewportHeight, composerHeight });
+      node.style.top = `${Math.round(top)}px`;
 
-      // iOS Safari may pan fixed elements while opening the keyboard. Measure
-      // the resulting position and correct it against the visible viewport.
-      const actualBottom = node.getBoundingClientRect().bottom;
-      if (Math.abs(actualBottom - visibleBottom) > 2) {
-        node.style.bottom = `${Math.round(layoutBottom + actualBottom - visibleBottom)}px`;
+      // Both getBoundingClientRect and this target are screen coordinates.
+      // The previous code compared the rect with offsetTop + height (layout
+      // coordinates), which could push the composer off-screen after a pan.
+      const actualBottomOnScreen = node.getBoundingClientRect().bottom;
+      if (Math.abs(actualBottomOnScreen - viewportHeight) > 2) {
+        node.style.top = `${Math.round(chatComposerTopForVisibleViewport({ pageTop: viewportPageTop, viewportHeight, composerHeight, actualBottomOnScreen }))}px`;
       }
+      node.style.visibility = 'visible';
     };
     const schedulePlace = () => {
       if (scheduledFrame) cancelAnimationFrame(scheduledFrame);
@@ -75,6 +86,7 @@ export function ChatComposerFrame({ floating, bottomInset, onLayout, style, chil
       document.removeEventListener('focusout', onBlur);
       if (scheduledFrame) cancelAnimationFrame(scheduledFrame);
       if (trackingFrame) cancelAnimationFrame(trackingFrame);
+      observer.disconnect();
       node.remove();
       setHost(null);
     };

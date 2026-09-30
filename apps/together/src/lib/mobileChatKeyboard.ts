@@ -22,3 +22,17 @@ export function chatRootFrameForVisibleViewport(input: {
   const height = viewportTop + viewportHeight - rootTop;
   return height >= 120 ? { height } : null;
 }
+
+export function chatComposerTopForVisibleViewport(input: {
+  pageTop: number;
+  viewportHeight: number;
+  composerHeight: number;
+  actualBottomOnScreen?: number;
+}): number {
+  const top = input.pageTop + input.viewportHeight - input.composerHeight;
+  // getBoundingClientRect() and viewportHeight are both relative to the
+  // visible screen. Never compare the rect with offsetTop + viewportHeight.
+  return input.actualBottomOnScreen === undefined
+    ? top
+    : top + input.viewportHeight - input.actualBottomOnScreen;
+}
