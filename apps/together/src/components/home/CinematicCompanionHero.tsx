@@ -2,13 +2,13 @@ import { CatalogImage as Image } from '../CatalogImage';
 import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, Animated, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { type ImageContentPosition, type ImageSource } from 'expo-image';
-import { ArrowRight, MapPin } from 'lucide-react-native';
+import { MapPin } from 'lucide-react-native';
 import { colors, typography } from '../../theme';
 import type { CharacterInstance, CharacterVersion } from '../../types';
 import { KIVELLI_IMAGE_PLACEHOLDER } from '../../lib/imageWarmup';
 import { SpiceBadge } from '../SpiceBadge';
 
-export function CinematicCompanionHero({ companion, portraitVersion, source, location, world, actionLabel, notice, prompt, onContinue, onProfile, onVisualReady }: {
+export function CinematicCompanionHero({ companion, portraitVersion, source, location, world, actionLabel, notice, onContinue, onVisualReady }: {
   companion: CharacterInstance;
   portraitVersion: CharacterVersion;
   source?: ImageSource | number;
@@ -16,9 +16,7 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
   world?: string;
   actionLabel: string;
   notice?: string | null;
-  prompt?: string | null;
   onContinue: () => void;
-  onProfile: () => void;
   onVisualReady?:()=>void;
 }) {
   const { width, height } = useWindowDimensions();
@@ -51,7 +49,7 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
   const heroFocal: ImageContentPosition = desktop ? { top: '22%', left: '50%' } : focal;
   const placeLine = [location, world].filter(Boolean).join(' · ');
 
-  return <View style={[styles.hero, { height: heroHeight }, desktop && styles.heroDesktop]}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={actionLabel} onPress={onContinue} style={({ pressed }) => [styles.hero, { height: heroHeight }, desktop && styles.heroDesktop, pressed && styles.pressed]}>
     {source
       ? <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale }] }]}><Image accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" alt="" source={source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={heroFocal} cachePolicy="memory-disk" loading="eager" priority="high" placeholder={KIVELLI_IMAGE_PLACEHOLDER} placeholderContentFit="cover" transition={180} onLoad={onVisualReady}/></Animated.View>
       : <View style={[StyleSheet.absoluteFill, styles.fallback]}><Text style={styles.fallbackInitial}>{firstName[0]}</Text></View>}
@@ -59,20 +57,14 @@ export function CinematicCompanionHero({ companion, portraitVersion, source, loc
     <View pointerEvents="none" style={[styles.scrim, Platform.OS === 'web' ? styles.webScrim : styles.nativeScrim]} />
     <View pointerEvents="none" style={[styles.vignette, Platform.OS === 'web' ? styles.webVignette : undefined]} />
     <SpiceBadge level={template.spice_level} overlay />
-    <View style={[styles.content, compact && styles.contentCompact]}>
+    <View pointerEvents="none" style={[styles.content, compact && styles.contentCompact]}>
       <View style={[styles.bottom, desktop && styles.bottomDesktop]}>
         {notice ? <View style={styles.notice}><Text numberOfLines={1} style={styles.noticeText}>{notice}</Text></View> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel={`View profile: ${firstName}`} onPress={onProfile}>
-          <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.heading, compact && styles.headingCompact]}>{firstName}</Text>
-        </Pressable>
+        <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.heading, compact && styles.headingCompact]}>{firstName}</Text>
         {placeLine ? <View style={styles.placeLine}><MapPin size={13} strokeWidth={2.1} color="#F6C5D7" /><Text numberOfLines={1} style={styles.placeText}>{placeLine}</Text></View> : null}
-        {prompt ? <Text numberOfLines={2} style={styles.prompt}>{prompt}</Text> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel={actionLabel} onPress={onContinue} style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
-          <Text numberOfLines={1} style={styles.ctaText}>{actionLabel}</Text><ArrowRight size={15} color="#F5DDE6" />
-        </Pressable>
       </View>
     </View>
-  </View>;
+  </Pressable>;
 }
 
 const styles = StyleSheet.create({
@@ -96,8 +88,5 @@ const styles = StyleSheet.create({
   headingCompact: { fontSize: 34, lineHeight: 37, letterSpacing: -.7 },
   placeLine: { maxWidth: '100%', alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6 },
   placeText: { flexShrink: 1, color: '#F5E8ED', fontSize: 12, fontWeight: '700', textShadowColor: 'rgba(0,0,0,.9)', textShadowRadius: 9 },
-  prompt: { maxWidth: 520, color: 'rgba(255,248,244,.82)', fontSize: 12, lineHeight: 17, fontWeight: '600', textShadowColor: '#000', textShadowRadius: 9 },
-  cta: { alignSelf: 'flex-start', minHeight: 44, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 15, marginTop: 2, borderRadius: 13, backgroundColor: 'rgba(14,9,18,.78)', borderWidth: 1, borderColor: 'rgba(231,149,183,.38)' },
-  ctaPressed: { opacity: .82, transform: [{ translateY: 1 }, { scale: .988 }] },
-  ctaText: { flexShrink: 1, color: '#F8EAF0', fontSize: 12, fontWeight: '800' },
+  pressed: { opacity: .9 },
 });

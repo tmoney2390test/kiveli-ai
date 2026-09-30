@@ -166,7 +166,7 @@ export default function Home() {
     <View pointerEvents="none" style={styles.ambientGlow} />
     {!desktop ? <HomeHeader status={subscription} personaName={snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? 'You'} onCredits={() => router.push(subscriptionHref({intent:'credits'}) as never)} /> : null}
     <View style={[styles.topStage,!topStageWide&&styles.topStageStack]}>
-      <View style={styles.companionHeroPane}><CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} actionLabel={model.hero.action.label} notice={model.hero.notice} prompt={model.message?.content ? `“${model.message.content}”` : model.hero.prompt} onContinue={() => void runAction(model.hero.action)} onProfile={() => router.push(`/character/${handle}`)} onVisualReady={heroReady}/></View>
+      <View style={styles.companionHeroPane}><CinematicCompanionHero companion={companion} portraitVersion={portraitVersion} source={portraitSource} location={model.currentLocation?.name} world={model.currentWorld?.name} actionLabel={model.hero.action.label} notice={model.hero.notice===snapshot.relationshipCues?.[companion.id]?.detail?null:model.hero.notice} onContinue={() => void runAction(model.hero.action)} onVisualReady={heroReady}/></View>
       {discoveryWorlds.length?<View style={[styles.worldDiscoveryPane,!topStageWide&&styles.worldDiscoveryPaneStack]}><HomeWorldDiscoveryHero fill={topStageWide} worlds={discoveryWorlds} onExplore={(world)=>{setBrowsedWorldId(world.id);router.push(`/(tabs)/explore?world=${world.slug}`);}}/></View>:null}
     </View>
     {secondaryWorkReady?<>
@@ -229,4 +229,3 @@ const styles = StyleSheet.create({
   errorTitle: { color: colors.text, fontFamily: typography.display, fontSize: 28, textAlign: 'center' },
   errorCopy: { maxWidth: 480, color: colors.muted, fontSize: 13, lineHeight: 19, textAlign: 'center' },
 });
-

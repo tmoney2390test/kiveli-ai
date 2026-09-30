@@ -3,7 +3,7 @@ import{useEffect,useState}from'react';
 import{AccessibilityInfo,AppState,Platform,Pressable,StyleSheet,Text,View,useWindowDimensions}from'react-native';
 import{Image}from'expo-image';
 import{CatalogImage}from'../CatalogImage';
-import{ArrowRight,Globe2}from'lucide-react-native';
+import{Globe2}from'lucide-react-native';
 import{worldHeroAsset}from'../../assets';
 import{advanceHomeWorldIndex,shouldAutoRotateHomeWorlds}from'../../lib/homeWorldDiscovery';
 import{colors,radius,typography}from'../../theme';
@@ -48,23 +48,18 @@ export function HomeWorldDiscoveryHero({worlds,onExplore,fill=false}:{worlds:Wor
   const world=worlds[index%worlds.length]??worlds[0];
   if(!world)return null;
   const desktop=width>=900;
-  const relationshipFantasy=world.metadata?.relationshipFantasy;
-  const copy=typeof relationshipFantasy==='string'&&relationshipFantasy.trim()?relationshipFantasy:world.description;
+  const comingSoon=isComingSoonWorld(world);
 
-  return <View accessibilityLabel={`Discover ${world.name}`} style={[styles.hero,desktop&&styles.heroDesktop,fill&&styles.fill]}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={comingSoon?`${world.name}, coming soon`:`Explore ${world.name}`} accessibilityState={{disabled:comingSoon}} disabled={comingSoon} onPress={()=>onExplore(world)} style={({pressed})=>[styles.hero,desktop&&styles.heroDesktop,fill&&styles.fill,pressed&&styles.pressed]}>
     <CatalogImage accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" alt="" source={worldHeroAsset(world.slug)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" cachePolicy="memory-disk" loading="lazy" priority="low" transition={180}/>
     <View pointerEvents="none" style={[styles.scrim,Platform.OS==='web'?styles.webScrim:styles.nativeScrim]}/>
-    <View style={styles.content}>
+    <View pointerEvents="none" style={styles.content}>
       <View style={styles.topRow}><View style={styles.kickerRow}><Globe2 size={13} strokeWidth={2.2} color="#FFE1AE"/><Text style={styles.kicker}>{isComingSoonWorld(world)?"COMING SOON":"NEW WORLDS AVAILABLE"}</Text></View><Text style={styles.count}>{index+1} / {worlds.length}</Text></View>
       <View style={styles.bottom}>
         <Text numberOfLines={1} adjustsFontSizeToFit style={styles.title}>{world.name}</Text>
-        <Text numberOfLines={3} style={styles.copy}>{copy}</Text>
-        <View style={styles.actions}>
-          <Pressable accessibilityRole="button" disabled={isComingSoonWorld(world)} accessibilityState={{disabled:isComingSoonWorld(world)}} accessibilityLabel={isComingSoonWorld(world)?`${world.name}, coming soon`:`Explore ${world.name}`} onPress={()=>onExplore(world)} style={({pressed})=>[styles.cta,pressed&&styles.pressed]}><Text numberOfLines={1} style={styles.ctaText}>{isComingSoonWorld(world)?"Coming soon":`Explore ${world.name}`}</Text><ArrowRight size={15} color="#F5DDE6"/></Pressable>
-        </View>
       </View>
     </View>
-  </View>;
+  </Pressable>;
 }
 
 const styles=StyleSheet.create({
@@ -81,9 +76,5 @@ const styles=StyleSheet.create({
   count:{color:'rgba(255,255,255,.74)',fontSize:9,fontWeight:'900',textShadowColor:'#000',textShadowRadius:8},
   bottom:{gap:7,maxWidth:520},
   title:{color:'#FFF9F6',fontFamily:typography.display,fontSize:34,lineHeight:38,fontWeight:'600',letterSpacing:-.7,textShadowColor:'#000',textShadowRadius:16},
-  copy:{maxWidth:470,color:'rgba(255,248,244,.84)',fontSize:12,lineHeight:18,fontWeight:'600',textShadowColor:'#000',textShadowRadius:9},
-  actions:{flexDirection:'row',alignItems:'center',gap:8,flexWrap:'wrap',marginTop:3},
-  cta:{maxWidth:220,minHeight:44,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,paddingHorizontal:15,borderRadius:13,backgroundColor:'rgba(14,9,18,.76)',borderWidth:1,borderColor:'rgba(231,149,183,.34)'},
-  ctaText:{flexShrink:1,color:'#F8EAF0',fontSize:12,fontWeight:'800'},
-  pressed:{opacity:.86,transform:[{scale:.985}]},
+  pressed:{opacity:.9},
 });
