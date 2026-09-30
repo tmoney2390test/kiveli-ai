@@ -3,16 +3,14 @@ import { DESKTOP_SIDEBAR_EXPANDED_WIDTH } from '../lib/desktopNavigation';
 import { colors, radius, spacing, typography } from '../theme';
 
 export const styles = StyleSheet.create({
-  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: 'rgba(5,4,8,.18)' },
+  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden', paddingHorizontal: 12, backgroundColor: 'rgba(0,0,0,.65)' },
   // Reserve the rail's full hover width so it can never cover Settings' own
   // section navigation or steal its pointer events while expanded.
-  backdropDesktop: { ...(Platform.OS === 'web' ? ({ position: 'fixed', top: 0, right: 0, bottom: 0, left: DESKTOP_SIDEBAR_EXPANDED_WIDTH, zIndex: 1200, padding: 18, backgroundColor: 'rgba(4,3,7,.12)' } as never) : {}) },
-  ambientOne: { position: 'absolute', width: 600, height: 600, borderRadius: 300, backgroundColor: 'rgba(126,83,151,.055)', top: -250, right: -120, ...(Platform.OS === 'web' ? ({ filter: 'blur(100px)' } as never) : {}) },
-  ambientTwo: { position: 'absolute', width: 520, height: 520, borderRadius: 260, backgroundColor: 'rgba(167,85,121,.038)', bottom: -240, left: -140, ...(Platform.OS === 'web' ? ({ filter: 'blur(105px)' } as never) : {}) },
-  modal: { width: '100%', backgroundColor: 'rgba(20,17,25,.54)', overflow: 'hidden', borderColor: 'rgba(255,255,255,.115)' },
-  modalDesktop: { width: '96%', maxWidth: 1480, borderRadius: 24, borderWidth: 1, shadowColor: '#000', shadowOpacity: .48, shadowRadius: 44, shadowOffset: { width: 0, height: 22 } },
-  modalMobile: { borderRadius: 0, backgroundColor: 'rgba(17,15,22,.96)' },
-  header: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,.085)', backgroundColor: 'rgba(18,16,22,.24)' },
+  backdropDesktop: { justifyContent: 'center', ...(Platform.OS === 'web' ? ({ position: 'fixed', top: 0, right: 0, bottom: 0, left: DESKTOP_SIDEBAR_EXPANDED_WIDTH, zIndex: 1200, padding: 18 } as never) : {}) },
+  modal: { width: '100%', backgroundColor: '#17121E', overflow: 'hidden', borderColor: '#40334F' },
+  modalDesktop: { maxWidth: 1100, borderRadius: 24, borderWidth: 1, shadowColor: '#000', shadowOpacity: .48, shadowRadius: 44, shadowOffset: { width: 0, height: 22 } },
+  modalMobile: { maxWidth: 460, borderRadius: 24, borderWidth: 1 },
+  header: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: '#3B3047' },
   brandMark: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(151,116,171,.085)', borderWidth: 1, borderColor: 'rgba(204,176,221,.18)' },
   brandInitial: { color: '#CFB6DD', fontFamily: typography.display, fontSize: 18 },
   headerCopy: { flex: 1, minWidth: 0 }, title: { color: colors.text, fontFamily: typography.display, fontWeight: '600', fontSize: 25 },
@@ -29,7 +27,7 @@ export const styles = StyleSheet.create({
   logoutButtonMobile: { width: '100%', maxWidth: 780, alignSelf: 'center', marginTop: 2, marginHorizontal: 0 }, logoutButtonDisabled: { opacity: .55 }, logoutButtonText: { color: colors.danger, fontSize: 13, fontWeight: '900' },
   mobileSectionHeader: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: 'rgba(12,10,16,.36)' },
   mobileBack: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14 }, mobileSectionTitle: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '900' },
-  main: { flex: 1 }, mainContent: { flexGrow: 1, padding: spacing.xl, paddingBottom: 70 }, mainContentDesktop: { paddingTop: 38, paddingHorizontal: 34, paddingBottom: 76 },
+  main: { flex: 1 }, mainContent: { flexGrow: 1, padding: spacing.xl, paddingBottom: 70 }, mainContentDesktop: { paddingTop: 28, paddingHorizontal: 28, paddingBottom: 64 },
   panel: { width: '100%', maxWidth: 1060, alignSelf: 'flex-start', gap: 24 },
   panelHeading: { gap: 8, marginBottom: 4 }, panelTitle: { color: colors.text, fontFamily: typography.display, fontSize: 37, fontWeight: '600' }, panelBody: { color: colors.textSecondary, fontSize: 14, lineHeight: 21, maxWidth: 760 },
   searchBox: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(255,255,255,.11)', backgroundColor: 'rgba(8,7,11,.35)' }, searchInput: { flex: 1, minHeight: 50, color: colors.text, fontSize: 15, outlineStyle: 'none' } as never,
