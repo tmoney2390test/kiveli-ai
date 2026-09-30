@@ -11,13 +11,15 @@ import { styles } from '../../styles/mediaStyles';
 import { MediaProgress } from './MediaProgress';
 import { MediaFeedbackControls } from './MediaFeedbackControls';
 import { openGeneratedMedia } from './openGeneratedMedia';
+import { FreePhotoBadge } from './FreePhotoBadge';
 
 export function MediaTile(
-  { media: sourceMedia, style, onRetry, contentFit = "cover" }: {
+  { media: sourceMedia, style, onRetry, contentFit = "cover", showFreeBadge = false }: {
     media: GeneratedMedia;
     style?: ViewStyle;
     onRetry?: () => void;
     contentFit?: "cover" | "contain";
+    showFreeBadge?: boolean;
   },
 ) {
   const recovery = useMediaStatusRecovery(sourceMedia);
@@ -74,6 +76,7 @@ export function MediaTile(
           )
           : null}
       </Pressable>
+      {showFreeBadge && media.media_type === "image" ? <FreePhotoBadge media={media} /> : null}
       {media.media_type === "image"
         ? <MediaFeedbackControls media={media} style={styles.feedbackBelow} />
         : null}

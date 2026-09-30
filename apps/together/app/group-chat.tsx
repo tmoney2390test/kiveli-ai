@@ -3485,6 +3485,7 @@ function GroupBubble({
                   key={item.id}
                   media={item}
                   style={styles.sharedImage}
+                  showFreeBadge
                   onRetry={() => onMediaRetry(item)}
                   contentFit="contain"
                 />

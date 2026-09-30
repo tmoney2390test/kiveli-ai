@@ -4,13 +4,13 @@ import { MediaRecoveryActions } from './MediaRecoveryActions';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image, type ImageSource } from 'expo-image';
-import { Camera, Sparkles, X } from 'lucide-react-native';
+import { Camera, X } from 'lucide-react-native';
 import type { GeneratedMedia, MediaOffer } from '../../types';
 import { generatedMediaImageSource } from '../../lib/mediaImageSource';
-import { photoCardAspectRatio, photoOfferDismissAction } from '../../lib/photoRequestPresentation';
+import { photoCardAspectRatio, photoOfferDismissAction, photoOfferPaymentMethod } from '../../lib/photoRequestPresentation';
 import { styles } from '../../styles/mediaStyles';
-import { KivelleCreditIcon } from '../KivelleCreditIcon';
 import { MediaFeedbackControls } from './MediaFeedbackControls';
+import { FreePhotoBadge } from './FreePhotoBadge';
 import { openGeneratedMedia } from './openGeneratedMedia';
 
 const PHOTO_GENERATION_LOADER = require(
@@ -53,9 +53,8 @@ export function ChatPhotoRequestCard({
         offer?.status === "accepted"),
     acceptQueued = offer?.preview_metadata?.acceptQueued === true,
     included = offer?.included_subscription_benefit === true,
-    dailyRemaining = offer?.source === "user_request"
-      ? Math.max(0, Number(offer.preview_metadata?.dailyPhotoAllowanceRemaining ?? 0))
-      : 0,
+    paymentMethod = offer ? photoOfferPaymentMethod(offer) : 'credits',
+    freePhoto = included || paymentMethod === 'daily_included' || offer?.credit_cost === 0,
     requestedSetting = String(offer?.preview_metadata?.requestedSetting ?? "").trim(),
     resolvedLocation = String(offer?.preview_metadata?.resolvedLocationName ?? "").trim(),
     resolvedWorld = String(offer?.preview_metadata?.resolvedWorldName ?? "").trim(),
@@ -93,6 +92,7 @@ export function ChatPhotoRequestCard({
             recyclingKey={media.id}
           />
         </Pressable>
+        <FreePhotoBadge media={media} offer={offer} />
         <MediaFeedbackControls media={media} style={styles.chatPhotoFeedback} />
       </View>
     );
@@ -104,7 +104,7 @@ export function ChatPhotoRequestCard({
       accessibilityLabel={generating
         ? "Taking your photo"
         : offer?.companion_message ?? "Preparing photo request"}
-      style={[styles.chatPhotoCard, styles.chatPhotoPendingCard]}
+      style={[styles.chatPhotoCard, styles.chatPhotoPendingCard, !generating && !failed && !preparing && offer && styles.chatPhotoOfferCard]}
     >
       {previewSources?.length
         ? (
@@ -196,52 +196,17 @@ export function ChatPhotoRequestCard({
             <View style={styles.offerIcon}>
               <Camera size={29} color="#FFF8FB" strokeWidth={1.8} />
             </View>
-            {!included && dailyRemaining > 0
-              ? (
-                <>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Use an included daily photo. ${dailyRemaining} remaining today.`}
-                    disabled={busy || acceptQueued}
-                    onPress={() => onAccept("daily_included")}
-                    style={[styles.offerIncluded, (busy || acceptQueued) && { opacity: .55 }]}
-                  >
-                    <Sparkles size={17} color="#FFD8E7" />
-                    <Text style={styles.offerIncludedText}>Use today&apos;s included photo</Text>
-                    <Text style={styles.offerIncludedCount}>{dailyRemaining} left</Text>
-                  </Pressable>
-                  <View accessibilityLabel="or" style={styles.offerOrRow}>
-                    <View style={styles.offerOrLine} />
-                    <Text style={styles.offerOrText}>OR</Text>
-                    <View style={styles.offerOrLine} />
-                  </View>
-                </>
-              )
-              : null}
-            <View style={styles.offerCost}>
-              {included
-                ? <Sparkles size={18} color="#FFD8E7" />
-                : <KivelleCreditIcon size={21} />}
-              <Text style={styles.offerCostText}>
-                {included ? "Included" : offer.credit_cost}
-              </Text>
-              {included
-                ? null
-                : <Text style={styles.offerCostUnit}>KIVELLE CREDITS</Text>}
-            </View>
             <View style={styles.offerActions}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Accept photo for ${
-                  included ? "no credits" : `${offer.credit_cost} credits`
-                }`}
+                accessibilityLabel={freePhoto ? 'Create photo for free' : `Create photo for ${offer.credit_cost} Credits`}
                 accessibilityState={{ disabled: busy || acceptQueued, busy: busy || acceptQueued }}
                 disabled={busy || acceptQueued}
-                onPress={() => onAccept("credits")}
+                onPress={() => onAccept(paymentMethod)}
                 style={[styles.offerPrimary, (busy || acceptQueued) && { opacity: .55 }]}
               >
                 <Text style={styles.offerPrimaryText}>
-                  {busy || acceptQueued ? "Confirming…" : dailyRemaining > 0 ? `Use ${offer.credit_cost} Credits` : "Accept"}
+                  {busy || acceptQueued ? 'Confirming…' : freePhoto ? 'Create photo · Free' : `Create photo · ${offer.credit_cost} Credits`}
                 </Text>
               </Pressable>
             </View>
