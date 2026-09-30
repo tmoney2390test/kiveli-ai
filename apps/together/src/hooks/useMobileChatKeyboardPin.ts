@@ -7,9 +7,9 @@ const KEYBOARD_SETTLE_DELAYS_MS = [0, 48, 140, 280, 520, 820] as const;
 /**
  * Mobile browsers resize and pan the visual viewport in multiple passes while
  * opening their soft keyboard. Keep the chat's existing bottom anchor alive
- * and size the web app to the actually visible area so the composer and send
- * button remain above the keyboard. Safari does not consistently honor
- * interactive-widget=resizes-content.
+ * and size the web app to the visible area so the composer stays above both
+ * Safari's bottom controls and the keyboard. Safari does not consistently
+ * honor interactive-widget=resizes-content.
  */
 export function useMobileChatKeyboardPin(enabled: boolean, onPin: () => void) {
   const onPinRef = useRef(onPin);
@@ -50,7 +50,7 @@ export function useMobileChatKeyboardPin(enabled: boolean, onPin: () => void) {
       appliedTranslateY = 0;
     };
     const fitVisibleViewport = () => {
-      if (!root || !isMobileChatComposerElement(document.activeElement)) return;
+      if (!root) return;
       // Account for our own previous translation while measuring. Safari can
       // pan the visual viewport without moving the root; offsetTop identifies
       // the visible bottom edge, not a distance to push the chat downward.
@@ -73,8 +73,8 @@ export function useMobileChatKeyboardPin(enabled: boolean, onPin: () => void) {
       }
     };
     const handleViewportChange = () => {
+      settleViewportFit();
       if (isMobileChatComposerElement(document.activeElement)) {
-        settleViewportFit();
         pinThroughKeyboardTransition();
       }
     };
@@ -85,9 +85,11 @@ export function useMobileChatKeyboardPin(enabled: boolean, onPin: () => void) {
     const handleFocusOut = () => {
       if (blurTimer) clearTimeout(blurTimer);
       blurTimer = setTimeout(() => {
-        if (!isMobileChatComposerElement(document.activeElement)) restoreRoot();
+        if (!isMobileChatComposerElement(document.activeElement)) settleViewportFit();
       }, 0);
     };
+    fitVisibleViewport();
+    settleViewportFit();
     visualViewport?.addEventListener('resize', handleViewportChange);
     visualViewport?.addEventListener('scroll', handleViewportChange);
     window.addEventListener('resize', handleViewportChange);
