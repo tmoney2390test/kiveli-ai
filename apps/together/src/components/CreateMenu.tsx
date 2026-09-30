@@ -53,8 +53,8 @@ const styles = StyleSheet.create({
   cardPressed: { opacity: .84 },
   disabled: { opacity: .45 },
   artwork: { ...StyleSheet.absoluteFill, backgroundColor: '#261B36' },
-  footer: { position: 'absolute', right: 0, bottom: 0, left: 0, minHeight: 116, flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 20, paddingBottom: 22, paddingTop: 38, backgroundColor: 'rgba(11,8,18,.83)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'linear-gradient(transparent, rgba(11,8,18,.84) 30%, #100D17)' } as never) : {}) },
+  footer: { position: 'absolute', right: 0, bottom: 0, left: 0, flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 20, paddingBottom: 22, paddingTop: 8 },
   copy: { flex: 1, minWidth: 0, gap: 5 },
-  title: { color: '#FFF9FE', fontFamily: 'Georgia', fontSize: 23, fontWeight: '700' },
-  detail: { color: '#C1B2C9', fontSize: 12, lineHeight: 18 },
+  title: { color: '#FFF9FE', fontFamily: 'Georgia', fontSize: 23, fontWeight: '700', textShadowColor: 'rgba(0,0,0,.95)', textShadowRadius: 7, textShadowOffset: { width: 0, height: 2 } },
+  detail: { color: '#FFF6FD', fontSize: 12, lineHeight: 18, textShadowColor: 'rgba(0,0,0,.95)', textShadowRadius: 5, textShadowOffset: { width: 0, height: 1 } },
 });
