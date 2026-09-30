@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+import { mediaProgressPresentation } from '../../lib/mediaProgressPresentation';
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, Platform, Text, View, type ViewStyle } from 'react-native';
 import { Camera, Sparkles } from 'lucide-react-native';
@@ -6,7 +8,7 @@ import { colors } from '../../theme';
 import { styles } from '../../styles/mediaStyles';
 
 export function MediaProgress(
-  { media, style }: { media: GeneratedMedia; style?: ViewStyle },
+  { media, style, progress = mediaProgressPresentation(media), recovery }: { media: GeneratedMedia; style?: ViewStyle; progress?: ReturnType<typeof mediaProgressPresentation>; recovery?: ReactNode },
 ) {
   const pulse = useRef(new Animated.Value(0)).current;
   const scan = useRef(new Animated.Value(0)).current;
@@ -41,22 +43,18 @@ export function MediaProgress(
   }, [pulse, scan]);
 
   const isVideo = media.media_type === "video";
-  const title = isVideo
-    ? "Bringing the moment to life…"
-    : media.status === "queued"
-    ? "Getting the photo ready…"
-    : "Taking the photo…";
+  const title = progress.title;
   const context = pendingContext(media.metadata ?? {});
 
   return (
     <View
-      accessible
+      accessible={false}
       accessibilityRole="progressbar"
       accessibilityLiveRegion="polite"
       accessibilityLabel={isVideo
         ? "Companion video is being generated"
         : "Companion photo is being generated"}
-      style={[styles.tile, styles.progressCard, style]}
+      style={[styles.tile, styles.progressCard, style, progress.delayed && {height: undefined, minHeight: 310}]}
     >
       <View pointerEvents="none" style={styles.progressBackdrop}>
         <View style={[styles.glow, styles.glowRose]} />
@@ -132,9 +130,10 @@ export function MediaProgress(
           )
           : null}
         <Text style={styles.progressHint}>
-          You can keep chatting while it develops.
+          {progress.hint}
         </Text>
       </View>
+      {progress.delayed || media.status === "ready" ? recovery : null}
       <View style={styles.progressTrack}>
         <Animated.View
           style={[
