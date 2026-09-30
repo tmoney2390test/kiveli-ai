@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Brain, ChevronRight, CreditCard, Heart, LifeBuoy, Plus, Settings, Shield, Sparkles, UsersRound, X } from 'lucide-react-native';
+import { Brain, ChevronRight, CreditCard, Heart, LifeBuoy, Settings, Shield, Sparkles, UsersRound, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTogether } from '../store/useTogether';
 import { useProfileAvatarUrl } from '../hooks/useProfileAvatarUrl';
@@ -43,10 +43,6 @@ export function AccountMenu({ visible, onClose }: { visible: boolean; onClose: (
             <View pointerEvents="none" style={s.glow}/><View style={s.avatar}>{avatar && !avatarFailed ? <Image source={avatar} style={StyleSheet.absoluteFill} contentFit="cover" onError={() => setAvatarFailed(true)}/> : <Text style={s.initial}>{name.charAt(0).toUpperCase()}</Text>}</View>
             <View style={s.copy}><Text style={s.name}>{name}</Text><Text style={s.heroHint}>View profile & gallery</Text></View><ChevronRight size={20} color={accent}/>
           </Pressable>
-          <View style={[s.shortcuts, width < 360 && { flexDirection: 'column' }]}>
-            <Pressable accessibilityRole="button" onPress={() => open('/create/companion')} style={({ pressed }) => [s.shortcut, pressed && s.pressed]}><Plus size={22} color={accent}/><Text style={s.shortcutLabel}>Create companion</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={() => open('/subscription')} style={({ pressed }) => [s.shortcut, pressed && s.pressed]}><CreditCard size={22} color={accent}/><Text style={s.shortcutLabel}>Plans & credits</Text></Pressable>
-          </View>
           <View style={s.group}>
             {row(subscription?.capabilities.displayName ?? 'Your membership', <Sparkles size={21} color={accent}/>, '/subscription', 'View plan & manage subscription')}
             {row(subscription ? `${subscription.creditBalance.total.toLocaleString()} credits` : 'Your credits', <CreditCard size={21} color={accent}/>, subscriptionHref({ intent: 'credits' }), subscription ? 'Balance & credit options' : isError ? 'Balance unavailable — open to review' : 'Loading balance…')}
@@ -81,9 +77,6 @@ const s = StyleSheet.create({
   copy: { flex: 1, minWidth: 0, gap: 4 },
   name: { color: colors.text, fontSize: 20, fontWeight: '700', flexShrink: 1 },
   heroHint: { color: '#DCC7F1', fontSize: 13, lineHeight: 19 },
-  shortcuts: { flexDirection: 'row', gap: 10 },
-  shortcut: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 58, padding: 12, borderWidth: 1, borderColor: '#9F7CC3', borderRadius: 12 },
-  shortcutLabel: { color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1 },
   group: { borderWidth: 1, borderColor: '#3B3047', borderRadius: 14, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 15, minHeight: 54, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#3B3047' },
   label: { color: colors.text, fontSize: 16, flexShrink: 1 },
