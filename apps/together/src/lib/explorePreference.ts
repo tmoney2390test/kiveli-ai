@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type ExploreIntent='for_you'|'tonight'|'people'|'places'|'worlds';
+export type ExploreIntent='for_you'|'scenarios'|'people'|'places'|'tonight'|'worlds';
 export type ExplorePreference={worldSlug:string|null;intent:ExploreIntent;scrollY:number};
 
 const prefix='kivelle.explore.preference.v1';
@@ -23,7 +23,7 @@ export function mergeExplorePreference(current:ExplorePreference,patch:Partial<E
 }
 
 function normalize(value:Partial<ExplorePreference>):ExplorePreference{
-  const intent:ExploreIntent=isIntent(value.intent)?value.intent:'for_you';
+  const intent:ExploreIntent=isIntent(value.intent)&&value.intent!=='tonight'&&value.intent!=='worlds'?value.intent:'for_you';
   return{
     worldSlug:typeof value.worldSlug==='string'&&value.worldSlug.trim()?value.worldSlug.trim():null,
     intent,
@@ -31,5 +31,5 @@ function normalize(value:Partial<ExplorePreference>):ExplorePreference{
   };
 }
 
-function isIntent(value:unknown):value is ExploreIntent{return value==='for_you'||value==='tonight'||value==='people'||value==='places'||value==='worlds';}
+function isIntent(value:unknown):value is ExploreIntent{return value==='for_you'||value==='scenarios'||value==='people'||value==='places'||value==='tonight'||value==='worlds';}
 function key(scope:string){return`${prefix}:${scope||'default'}`;}

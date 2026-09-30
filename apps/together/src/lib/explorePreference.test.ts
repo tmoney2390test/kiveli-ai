@@ -20,4 +20,11 @@ describe('Explore preference',()=>{
   it('normalizes invalid persisted values',()=>{
     expect(mergeExplorePreference({worldSlug:null,intent:'for_you',scrollY:0},{intent:'obsolete' as never,scrollY:-30})).toEqual({worldSlug:null,intent:'for_you',scrollY:0});
   });
+
+  it('moves saved Tonight preferences to For you and saves Scenarios selections',async()=>{
+    storage.set('kivelle.explore.preference.v1:life-1',JSON.stringify({worldSlug:'eos-meridian',intent:'tonight',scrollY:180}));
+    expect(await readExplorePreference('life-1')).toEqual({worldSlug:'eos-meridian',intent:'for_you',scrollY:180});
+    await writeExplorePreference('life-1',{worldSlug:'eos-meridian',intent:'scenarios',scrollY:0});
+    expect((await readExplorePreference('life-1')).intent).toBe('scenarios');
+  });
 });

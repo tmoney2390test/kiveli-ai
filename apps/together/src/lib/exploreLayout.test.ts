@@ -1,15 +1,24 @@
 import{describe,expect,it}from'vitest';
-import{EXPLORE_VISIBLE_INTENTS,exploreResponsiveLayout,normalizeVisibleExploreIntent}from'./exploreLayout';
+import{EXPLORE_VISIBLE_INTENTS,exploreIntentSections,exploreResponsiveLayout,normalizeVisibleExploreIntent}from'./exploreLayout';
 
 describe('Explore responsive layout',()=>{
-  it('keeps the requested four visible filters without changing their underlying keys',()=>{
+  it('replaces Tonight with Scenarios and migrates old selections to For you',()=>{
     expect(EXPLORE_VISIBLE_INTENTS).toEqual([
       {id:'for_you',label:'For you'},
-      {id:'tonight',label:'Tonight'},
+      {id:'scenarios',label:'Scenarios'},
       {id:'people',label:'People'},
       {id:'places',label:'Places'},
     ]);
     expect(normalizeVisibleExploreIntent('worlds')).toBe('for_you');
+    expect(normalizeVisibleExploreIntent('tonight')).toBe('for_you');
+  });
+
+  it('keeps each Explore tab focused on its own content',()=>{
+    expect(exploreIntentSections('people',false)).toEqual({recommendations:false,events:false,people:true,scenarios:false,places:false,worlds:false});
+    expect(exploreIntentSections('scenarios',false)).toEqual({recommendations:false,events:false,people:false,scenarios:true,places:false,worlds:false});
+    expect(exploreIntentSections('places',false)).toEqual({recommendations:false,events:false,people:false,scenarios:false,places:true,worlds:false});
+    expect(exploreIntentSections('for_you',false)).toEqual({recommendations:true,events:true,people:true,scenarios:true,places:true,worlds:true});
+    expect(exploreIntentSections('for_you',true).scenarios).toBe(false);
   });
 
   it.each([
