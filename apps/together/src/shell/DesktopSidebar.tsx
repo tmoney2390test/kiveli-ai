@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AccountMenu } from '../components/AccountMenu';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { router, usePathname } from 'expo-router';
 import {
   Bell,
   CalendarDays,
-  ChevronRight,
   Compass,
   Home,
   Images,
@@ -17,9 +16,7 @@ import {
   UsersRound,
 } from 'lucide-react-native';
 import { CharacterAvatar } from '../components/ui';
-import { CreatorModal } from '../components/CreatorPicker';
-import { CreateChoiceArtwork } from '../components/CreateChoiceArtwork';
-import { PersonalPlacePicker } from '../components/PersonalPlacePicker';
+import { CreateMenu } from '../components/CreateMenu';
 import { KivelleLogo } from '../components/KivelleLogo';
 import { KivelleCreditIcon } from '../components/KivelleCreditIcon';
 import { useSubscriptionStatus } from '../hooks/useSubscriptionStatus';
@@ -33,7 +30,6 @@ import { subscriptionHref } from '../lib/subscriptionPresentation';
 import { conversationRouteTarget, navigateLocalRouteOnWeb, webConversationHref } from '../lib/conversationNavigation';
 import { characterConversationHref } from '../lib/chatRoute';
 import { privateStoredImageSource } from '../lib/mediaImageSource';
-import { canAccessWorld } from '../lib/place';
 import { isWorldCatalogVisible } from '@together/domain/src/world-access';
 
 type Props = { expanded: boolean; onHoverChange: (hovered: boolean) => void };
@@ -42,9 +38,6 @@ type NavItem = { key: DesktopNavigationKey; label: string; href: string; icon: (
 export function DesktopSidebar({ expanded, onHoverChange }: Props) {
   const [accountOpen, setAccountOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [personalPlaceOpen, setPersonalPlaceOpen] = useState(false);
-  const [hoveredChoice, setHoveredChoice] = useState<'character' | 'place' | null>(null);
-  const { width: viewportWidth } = useWindowDimensions();
   const pathname = usePathname();
   const settingsOpen = pathname === '/settings';
   const snapshot = useTogether((state) => state.snapshot);
@@ -68,8 +61,6 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
   const currentWorld = snapshot?.worlds.find((world) => world.id === browsedWorldId)
     ?? (snapshot?.currentPlaceContext ? snapshot.worlds.find((world) => world.id === snapshot.currentPlaceContext?.world.id) : undefined)
     ?? snapshot?.worlds.find(isWorldCatalogVisible);
-  const placeWorld = snapshot?.worlds.find((world) => world.id === currentWorld?.id && canAccessWorld(snapshot, world))
-    ?? snapshot?.worlds.find((world) => isWorldCatalogVisible(world) && canAccessWorld(snapshot, world));
   const personaName = snapshot?.activePersona?.display_name ?? snapshot?.profile?.display_name ?? 'You';
   const showProfileAvatar = Boolean(profileAvatarSource && !profileAvatarFailed);
   const navigate = (href: string) => {
@@ -115,7 +106,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.navGroup}>
           {mainItems.map((item) => <SidebarAction key={item.key} expanded={expanded} label={item.label} icon={item.icon(activeKey === item.key ? '#E3A4F2' : colors.muted)} active={activeKey === item.key && !pathname.startsWith('/create/companion')} count={item.count} onWarm={()=>warmRoute(item.href,(value)=>router.prefetch(value as never))} onPress={() => navigate(item.href)} />)}
-          <SidebarAction expanded={expanded} label="Create" icon={<Plus size={24} color={colors.rose} />} active={pathname.startsWith('/create/companion') || personalPlaceOpen} onWarm={() => warmRoute('/create/companion', (value) => router.prefetch(value as never))} onPress={() => setCreateOpen(true)} />
+          <SidebarAction expanded={expanded} label="Create" icon={<Plus size={24} color={colors.rose} />} active={pathname.startsWith('/create/companion') || createOpen} onWarm={() => warmRoute('/create/companion', (value) => router.prefetch(value as never))} onPress={() => setCreateOpen(true)} />
         </View>
 
       {expanded && currentWorld ? <View style={styles.section}>
@@ -162,19 +153,7 @@ export function DesktopSidebar({ expanded, onHoverChange }: Props) {
       </View>
     </View>
     <AccountMenu visible={accountOpen} onClose={() => setAccountOpen(false)}/>
-    <CreatorModal visible={createOpen} title="What would you like to create?" onClose={() => setCreateOpen(false)} cardChooser>
-      <View style={[styles.createChoices, viewportWidth < 720 && styles.createChoicesStack]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Create a character" onHoverIn={() => setHoveredChoice('character')} onHoverOut={() => setHoveredChoice(null)} onFocus={() => setHoveredChoice('character')} onBlur={() => setHoveredChoice(null)} onPress={() => navigate('/create/companion')} style={({pressed}) => [styles.createCard, viewportWidth < 720 && styles.createCardStack, hoveredChoice === 'character' && styles.createCardHover, pressed && styles.createCardPressed]}>
-          <View pointerEvents="none" style={styles.createArtwork}><CreateChoiceArtwork kind="character" /></View>
-          <View style={styles.createCardFooter}><View style={styles.createCardCopy}><Text style={styles.createCardTitle}>Create a character</Text><Text style={styles.createCardDetail}>Make a companion of your own.</Text></View><ChevronRight size={20} color="#F9E9FC" /></View>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Create a place" accessibilityState={{disabled:!placeWorld}} disabled={!placeWorld} onHoverIn={() => setHoveredChoice('place')} onHoverOut={() => setHoveredChoice(null)} onFocus={() => setHoveredChoice('place')} onBlur={() => setHoveredChoice(null)} onPress={() => {setCreateOpen(false);setPersonalPlaceOpen(true);}} style={({pressed}) => [styles.createCard, viewportWidth < 720 && styles.createCardStack, hoveredChoice === 'place' && styles.createCardHover, !placeWorld && styles.createChoiceDisabled, pressed && styles.createCardPressed]}>
-          <View pointerEvents="none" style={styles.createArtwork}><CreateChoiceArtwork kind="place" /></View>
-          <View style={styles.createCardFooter}><View style={styles.createCardCopy}><Text style={styles.createCardTitle}>Create a place</Text><Text style={styles.createCardDetail}>{placeWorld ? 'Build somewhere you can visit together.' : 'Your worlds are still loading.'}</Text></View><ChevronRight size={20} color="#F9E9FC" /></View>
-        </Pressable>
-      </View>
-    </CreatorModal>
-    {snapshot && placeWorld ? <PersonalPlacePicker visible={personalPlaceOpen} worldId={placeWorld.id} snapshot={snapshot} onClose={() => setPersonalPlaceOpen(false)} startInCreateMode/> : null}
+    <CreateMenu visible={createOpen} onClose={() => setCreateOpen(false)} onCreateCharacter={() => navigate('/create/companion')} />
   </View>;
 }
 
@@ -255,17 +234,5 @@ const styles = StyleSheet.create({
   accountName: { color: colors.text, fontSize: 14, fontWeight: '900' },
   accountTier: { color: colors.dimmed, fontSize: 11, marginTop: 3 },
   rowPressed: { backgroundColor: 'rgba(255,255,255,.055)' },
-  createChoices: { flexDirection: 'row', alignItems: 'stretch', gap: 16 },
-  createChoicesStack: { flexDirection: 'column' },
-  createCard: { position: 'relative', flex: 1, height: 380, minWidth: 0, overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(204,163,230,.28)', backgroundColor: '#100D17' },
-  createCardStack: { height: 260 },
-  createCardHover: { borderColor: '#BA82E8', shadowColor: '#AF63D5', shadowOpacity: .3, shadowRadius: 15, shadowOffset: { width: 0, height: 0 } },
-  createCardPressed: { opacity: .84 },
-  createChoiceDisabled: { opacity: .45 },
-  createArtwork: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#261B36' },
-  createCardFooter: { position: 'absolute', right: 0, bottom: 0, left: 0, minHeight: 116, flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 20, paddingBottom: 22, paddingTop: 38, backgroundColor: 'rgba(11,8,18,.83)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'linear-gradient(transparent, rgba(11,8,18,.84) 30%, #100D17)' } as never) : {}) },
-  createCardCopy: { flex: 1, minWidth: 0, gap: 5 },
-  createCardTitle: { color: '#FFF9FE', fontFamily: 'Georgia', fontSize: 23, fontWeight: '700' },
-  createCardDetail: { color: '#C1B2C9', fontSize: 12, lineHeight: 18 },
   pressed: { opacity: .72 },
 });
