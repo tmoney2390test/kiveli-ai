@@ -14,6 +14,15 @@ export function advanceHomeWorldIndex(current:number,count:number,delta=1){
   return((current+delta)%count+count)%count;
 }
 
+export function isHomeWorldSwipe(dx:number,dy:number){
+  return Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy)*1.4;
+}
+
+export function homeWorldSwipeDirection(dx:number,dy:number): -1 | 0 | 1 {
+  if(!isHomeWorldSwipe(dx,dy)||Math.abs(dx)<40)return 0;
+  return dx<0?1:-1;
+}
+
 export function shouldAutoRotateHomeWorlds({count,reducedMotion,appActive,documentVisible}:{
   count:number;
   reducedMotion:boolean;

@@ -1,17 +1,34 @@
 import { isComingSoonWorld } from '../../lib/comingSoonWorlds';
-import{useEffect,useState}from'react';
-import{AccessibilityInfo,AppState,Platform,Pressable,StyleSheet,Text,View,useWindowDimensions}from'react-native';
+import{useEffect,useMemo,useRef,useState}from'react';
+import{AccessibilityInfo,AppState,PanResponder,Platform,Pressable,StyleSheet,Text,View,useWindowDimensions}from'react-native';
 import{Image}from'expo-image';
 import{CatalogImage}from'../CatalogImage';
 import{Globe2}from'lucide-react-native';
 import{worldHeroAsset}from'../../assets';
-import{advanceHomeWorldIndex,shouldAutoRotateHomeWorlds}from'../../lib/homeWorldDiscovery';
+import{advanceHomeWorldIndex,homeWorldSwipeDirection,isHomeWorldSwipe,shouldAutoRotateHomeWorlds}from'../../lib/homeWorldDiscovery';
 import{colors,radius,typography}from'../../theme';
 import type{World}from'../../types';
 
 export function HomeWorldDiscoveryHero({worlds,onExplore,fill=false}:{worlds:World[];onExplore:(world:World)=>void;fill?:boolean}){
   const{width}=useWindowDimensions();
   const[index,setIndex]=useState(0);
+  const[interacting,setInteracting]=useState(false);
+  const swipeClaimed=useRef(false);
+  const panResponder=useMemo(()=>PanResponder.create({
+    onStartShouldSetPanResponderCapture:()=>{
+      swipeClaimed.current=false;
+      setInteracting(true);
+      return false;
+    },
+    onMoveShouldSetPanResponderCapture:(_event,gesture)=>worlds.length>1&&gesture.numberActiveTouches===1&&isHomeWorldSwipe(gesture.dx,gesture.dy),
+    onPanResponderGrant:()=>{swipeClaimed.current=true;setInteracting(true);},
+    onPanResponderRelease:(_event,gesture)=>{
+      const direction=homeWorldSwipeDirection(gesture.dx,gesture.dy);
+      if(direction)setIndex((current)=>advanceHomeWorldIndex(current,worlds.length,direction));
+      setInteracting(false);
+    },
+    onPanResponderTerminate:()=>{swipeClaimed.current=true;setInteracting(false);},
+  }),[worlds.length]);
   const[reducedMotion,setReducedMotion]=useState(false);
   const[appActive,setAppActive]=useState(AppState.currentState==='active');
   const[documentVisible,setDocumentVisible]=useState(()=>Platform.OS!=='web'||typeof document==='undefined'||document.visibilityState==='visible');
@@ -34,15 +51,17 @@ export function HomeWorldDiscoveryHero({worlds,onExplore,fill=false}:{worlds:Wor
     return()=>document.removeEventListener('visibilitychange',sync);
   },[]);
   useEffect(()=>{
-    if(!shouldAutoRotateHomeWorlds({count:worlds.length,reducedMotion,appActive,documentVisible}))return;
+    if(interacting||!shouldAutoRotateHomeWorlds({count:worlds.length,reducedMotion,appActive,documentVisible}))return;
     const timer=setTimeout(()=>setIndex((current)=>advanceHomeWorldIndex(current,worlds.length)),8_000);
     return()=>clearTimeout(timer);
-  },[appActive,documentVisible,index,reducedMotion,signature,worlds.length]);
+  },[appActive,documentVisible,index,interacting,reducedMotion,signature,worlds.length]);
   useEffect(()=>{
     if(worlds.length<2)return;
-    const upcoming=worlds[advanceHomeWorldIndex(index,worlds.length)];
-    const upcomingUri=upcoming?worldHeroAsset(upcoming.slug).uri:undefined;
-    if(upcomingUri)void Image.prefetch(upcomingUri,'memory-disk').catch(()=>undefined);
+    const adjacent=[...new Set([-1,1].map((direction)=>{
+      const adjacentWorld=worlds[advanceHomeWorldIndex(index,worlds.length,direction)];
+      return adjacentWorld?worldHeroAsset(adjacentWorld.slug).uri:undefined;
+    }).filter((uri):uri is string=>Boolean(uri)))];
+    if(adjacent.length)void Image.prefetch(adjacent,'memory-disk').catch(()=>undefined);
   },[index,signature,worlds]);
   if(!worlds.length)return null;
   const world=worlds[index%worlds.length]??worlds[0];
@@ -50,7 +69,8 @@ export function HomeWorldDiscoveryHero({worlds,onExplore,fill=false}:{worlds:Wor
   const desktop=width>=900;
   const comingSoon=isComingSoonWorld(world);
 
-  return <Pressable accessibilityRole="button" accessibilityLabel={comingSoon?`${world.name}, coming soon`:`Explore ${world.name}`} accessibilityState={{disabled:comingSoon}} disabled={comingSoon} onPress={()=>onExplore(world)} style={({pressed})=>[styles.hero,desktop&&styles.heroDesktop,fill&&styles.fill,pressed&&styles.pressed]}>
+  return <View {...panResponder.panHandlers} onTouchEnd={()=>setInteracting(false)} onTouchCancel={()=>setInteracting(false)} onPointerUp={()=>setInteracting(false)} onPointerCancel={()=>setInteracting(false)} style={[styles.gestureSurface,fill&&styles.fill]}>
+  <Pressable accessibilityRole="button" accessibilityLabel={comingSoon?`${world.name}, coming soon`:`Explore ${world.name}`} accessibilityHint="Swipe left or right to browse worlds. Tap to explore an available world." accessibilityState={{disabled:comingSoon}} disabled={comingSoon} onPressOut={()=>{if(!swipeClaimed.current)setInteracting(false);}} onPress={()=>{if(!swipeClaimed.current)onExplore(world);}} style={({pressed})=>[styles.hero,desktop&&styles.heroDesktop,fill&&styles.fill,pressed&&styles.pressed]}>
     <CatalogImage accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" alt="" source={worldHeroAsset(world.slug)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" cachePolicy="memory-disk" loading="lazy" priority="low" transition={180}/>
     <View pointerEvents="none" style={[styles.scrim,Platform.OS==='web'?styles.webScrim:styles.nativeScrim]}/>
     <View pointerEvents="none" style={styles.content}>
@@ -59,10 +79,12 @@ export function HomeWorldDiscoveryHero({worlds,onExplore,fill=false}:{worlds:Wor
         <Text numberOfLines={1} adjustsFontSizeToFit style={styles.title}>{world.name}</Text>
       </View>
     </View>
-  </Pressable>;
+  </Pressable>
+  </View>;
 }
 
 const styles=StyleSheet.create({
+  gestureSurface:{width:'100%',...(Platform.OS==='web'?{touchAction:'pan-y'}as never:{})},
   hero:{width:'100%',minHeight:218,overflow:'hidden',borderRadius:25,backgroundColor:colors.elevated,borderWidth:1,borderColor:'rgba(240,198,125,.23)',shadowColor:'#C58C45',shadowOpacity:.15,shadowRadius:28,shadowOffset:{width:0,height:16},elevation:8},
   heroDesktop:{borderRadius:34},
   fill:{height:'100%'},
