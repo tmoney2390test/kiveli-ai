@@ -80,14 +80,14 @@ export function AccountProfilePanel({snapshot, avatar, avatarPath, name, busy, n
     const exists = pins.some(pin => pin.kind === item.kind && pin.id === item.id);
     if (!exists && pins.length >= PROFILE_HIGHLIGHT_LIMIT) { setError('You have 12 highlights. Unpin one to make room.'); return; }
     const next = exists ? pins.filter(pin => pin.kind !== item.kind || pin.id !== item.id) : [...pins, {kind:item.kind, id:item.id}];
-    savingRef.current = true; setSaving(true); setError('');
+    savingRef.current = true; setSaving(true); setError(''); setPins(next);
     try {
       const result = await manageAccount<{highlights:ProfileHighlight[]}>({action:'profile_highlights', continuityId:lifeId, highlights:next});
       if (!mounted.current) return;
       setPins(result.highlights);
       const store = useTogether.getState(), life = store.snapshot?.activeContinuity;
       if (life?.id === lifeId) store.setCoreState({activeContinuity:{...life, metadata:{...life.metadata, profileHighlights:result.highlights}}});
-    } catch (caught) { if (mounted.current) setError(caught instanceof Error ? caught.message : 'Your highlights could not be saved. Try again.'); }
+    } catch (caught) { if (mounted.current) { setPins(pins); setError(caught instanceof Error ? caught.message : 'Your highlights could not be saved. Try again.'); } }
     finally { savingRef.current = false; if (mounted.current) setSaving(false); }
   };
 
@@ -161,11 +161,10 @@ function ContentTile({item,width,pinned,busy,onPin,onOpen}:{item:Tile;width:numb
   return <View style={{width}}><View style={[s.tile,{height:width * 1.25}]}>
     <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.kind}: ${item.title}`} onPress={onOpen} style={StyleSheet.absoluteFill}>
       {item.source && !imageFailed ? <Image source={item.source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" loading="lazy" recyclingKey={`${item.kind}:${item.id}`} onError={() => setImageFailed(true)}/> : <View style={s.tileFallback}>{item.kind==='video' ? <Video size={34} color="#BA95D8"/> : item.kind==='image' ? <ImageIcon size={34} color="#BA95D8"/> : <UsersRound size={34} color="#BA95D8"/>}</View>}
-      <View pointerEvents="none" style={s.tileShade}/>
       {item.kind==='video' ? <View style={s.play}><Play size={23} color="#fff" fill="#fff"/></View> : null}
       <Text numberOfLines={2} style={s.tileTitle}>{item.title}</Text>
     </Pressable>
-    <Pressable accessibilityRole="button" accessibilityLabel={`${pinned ? 'Unpin' : 'Pin'} ${item.kind}: ${item.title}`} accessibilityState={{selected:pinned,disabled:busy}} aria-pressed={pinned} disabled={busy} onPress={onPin} style={[s.pin,pinned && s.pinned]}><Pin size={17} color={pinned ? '#fff' : '#EEE2F5'} fill={pinned ? '#fff' : 'transparent'}/></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${pinned ? 'Unpin' : 'Pin'} ${item.kind}: ${item.title}`} accessibilityState={{selected:pinned,disabled:busy}} aria-pressed={pinned} onPress={(event) => { event.stopPropagation(); if (!busy) onPin(); }} style={({pressed}) => [s.pinTouch,pressed && s.pinPressed]}><View pointerEvents="none" style={[s.pinCircle,pinned && s.pinned]}><Pin size={17} color={pinned ? '#fff' : '#EEE2F5'} fill={pinned ? '#fff' : 'transparent'}/></View></Pressable>
     </View><Text style={s.caption} numberOfLines={1}>{item.subtitle}</Text></View>;
 }
 
@@ -183,5 +182,5 @@ const s = StyleSheet.create({
   sectionHeading:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10},heading:{fontSize:21,fontWeight:'600',color:'#fff'},
   emptyHighlights:{minHeight:172,alignItems:'center',justifyContent:'center',gap:10,borderRadius:18,borderWidth:1,borderStyle:'dashed',borderColor:'rgba(201,159,228,.22)',padding:24,backgroundColor:'rgba(132,71,165,.045)'},emptyTitle:{color:colors.text,fontSize:17,fontWeight:'600',textAlign:'center'},emptyBody:{color:colors.textSecondary,fontSize:13,lineHeight:20,textAlign:'center',maxWidth:470},highlightRail:{gap:12},unavailable:{height:200,padding:14,gap:12,justifyContent:'center',alignItems:'center',borderRadius:16,backgroundColor:'rgba(130,80,160,.07)'},
   tabs:{flexDirection:'row',borderBottomWidth:1,borderBottomColor:'rgba(255,255,255,.1)'},tab:{flex:1,minHeight:54,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,borderBottomWidth:2,borderBottomColor:'transparent'},activeTab:{borderBottomColor:'#D9B7F3',backgroundColor:'rgba(176,115,218,.06)'},tabText:{fontSize:12,fontWeight:'600',color:colors.muted},activeTabText:{color:'#F9F4FC'},
-  grid:{flexDirection:'row',flexWrap:'wrap',gap:12},tile:{borderRadius:16,overflow:'hidden',backgroundColor:'#201827',borderWidth:1,borderColor:'rgba(255,255,255,.1)'},tileFallback:{flex:1,alignItems:'center',justifyContent:'center'},tileShade:{position:'absolute',left:0,right:0,bottom:0,height:'45%',backgroundColor:'rgba(9,7,14,.42)',...(Platform.OS==='web'?({backgroundColor:'transparent',backgroundImage:'linear-gradient(transparent,rgba(9,7,14,.9))'} as never):{})},tileTitle:{position:'absolute',left:12,right:12,bottom:12,color:'#fff',fontSize:16,fontWeight:'600'},pin:{position:'absolute',top:7,right:7,width:44,height:44,borderRadius:22,backgroundColor:'rgba(12,8,18,.7)',alignItems:'center',justifyContent:'center'},pinned:{backgroundColor:'#8242AE'},play:{position:'absolute',top:'40%',alignSelf:'center',width:48,height:48,borderRadius:24,backgroundColor:'rgba(0,0,0,.32)',alignItems:'center',justifyContent:'center'},caption:{fontSize:11,color:colors.textSecondary,marginTop:7,marginBottom:4,paddingHorizontal:2},empty:{minHeight:220,padding:24,alignItems:'center',justifyContent:'center',gap:14},
+  grid:{flexDirection:'row',flexWrap:'wrap',gap:12},tile:{borderRadius:16,overflow:'hidden',backgroundColor:'#201827',borderWidth:1,borderColor:'rgba(255,255,255,.1)'},tileFallback:{flex:1,alignItems:'center',justifyContent:'center'},tileTitle:{position:'absolute',left:12,right:12,bottom:12,color:'#fff',fontSize:16,fontWeight:'600',textShadowColor:'rgba(0,0,0,.9)',textShadowRadius:6,textShadowOffset:{width:0,height:2}},pinTouch:{position:'absolute',top:0,right:0,width:56,height:56,alignItems:'center',justifyContent:'center',zIndex:2,elevation:2},pinCircle:{width:36,height:36,borderRadius:18,backgroundColor:'rgba(12,8,18,.78)',alignItems:'center',justifyContent:'center'},pinPressed:{opacity:.75},pinned:{backgroundColor:'#8242AE'},play:{position:'absolute',top:'40%',alignSelf:'center',width:48,height:48,borderRadius:24,backgroundColor:'rgba(0,0,0,.32)',alignItems:'center',justifyContent:'center'},caption:{fontSize:11,color:colors.textSecondary,marginTop:7,marginBottom:4,paddingHorizontal:2},empty:{minHeight:220,padding:24,alignItems:'center',justifyContent:'center',gap:14},
 });
