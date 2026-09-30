@@ -1,12 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import type { MediaOffer } from '../types';
-import { customPhotoRequestText, mediaWithoutActivePhotoOffer, photoCardAspectRatio, photoMediaForOffer, photoOfferDismissAction, photoOfferForMessage, photoOffersAtTimelineTail, photoOffersWithoutVisibleMessages, shouldShowPhotoGenerationPending, visibleChatPhotoMedia } from './photoRequestPresentation';
+import type { GeneratedMedia, MediaOffer } from '../types';
+import { customPhotoRequestText, includedPhotoWasFree, mediaWithoutActivePhotoOffer, photoCardAspectRatio, photoMediaForOffer, photoOfferDismissAction, photoOfferForMessage, photoOfferPaymentMethod, photoOffersAtTimelineTail, photoOffersWithoutVisibleMessages, shouldShowPhotoGenerationPending, visibleChatPhotoMedia } from './photoRequestPresentation';
 
 function offer(id: string, status: MediaOffer['status'], source: MediaOffer['source'], createdAt: string): MediaOffer {
   return {id,continuity_id:'life',character_instance_id:'character',message_id:id.includes('orphan')?null:'photo-message',source,status,content_level:'standard',quality_tier:'standard',shot_type:'selfie',credit_action:'companion_photo',credit_cost:10,title:'Picture request',companion_message:'A picture is ready to confirm',preview_metadata:{},included_subscription_benefit:false,created_at:createdAt,updated_at:createdAt};
 }
 
 describe('photo request presentation', () => {
+  it('uses the included daily photo automatically, then returns to disclosed credits', () => {
+    const pending = offer('daily', 'pending', 'user_request', '2026-09-29T12:00:00.000Z');
+    expect(photoOfferPaymentMethod({...pending, preview_metadata:{dailyPhotoAllowanceRemaining:1}})).toBe('daily_included');
+    expect(photoOfferPaymentMethod({...pending, preview_metadata:{dailyPhotoAllowanceRemaining:0}})).toBe('credits');
+    expect(photoOfferPaymentMethod({...pending, source:'story', preview_metadata:{dailyPhotoAllowanceRemaining:1}})).toBe('credits');
+    expect(photoOfferPaymentMethod({...pending, included_subscription_benefit:true, preview_metadata:{dailyPhotoAllowanceRemaining:1}})).toBe('credits');
+  });
+
+  it('marks only photos that actually used an included benefit as free', () => {
+    const base: GeneratedMedia = {id:'photo', character_instance_id:'character', media_type:'image', content_level:'standard', status:'ready', created_at:'2026-09-29T12:00:00.000Z'};
+    const included = {...base, metadata:{includedBenefit:true, includedBenefitType:'daily_companion_photo', creditCost:0}};
+    expect(includedPhotoWasFree(included)).toBe(true);
+    expect(includedPhotoWasFree({...base, metadata:{includedBenefit:false, creditCost:10}})).toBe(false);
+    expect(includedPhotoWasFree({...base, metadata:{includedBenefit:true, creditCost:10}})).toBe(false);
+    expect(includedPhotoWasFree({...base, status:'generating', metadata:included.metadata})).toBe(false);
+    expect(includedPhotoWasFree({...base, metadata:{}}, {...offer('offer', 'fulfilled', 'date', base.created_at), generated_media_id:base.id, included_subscription_benefit:true, credit_cost:0})).toBe(true);
+  });
+
   it('sizes a finished photo card to its actual image shape', () => {
     expect(photoCardAspectRatio({ width: 1376, height: 768 })).toBeCloseTo(1376 / 768);
     expect(photoCardAspectRatio({ width: 1024, height: 1280 })).toBe(0.8);

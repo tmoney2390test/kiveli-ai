@@ -1920,7 +1920,7 @@ export default function GroupChatScreen() {
           </ScrollView>
         </View>
       </Modal>
-      <View style={{flex:1}}><FlatList
+      <View style={{flex:1,minHeight:0}}><FlatList
         key={groupTimelineReady?params.id:"loading"}
         ref={scrollRef}
         data={groupTimelineReady?groupTimeline:[]}
@@ -2583,7 +2583,7 @@ function GroupComposer({
     sendDisabled = stopping || !ready || (!sending && (dictationBusy || overLimit ||
       (!input.trim() && !hasPendingImage)));
   return (
-    <ChatComposerFrame floating={compact} bottomInset={insets.bottom} style={styles.composerWrap}>
+    <ChatComposerFrame floating={compact} bottomInset={insets.bottom} onLayout={()=>{if(Platform.OS==='web'&&compact&&document.activeElement?.id==='group-chat-message-composer')onFocus?.();}} style={styles.composerWrap}>
       <View style={styles.composer}>
         <View style={[
           styles.composerInputShell,
@@ -3485,6 +3485,7 @@ function GroupBubble({
                   key={item.id}
                   media={item}
                   style={styles.sharedImage}
+                  showFreeBadge
                   onRetry={() => onMediaRetry(item)}
                   contentFit="contain"
                 />

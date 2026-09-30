@@ -1,5 +1,23 @@
 import type { GeneratedMedia, MediaOffer } from '../types';
 
+export function photoOfferPaymentMethod(offer: MediaOffer): 'credits' | 'daily_included' {
+  const remaining = Number(offer.preview_metadata?.dailyPhotoAllowanceRemaining ?? 0);
+  return offer.source === 'user_request' && !offer.included_subscription_benefit &&
+      Number.isFinite(remaining) && remaining > 0
+    ? 'daily_included'
+    : 'credits';
+}
+
+export function includedPhotoWasFree(media: GeneratedMedia, offer?: MediaOffer | null): boolean {
+  if (media.media_type !== 'image' || media.status !== 'ready') return false;
+  const metadata = media.metadata;
+  if (metadata && ('includedBenefit' in metadata || 'creditCost' in metadata)) {
+    return metadata.includedBenefit === true && Number(metadata.creditCost) === 0;
+  }
+  return offer?.generated_media_id === media.id &&
+    offer.included_subscription_benefit === true && offer.credit_cost === 0;
+}
+
 export function photoOfferDismissAction(
   status: MediaOffer['status'] | undefined,
   preparing = false,

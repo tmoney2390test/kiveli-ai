@@ -3,9 +3,10 @@ import { DESKTOP_CHAT_SHELL_MAX_WIDTH } from '../lib/chatLayout';
 import { colors, radius, typography } from '../theme';
 
 export const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, minHeight: 0, backgroundColor: colors.background },
   shell: {
     flex: 1,
+    minHeight: 0,
     width: "100%",
     maxWidth: DESKTOP_CHAT_SHELL_MAX_WIDTH,
     alignSelf: "center",
@@ -14,6 +15,7 @@ export const styles = StyleSheet.create({
   },
   conversation: {
     flex: 1,
+    minHeight: 0,
     minWidth: 0,
     overflow: "hidden",
     borderLeftWidth: 1,
