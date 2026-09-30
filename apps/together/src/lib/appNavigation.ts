@@ -24,6 +24,7 @@ export const WEB_ROUTE_TRANSITION_KEY = "kivelli:web-route-transition:v1";
 export const WEB_ROUTE_TRANSITION_CLASS = "kivelli-route-transition-pending";
 const WEB_ROUTE_TRANSITION_MAX_AGE_MS = 15_000;
 const TAB_ROUTE_PATHS = new Set([
+  "/create",
   "/chat-tab",
   "/dates",
   "/explore",

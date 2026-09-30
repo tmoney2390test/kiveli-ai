@@ -20,7 +20,7 @@ const pageLabels: Record<string, string> = {
   '/onboarding': 'Get Started', '/quick-start': 'Get Started', '/introduction': 'Introduction',
   '/choose-companion': 'Choose a Companion', '/meet-maya': 'Meet Maya',
   '/age-confirmation': 'Age Confirmation', '/privacy-choice': 'Privacy Choices',
-  '/create/companion': 'Create a Companion', '/world/places': 'Places',
+  '/create': 'Create', '/create/companion': 'Create a Companion', '/world/places': 'Places',
   '/call': 'Call', '/plan-live': 'Live Plan', '/support': 'Support', '/help': 'Help',
   '/terms': 'Terms of Use', '/privacy-policy': 'Privacy Policy', '/delete-account': 'Delete Account', '/refund-policy': 'Refund Policy',
   '/community-guidelines': 'Community Guidelines', '/+not-found': 'Page Not Found',
