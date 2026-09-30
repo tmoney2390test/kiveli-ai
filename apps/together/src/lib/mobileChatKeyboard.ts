@@ -13,18 +13,12 @@ export function chatRootFrameForVisibleViewport(input: {
   rootTop: number;
   viewportTop: number;
   viewportHeight: number;
-  keyboardAccessoryInset?: number;
 }): { height: number } | null {
-  const { rootTop, viewportTop, viewportHeight, keyboardAccessoryInset = 0 } = input;
+  const { rootTop, viewportTop, viewportHeight } = input;
   if (![rootTop, viewportTop, viewportHeight].every(Number.isFinite) || viewportHeight < 120) return null;
   // Match the app's bottom edge to the visible viewport's bottom edge.
   // Moving the root itself causes Safari to pan again toward the focused
   // textarea, producing the large empty region above chat.
-  const height = viewportTop + viewportHeight - rootTop - Math.max(0, keyboardAccessoryInset);
+  const height = viewportTop + viewportHeight - rootTop;
   return height >= 120 ? { height } : null;
-}
-
-export function chatComposerOverlap(composerBottom: number, visibleBottom: number): number {
-  if (!Number.isFinite(composerBottom) || !Number.isFinite(visibleBottom)) return 0;
-  return Math.max(0, Math.ceil(composerBottom - visibleBottom));
 }

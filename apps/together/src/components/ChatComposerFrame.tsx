@@ -11,15 +11,16 @@ export function ChatComposerFrame({ floating, bottomInset, onLayout, style, chil
 }) {
   if (!floating) return <View onLayout={onLayout} style={[style, { paddingBottom: Math.max(8, bottomInset) }]}>{children}</View>;
 
-  // Keep the card in normal layout so the timeline always reserves its full
-  // height, including an attachment or an expanded multiline draft.
-  return <View nativeID="chat-composer-frame" onLayout={onLayout} style={[styles.slot, { paddingBottom: Math.max(10, bottomInset) }]}>
+  // On web the card floats above the scrolling timeline. Each chat screen
+  // reserves its measured height so the newest message remains readable.
+  return <View nativeID="chat-composer-frame" onLayout={onLayout} style={[styles.slot, Platform.OS === 'web' && styles.webFloating, { paddingBottom: Math.max(10, bottomInset) }]}>
     <FrostedSurface intensity={78} style={styles.glass}>{children}</FrostedSurface>
   </View>;
 }
 
 const styles = StyleSheet.create({
   slot: { flexShrink: 0, paddingHorizontal: 12, paddingTop: 8, backgroundColor: 'transparent', zIndex: 2 },
+  webFloating: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 30 },
   glass: {
     borderRadius: 28,
     borderCurve: 'continuous',
