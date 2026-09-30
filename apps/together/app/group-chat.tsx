@@ -32,6 +32,7 @@ import {
 import { shouldKeepChatPinned } from "../src/lib/chatScroll";
 import { useMobileChatKeyboardPin } from "../src/hooks/useMobileChatKeyboardPin";
 import { ChatKeyboardFrame } from "../src/components/ChatKeyboardFrame";
+import { ChatComposerFrame } from "../src/components/ChatComposerFrame";
 import { uploadPreparedChatPhoto } from "../src/lib/chatPhotoStorageUpload";
 import { shouldConsumeComposerEnter, shouldSendComposerOnEnter } from "../src/lib/composerKeyboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -2277,6 +2278,7 @@ export default function GroupChatScreen() {
       <ContextCostConfirmation pricing={contextPricing}/>
       <DailyMessageAllowanceNotice allowance={snapshot?.dailyMessageAllowance} onUpgrade={()=>navigateGroupSurface(subscriptionHref({intent:"plans",returnTo:subscriptionReturnTo}))}/>
       <GroupComposer
+        compact={width<720}
         conversationId={detail.conversation.id}
         characterInstanceId={String(
           detail.conversation.character_instance_id ??
@@ -2530,6 +2532,7 @@ export default function GroupChatScreen() {
 }
 
 function GroupComposer({
+  compact,
   conversationId,
   characterInstanceId,
   groupName,
@@ -2547,6 +2550,7 @@ function GroupComposer({
   onDictationStart,
   onFocus,
 }: {
+  compact: boolean;
   conversationId: string;
   characterInstanceId: string;
   groupName: string;
@@ -2579,11 +2583,12 @@ function GroupComposer({
     sendDisabled = stopping || !ready || (!sending && (dictationBusy || overLimit ||
       (!input.trim() && !hasPendingImage)));
   return (
-    <View style={[styles.composerWrap,{paddingBottom:Math.max(8,insets.bottom)}]}>
+    <ChatComposerFrame floating={compact} bottomInset={insets.bottom} style={styles.composerWrap}>
       <View style={styles.composer}>
         <View style={[
           styles.composerInputShell,
           composerFocused && styles.composerInputFocused,
+          compact && styles.composerInputFloating,
         ]}>
           <GroupMediaButton
             name={groupName}
@@ -2650,7 +2655,7 @@ function GroupComposer({
         </Pressable>
       </View>
       <MessageCharacterCounter value={input} />
-    </View>
+    </ChatComposerFrame>
   );
 }
 

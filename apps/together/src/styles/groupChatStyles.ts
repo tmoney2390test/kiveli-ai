@@ -618,6 +618,10 @@ export const styles = StyleSheet.create({
     backgroundColor: "rgba(43,27,56,.98)",
     borderColor: "rgba(188,142,216,.20)",
   },
+  composerInputFloating: {
+    backgroundColor: "rgba(12,10,20,.30)",
+    borderColor: "rgba(255,255,255,.10)",
+  },
   mediaButton: {
     position: "relative",
     width: 42,

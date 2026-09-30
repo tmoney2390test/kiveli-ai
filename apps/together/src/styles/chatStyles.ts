@@ -169,6 +169,7 @@ export const styles=StyleSheet.create({
   ,attachmentRemove:{width:44,height:44,borderRadius:22,alignItems:'center',justifyContent:'center',backgroundColor:colors.surface}
   ,composerInputShell:{flex:1,minWidth:0,minHeight:54,maxHeight:124,flexDirection:'row',alignItems:'flex-end',gap:4,paddingLeft:5,paddingRight:4,borderRadius:27,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border}
   ,composerInputFocused:{backgroundColor:'rgba(43,27,56,.98)',borderColor:'rgba(188,142,216,.20)',shadowOpacity:0}
+  ,composerInputFloating:{backgroundColor:'rgba(12,10,20,.30)',borderColor:'rgba(255,255,255,.10)'}
   ,composerTextInput:{fontSize:16,...(Platform.OS==='web'?({outlineStyle:'none'} as never):{})}
   ,composerInputSuggested:{borderColor:'rgba(203,168,255,.48)',backgroundColor:'rgba(70,42,108,.28)',shadowColor:'#8F5BFF',shadowOpacity:.18,shadowRadius:10,shadowOffset:{width:0,height:3}}
   ,autoDialogueInline:{flexDirection:'row',alignItems:'center',gap:2,marginRight:3,marginBottom:9}
