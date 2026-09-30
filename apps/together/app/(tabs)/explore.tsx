@@ -161,6 +161,8 @@ export default function Explore(){
   const discussionHandle=companion?.id;
   const peopleCardWidth=desktop?344:width>=700?300:Math.min(292,Math.max(252,Math.round(width*.78)));
   const peopleCardHeight=desktop?390:Math.max(308,Math.min(340,Math.round(peopleCardWidth*1.14)));
+  const peopleGridCardWidth=!desktop&&width<700?Math.floor((width-40-12)/2):peopleCardWidth;
+  const peopleGridCardHeight=peopleGridCardWidth<200?258:Math.max(308,Math.min(390,Math.round(peopleGridCardWidth*1.14)));
   const placeGrid=responsivePlaceGrid({viewportWidth:width,sidebarWidth:desktop?sidebarWidth:0,outerPadding:desktop?64:40,gap:10});
   const placeCardWidth=placeGrid.cardWidth;
   const placeCardHeight=!desktop&&placeGrid.columns===2?placeCardWidth:Math.max(175,Math.min(220,Math.round(placeCardWidth*.66)));
@@ -223,7 +225,7 @@ export default function Explore(){
         <CompanionSortPicker value={sortMode} onChange={setSortMode}/>
       </View>:null}
       {visiblePeople.length?fullPeopleCatalog?<>
-        <View style={styles.peopleGrid}>{visiblePeople.map((person,index)=><WorldPersonCard key={person.id} person={person} index={index} width={peopleCardWidth} height={peopleCardHeight} worldName={selectedWorld.name} snapshot={snapshot} onFeedback={setNotice}/>)}</View>
+        <View style={styles.peopleGrid}>{visiblePeople.map((person,index)=><WorldPersonCard key={person.id} person={person} index={index} width={peopleGridCardWidth} height={peopleGridCardHeight} worldName={selectedWorld.name} snapshot={snapshot} onFeedback={setNotice}/>)}</View>
         {peopleLimit<matchingPeople.length?<Pressable accessibilityRole="button" accessibilityLabel={`Show ${Math.min(12,matchingPeople.length-peopleLimit)} more people`} onPress={()=>setPeopleLimit((value)=>value+12)} style={({pressed})=>[styles.showMore,pressed&&styles.pressed]}><Text style={styles.showMoreText}>Show more people</Text><ChevronDown size={15} color={colors.rose}/></Pressable>:null}
       </>:<HorizontalRail label={`People in ${selectedWorld.name}`} previousLabel="Previous people" moreLabel="More people" contentStyle={styles.peoplePortraitRow}>{visiblePeople.map((person,index)=><WorldPersonCard key={person.id} person={person} index={index} width={peopleCardWidth} height={peopleCardHeight} worldName={selectedWorld.name} snapshot={snapshot} onFeedback={setNotice}/>)}</HorizontalRail>:<InlineState title={refreshing?'Finding residents…':'No people matched'} body={refreshing?'The full cast is loading.':'Try another filter, search, or world.'}/>}</Section>:null}
 
@@ -255,7 +257,7 @@ function WorldPersonCard({person,index,width,height,worldName,snapshot,onFeedbac
     catch{setCoreState({favoriteCharacterTemplateIds:previous});onFeedback(`Couldn’t update ${person.name}’s favorite status. Try again.`);}
     finally{setSavingFavorite(false);}
   };
-  return <CompanionPortraitCard companion={person} width={width} height={height} favorite={favorite} favoriteBusy={savingFavorite} badgeLabel={exploreCompanionBadge(snapshot,person,index)} compact preserveArtwork={false} loading={index<2?'eager':'lazy'} subtitle={`${person.occupation} · ${worldName}`} actionLabel={action} onFavorite={()=>void toggleFavorite()} onPress={()=>nav.push(`/character/${person.public_handle??person.slug}`)}/>;
+  return <CompanionPortraitCard companion={person} width={width} height={height} favorite={favorite} favoriteBusy={savingFavorite} badgeLabel={exploreCompanionBadge(snapshot,person,index)} compact dense={width<200} preserveArtwork={false} loading={index<2?'eager':'lazy'} subtitle={`${person.occupation} · ${worldName}`} actionLabel={width<200?'View profile':action} onFavorite={()=>void toggleFavorite()} onPress={()=>nav.push(`/character/${person.public_handle??person.slug}`)}/>;
 }
 
 function WorldCard({world,width,accessible,onPress}:{world:World;width:number;accessible:boolean;onPress:()=>void}){const early=isSubscriberEarlyAccessWorld(world.metadata);return <Pressable accessibilityRole="button" accessibilityLabel={`${isComingSoonWorld(world)?'Coming soon:':accessible?'Explore':'Unlock'} ${world.name}${early?', subscriber early access':''}`} disabled={isComingSoonWorld(world)} accessibilityState={{disabled:isComingSoonWorld(world)}} onPress={onPress} style={({pressed})=>[styles.worldCard,{width},Platform.OS==='web'&&webWorldSnapStyle,pressed&&styles.pressed]}><Image source={worldHeroAsset(world.slug)} style={StyleSheet.absoluteFill} contentFit="cover" loading="lazy" priority="low"/><View pointerEvents="none" style={styles.worldCardShade}/><View pointerEvents="none" style={styles.worldCardBottomShade}/>{early||isComingSoonWorld(world)?<View style={styles.worldEarlyBadge}><LockKeyhole size={10} color="#FFF4FD"/><Text style={styles.worldEarlyBadgeText}>{isComingSoonWorld(world)?"COMING SOON":"EARLY ACCESS"}</Text></View>:null}<View style={styles.worldCardCopy}><Text style={styles.worldCardName}>{world.name}</Text><Text style={styles.worldCardMeta}>{isComingSoonWorld(world)?'Pirate adventure':accessible?worldRole(world):'Subscribers'}</Text></View></Pressable>;}
