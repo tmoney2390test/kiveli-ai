@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Sparkles, X } from 'lucide-react-native';
-import { colors, radius } from '../theme';
+import { X } from 'lucide-react-native';
+import { colors } from '../theme';
 
 export function CreatorWizardShell({
   title,
@@ -32,9 +32,7 @@ export function CreatorWizardShell({
   return <View style={styles.scrim}>
     <View style={[styles.modal, { maxWidth }, mobile && styles.modalMobile]}>
       <View style={styles.header}>
-        <View style={styles.headerIcon}><Sparkles size={20} color={colors.rose} /></View>
         <View style={styles.heading}>
-          <Text style={styles.kicker}>CREATE A COMPANION</Text>
           <Text accessibilityRole="header" style={styles.title}>{title}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
         </View>
@@ -78,15 +76,13 @@ export function CreatorWizardShell({
 
 const styles = StyleSheet.create({
   scrim: { minHeight: '100%', alignItems: 'center', justifyContent: 'flex-start', paddingVertical: 20 },
-  modal: { width: '100%', gap: 16, padding: 24, borderRadius: 30, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: colors.surface, shadowColor: '#000', shadowOpacity: .42, shadowRadius: 30, shadowOffset: { width: 0, height: 18 } },
-  modalMobile: { padding: 16, borderRadius: radius.xl },
-  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 13 },
-  headerIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(216,62,234,.1)' },
+  modal: { width: '100%', gap: 16, padding: 18, borderRadius: 25, borderWidth: 1, borderColor: 'rgba(220,157,231,.25)', backgroundColor: '#140E1B', shadowColor: '#000', shadowOpacity: .42, shadowRadius: 30, shadowOffset: { width: 0, height: 18 } },
+  modalMobile: { padding: 16 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
   heading: { flex: 1, minWidth: 0 },
-  kicker: { color: colors.rose, fontWeight: '900', fontSize: 10, letterSpacing: 1.3 },
-  title: { color: colors.text, fontFamily: 'Georgia', fontSize: 31, lineHeight: 36, marginTop: 3 },
-  subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 6, maxWidth: 650 },
-  close: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated },
+  title: { color: colors.text, fontFamily: 'Georgia', fontSize: 26, lineHeight: 31 },
+  subtitle: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 2, maxWidth: 650 },
+  close: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.055)' },
   pressed: { opacity: .76, transform: [{ scale: .98 }] },
   disabled: { opacity: .45 },
   progress: { flexDirection: 'row', gap: 6 },
