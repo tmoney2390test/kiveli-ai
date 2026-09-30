@@ -274,6 +274,21 @@ describe("app navigation", () => {
   });
 
   it.each([
+    ["/home", "/explore"],
+    ["/explore", "/moments"],
+    ["/moments", "/chat-tab?messages=1"],
+    ["/home", "/chat?character=iris-vale"],
+  ])("keeps a warm shell switch from %s to %s uncovered", (source, destination) => {
+    const { browser, classes, storage } = browserAt(`https://kivelli.app${source}`);
+
+    expect(navigateLocalRouteOnWeb(destination)).toBe(true);
+
+    expect(browser.location.href).toBe(`https://kivelli.app${destination}`);
+    expect(classes.has(WEB_ROUTE_TRANSITION_CLASS)).toBe(false);
+    expect(storage.has(WEB_ROUTE_TRANSITION_KEY)).toBe(false);
+  });
+
+  it.each([
     "/home",
     "/explore",
     "/moments",

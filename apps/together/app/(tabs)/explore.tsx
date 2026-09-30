@@ -15,6 +15,7 @@ import{CompanionSortPicker}from'../../src/components/CompanionSortPicker';
 import{locationHeroAsset,worldHeroAsset}from'../../src/assets';
 import{colors,radius}from'../../src/theme';
 import{useTogether}from'../../src/store/useTogether';
+import{useAuth}from'../../src/hooks/useAuth';
 import{loadExploreCatalog,setCharacterFavorite}from'../../src/lib/api';
 import{activeCompanion}from'../../src/lib/companionLife';
 import{canAccessWorld,characterCanPlanInWorld,characterResidentWorld}from'../../src/lib/place';
@@ -44,9 +45,10 @@ const EXPLORE_REFRESH_TTL=10*60*1000;
 const DEFAULT_PREFERENCE:ExplorePreference={worldSlug:null,intent:'for_you',scrollY:0};
 const intentIcons:Record<Exclude<ExploreIntent,'worlds'|'tonight'>,typeof Sparkles>={for_you:Sparkles,scenarios:BookOpen,people:UsersRound,places:MapPin};
 const intents=EXPLORE_VISIBLE_INTENTS.map((item)=>({...item,icon:intentIcons[item.id]}));
-let lastExploreCatalogRefresh:{characters:Snapshot['discoverableCharacters'];at:number}|null=null;
+let lastExploreCatalogRefresh:{scope:string;at:number}|null=null;
 
 export default function Explore(){
+  const{session}=useAuth();
   const{width}=useWindowDimensions();
   const insets=useSafeAreaInsets();
   const{desktop,sidebarWidth}=useAppShell();
@@ -75,6 +77,8 @@ export default function Explore(){
   const restoredScroll=useRef(false);
   const persistenceTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const preferenceScope=snapshot?.activeContinuity?.id??'default';
+  const catalogScope=`${session?.user.id??'anonymous'}:${preferenceScope}`;
+  const catalogRefreshInFlight=useRef(false);
   const worlds=useMemo(()=>snapshot?withComingSoonWorlds(snapshot.worlds.filter(isWorldCatalogVisible)).sort(compareWorldSelectorOrder):[],[snapshot?.worlds]);
   const accessibleWorlds=useMemo(()=>snapshot?worlds.filter((world)=>canAccessWorld(snapshot,world)):[],[snapshot,worlds]);
   const accessibleWorldIds=useMemo(()=>new Set(accessibleWorlds.map((world)=>world.id)),[accessibleWorlds]);
@@ -100,7 +104,8 @@ export default function Explore(){
   useEffect(()=>{let active=true;void AccessibilityInfo.isReduceMotionEnabled().then((value)=>{if(active)setReducedMotion(value);});const subscription=AccessibilityInfo.addEventListener('reduceMotionChanged',setReducedMotion);return()=>{active=false;subscription.remove();};},[]);
 
   const refreshCatalog=useCallback(async(force=false)=>{
-    if(!snapshot||(!force&&lastExploreCatalogRefresh?.characters===snapshot.discoverableCharacters&&Date.now()-lastExploreCatalogRefresh.at<EXPLORE_REFRESH_TTL))return;
+    if(!snapshot||catalogRefreshInFlight.current||(!force&&lastExploreCatalogRefresh?.scope===catalogScope&&Date.now()-lastExploreCatalogRefresh.at<EXPLORE_REFRESH_TTL))return;
+    catalogRefreshInFlight.current=true;
     setRefreshing(true);setRefreshError('');
     try{
       const result=await loadExploreCatalog();
@@ -113,10 +118,10 @@ export default function Explore(){
         favoriteCharacterTemplateIds:result.favoriteCharacterTemplateIds,
         lifeEvents:result.lifeEvents,
       });
-      lastExploreCatalogRefresh={characters:result.discoverableCharacters,at:Date.now()};
+      lastExploreCatalogRefresh={scope:catalogScope,at:Date.now()};
     }catch{setRefreshError('Explore could not refresh. Showing your saved people and places.');}
-    finally{setRefreshing(false);}
-  },[setCoreState,snapshot]);
+    finally{catalogRefreshInFlight.current=false;setRefreshing(false);}
+  },[catalogScope,setCoreState,snapshot]);
   useFocusEffect(useCallback(()=>{void refreshCatalog();},[refreshCatalog]));
 
   const persistPreference=useCallback((patch:Partial<ExplorePreference>)=>{
