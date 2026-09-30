@@ -6,6 +6,7 @@ import { ChevronDown, Search, Sparkles } from 'lucide-react-native';
 import { CharacterAvatar, EmptyState, FrostedSurface, GlassCard, MomentCard, PageTitle, Screen } from '../../src/components';
 import { colors, radius } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
+import { useAuth } from '../../src/hooks/useAuth';
 import { selectActiveCompanion, selectPortraitVersion } from '../../src/lib/selectors';
 import { locationAncestry, worldForLocation } from '../../src/lib/place';
 import { buildMomentsFeed, planSummary, videoMomentFrameUrl, type MomentsFeedEntry, type MomentsFeedFilter } from '../../src/lib/momentsFeed';
@@ -20,12 +21,15 @@ import { mergeGeneratedMediaCollections } from '../../src/lib/mediaReconciliatio
 import type { GeneratedMedia } from '../../src/types';
 
 const filters: MomentsFeedFilter[] = ['All', 'Experiences', 'Milestones', 'Memories', 'Photos', 'Videos'];
+const MEDIA_LIBRARY_REFRESH_TTL=2*60*1000;
+const mediaLibraryCache=new Map<string,{media:GeneratedMedia[];at:number}>();
 
 export default function MomentsTab() {
   return <MomentsFeed/>;
 }
 
 function MomentsFeed() {
+  const{session}=useAuth();
   const snapshot = useTogether((state) => state.snapshot);
   const upsertMedia=useTogether((state)=>state.upsertMedia);
   const firstMediaReady=useSurfaceReadyTiming('moments','first_media_ready',Boolean(snapshot&&snapshot.profile?.privacy_settings?.analytics!==false));
@@ -44,15 +48,25 @@ function MomentsFeed() {
   const [filter, setFilter] = useState<MomentsFeedFilter>(()=>filters.includes(params.filter as MomentsFeedFilter)?params.filter as MomentsFeedFilter:'All');
   const [query, setQuery] = useState('');
   const [visibleCount,setVisibleCount]=useState(48);
+  const libraryScope=session?.user.id&&snapshot?.activeContinuity?.id?`${session.user.id}:${snapshot.activeContinuity.id}`:null;
   const[libraryMedia,setLibraryMedia]=useState<GeneratedMedia[]>([]),[libraryLoading,setLibraryLoading]=useState(false),[libraryError,setLibraryError]=useState('');
   const libraryRequest=useRef(0);
   const loadLibrary=useCallback(async()=>{
+    if(!libraryScope)return;
     const request=++libraryRequest.current;setLibraryLoading(true);setLibraryError('');
-    try{const result=await loadMediaLibrary({limit:160});if(request!==libraryRequest.current)return;setLibraryMedia(result.media??[]);for(const item of result.media??[]){if(item.metadata?.hiddenIntermediate!==true)upsertMedia(item);}}
+    try{const result=await loadMediaLibrary({limit:160});if(request!==libraryRequest.current)return;const media=result.media??[];mediaLibraryCache.set(libraryScope,{media,at:Date.now()});setLibraryMedia(media);for(const item of media){if(item.metadata?.hiddenIntermediate!==true)upsertMedia(item);}}
     catch(error){if(request===libraryRequest.current)setLibraryError(error instanceof Error?error.message:'Your media library could not be refreshed.');}
     finally{if(request===libraryRequest.current)setLibraryLoading(false);}
-  },[upsertMedia]);
-  useFocusEffect(useCallback(()=>{setShowCompanions(false);void loadLibrary();return()=>{libraryRequest.current+=1;};},[loadLibrary]));
+  },[libraryScope,upsertMedia]);
+  useFocusEffect(useCallback(()=>{
+    setShowCompanions(false);
+    const cached=libraryScope?mediaLibraryCache.get(libraryScope):undefined;
+    setLibraryMedia(cached?.media??[]);
+    setLibraryError('');
+    if(!cached||Date.now()-cached.at>=MEDIA_LIBRARY_REFRESH_TTL)void loadLibrary();
+    else setLibraryLoading(false);
+    return()=>{libraryRequest.current+=1;};
+  },[libraryScope,loadLibrary]));
   useEffect(()=>{
     if(!snapshotReady)return;
     if(requestedCompanionId){

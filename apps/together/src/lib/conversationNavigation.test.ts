@@ -58,11 +58,13 @@ describe("conversation navigation", () => {
     expect(conversationRouteTarget("https://example.com/chat?character=iris")).toBeNull();
   });
 
-  it("suppresses the global veil only while switching conversations", () => {
+  it("keeps shell navigation visible while retaining the veil for other screens", () => {
     expect(isConversationPath("/chat?character=iris")).toBe(true);
     expect(isConversationPath("/group-chat/")).toBe(true);
     expect(shouldShowRouteTransition("/group-chat", "/chat")).toBe(false);
-    expect(shouldShowRouteTransition("/chat", "/home")).toBe(true);
+    expect(shouldShowRouteTransition("/chat", "/home")).toBe(false);
+    expect(shouldShowRouteTransition("/home", "/explore")).toBe(false);
+    expect(shouldShowRouteTransition("/home", "/subscription")).toBe(true);
   });
 
   it("accepts only same-origin route hrefs for browser history navigation", () => {

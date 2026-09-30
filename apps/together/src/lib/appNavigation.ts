@@ -35,6 +35,9 @@ const TAB_ROUTE_PATHS = new Set([
   "/singles",
   "/upgrade",
 ]);
+const WARM_SHELL_ROUTE_PATHS = new Set([
+  "/home", "/explore", "/chat-tab", "/chat", "/group-chat", "/moments",
+]);
 
 function stripRouteGroups(pathname: string): string {
   return pathname.replace(/\/\([^)]+\)(?=\/|$)/g, "") || "/";
@@ -162,6 +165,16 @@ function isConversationRoute(href: string): boolean {
   return pathname === "/chat" || pathname === "/group-chat";
 }
 
+export function isWarmShellRoute(href: string): boolean {
+  return WARM_SHELL_ROUTE_PATHS.has(routePath(href));
+}
+
+function shouldCoverWebRouteTransition(current: string, destination: string): boolean {
+  if (routePath(current) === routePath(destination)) return false;
+  if (isConversationRoute(current) && isConversationRoute(destination)) return false;
+  return !(isWarmShellRoute(current) && isWarmShellRoute(destination));
+}
+
 function isCapturedEntryRecovery(destination: string): boolean {
   if (typeof window === "undefined" || window.location.pathname !== "/") return false;
   const captured = window.__KIVELLE_ENTRY_HREF__;
@@ -251,9 +264,7 @@ export function navigateLocalRouteOnWeb(
   if (!destination) return false;
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
   if (current === destination) return true;
-  const sameScreen = routePath(current) === routePath(destination);
-  const conversationSwitch = isConversationRoute(current) && isConversationRoute(destination);
-  if (!sameScreen && !conversationSwitch) beginPendingWebRouteTransition(destination);
+  if (shouldCoverWebRouteTransition(current, destination)) beginPendingWebRouteTransition(destination);
   window.history[mode === "replace" ? "replaceState" : "pushState"]({}, "", destination);
   dispatchRouteChange();
   return true;
@@ -332,7 +343,7 @@ export function installWebNavigationCompatibility(router: object): void {
     }
     const startingState = window.history.state;
     const historyObserver = observeHistoryWrites();
-    beginPendingWebRouteTransition(destination);
+    if (shouldCoverWebRouteTransition(startingLocation, destination)) beginPendingWebRouteTransition(destination);
     let result: unknown;
     try {
       result = original(routerHref as never, options);

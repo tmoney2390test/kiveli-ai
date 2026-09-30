@@ -83,7 +83,8 @@ import { supabase } from "../../src/lib/supabase";
 const demoMode = __DEV__ &&
   process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === "true";
 const INBOX_PAGE_SIZE = 40;
-type InboxCacheEntry = { conversations: Conversation[]; groups: InboxGroupDetail[]; pageInfo: InboxPage["pageInfo"] };
+const INBOX_FOCUS_REFRESH_TTL = 20_000;
+type InboxCacheEntry = { conversations: Conversation[]; groups: InboxGroupDetail[]; pageInfo: InboxPage["pageInfo"]; at: number };
 const inboxCache = new Map<string, InboxCacheEntry>();
 
 function normalizeInboxPage(value: InboxPage | Conversation[]): InboxPage {
@@ -163,7 +164,7 @@ export default function MessageInbox() {
       hasMoreRef.current = page.pageInfo.hasMore;
       setConversations(nextConversations);
       setGroups(nextGroups);
-      inboxCache.set(scope, { conversations: nextConversations, groups: nextGroups, pageInfo: page.pageInfo });
+      inboxCache.set(scope, { conversations: nextConversations, groups: nextGroups, pageInfo: page.pageInfo, at: mode === "more" ? inboxCache.get(scope)?.at ?? 0 : Date.now() });
       const latest = useTogether.getState().snapshot;
       if (latest && latest.activeContinuity?.id === currentSnapshot.activeContinuity?.id) {
         setCoreState({ conversations: mergeInboxConversations(latest.conversations, nextConversations) });
@@ -244,14 +245,15 @@ export default function MessageInbox() {
     groupsRef.current = cached?.groups ?? [];
     nextOffsetRef.current = cached?.pageInfo.nextOffset ?? 0;
     hasMoreRef.current = cached?.pageInfo.hasMore ?? true;
+    const shouldRefresh = !cached || Date.now() - cached.at >= INBOX_FOCUS_REFRESH_TTL;
     setConversations(local);
     setGroups(cached?.groups ?? []);
-    setLoading(local.length === 0);
+    setLoading(local.length === 0 && shouldRefresh);
     if (demoMode) {
       setLoading(false);
       return;
     }
-    void fetchInbox("refresh");
+    if (shouldRefresh) void fetchInbox("refresh");
     return () => {
       requestSequence.current += 1;
       fetchingMoreRef.current = false;

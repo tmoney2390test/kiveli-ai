@@ -1,4 +1,4 @@
-import { appRouteHref } from "./appNavigation";
+import { appRouteHref, isWarmShellRoute } from "./appNavigation";
 
 export { navigateLocalRouteOnWeb } from "./appNavigation";
 
@@ -108,5 +108,7 @@ export function isConversationPath(pathname: string): boolean {
 }
 
 export function shouldShowRouteTransition(previous: string, next: string): boolean {
-  return previous !== next && !(isConversationPath(previous) && isConversationPath(next));
+  return previous !== next
+    && !(isConversationPath(previous) && isConversationPath(next))
+    && !(isWarmShellRoute(previous) && isWarmShellRoute(next));
 }
