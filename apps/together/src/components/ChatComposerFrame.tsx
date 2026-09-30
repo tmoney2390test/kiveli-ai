@@ -13,7 +13,7 @@ export function ChatComposerFrame({ floating, bottomInset, onLayout, style, chil
 
   // Keep the card in normal layout so the timeline always reserves its full
   // height, including an attachment or an expanded multiline draft.
-  return <View onLayout={onLayout} style={[styles.slot, { paddingBottom: Math.max(10, bottomInset) }]}>
+  return <View nativeID="chat-composer-frame" onLayout={onLayout} style={[styles.slot, { paddingBottom: Math.max(10, bottomInset) }]}>
     <FrostedSurface intensity={78} style={styles.glass}>{children}</FrostedSurface>
   </View>;
 }
