@@ -2609,7 +2609,7 @@ function GroupComposer({
     sendDisabled = stopping || !ready || (!sending && (dictationBusy || overLimit ||
       (!input.trim() && !hasPendingImage)));
   return (
-    <ChatComposerFrame floating={compact} bottomInset={insets.bottom} onLayout={(event)=>{onFrameLayout?.(Math.ceil(event.nativeEvent.layout.height));if(Platform.OS==='web'&&compact&&document.activeElement?.id==='group-chat-message-composer')onFocus?.();}} style={styles.composerWrap}>
+    <ChatComposerFrame owner="group" floating={compact} bottomInset={insets.bottom} onLayout={(event)=>{onFrameLayout?.(Math.ceil(event.nativeEvent.layout.height));if(Platform.OS==='web'&&compact&&document.activeElement?.id==='group-chat-message-composer')onFocus?.();}} style={styles.composerWrap}>
       <View style={styles.composer}>
         <View style={[
           styles.composerInputShell,

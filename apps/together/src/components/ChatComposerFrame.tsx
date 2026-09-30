@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import { Platform, StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 import { FrostedSurface } from './FrostedGlass';
+import type { ChatComposerOwner } from '../lib/chatComposerRoute';
 
 export function ChatComposerFrame({ floating, bottomInset, onLayout, style, children }: {
+  owner: ChatComposerOwner;
   floating: boolean;
   bottomInset: number;
   onLayout?: (event: LayoutChangeEvent) => void;
