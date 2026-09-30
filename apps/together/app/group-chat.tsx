@@ -2624,7 +2624,7 @@ function GroupComposer({
               ? "Listening…"
               : dictation.phase === "transcribing"
               ? "Turning voice into text…"
-              : `Message ${groupName}…`}
+              : compact ? "Message…" : `Message ${groupName}…`}
             placeholderTextColor={colors.dimmed}
             multiline
             textAlignVertical="top"
