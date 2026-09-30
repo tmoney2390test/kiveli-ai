@@ -1,14 +1,27 @@
 import type{ExploreIntent}from'./explorePreference';
 
-export const EXPLORE_VISIBLE_INTENTS:ReadonlyArray<{id:Exclude<ExploreIntent,'worlds'>;label:string}>=[
+export type VisibleExploreIntent=Exclude<ExploreIntent,'worlds'|'tonight'>;
+
+export const EXPLORE_VISIBLE_INTENTS:ReadonlyArray<{id:VisibleExploreIntent;label:string}>=[
   {id:'for_you',label:'For you'},
-  {id:'tonight',label:'Tonight'},
+  {id:'scenarios',label:'Scenarios'},
   {id:'people',label:'People'},
   {id:'places',label:'Places'},
 ];
 
-export function normalizeVisibleExploreIntent(intent:ExploreIntent):Exclude<ExploreIntent,'worlds'>{
-  return intent==='worlds'?'for_you':intent;
+export function normalizeVisibleExploreIntent(intent:ExploreIntent):VisibleExploreIntent{
+  return intent==='worlds'||intent==='tonight'?'for_you':intent;
+}
+
+export function exploreIntentSections(intent:VisibleExploreIntent,searching:boolean){
+  return{
+    recommendations:intent==='for_you'&&!searching,
+    events:intent==='for_you'&&!searching,
+    people:intent==='for_you'||intent==='people',
+    scenarios:intent==='scenarios'||intent==='for_you'&&!searching,
+    places:intent==='for_you'||intent==='places',
+    worlds:intent==='for_you',
+  };
 }
 
 export function exploreResponsiveLayout(viewportWidth:number,desktop:boolean,safeAreaBottom=0){
