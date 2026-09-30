@@ -11,7 +11,7 @@ import { defaultPlaceHoursDraft, placeHoursDraft, serializePlaceHours, validPers
 import { PlaceHoursEditor } from './PlaceHoursEditor';
 import { useTogether } from '../store/useTogether';
 import { locationImageSource } from '../lib/locationImageSource';
-import { cleanupNormalizedImage, normalizeUserImage, userImagePickerOptions } from '../lib/imageUploads';
+import { cleanupNormalizedImage, normalizeUserImage, readNormalizedUserImageBytes, userImagePickerOptions } from '../lib/imageUploads';
 import { uploadPreparedChatPhoto } from '../lib/chatPhotoStorageUpload';
 import { supabase } from '../lib/supabase';
 import { canAccessWorld } from '../lib/place';
@@ -109,7 +109,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
         try{
           const prepared=editing?{locationId:editing.id,...await preparePersonalPlaceImage(editing.id)}:await prepareNewPersonalPlaceImage(selectedWorldId);
           const {upload}=prepared;
-          await uploadPreparedChatPhoto({storage:supabase.storage.from('together-user-media'),upload,body:await(await fetch(normalized.uri)).blob(),contentType:'image/jpeg'});
+          await uploadPreparedChatPhoto({storage:supabase.storage.from('together-user-media'),upload,body:await readNormalizedUserImageBytes(normalized.uri),contentType:'image/jpeg'});
           uploaded={locationId:prepared.locationId,worldId:selectedWorldId,uri:photo.uri,path:upload.path,width:normalized.width,height:normalized.height};pendingImage.current=uploaded;
         }finally{cleanupNormalizedImage(normalized.uri);}
       }

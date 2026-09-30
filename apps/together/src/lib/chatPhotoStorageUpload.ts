@@ -10,12 +10,12 @@ export type ChatPhotoStorageBucket = {
   uploadToSignedUrl: (
     path: string,
     token: string,
-    body: Blob,
+    body: ArrayBuffer,
     options: { contentType: string },
   ) => PromiseLike<StorageUploadResult>;
   upload: (
     path: string,
-    body: Blob,
+    body: ArrayBuffer,
     options: { contentType: string; upsert: false },
   ) => PromiseLike<StorageUploadResult>;
 };
@@ -55,7 +55,7 @@ export function isTransientPhotoUploadError(error: unknown): boolean {
 export async function uploadPreparedChatPhoto(input: {
   storage: ChatPhotoStorageBucket;
   upload: PreparedChatPhotoUpload;
-  body: Blob;
+  body: ArrayBuffer;
   contentType: string;
   retryDelayMs?: number;
 }): Promise<void> {

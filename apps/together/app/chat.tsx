@@ -67,7 +67,7 @@ import { clearChatScrollPosition, readChatScrollPosition, restoredChatOffset, sa
 import { withPhotoRequestTimeout, createOptimisticPhotoRequest, matchingServerPhotoOffer, queueOptimisticPhotoOfferAcceptance, queueServerPhotoOfferAcceptance, waitForMatchingServerPhotoOffer, waitForPhotoOfferStatus, type OptimisticPhotoRequest } from '../src/lib/photoOfferOptimism';
 import { mergeDictationTranscript } from '../src/lib/dictation';
 import { useChatDictation, type ChatDictationPhase } from '../src/hooks/useChatDictation';
-import { cleanupNormalizedImage, normalizeUserImage, userImagePickerOptions } from '../src/lib/imageUploads';
+import { cleanupNormalizedImage, normalizeUserImage, readNormalizedUserImageBytes, userImagePickerOptions } from '../src/lib/imageUploads';
 import { photoUploadPresentation, type PhotoUploadPhase } from '../src/lib/photoUploadPresentation';
 import { mediaOfferActionBusy } from '../src/lib/mediaOfferBusy';
 import { privateStoredImageSource } from '../src/lib/mediaImageSource';
@@ -989,7 +989,7 @@ function ChatSession() {
     setMessages((current) => retryMessageId?current.map((item)=>item.id===retryMessageId?optimistic:item):[...current, optimistic]);
     settleSentMessageAtBottom(clientRequestId);
     try {
-      if(selectedImage){setPhotoUploadPhase('preparing');const prepared=await prepareUserImage({conversationId:conversation.id,characterInstanceId:character.id,mimeType:selectedImage.mimeType,byteSize:selectedImage.byteSize,width:selectedImage.width,height:selectedImage.height,requestId:selectedImage.requestId});preparedAttachmentId=prepared.attachment.id;setPhotoUploadPhase('uploading');const blob=await fetch(selectedImage.uri).then((response)=>response.blob());await uploadPreparedChatPhoto({storage:supabase.storage.from(prepared.upload.bucket),upload:prepared.upload,body:blob,contentType:selectedImage.mimeType});setPhotoUploadPhase('processing');const confirmed=await confirmUserImage(prepared.attachment.id,text);sentAttachment={...confirmed.attachment,signed_url:confirmed.attachment.signed_url??selectedImage.uri};setPhotoUploadPhase('sending');}
+      if(selectedImage){setPhotoUploadPhase('preparing');const prepared=await prepareUserImage({conversationId:conversation.id,characterInstanceId:character.id,mimeType:selectedImage.mimeType,byteSize:selectedImage.byteSize,width:selectedImage.width,height:selectedImage.height,requestId:selectedImage.requestId});preparedAttachmentId=prepared.attachment.id;setPhotoUploadPhase('uploading');const bytes=await readNormalizedUserImageBytes(selectedImage.uri);await uploadPreparedChatPhoto({storage:supabase.storage.from(prepared.upload.bucket),upload:prepared.upload,body:bytes,contentType:selectedImage.mimeType});setPhotoUploadPhase('processing');const confirmed=await confirmUserImage(prepared.attachment.id,text);sentAttachment={...confirmed.attachment,signed_url:confirmed.attachment.signed_url??selectedImage.uri};setPhotoUploadPhase('sending');}
       // A clear free-text action is matched only against the server's current
       // scene candidates, then executed before the dialogue context is built.
       // This gives the normal companion response the real scene change to

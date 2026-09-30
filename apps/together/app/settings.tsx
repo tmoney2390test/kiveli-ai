@@ -40,7 +40,7 @@ import {
   Volume2,
   X,
 } from 'lucide-react-native';
-import { cleanupNormalizedImage, normalizeUserImage, userImagePickerOptions, type NormalizedUserImage } from '../src/lib/imageUploads';
+import { cleanupNormalizedImage, normalizeUserImage, readNormalizedUserImageBytes, userImagePickerOptions, type NormalizedUserImage } from '../src/lib/imageUploads';
 import { colors } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
 import { useAuth } from '../src/hooks/useAuth';
@@ -165,8 +165,8 @@ export default function Settings() {
       const asset = result.assets[0];
       normalized = await normalizeUserImage({ uri: asset.uri, width: asset.width, height: asset.height, fileSize: asset.fileSize, fileName: asset.fileName }, .84, 512);
       const path = `${session.user.id}/avatar-${createClientRequestId()}.jpg`;
-      const blob = await (await fetch(normalized.uri)).blob();
-      const { error } = await supabase.storage.from('together-user-media').upload(path, blob, { contentType: normalized.mimeType, upsert: false, cacheControl: '31536000' });
+      const bytes = await readNormalizedUserImageBytes(normalized.uri);
+      const { error } = await supabase.storage.from('together-user-media').upload(path, bytes, { contentType: normalized.mimeType, upsert: false, cacheControl: '31536000' });
       if (error) throw error;
       accountWriteAttempted = true;
       await manageAccount({ action: 'avatar', avatarPath: path });

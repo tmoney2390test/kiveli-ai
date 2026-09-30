@@ -1,6 +1,7 @@
 import{File}from'expo-file-system';
 import{manipulateAsync,SaveFormat,type Action,type ImageResult}from'expo-image-manipulator';
 import*as ImagePicker from'expo-image-picker';
+import{Platform}from'react-native';
 import{normalizedJpegName,userImageNormalizationError,userImageResize,USER_IMAGE_MAX_EDGE,USER_IMAGE_MAX_OUTPUT_BYTES,validateUserImageSource,type KnownImageDimensions}from'./imageUploadPolicy';
 
 export type NormalizedUserImage={uri:string;mimeType:'image/jpeg';byteSize:number;width:number;height:number;fileName:string;temporary:true};
@@ -17,9 +18,18 @@ export async function normalizeUserImage(input:KnownImageDimensions&{uri:string;
     cleanupNormalizedImage(previous);
   }
   if(Math.max(result.width,result.height)>maxEdge)throw new Error('That photo could not be resized safely.');
-  const response=await fetch(result.uri),blob=await response.blob();
-  if(blob.size>USER_IMAGE_MAX_OUTPUT_BYTES){cleanupNormalizedImage(result.uri);throw new Error('That photo is still too large after resizing.');}
-  return{uri:result.uri,mimeType:'image/jpeg',byteSize:blob.size,width:result.width,height:result.height,fileName:normalizedJpegName(input.fileName),temporary:true};
+  const bytes=await readNormalizedUserImageBytes(result.uri);
+  if(bytes.byteLength>USER_IMAGE_MAX_OUTPUT_BYTES){cleanupNormalizedImage(result.uri);throw new Error('That photo is still too large after resizing.');}
+  return{uri:result.uri,mimeType:'image/jpeg',byteSize:bytes.byteLength,width:result.width,height:result.height,fileName:normalizedJpegName(input.fileName),temporary:true};
+}
+
+export async function readNormalizedUserImageBytes(uri:string):Promise<ArrayBuffer>{
+  // React Native's file:// fetch can create a Blob labeled text/plain. Reading
+  // the normalized JPEG as binary also lets Storage honor image/jpeg exactly.
+  const bytes=Platform.OS==='web'?await fetch(uri).then((response)=>response.arrayBuffer()):await new File(uri).arrayBuffer();
+  const header=new Uint8Array(bytes,0,Math.min(bytes.byteLength,3));
+  if(header.length<3||header[0]!==0xff||header[1]!==0xd8||header[2]!==0xff)throw new Error('That photo could not be read. Choose it again.');
+  return bytes;
 }
 
 export function userImagePickerOptions(source:'camera'|'library'):ImagePicker.ImagePickerOptions{

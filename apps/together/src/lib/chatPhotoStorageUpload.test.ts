@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { uploadPreparedChatPhoto, type ChatPhotoStorageBucket } from './chatPhotoStorageUpload';
 
-const body = new Blob(['photo'], { type: 'image/jpeg' });
+const body = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]).buffer;
 
 function storage(input: {
   signed?: Array<{ error: unknown }>;

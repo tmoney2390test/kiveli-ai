@@ -159,6 +159,7 @@ import {
   cleanupNormalizedImage,
   type NormalizedUserImage,
   normalizeUserImage,
+  readNormalizedUserImageBytes,
   userImagePickerOptions,
 } from "../src/lib/imageUploads";
 import { photoUploadPresentation, type PhotoUploadPhase } from "../src/lib/photoUploadPresentation";
@@ -1137,13 +1138,11 @@ export default function GroupChatScreen() {
         });
         attachmentId=prepared.attachment.id;
         setPhotoUploadPhase("uploading");
-        const blob = await fetch(selectedImage.uri).then((response) =>
-          response.blob()
-        );
+        const bytes = await readNormalizedUserImageBytes(selectedImage.uri);
         await uploadPreparedChatPhoto({
           storage: supabase.storage.from(prepared.upload.bucket),
           upload: prepared.upload,
-          body: blob,
+          body: bytes,
           contentType: selectedImage.mimeType,
         });
         setPhotoUploadPhase("processing");

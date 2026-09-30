@@ -9,7 +9,7 @@ import { useAuth } from '../src/hooks/useAuth';
 import { useProfileAvatarUrl } from '../src/hooks/useProfileAvatarUrl';
 import { confirmAction, showActionAlert } from '../src/lib/dialogs';
 import { ErrorState } from '../src/components/RouteState';
-import { cleanupNormalizedImage, normalizeUserImage, userImagePickerOptions, type NormalizedUserImage } from '../src/lib/imageUploads';
+import { cleanupNormalizedImage, normalizeUserImage, readNormalizedUserImageBytes, userImagePickerOptions, type NormalizedUserImage } from '../src/lib/imageUploads';
 import { personaAgeError, personaAvatarStoragePath, personaDraftChanged, personaInterestsError, personaSnapshotPatch, type PersonaEditorDraft } from '../src/lib/personaEditor';
 import { createClientRequestId } from '../src/lib/requestId';
 import { managePersona } from '../src/lib/api';
@@ -125,9 +125,9 @@ export default function PersonaEditor(){
       try{
         normalized=await normalizeUserImage({uri:asset.uri,width:asset.width,height:asset.height,fileSize:asset.fileSize,fileName:asset.fileName},.9);
         const path=personaAvatarStoragePath(session.user.id,existing?.id??draftScope,createClientRequestId());
-        const blob=await(await fetch(normalized.uri)).blob();
+        const bytes=await readNormalizedUserImageBytes(normalized.uri);
         setPhotoNotice('Uploading photo…');
-        const{error}=await supabase.storage.from('together-user-media').upload(path,blob,{contentType:normalized.mimeType,upsert:false,cacheControl:'31536000'});
+        const{error}=await supabase.storage.from('together-user-media').upload(path,bytes,{contentType:normalized.mimeType,upsert:false,cacheControl:'31536000'});
         if(error)throw error;
         const previous=pendingUpload.current;pendingUpload.current=path;setAvatarPath(path);setPhotoNotice('Photo ready — save your Persona to keep it.');
         if(previous&&previous!==path)void discardAvatar(previous);
