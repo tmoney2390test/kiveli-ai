@@ -14,18 +14,22 @@ export function defaultPlaceHoursDraft(): PlaceHoursDraft {
     days: Object.fromEntries(PLACE_DAYS.map(day => [day, { open: '09:00', close: '18:00', closed: false }])) as PlaceHoursDraft['days'] };
 }
 
+function clockTextOr(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
 export function placeHoursDraft(hours?: Record<string, unknown> | null): PlaceHoursDraft {
   const draft = defaultPlaceHoursDraft();
   if (!hours || !Object.keys(hours).length) return draft;
   const weekly = PLACE_DAYS.some(day => hours[day] !== undefined);
   draft.repeatDaily = !weekly;
-  draft.alwaysOpen = !weekly && hours.open === '00:00' && ['00:00', '23:59', '24:00'].includes(String(hours.close));
+  draft.alwaysOpen = !weekly && hours['open'] === '00:00' && ['00:00', '23:59', '24:00'].includes(String(hours['close']));
   if (draft.alwaysOpen) return draft;
-  if (!weekly) draft.daily = { open: String(hours.open ?? '09:00'), close: String(hours.close ?? '18:00') };
+  if (!weekly) draft.daily = { open: clockTextOr(hours['open'], '09:00'), close: clockTextOr(hours['close'], '18:00') };
   for (const day of PLACE_DAYS) {
-    const raw = hours[day] ?? hours.default ?? hours;
+    const raw = hours[day] ?? hours['default'] ?? hours;
     const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
-    draft.days[day] = { open: String(value.open ?? draft.daily.open), close: String(value.close ?? draft.daily.close), closed: raw === 'closed' || value.closed === true };
+    draft.days[day] = { open: clockTextOr(value['open'], draft.daily.open), close: clockTextOr(value['close'], draft.daily.close), closed: raw === 'closed' || value['closed'] === true };
   }
   return draft;
 }
@@ -42,12 +46,12 @@ export function validPersonalPlaceHours(value: unknown): value is PersonalPlaceH
   const validWindow = (item: unknown): boolean => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
     const row = item as Record<string, unknown>;
-    if (row.closed === true) return true;
-    const open = placeClockMinute(row.open), close = placeClockMinute(row.close);
+    if (row['closed'] === true) return true;
+    const open = placeClockMinute(row['open']), close = placeClockMinute(row['close']);
     return open !== null && close !== null && open < 1440 && (open !== close || open === 0);
   };
   if (PLACE_DAYS.some(day => hours[day] !== undefined)) return PLACE_DAYS.every(day => validWindow(hours[day]));
-  return hours.closed !== true && validWindow(hours);
+  return hours['closed'] !== true && validWindow(hours);
 }
 
 export function placeClockMinute(value: unknown): number | null {
@@ -62,7 +66,7 @@ export function placeClockMinute(value: unknown): number | null {
 export function placeHoursOnDay(hours: Record<string, unknown> | null | undefined, weekday: number): Record<string, unknown> | null {
   if (!hours) return null;
   const day = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][((weekday % 7) + 7) % 7]!;
-  const raw = hours[day] ?? hours.default ?? hours;
+  const raw = hours[day] ?? hours['default'] ?? hours;
   if (raw === 'closed') return { closed: true };
   return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
 }
@@ -72,8 +76,8 @@ export function placeOpeningWindow(hours: Record<string, unknown> | null | undef
   const intervals: Array<[number, number]> = [];
   for (let offset = -1; offset <= 7; offset++) {
     const row = placeHoursOnDay(hours, weekday + offset);
-    if (row?.closed === true) continue;
-    const open = placeClockMinute(row?.open), close = placeClockMinute(row?.close);
+    if (row?.['closed'] === true) continue;
+    const open = placeClockMinute(row?.['open']), close = placeClockMinute(row?.['close']);
     if (open === null || close === null || open === close || (open === 0 && close >= 1439)) {
       intervals.push([offset * 1440, (offset + 1) * 1440]);
     } else intervals.push([offset * 1440 + open, offset * 1440 + close + (close < open ? 1440 : 0)]);

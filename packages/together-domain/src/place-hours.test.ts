@@ -26,6 +26,10 @@ describe('personal place hours', () => {
   it('restores legacy all-day hours with a useful daily default', () => {
     expect(placeHoursDraft({ open: '00:00', close: '00:00' })).toMatchObject({ alwaysOpen: true, daily: { open: '09:00', close: '18:00' } });
   });
+  it('uses the daily fallback for malformed saved clock values', () => {
+    expect(placeHoursDraft({ open: {}, close: '18:00' }).daily).toEqual({ open: '09:00', close: '18:00' });
+    expect(placeHoursDraft({ mon: { open: {}, close: '17:00' } }).days.mon).toEqual({ open: '09:00', close: '17:00', closed: false });
+  });
   it('carries Friday night opening into a closed Saturday morning, but not Sunday', () => {
     const draft = defaultPlaceHoursDraft(); draft.alwaysOpen = false; draft.repeatDaily = false;
     draft.days.fri = { open: '18:00', close: '02:00', closed: false };

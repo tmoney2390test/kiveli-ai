@@ -139,6 +139,7 @@ import type { PlanOption, PlanTimingSelection } from "../src/lib/plans";
 import { createClientRequestId } from "../src/lib/requestId";
 import { reconcileMessages } from "../src/lib/messageReconciliation";
 import { chatErrorPresentation } from "../src/lib/chatErrorPresentation";
+import { withIdempotentRetry } from "../src/lib/requestRetry";
 import { DIALOGUE_RECOVERY_DELAYS_MS, dialogueFailureMayHavePersisted, persistedDialogueResponseForRequest } from "../src/lib/dialogueRecovery";
 import { subscribeToWebPageResume, waitForWebPageVisible } from "../src/lib/webPageLifecycle";
 import { isConversationPinned, MESSAGES_INBOX_ROUTE } from "../src/lib/messageInbox";
@@ -247,6 +248,7 @@ export default function GroupChatScreen() {
     }>(),
     { width } = useWindowDimensions(),
     snapshot = useTogether((state) => state.snapshot),
+    snapshotLoading = useTogether((state) => state.loading),
     refresh = useTogether((state) => state.refresh),
     setSnapshot = useTogether((state) => state.setSnapshot),
     upsertConversation = useTogether((state) => state.upsertConversation),
@@ -362,6 +364,7 @@ export default function GroupChatScreen() {
     bottomPinSettleTimers = useRef(new Set<ReturnType<typeof setTimeout>>()),
     observedPendingRequest = useRef<string | null>(null);
   const loadedGroupRef = useRef<string | null>(null);
+  const groupSnapshotReady=Boolean(snapshot?.activeContinuity?.id)&&(!snapshotLoading||loadedGroupRef.current===params.id);
   const groupTimelineReady=hasCoherentConversationTimeline({
     activeConversationId:params.id,
     loadedConversationId:loadedGroupRef.current,
@@ -504,7 +507,13 @@ export default function GroupChatScreen() {
     return()=>clearTimeout(timer);
   },[pendingDialogue?.clientRequestId,refreshGroupDelta]);
   const refreshGroupAfterResume=useCallback(async()=>{
-    const conversationId=params.id;if(!conversationId)return;
+    const conversationId=params.id;if(!conversationId||authLoading||!session||!groupSnapshotReady)return;
+    if(loadedGroupRef.current!==conversationId){
+      // A suspended tab may have exhausted its first request before Safari
+      // restored the radio. Reopen the timeline when the page is usable.
+      if(!groupLoadAbortRef.current){setLoading(true);setError('');setGroupLoadAttempt((value)=>value+1);}
+      return;
+    }
     try{
       const next=await loadGroupDetail(conversationId,{messageLimit:30,timeoutMs:20_000});
       loadedGroupRef.current=conversationId;
@@ -512,7 +521,7 @@ export default function GroupChatScreen() {
       setLoading(false);
       setError((current)=>current&&dialogueFailureMayHavePersisted(new Error(current))?'':current);
     }catch{/* The browser radio can still be waking; the stream recovery retries. */}
-  },[params.id]);
+  },[authLoading,groupSnapshotReady,params.id,session?.user.id]);
   const recoverInterruptedGroupDialogue=async(clientRequestId:string,optimisticId:string):Promise<boolean>=>{
     const conversationId=params.id;if(!conversationId)return false;
     await waitForWebPageVisible();
@@ -538,7 +547,9 @@ export default function GroupChatScreen() {
   },[connectionPhase,refreshGroupAfterResume]);
   useEffect(() => {
     const conversationId=params.id;
-    if (!conversationId||authLoading||!session) return;
+    // The session can restore before the active Life snapshot. A detail request
+    // in that gap can appear missing even though the saved group is intact.
+    if (!conversationId||authLoading||!session||!groupSnapshotReady) return;
     let cancelled=false;
     const loadController=new AbortController();
     groupLoadAbortRef.current?.abort();
@@ -546,7 +557,18 @@ export default function GroupChatScreen() {
     setLoading(true);
     setError("");
     prepareConversationScroll(conversationId);
-    void prefetchCompleteGroupDetail(groupCacheScope,conversationId,()=>loadGroupDetail(conversationId,{messageLimit:30,signal:loadController.signal}))
+    void withIdempotentRetry(async()=>{
+      await waitForWebPageVisible();
+      if(loadController.signal.aborted)throw new Error('Group load cancelled.');
+      try{
+        return await prefetchCompleteGroupDetail(groupCacheScope,conversationId,()=>loadGroupDetail(conversationId,{messageLimit:30,signal:loadController.signal}));
+      }catch(caught){
+        // A previous mount can abort a coalesced warmup just as this page opens.
+        if(!loadController.signal.aborted&&caught instanceof Error&&caught.name==='AbortError')
+          throw new ApiError('Group request was interrupted.','REQUEST_INTERRUPTED',true);
+        throw caught;
+      }
+    },{attempts:3,delayMs:350})
       .then((next)=>{
         if(cancelled)return;
         loadedGroupRef.current=conversationId;
@@ -566,7 +588,7 @@ export default function GroupChatScreen() {
       loadController.abort();
       if(groupLoadAbortRef.current===loadController)groupLoadAbortRef.current=null;
     };
-  },[authLoading,groupCacheScope,groupLoadAttempt,params.id,prepareConversationScroll,session?.user.id]);
+  },[authLoading,groupCacheScope,groupLoadAttempt,groupSnapshotReady,params.id,prepareConversationScroll,session?.user.id]);
   useFocusEffect(useCallback(() => {
     if (!params.id || loadedGroupRef.current!==params.id) return;
     void refreshGroupDelta();
