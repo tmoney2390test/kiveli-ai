@@ -2,13 +2,14 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Brain, ChevronRight, CreditCard, Heart, LifeBuoy, Settings, Shield, Sparkles, UsersRound, X } from 'lucide-react-native';
+import { Brain, ChevronRight, CreditCard, Heart, KeyRound, LifeBuoy, MessageCircle, Shield, Sparkles, UsersRound, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTogether } from '../store/useTogether';
 import { useProfileAvatarUrl } from '../hooks/useProfileAvatarUrl';
 import { useSubscriptionStatus } from '../hooks/useSubscriptionStatus';
 import { privateStoredImageSource } from '../lib/mediaImageSource';
 import { subscriptionHref } from '../lib/subscriptionPresentation';
+import { warmRoute } from '../lib/routeWarmup';
 import { colors } from '../theme';
 
 const accent = '#CBA6EF';
@@ -26,13 +27,23 @@ export function AccountMenu({ visible, onClose }: { visible: boolean; onClose: (
   const name = snapshot?.profile?.display_name?.trim() || 'Your account';
   useEffect(() => setAvatarFailed(false), [avatarUrl]);
   useEffect(() => {
+    if (!visible) return;
+    const prefetch = (href: string) => warmRoute(href, value => router.prefetch(value as never));
+    const timers = [
+      setTimeout(() => prefetch('/settings'), 250),
+      setTimeout(() => prefetch('/personas'), 500),
+      setTimeout(() => prefetch('/memories'), 700),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [visible]);
+  useEffect(() => {
     if (!visible || Platform.OS !== 'web') return;
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); onClose(); } };
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [visible, onClose]);
   const open = (href: string) => { onClose(); router.push(href as never); };
-  const row = (label: string, icon: ReactNode, href: string, detail?: string) => <Pressable key={label} accessibilityRole="button" onPress={() => open(href)} style={({ pressed }) => [s.row, pressed && s.pressed]}>{icon}<View style={s.copy}><Text style={s.label}>{label}</Text>{detail ? <Text style={s.muted}>{detail}</Text> : null}</View><ChevronRight size={18} color={accent}/></Pressable>;
+  const row = (label: string, icon: ReactNode, href: string, detail?: string) => <Pressable key={label} accessibilityRole="button" onHoverIn={() => warmRoute(href, value => router.prefetch(value as never))} onPressIn={() => warmRoute(href, value => router.prefetch(value as never))} onPress={() => open(href)} style={({ pressed }) => [s.row, pressed && s.pressed]}>{icon}<View style={s.copy}><Text style={s.label}>{label}</Text>{detail ? <Text style={s.muted}>{detail}</Text> : null}</View><ChevronRight size={18} color={accent}/></Pressable>;
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
     <View style={[s.backdrop, { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 12) }, desktop && s.desktop]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close account menu" style={StyleSheet.absoluteFill} onPress={onClose}/>
@@ -51,10 +62,11 @@ export function AccountMenu({ visible, onClose }: { visible: boolean; onClose: (
           <View style={s.group}>
             {row('Personas & Lives', <UsersRound size={21} color={accent}/>, '/personas')}
             {row('Memory Center', <Brain size={21} color={accent}/>, '/memories')}
+            {row('Account & billing', <KeyRound size={21} color={accent}/>, '/settings?section=account')}
+            {row('Chat & media', <MessageCircle size={21} color={accent}/>, '/settings?section=experience')}
             {row('Relationships', <Heart size={21} color={accent}/>, '/settings?section=relationships')}
             {row('Privacy & safety', <Shield size={21} color={accent}/>, '/settings?section=privacy')}
             {row('Help & support', <LifeBuoy size={21} color={accent}/>, '/settings?section=support')}
-            {row('All settings', <Settings size={21} color={accent}/>, '/settings')}
           </View>
         </ScrollView>
       </View>

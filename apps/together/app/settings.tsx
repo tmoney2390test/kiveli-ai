@@ -59,7 +59,7 @@ import {
   settingsSectionFromParam,
   type SettingsSection,
 } from '../src/lib/settingsExperience';
-import { FrostedBackdrop, FrostedSurface, LoadingSkeleton } from '../src/components';
+import { LoadingSkeleton } from '../src/components';
 import { ContactSupportModal } from '../src/components/ContactSupportModal';
 import { ErrorState } from '../src/components/RouteState';
 
@@ -250,17 +250,14 @@ export default function Settings() {
     });
   };
 
-  const modalHeight = desktop ? Math.max(520, height - 36) : height;
+  const modalHeight = desktop ? Math.min(760, Math.max(520, height - 36)) : Math.min(760, height - insets.top - Math.max(insets.bottom, 12) - 24);
   const browserPath = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.pathname : null;
   if (!shouldRenderSettingsRoute({ platform: Platform.OS, routerPathname: pathname, browserPathname: browserPath })) return null;
 
-  const settingsSurface = <View style={[styles.backdrop, desktop && styles.backdropDesktop]} accessibilityViewIsModal={!desktop}>
-    <FrostedBackdrop intensity={desktop ? 72 : 22} />
-    <View pointerEvents="none" style={styles.ambientOne} />
-    <View pointerEvents="none" style={styles.ambientTwo} />
+  const settingsSurface = <View style={[styles.backdrop, desktop ? styles.backdropDesktop : { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 12) }]} accessibilityViewIsModal={!desktop}>
     <Pressable accessible={false} onPress={close} style={StyleSheet.absoluteFill} />
-    <FrostedSurface intensity={68} style={[styles.modal, desktop ? styles.modalDesktop : styles.modalMobile, { height: modalHeight }]}>
-      <View style={[styles.header, !desktop && { paddingTop: Math.max(insets.top, 8), minHeight: 72 + Math.max(insets.top, 8) }]}>
+    <View style={[styles.modal, desktop ? styles.modalDesktop : styles.modalMobile, { height: modalHeight }]}>
+      <View style={styles.header}>
         <View style={styles.brandMark}><Text style={styles.brandInitial}>{(name || 'Y')[0]?.toUpperCase()}</Text></View>
         <View style={styles.headerCopy}>
           <Text accessibilityRole="header" style={styles.title}>Settings</Text>
@@ -285,7 +282,7 @@ export default function Settings() {
           <ScrollView
             ref={scroll}
             style={styles.main}
-            contentContainerStyle={[styles.mainContent, desktop && styles.mainContentDesktop, !desktop && { paddingBottom: Math.max(54, insets.bottom + 34) }]}
+            contentContainerStyle={[styles.mainContent, desktop && styles.mainContentDesktop, !desktop && { paddingBottom: 54 }]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -303,7 +300,7 @@ export default function Settings() {
 
         </View>
       </KeyboardAvoidingView>
-    </FrostedSurface>
+    </View>
   </View>;
   const settingsModal = desktop
     ? settingsSurface
