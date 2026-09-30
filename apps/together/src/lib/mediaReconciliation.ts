@@ -1,6 +1,13 @@
 import type { GeneratedMedia } from '../types';
 
 export function mergeReconciledMedia(current: GeneratedMedia | undefined, incoming: GeneratedMedia): GeneratedMedia {
+  if (current?.id === incoming.id) {
+    const currentTime = Date.parse(current.updated_at ?? current.created_at);
+    const incomingTime = Date.parse(incoming.updated_at ?? incoming.created_at);
+    if (currentTime > incomingTime || currentTime === incomingTime &&
+      (current.status === 'ready' || current.status === 'failed') &&
+      (incoming.status === 'queued' || incoming.status === 'generating')) return current;
+  }
   if (current?.id !== incoming.id || incoming.signed_url || !current.signed_url) return incoming;
   return { ...incoming, signed_url: current.signed_url };
 }

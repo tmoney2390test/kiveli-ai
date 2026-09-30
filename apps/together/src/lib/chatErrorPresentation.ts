@@ -2,11 +2,23 @@ export type ChatErrorPresentation = {
   title: string;
   message: string;
   retryable: boolean;
+  action?: 'signin' | 'credits' | 'privacy';
 };
 
 /** Converts infrastructure-shaped failures into concise, actionable chat copy. */
 export function chatErrorPresentation(value: unknown): ChatErrorPresentation {
   const raw = value instanceof Error ? value.message : String(value ?? "").trim();
+  const code = typeof value === 'object' && value !== null && 'code' in value ? String(value.code) : '';
+  const diagnostic = `${code} ${raw}`;
+  if (/insufficient_credits|not enough .*credits|needs .*credits|more credits needed/i.test(diagnostic)) {
+    return { title: 'More credits needed', message: 'Review your balance before trying this request again.', retryable: false, action: 'credits' };
+  }
+  if (/consent_required|AI sharing is required/i.test(diagnostic)) {
+    return { title: 'Review your privacy choice', message: 'Review AI data sharing in Privacy settings, then return to this conversation.', retryable: false, action: 'privacy' };
+  }
+  if (/privacy choice could not be checked|consent_check_failed/i.test(diagnostic)) {
+    return { title: 'Privacy check interrupted', message: 'We couldn’t confirm your saved choice. Check your connection and try again.', retryable: true };
+  }
   if (/supabase_(?:secret|service_role)_key|server configuration is missing/i.test(raw)) {
     return {
       title: "Chat could not connect",
@@ -14,11 +26,12 @@ export function chatErrorPresentation(value: unknown): ChatErrorPresentation {
       retryable: true,
     };
   }
-  if (/website_session_preparation_failed|session (?:is )?no longer valid|invalid (?:jwt|session)|auth session missing|not authenticated/i.test(raw)) {
+  if (/website_session_preparation_failed|session (?:is )?no longer valid|invalid (?:jwt|session)|auth session missing|not authenticated|unauthorized/i.test(diagnostic)) {
     return {
       title: "Sign-in needs attention",
       message: "Your draft is saved. Sign in again, then return to this conversation.",
       retryable: true,
+      action: 'signin',
     };
   }
   if (/failed to fetch|network request failed|load failed|offline|connection/i.test(raw)) {
@@ -42,7 +55,7 @@ export function chatErrorPresentation(value: unknown): ChatErrorPresentation {
       retryable: true,
     };
   }
-  const technical=/\b(?:internal_error|functionshttperror|edge function|provider error|database error|jwt)\b/i.test(raw)||/\b[A-Z][A-Z0-9_]{5,}\b/.test(raw);
+  const technical=/\b(?:internal_error|functionshttperror|edge function|provider error|database error|jwt|uuid|sqlstate|postgres|pgrst\d+|stack trace)\b/i.test(raw)||/\b[A-Z][A-Z0-9_]{5,}\b/.test(raw)||/<(?:html|body)|https?:\/\/|"(?:code|error|message)"\s*:/i.test(raw);
   return {
     title: "Something interrupted this chat",
     message: !raw||technical ? "Nothing was lost. Please try again." : raw,

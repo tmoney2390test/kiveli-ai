@@ -1,3 +1,6 @@
+import { ChatRecoveryNotice } from '../src/components/ChatRecoveryNotice';
+import { queueServerPhotoOfferAcceptance, waitForPhotoOfferStatus } from '../src/lib/photoOfferOptimism';
+import { loadPhotoOfferStatus } from '../src/lib/api';
 import { createRealtimeChannel } from '../src/lib/realtimeChannel';
 import { useTimelineReveal } from '../src/hooks/useTimelineReveal';
 import { useChatInboxNavigation } from '../src/hooks/useChatInboxNavigation';
@@ -11,6 +14,7 @@ import { ContextCostConfirmation } from '../src/components/settings/ContextCostC
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Alert,
   Animated,
   FlatList,
@@ -638,12 +642,13 @@ export default function GroupChatScreen() {
     detail?.mediaOffers ?? [],
   );
   useEffect(() => {
-    if (!params.id || !mediaNeedsRefresh) return;
+    if (!params.id || !mediaNeedsRefresh || !online) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let attempt=0,consecutiveFailures=0;
     const poll = () => {
       timer = setTimeout(() => {
+        if (AppState.currentState !== 'active' || typeof document !== 'undefined' && document.visibilityState === 'hidden') { poll(); return; }
         const ids=(detailRef.current?.generatedMedia??[]).filter((item)=>item.status==='queued'||item.status==='generating'||(item.status==='ready'&&!item.signed_url)).map((item)=>item.id).slice(0,20);
         if(!ids.length)return;
         void manageMedia<{media:GeneratedMedia[]}>({action:'batch_status',mediaIds:ids}).then((next) => {
@@ -656,16 +661,16 @@ export default function GroupChatScreen() {
             return{...merged,generatedMedia:merged.generatedMedia.filter((item)=>!missing.has(item.id)),mediaOffers:(merged.mediaOffers??[]).filter((offer)=>!offer.generated_media_id||!missing.has(offer.generated_media_id))};
           });
         }).catch(() => {consecutiveFailures+=1;}).finally(() => {
-          if (!cancelled&&consecutiveFailures<8){attempt+=1;poll();}
+          if (!cancelled){attempt+=1;poll();}
         });
-      }, Math.min(10_000,2_000+attempt*1_500));
+      }, consecutiveFailures ? Math.min(30_000, 3_000 * 2 ** Math.min(consecutiveFailures, 3)) : Math.min(10_000,2_000+attempt*1_500));
     };
     poll();
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [mediaNeedsRefresh, params.id]);
+  }, [mediaNeedsRefresh, params.id, online, connectionPhase]);
   useEffect(() => {
     if (!params.id || bottomAlignedConversation.current !== params.id ||
       (initialBottomPinConversation.current!==params.id&&!keepPinnedToBottom.current&&forcePinnedUntil.current<=Date.now())) return;
@@ -1316,6 +1321,7 @@ export default function GroupChatScreen() {
   };
   const acceptMediaOffer = async (offer: MediaOffer,paymentMethod:"credits"|"daily_included"="credits") => {
     setMediaOfferBusy(offer.id);
+    setDetail(current => current ? {...current, mediaOffers: (current.mediaOffers ?? []).map(item => item.id === offer.id ? queueServerPhotoOfferAcceptance(item) : item)} : current);
     try {
       const result = await manageMedia<
         {
@@ -1332,6 +1338,7 @@ export default function GroupChatScreen() {
         requestId: crypto.randomUUID(),
         paymentMethod,
       });
+      setDetail(current => current ? {...current, mediaOffers:(current.mediaOffers ?? []).map(item => item.id === offer.id ? result.offer : item)} : current);
       if(result.state==="daily_unavailable"){
         setDetail((current)=>current?{...current,mediaOffers:(current.mediaOffers??[]).map((item)=>item.source==="user_request"&&item.status==="pending"?{...item,preview_metadata:{...item.preview_metadata,dailyPhotoAllowanceRemaining:0}}:item)}:current);
         Alert.alert("Included photos used","You have used today’s included photos. You can still create this one with Credits.");
@@ -1370,6 +1377,12 @@ export default function GroupChatScreen() {
           : current
       );
     } catch (caught) {
+      const recovered = await waitForPhotoOfferStatus({loadStatus: () => loadPhotoOfferStatus(offer.id)});
+      setDetail(current => current ? {
+        ...mergeGroupMedia(current, recovered?.media ? [recovered.media] : []),
+        mediaOffers: (current.mediaOffers ?? []).map(item => item.id === offer.id ? recovered?.offer ?? offer : item),
+      } : current);
+      if (recovered?.offer.status === 'accepted' && recovered.media) { setError(''); return; }
       setError(
         caught instanceof Error
           ? caught.message
@@ -1407,6 +1420,7 @@ export default function GroupChatScreen() {
     }
   };
   const retryGeneratedMedia = async (media: GeneratedMedia) => {
+    if (mediaOfferBusy) return;
     setMediaOfferBusy(media.id);
     try {
       const result = await manageMedia<{ media: GeneratedMedia }>({
@@ -2146,12 +2160,7 @@ export default function GroupChatScreen() {
       />
       {timelineReveal.hidden?<View pointerEvents="none" style={[StyleSheet.absoluteFill,{alignItems:"center",justifyContent:"center"}]}><ActivityIndicator accessibilityLabel="Opening conversation" color={colors.rose}/></View>:null}</View>
       <JumpToLatestButton visible={showJumpToLatest} bottom={width<720?104:92} onPress={()=>{if(params.id)clearChatScrollPosition(params.id);settleGroupAtBottom(true);}}/>
-      {error&&groupTimelineReady ? <View accessibilityLiveRegion="polite" style={styles.errorBanner}>
-        <Text style={styles.error}>{chatErrorPresentation(error).message}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Dismiss group chat error" onPress={()=>setError("")} style={styles.errorDismiss}>
-          <X size={16} color={colors.text}/>
-        </Pressable>
-      </View> : null}
+      {error&&groupTimelineReady ? <ChatRecoveryNotice error={error} onDismiss={()=>setError("")} /> : null}
       {mentionOptions.length
         ? (
           <FrostedSurface intensity={92} style={styles.mentions}>

@@ -1,3 +1,4 @@
+import { withMediaProgress } from '../_shared/media-progress.ts';
 import { assertPhotoRequestAllowed } from '../_shared/photo-request-policy.ts';
 import { newVideoSettings, publishedVideoRoutes, publishedVideoCreditCost } from '../_shared/kivelle-video-prices.ts';
 import { z } from 'zod';
@@ -319,7 +320,7 @@ serve(async(request,correlationId)=>{
     if(!restricted&&media.status==='ready'&&media.storage_path){const {data,error}=await db.storage.from('together-user-media').createSignedUrl(media.storage_path,3600);if(error||!data?.signedUrl)throw new AppError('INTERNAL_ERROR','The photo is ready but could not be opened yet.',503,true);signedUrl=data.signedUrl;}
     const progressState=media.media_type==='video'?await videoProgressState(db,media):undefined;
     if(restricted&&media.status==='ready')signedUrl=await issueAdultAssetUrl({request,db,access:adultAccess,userId:user.id,generatedMediaId:String(media.id)});
-    return json({data:{media:sanitizeMediaRow(media,signedUrl,adultAccess.authorized_web_adult),progressState},correlationId},200,correlationId);
+    return json({data:{media:sanitizeMediaRow((await withMediaProgress(db,user.id,[media]))[0]??media,signedUrl,adultAccess.authorized_web_adult),progressState},correlationId},200,correlationId);
   }
   if(input.action==='video_playback'){
     if(media.media_type!=='video'||media.status!=='ready')throw new AppError('CONFLICT','Only a completed video can be played.',409);
@@ -385,6 +386,7 @@ serve(async(request,correlationId)=>{
 
 async function signMediaRows(request:Request,db:any,userId:string,access:AdultAccessContext,rows:Array<Record<string,any>>){
   rows=rows.filter((row)=>row.metadata?.hiddenIntermediate!==true||row.metadata?.galleryPosterOnly===true);
+  rows=await withMediaProgress(db,userId,rows);
   const ordinary=rows.filter((row)=>row.visibility_scope==='all'&&['safe','suggestive'].includes(String(row.content_rating??''))),paths=[...new Set(ordinary.filter((row)=>row.status==='ready'&&typeof row.storage_path==='string'&&row.storage_path).map((row)=>String(row.storage_path)))];
   const signed=paths.length?await db.storage.from('together-user-media').createSignedUrls(paths,3600):{data:[]};
   const byPath=new Map<string,string>((signed.data??[]).flatMap((item:any)=>typeof item.path==='string'&&typeof item.signedUrl==='string'?[[item.path,item.signedUrl] as [string,string]]:[]));

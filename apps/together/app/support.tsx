@@ -1,3 +1,4 @@
+import { supportRequestReferences } from '../src/lib/mediaSupportReference';
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -43,7 +44,7 @@ type Ticket = Awaited<
   ReturnType<typeof loadMySupportTickets>
 >["tickets"][number];
 export default function Support() {
-  const params = useLocalSearchParams<{ ticket?: string; topic?: string }>();
+  const params = useLocalSearchParams<{ ticket?: string; topic?: string; mediaId?: string; conversationId?: string }>();
   const saved = useSupportDraft('new', { category: 'bug' as SupportCategory, subject: '', message: '', topic: '', mediaId: '', conversationId: '', purchaseReference: '', includeDiagnostics: true });
   const { category, subject, message } = saved.draft;
   const setCategory = (category: SupportCategory) => saved.update({category});
@@ -56,7 +57,7 @@ export default function Support() {
     if (!saved.ready || topicApplied.current) return;
     topicApplied.current = true;
     const topic = recoveryTopics.find(topic => topic.id === params.topic);
-    if (topic && !saved.draft.subject && !saved.draft.message) saved.update({topic:topic.id,category:topic.category,subject:topic.title});
+    if (topic && !saved.draft.subject && !saved.draft.message) saved.update({topic:topic.id,category:topic.category,subject:topic.title, ...supportRequestReferences(params)});
   }, [saved.ready, params.topic]);
   const [tickets, setTickets] = useState<Ticket[]>([]),
     [detail, setDetail] = useState<CustomerSupportDetail | null>(null);

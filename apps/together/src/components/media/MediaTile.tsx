@@ -1,6 +1,9 @@
+import { useMediaStatusRecovery } from '../../lib/useMediaStatusRecovery';
+import { mediaFailurePresentation } from '../../lib/mediaProgressPresentation';
+import { MediaRecoveryActions } from './MediaRecoveryActions';
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
-import { Camera, Play, RefreshCw } from 'lucide-react-native';
+import { Camera, Play } from 'lucide-react-native';
 import type { GeneratedMedia } from '../../types';
 import { colors } from '../../theme';
 import { generatedMediaImageSource } from '../../lib/mediaImageSource';
@@ -10,35 +13,31 @@ import { MediaFeedbackControls } from './MediaFeedbackControls';
 import { openGeneratedMedia } from './openGeneratedMedia';
 
 export function MediaTile(
-  { media, style, onRetry, contentFit = "cover" }: {
+  { media: sourceMedia, style, onRetry, contentFit = "cover" }: {
     media: GeneratedMedia;
     style?: ViewStyle;
     onRetry?: () => void;
     contentFit?: "cover" | "contain";
   },
 ) {
+  const recovery = useMediaStatusRecovery(sourceMedia);
+  const media = recovery.media ?? sourceMedia;
+  const failure = mediaFailurePresentation(media);
   const noun = media.media_type === "video" ? "Video" : "Photo";
-  if (media.status === "queued" || media.status === "generating") {
-    return <MediaProgress media={media} style={style} />;
+  if (media.status === "queued" || media.status === "generating" || media.status === "ready" && !media.signed_url) {
+    return <MediaProgress media={media} style={style} progress={recovery.progress} recovery={<MediaRecoveryActions media={media} checking={recovery.busy} notice={recovery.notice} onCheck={() => void recovery.check()} />} />;
   }
   if (media.status === "failed") {
     return (
-      <View style={[styles.tile, styles.pending, style]}>
+      <View style={[styles.tile, styles.pending, style, {height: undefined, minHeight: 238}]}>
         <Camera color={colors.muted} />
         <Text style={styles.pendingTitle}>
           That {noun.toLowerCase()} didn’t come through
         </Text>
         <Text style={styles.caption}>
-          {media.failure_reason_safe ?? "Ask again or retry."}
+          {failure.message}
         </Text>
-        {onRetry
-          ? (
-            <Pressable onPress={onRetry} style={styles.retry}>
-              <RefreshCw size={14} color={colors.rose} />
-              <Text style={styles.retryText}>Try again</Text>
-            </Pressable>
-          )
-          : null}
+        <MediaRecoveryActions media={media} checking={recovery.busy} notice={recovery.notice} onCheck={() => void recovery.check()} onRetry={onRetry} failed />
       </View>
     );
   }

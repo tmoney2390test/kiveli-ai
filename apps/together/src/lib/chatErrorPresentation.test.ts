@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { chatErrorPresentation } from "./chatErrorPresentation";
 
 describe("chatErrorPresentation", () => {
+  it('offers specific settings recovery and masks database or raw response details', () => {
+    expect(chatErrorPresentation('AI sharing is required for this feature.')).toMatchObject({action:'privacy',retryable:false});
+    expect(chatErrorPresentation('This photo needs 10 Kivelle Credits.')).toMatchObject({action:'credits',retryable:false});
+    expect(chatErrorPresentation('invalid input syntax for type uuid: private value').message).not.toContain('uuid');
+    expect(chatErrorPresentation('<html>502 bad gateway</html>').message).not.toContain('html');
+    expect(chatErrorPresentation('Your privacy choice could not be checked.').title).toBe('Privacy check interrupted');
+  });
   it("does not expose missing server-secret names", () => {
     const result = chatErrorPresentation("Server configuration is missing SUPABASE_SECRET_KEY");
     expect(result.title).toBe("Chat could not connect");

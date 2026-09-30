@@ -1,3 +1,4 @@
+import { ChatRecoveryNotice } from '../src/components/ChatRecoveryNotice';
 import { canPreviewCharacterBlueprint } from '@together/domain/src/character-blueprint';
 import { createRealtimeChannel } from '../src/lib/realtimeChannel';
 import { SchedulePauseControl } from '../src/components/settings/SchedulePauseControl';
@@ -91,7 +92,6 @@ import { hasCoherentConversationTimeline } from '../src/lib/conversationTimeline
 import { hidePlanInteractionTray, isPlanInteractionTrayHidden, shouldShowPlanInteractionTray } from '../src/lib/planInteractionTrayPreference';
 import { CHAT_PRESENCE_FALLBACK_REFRESH_MS, nextChatPresenceTickDelay } from '../src/lib/chatPresence';
 import { uploadPreparedChatPhoto } from '../src/lib/chatPhotoStorageUpload';
-import { chatErrorPresentation } from '../src/lib/chatErrorPresentation';
 import { DailyMessageAllowanceNotice } from '../src/components/DailyMessageAllowanceNotice';
 import { isDailyMessageAllowanceExhausted } from '../src/lib/dailyMessageAllowance';
 import type { MediaMomentMode } from '../src/lib/mediaMomentPicker';
@@ -661,13 +661,14 @@ function ChatSession() {
     void loadOffers();const channel=createRealtimeChannel(supabase, `kivelle-media-offers-${character.id}-${realtimeScopeRef.current}`).on('postgres_changes',{event:'*',schema:'public',table:'together_media_offers',filter:`character_instance_id=eq.${character.id}`},()=>void loadOffers()).subscribe();return()=>{cancelled=true;if(retryTimer)clearTimeout(retryTimer);void supabase.removeChannel(channel);};
   },[character?.id,conversation?.id,fetchPendingMediaOffers,removeMedia,upsertMedia]));
   useEffect(()=>{
-    if(!reconcilingMediaId||!character?.id||!conversation?.id)return;
+    if(!reconcilingMediaId||!character?.id||!conversation?.id||!online)return;
     let cancelled=false,timer:ReturnType<typeof setTimeout>|undefined,failedAttempts=0;
     const reconcile=async()=>{
+      if (AppState.currentState !== 'active' || typeof document !== 'undefined' && document.visibilityState === 'hidden') { timer=setTimeout(()=>void reconcile(),10_000); return; }
       const pending=(useTogether.getState().snapshot?.generatedMedia??[]).filter((item)=>item.character_instance_id===character.id&&item.conversation_id===conversation.id&&item.media_type!=='voice_note'&&!mediaReconciliationComplete(item));
       if(!pending.length){setReconcilingMediaId(null);return;}
       const requestedIds=pending.map((item)=>item.id).slice(0,20);let refreshed:GeneratedMedia[]=[];
-      try{const result=await manageMedia<{media:GeneratedMedia[]}>({action:'batch_status',mediaIds:requestedIds});refreshed=result.media??[];failedAttempts=0;}catch{failedAttempts+=1;if(!cancelled&&failedAttempts<8)timer=setTimeout(()=>void reconcile(),Math.min(30_000,3_000*2**Math.min(failedAttempts-1,3)));else if(!cancelled)setReconcilingMediaId(null);return;}
+      try{const result=await manageMedia<{media:GeneratedMedia[]}>({action:'batch_status',mediaIds:requestedIds});refreshed=result.media??[];failedAttempts=0;}catch{failedAttempts+=1;if(!cancelled)timer=setTimeout(()=>void reconcile(),Math.min(30_000,3_000*2**Math.min(failedAttempts-1,3)));return;}
       if(cancelled)return;
       for(const id of missingMediaIds(requestedIds,refreshed))removeMedia(id);
       let incomplete=false;
@@ -677,7 +678,7 @@ function ChatSession() {
     };
     timer=setTimeout(()=>void reconcile(),1500);
     return()=>{cancelled=true;if(timer)clearTimeout(timer);};
-  },[reconcilingMediaId,character?.id,conversation?.id,removeMedia,upsertMedia]);
+  },[reconcilingMediaId,character?.id,conversation?.id,removeMedia,upsertMedia,online,connectionPhase]);
   const lifecyclePlans=snapshot&&character?attendedPlansForLifecycleReconciliation(snapshot.sharedPlans??[],character.id):[];
   const lifecyclePlanSignature=lifecyclePlans.map((plan)=>`${plan.id}:${plan.status}:${plan.ends_at}`).join('|');
   useEffect(()=>{
@@ -1349,7 +1350,7 @@ function ChatSession() {
           {conversationReady&&characterProposal&&!proposalDecisions.isHidden(characterProposal.actionId)?<CharacterProposalCard name={character.together_character_templates.name} proposal={characterProposal} busy={interactionLoading} onAccept={()=>void acceptCharacterProposal()} onDismiss={()=>void dismissCharacterProposal()}/>:null}
           {conversationReady&&feedback ? <StoryFeedback feedback={feedback} onView={() => navigateChatSurface(feedback.kind === 'memory' ? '/memories' : feedback.kind==='plan'? '/dates':'/moments')} onUndo={feedback.kind === 'memory' ? () => void undoMemory() : undefined} onDismiss={() => setFeedback(null)} /> : null}
           {blockedPhoto ? <View accessibilityRole="alert" style={styles.retry}><Text style={styles.retryText}>{blockedPhoto.message}</Text><View style={{flexDirection:'row',gap:24,paddingTop:12}}><Pressable accessibilityRole="button" onPress={()=>{setInput(blockedPhoto.text);currentInput.current=blockedPhoto.text;setBlockedPhoto(null);composerInput.current?.focus();}}><Text style={styles.retryText}>Edit request</Text></Pressable><Pressable accessibilityRole="button" onPress={()=>setBlockedPhoto(null)}><Text style={styles.retryText}>Dismiss</Text></Pressable></View></View> : null}
-          {error&&!blockedPhoto&&!historyLoadFailed ? <Pressable accessibilityRole="button" accessibilityLabel={`${chatErrorPresentation(error).title}. ${chatErrorPresentation(error).message}`} onPress={() => {if(pendingSceneAction){void generateSceneReaction(pendingSceneAction.id);return;}const failed = [...visibleMessages].reverse().find((item) => item.delivery_status === 'failed'); if (failed) void send(failed.content,failed.client_request_id??undefined,failed.id); }} style={styles.retry}><Text style={styles.retryText}>{chatErrorPresentation(error).message}{!pendingSceneAction&&visibleMessages.some((item) => item.delivery_status === 'failed') ? ' Tap to retry.' : ''}</Text></Pressable> : null}
+          {error&&!blockedPhoto&&!historyLoadFailed ? <ChatRecoveryNotice error={error} onDismiss={()=>setError('')} onRetry={pendingSceneAction ? ()=>void generateSceneReaction(pendingSceneAction.id) : visibleMessages.some(item=>item.delivery_status==='failed') ? ()=>{const failed=[...visibleMessages].reverse().find(item=>item.delivery_status==='failed');if(failed)void send(failed.content,failed.client_request_id??undefined,failed.id);} : undefined} /> : null}
         </VirtualizedConversationList>}
         <JumpToLatestButton visible={!showPlans&&showJumpToLatest} bottom={width<720?104:92} onPress={jumpToLatest}/>
         {showInteractions?<InteractionTray name={character.together_character_templates.name} location={location} loading={interactionLoading||replyPending} interactions={interactionCandidates} destinations={movementCandidates} onInteraction={(candidate)=>void executeInteraction(candidate)} onMove={(candidate)=>void moveScene(candidate)} onClose={()=>setShowInteractions(false)} />:isCoPresent&&interactionCandidates.length&&shouldShowPlanInteractionTray({activePlanId:activeSharedPlan?.id,dismissedPlanId:dismissedInteractionPlanId,preferenceReady:interactionTrayPreferenceReady})?<ContextualInteractionTray loading={interactionLoading||replyPending} interactions={interactionCandidates.slice(0,3)} onOpen={()=>setShowInteractions(true)} onInteraction={(candidate)=>void executeInteraction(candidate)} onDismiss={activeSharedPlan?dismissPlanInteractionTray:undefined} />:null}

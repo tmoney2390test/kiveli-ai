@@ -1,7 +1,10 @@
+import { useMediaStatusRecovery } from '../../lib/useMediaStatusRecovery';
+import { mediaFailurePresentation } from '../../lib/mediaProgressPresentation';
+import { MediaRecoveryActions } from './MediaRecoveryActions';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image, type ImageSource } from 'expo-image';
-import { Camera, RefreshCw, Sparkles, X } from 'lucide-react-native';
+import { Camera, Sparkles, X } from 'lucide-react-native';
 import type { GeneratedMedia, MediaOffer } from '../../types';
 import { generatedMediaImageSource } from '../../lib/mediaImageSource';
 import { photoCardAspectRatio, photoOfferDismissAction } from '../../lib/photoRequestPresentation';
@@ -15,8 +18,8 @@ const PHOTO_GENERATION_LOADER = require(
 );
 
 export function ChatPhotoRequestCard({
-  offer,
-  media,
+  offer: sourceOffer,
+  media: sourceMedia,
   previewSource,
   previewSources,
   preparing = false,
@@ -39,11 +42,14 @@ export function ChatPhotoRequestCard({
   onRetry?: () => void;
   readyContentFit?: "cover" | "contain";
 }) {
+  const recovery = useMediaStatusRecovery(sourceMedia, sourceOffer);
+  const {media, offer, progress} = recovery;
+  const failure = mediaFailurePresentation(media, offer);
   const [loadedRatio, setLoadedRatio] = useState<{ id: string; ratio: number } | null>(null);
   const ready = media?.status === "ready" && Boolean(media.signed_url),
-    failed = media?.status === "failed" || offer?.status === "failed",
+    failed = media ? media.status === "failed" : offer?.status === "failed",
     generating = !ready && !failed &&
-      (media?.status === "queued" || media?.status === "generating" ||
+      (media?.status === "queued" || media?.status === "generating" || media?.status === "ready" ||
         offer?.status === "accepted"),
     acceptQueued = offer?.preview_metadata?.acceptQueued === true,
     included = offer?.included_subscription_benefit === true,
@@ -93,7 +99,7 @@ export function ChatPhotoRequestCard({
   }
   return (
     <View
-      accessible={generating || preparing || !offer}
+      accessible={false}
       accessibilityLiveRegion={generating ? "polite" : "none"}
       accessibilityLabel={generating
         ? "Taking your photo"
@@ -152,8 +158,10 @@ export function ChatPhotoRequestCard({
           <View style={styles.chatPhotoGenerating}>
             <PhotoGenerationLoader />
             <Text style={styles.chatPhotoGeneratingText}>
-              Taking your photo…
+              {progress.title}
             </Text>
+            <Text style={styles.chatPhotoFailureCopy}>{progress.hint}</Text>
+            {progress.delayed || media?.status === "ready" ? <MediaRecoveryActions media={media} offer={offer} checking={recovery.busy} notice={recovery.notice} onCheck={() => void recovery.check()} /> : null}
           </View>
         )
         : failed
@@ -161,27 +169,12 @@ export function ChatPhotoRequestCard({
           <View style={styles.chatPhotoFailure}>
             <Camera size={31} color="#FFF4F8" />
             <Text style={styles.chatPhotoFailureTitle}>
-              That photo didn&apos;t come through
+              {failure.title}
             </Text>
             <Text style={styles.chatPhotoFailureCopy}>
-              {media?.failure_reason_safe ?? offer?.failure_reason_safe ??
-                "Please try again."}
+              {failure.message}
             </Text>
-            {onRetry
-              ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Retry photo generation"
-                  accessibilityState={{ disabled: busy, busy }}
-                  disabled={busy}
-                  onPress={onRetry}
-                  style={[styles.chatPhotoRetry, busy && { opacity: .6 }]}
-                >
-                  {busy?<ActivityIndicator size="small" color="#FFF"/>:<RefreshCw size={14} color="#FFF" />}
-                  <Text style={styles.chatPhotoRetryText}>{busy?"Retrying…":"Try again"}</Text>
-                </Pressable>
-              )
-              : null}
+            <MediaRecoveryActions media={media} offer={offer} checking={recovery.busy} busy={busy} notice={recovery.notice} onCheck={() => void recovery.check()} onRetry={onRetry} failed />
           </View>
         )
         : preparing || !offer
@@ -248,10 +241,11 @@ export function ChatPhotoRequestCard({
                 style={[styles.offerPrimary, (busy || acceptQueued) && { opacity: .55 }]}
               >
                 <Text style={styles.offerPrimaryText}>
-                  {busy || acceptQueued ? "Starting…" : dailyRemaining > 0 ? `Use ${offer.credit_cost} Credits` : "Accept"}
+                  {busy || acceptQueued ? "Confirming…" : dailyRemaining > 0 ? `Use ${offer.credit_cost} Credits` : "Accept"}
                 </Text>
               </Pressable>
             </View>
+            {acceptQueued && progress.delayed ? <MediaRecoveryActions media={media} offer={offer} checking={recovery.busy} notice={recovery.notice} onCheck={() => void recovery.check()} /> : null}
             {offer.status === "failed"
               ? (
                 <Pressable onPress={onBuyCredits}>

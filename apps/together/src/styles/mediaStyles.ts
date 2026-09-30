@@ -196,7 +196,10 @@ export const styles = StyleSheet.create({
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 12 },
   },
-  chatPhotoPendingCard: { height: 390 },
+  chatPhotoPendingCard: { minHeight: 330 },
+  recoveryActions: { alignItems: "center", gap: 5, width: "100%" },
+  recoveryLinks: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 10 },
+  recoveryLink: { minHeight: 44, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" },
   chatPhotoPreviewRow: { ...StyleSheet.absoluteFill, flexDirection: "row" },
   chatPhotoPreviewPart: { flex: 1, height: "100%" },
   chatPhotoScrim: {
