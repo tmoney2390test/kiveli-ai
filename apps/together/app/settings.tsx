@@ -15,7 +15,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
+import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Archive,
@@ -96,7 +96,6 @@ const linkedPagesBySection: Partial<Record<SettingsSection, readonly string[]>> 
 };
 
 export default function Settings() {
-  const router = useRouter();
   const pathname = usePathname();
   const params = useLocalSearchParams<{ section?: string | string[] }>();
   const { width, height } = useWindowDimensions();
