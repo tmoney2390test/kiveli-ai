@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { usePathname } from 'expo-router';
-import { queueClientPerformance } from '../lib/api';
+import { queueClientPerformance, setClientPerformanceConsent } from '../lib/api';
+import { productAnalyticsAllowed } from '@together/domain/src/analytics-consent';
 import { consumeRouteIntent, routePath } from '../lib/routeWarmup';
 import { useTogether } from '../store/useTogether';
 
@@ -10,8 +11,9 @@ const appStartedAt=Date.now();
 export function ClientPerformanceBridge(){
   const pathname=usePathname();
   const snapshotReady=useTogether((state)=>Boolean(state.snapshot));
-  const analyticsEnabled=useTogether((state)=>state.snapshot?.profile?.privacy_settings?.analytics!==false);
+  const analyticsEnabled=useTogether((state)=>productAnalyticsAllowed(state.snapshot?.profile?.privacy_settings));
   const appReadySent=useRef(false);
+  useEffect(()=>{setClientPerformanceConsent(analyticsEnabled);return()=>setClientPerformanceConsent(false);},[analyticsEnabled]);
   useEffect(()=>{
     if(!snapshotReady||!analyticsEnabled||appReadySent.current)return;
     appReadySent.current=true;

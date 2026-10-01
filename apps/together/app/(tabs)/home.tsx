@@ -1,3 +1,4 @@
+import { productAnalyticsAllowed } from '@together/domain/src/analytics-consent';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { Image } from 'expo-image';
@@ -75,7 +76,7 @@ export default function Home() {
   };
   const { data: subscription = null } = useSubscriptionStatus(Boolean(snapshot)&&secondaryWorkReady);
   const { width } = useWindowDimensions();
-  const analyticsEnabled=snapshot?.profile?.privacy_settings?.analytics!==false;
+  const analyticsEnabled=productAnalyticsAllowed(snapshot?.profile?.privacy_settings);
   const heroReady=useSurfaceReadyTiming('home','hero_image_ready',Boolean(snapshot&&analyticsEnabled));
   useEffect(()=>{
     if(!snapshot)return;

@@ -1,3 +1,4 @@
+import { productAnalyticsAllowed } from '@together/domain/src/analytics-consent';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
@@ -32,7 +33,7 @@ function MomentsFeed() {
   const{session}=useAuth();
   const snapshot = useTogether((state) => state.snapshot);
   const upsertMedia=useTogether((state)=>state.upsertMedia);
-  const firstMediaReady=useSurfaceReadyTiming('moments','first_media_ready',Boolean(snapshot&&snapshot.profile?.privacy_settings?.analytics!==false));
+  const firstMediaReady=useSurfaceReadyTiming('moments','first_media_ready',Boolean(snapshot&&productAnalyticsAllowed(snapshot.profile?.privacy_settings)));
   const params=useLocalSearchParams<{character?:string;filter?:MomentsFeedFilter}>();
   const active = snapshot ? selectActiveCompanion(snapshot) : undefined;
   const companions = useMemo(()=>snapshot?.characters.filter((item) => item.contact_added_at || item.introduced_at) ?? [],[snapshot?.characters]);

@@ -18,6 +18,7 @@ import { validatePrivateAvatarJpeg } from '../_shared/kivelle-avatar.ts';
 import { resolveAdultAccess } from '../_shared/web-adult-access.ts';
 import { AI_DATA_CONSENT_DISCLOSURE_VERSION, AI_DATA_CONSENT_PURPOSE, loadAiDataConsent, recordAiDataConsent } from '../_shared/kivelle-ai-consent.ts';
 import { isAtLeast18 } from '../../../packages/together-domain/src/adult-access.ts';
+import { PRODUCT_ANALYTICS_DISCLOSURE_VERSION } from '../../../packages/together-domain/src/analytics-consent.ts';
 
 const goals = z.enum(['Dating', 'Friendship', 'Stories', 'Social worlds']);
 const schema = z.discriminatedUnion('action', [
@@ -25,7 +26,8 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('avatar'), avatarPath: z.string().max(500).nullable() }),
   z.object({ action: z.literal('profile_highlights'), continuityId: z.string().uuid(), highlights: z.array(z.object({ kind: z.enum(['companion','image','video']), id: z.string().uuid() })).max(12) }),
   z.object({ action: z.literal('profile'), displayName: z.string().trim().min(1).max(50), aboutMe: z.string().trim().max(280), interests: z.array(z.string().trim().min(1).max(40)).max(10), goals: z.array(goals).max(4), avatarPath: z.string().max(500).nullable(), syncMainPersona: z.boolean().default(true) }),
-  z.object({ action: z.literal('privacy'), settings: z.record(z.string(), z.boolean()) }),
+  z.object({ action: z.literal('privacy'), settings: z.object({ personalization: z.boolean().optional(), analytics: z.boolean().optional() }) }),
+  z.object({ action: z.literal('analytics_choice'), enabled: z.boolean(), disclosureVersion: z.literal(PRODUCT_ANALYTICS_DISCLOSURE_VERSION) }),
   z.object({ action: z.literal('content'), romanceEnabled: z.boolean() }),
   z.object({ action: z.literal('conversation_style'), responseStyle: z.enum(['texting','paragraph']) }),
   z.object({ action: z.literal('birthdate_status') }),
@@ -113,9 +115,26 @@ serve(async (request, correlationId) => {
   }
 
   if (input.action === 'privacy') {
-    const { data, error } = await db.from('together_profiles').update({ privacy_settings: input.settings, updated_at: new Date().toISOString() }).eq('user_id', user.id).select('privacy_settings').single();
+    const current=await db.from('together_profiles').select('privacy_settings').eq('user_id',user.id).single();
+    if(current.error||!current.data)throw new AppError('INTERNAL_ERROR','Could not load privacy settings.',500,true);
+    const privacySettings={...record(current.data.privacy_settings)};
+    if(input.settings.personalization!==undefined)privacySettings.personalization=input.settings.personalization;
+    // Older clients may send the entire settings object. A legacy opt-out is honored,
+    // but only the explicit, versioned action below can opt back in.
+    if(input.settings.analytics===false){privacySettings.analytics=false;privacySettings.analyticsConsent={decision:'declined',version:PRODUCT_ANALYTICS_DISCLOSURE_VERSION,recordedAt:new Date().toISOString()};}
+    const { data, error } = await db.from('together_profiles').update({ privacy_settings: privacySettings, updated_at: new Date().toISOString() }).eq('user_id', user.id).select('privacy_settings').single();
     if (error || !data) throw new AppError('INTERNAL_ERROR', 'Could not save privacy settings.', 500, true);
     return json({ data, correlationId }, 200, correlationId);
+  }
+
+  if(input.action==='analytics_choice'){
+    const current=await db.from('together_profiles').select('privacy_settings').eq('user_id',user.id).single();
+    if(current.error||!current.data)throw new AppError('INTERNAL_ERROR','Could not load privacy settings.',500,true);
+    const now=new Date().toISOString();
+    const privacySettings={...record(current.data.privacy_settings),analytics:input.enabled,analyticsConsent:{decision:input.enabled?'accepted':'declined',version:PRODUCT_ANALYTICS_DISCLOSURE_VERSION,recordedAt:now}};
+    const {data,error}=await db.from('together_profiles').update({privacy_settings:privacySettings,updated_at:now}).eq('user_id',user.id).select('privacy_settings').single();
+    if(error||!data)throw new AppError('INTERNAL_ERROR','Could not save analytics choice.',500,true);
+    return json({data,correlationId},200,correlationId);
   }
 
   if (input.action === 'content') {

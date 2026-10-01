@@ -1,3 +1,4 @@
+import { productAnalyticsAllowed } from '@together/domain/src/analytics-consent';
 import {ScenarioBrowser} from '../../src/components/ScenarioBrowser';
 import { withComingSoonWorlds, isComingSoonWorld } from '../../src/lib/comingSoonWorlds';
 import { compareWorldSelectorOrder } from '../../src/lib/worldSelectorOrder';
@@ -57,7 +58,7 @@ export default function Explore(){
   const[gender,setGender]=useCompanionGenderPreference();
   const[spice,setSpice]=useState<CompanionSpiceFilter>('any');
   const[sortMode,setSortMode]=useState<CompanionSortMode>('recommended');
-  const heroReady=useSurfaceReadyTiming('explore','hero_image_ready',Boolean(snapshot&&snapshot.profile?.privacy_settings?.analytics!==false));
+  const heroReady=useSurfaceReadyTiming('explore','hero_image_ready',Boolean(snapshot&&productAnalyticsAllowed(snapshot.profile?.privacy_settings)));
   const[worldPickerOpen,setWorldPickerOpen]=useState(false);
   const[category,setCategory]=useState<ExploreCategoryId|null>(null);
   const[query,setQuery]=useState('');

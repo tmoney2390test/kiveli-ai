@@ -80,12 +80,6 @@ async function serveAppAsset(request, env) {
       responseHeaders.set("x-kivelli-release", release);
       const preloads = scriptPreloadHeader(html);
       if (preloads) responseHeaders.set("link", preloads);
-      if (html !== null && !hasCookieValue(request.headers.get("cookie"), "kivelli_release", release)) {
-        responseHeaders.append(
-          "set-cookie",
-          `kivelli_release=${release}; Path=/; Max-Age=604800; Secure; SameSite=Lax`,
-        );
-      }
       responseHeaders.set("x-kivelli-host", "cloudflare-assets");
       return new Response(html, {
         status: assetResponse.status,
@@ -154,13 +148,6 @@ export function browserCacheControl(pathname, contentType) {
   }
   if (pathname === "/favicon.ico") return "public, max-age=86400";
   return "public, max-age=3600, stale-while-revalidate=86400";
-}
-
-function hasCookieValue(cookieHeader, name, value) {
-  if (!cookieHeader) return false;
-  return cookieHeader
-    .split(";")
-    .some((cookie) => cookie.trim() === `${name}=${value}`);
 }
 
 async function proxySupabaseRequest(request, incomingUrl, env) {

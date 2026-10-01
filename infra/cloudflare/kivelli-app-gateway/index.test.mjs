@@ -92,13 +92,13 @@ test('marks a newly generated HTML release without erasing immutable browser ass
   assert.equal(response.headers.get('x-kivelli-release'), currentEntry);
   assert.equal(response.headers.get('clear-site-data'), null);
   assert.match(response.headers.get('link') ?? '', /rel=preload; as=script/);
-  assert.match(response.headers.get('set-cookie') ?? '', new RegExp(`kivelli_release=${currentEntry}`));
+  assert.equal(response.headers.get('set-cookie'), null);
   assert.equal(await response.text(), currentHtml);
 });
 
-test('does not rewrite the release cookie when the browser already has the current release', async () => {
+test('does not set a release cookie even when the browser sends an old one', async () => {
   const response = await worker.fetch(
-    new Request('https://kivelli.app/chat', { headers: { cookie: `kivelli_release=${currentEntry}` } }),
+    new Request('https://kivelli.app/chat', { headers: { cookie: 'kivelli_release=old-release' } }),
     environment(new Response(currentHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } })),
   );
   assert.equal(response.headers.get('clear-site-data'), null);

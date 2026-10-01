@@ -8,6 +8,7 @@ import { authenticated, enforceRateLimit } from "../_shared/context.ts";
 import { parseBody } from "../_shared/body.ts";
 import { json, serve } from "../_shared/http.ts";
 import { AppError } from "../_shared/types.ts";
+import { productAnalyticsAllowed } from "../../../packages/together-domain/src/analytics-consent.ts";
 import { kickMediaDispatcher } from "../_shared/together-media-base.ts";
 import { refundCredits } from "../_shared/kivelle-subscription.ts";
 import {
@@ -253,6 +254,9 @@ serve(async (request, correlationId) => {
     return json({ data: { ok: true }, correlationId }, 200, correlationId);
   }
   if (input.action === "report_client_performance") {
+    const profile=await db.from('together_profiles').select('privacy_settings').eq('user_id',user.id).maybeSingle();
+    if(profile.error)throw new AppError('INTERNAL_ERROR','Privacy choice could not be checked.',500,true);
+    if(!productAnalyticsAllowed(profile.data?.privacy_settings))return json({data:{accepted:0},correlationId},202,correlationId);
     await enforceRateLimit(db, user.id, "client_performance", 120, 3600);
     const createdAt = new Date().toISOString();
     const { error } = await db.from("together_client_performance_events").insert(

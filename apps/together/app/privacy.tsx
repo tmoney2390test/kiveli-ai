@@ -13,6 +13,7 @@ import { authProviderState } from '../src/lib/authProviders';
 import { exportStatusCopy } from '../src/lib/accountSecurity';
 import type { SocialAuthProvider } from '../src/lib/socialAuth';
 import { emailCodeReady, normalizeEmailCode } from '../src/lib/emailCodeAuth';
+import { PRODUCT_ANALYTICS_DISCLOSURE_VERSION, productAnalyticsAllowed } from '@together/domain/src/analytics-consent';
 
 type ExportState = { id: string; status: 'queued' | 'processing' | 'ready' | 'failed' | 'expired'; fileName: string; expiresAt: string; signedUrl?: string; sizeBytes?: number | null };
 type DeletionPreview = { appleManualRevocation?:string|null; canDelete: boolean; billingAction: 'none' | 'cancel_stripe' | 'external_action'; providerLabel: string | null; message: string; requiresRecentAuthentication: boolean };
@@ -22,13 +23,14 @@ export default function Privacy() {
   const params = useLocalSearchParams<{ delete?: string; verified?: string }>();
   const { snapshot, refresh, clear } = useTogether();
   const { session, signOut, requestEmailCode, verifyEmailCode, signInWithSocial } = useAuth();
-  const provider = authProviderState(session?.user), settings = snapshot?.profile?.privacy_settings ?? { personalization: true, analytics: true };
+  const provider = authProviderState(session?.user), settings = snapshot?.profile?.privacy_settings ?? { personalization: true, analytics: false };
   const [deleteOpen, setDeleteOpen] = useState(false), [confirmation, setConfirmation] = useState(''), [emailCode, setEmailCode] = useState(''), [emailCodeSent, setEmailCodeSent] = useState(false), [deleting, setDeleting] = useState(false);
   const [deletePreview, setDeletePreview] = useState<DeletionPreview | null>(null), [deleteError, setDeleteError] = useState(''), [previewLoading, setPreviewLoading] = useState(false), [identityVerified, setIdentityVerified] = useState(params.verified === '1');
   const [exportState, setExportState] = useState<ExportState | null>(null), [exportBusy, setExportBusy] = useState(false), [exportError, setExportError] = useState('');
   const [privacyChoices, setPrivacyChoices] = useState<PrivacyChoices | null>(null), [privacyChoiceError, setPrivacyChoiceError] = useState('');
 
-  const toggle = async (key: string, value: boolean) => { try { await manageAccount({ action: 'privacy', settings: { ...settings, [key]: value } }); await refresh(); } catch (error) { Alert.alert('Could not update privacy', error instanceof Error ? error.message : 'Please try again.'); } };
+  const togglePersonalization = async (value: boolean) => { try { await manageAccount({ action: 'privacy', settings: { personalization: value } }); await refresh(); } catch (error) { Alert.alert('Could not update privacy', error instanceof Error ? error.message : 'Please try again.'); } };
+  const toggleAnalytics = async (value: boolean) => { try { await manageAccount({ action: 'analytics_choice', enabled: value, disclosureVersion: PRODUCT_ANALYTICS_DISCLOSURE_VERSION }); await refresh(); } catch (error) { Alert.alert('Could not update privacy', error instanceof Error ? error.message : 'Please try again.'); } };
   const loadPrivacyChoices = async () => { try { setPrivacyChoices(await manageAccount<PrivacyChoices>({ action: 'privacy_choices_status' })); } catch (error) { setPrivacyChoiceError(error instanceof Error ? error.message : 'Privacy choices could not be loaded.'); } };
   useEffect(() => { void loadPrivacyChoices(); }, []);
 
@@ -112,8 +114,8 @@ export default function Privacy() {
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Go back" hitSlop={10} onPress={() => router.canGoBack() ? router.back() : router.replace('/settings?section=privacy')}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Privacy</PageTitle></View>
     <Text style={styles.lead}>You control what Kivelle keeps and how the experience is personalized.</Text>
     <SectionHeader title="Experience controls" />
-    <Toggle title="Personalized experience" body="Use your profile and memories to tailor your experience. Turning this off removes personal memory and reflection context from new replies." value={settings.personalization !== false} onChange={(value) => void toggle('personalization', value)} />
-    <Toggle title="Product analytics" body="Help us understand what works without exposing your conversations. Turning this off is enforced before analytics are stored." value={settings.analytics !== false} onChange={(value) => void toggle('analytics', value)} />
+    <Toggle title="Personalized experience" body="Use your profile and memories to tailor your experience. Turning this off removes personal memory and reflection context from new replies." value={settings.personalization !== false} onChange={(value) => void togglePersonalization(value)} />
+    <Toggle title="Product analytics" body="Optional. Allow Kivelle to record how features perform and are used. This does not include conversation text or photos. Off until you turn it on; you can withdraw at any time." value={productAnalyticsAllowed(settings)} onChange={(value) => void toggleAnalytics(value)} />
     {privacyChoiceError?<Text accessibilityRole="alert" style={styles.error}>{privacyChoiceError}</Text>:null}
     <Pressable accessibilityRole="button" accessibilityLabel="Open Conversation Spiciness in Account settings" onPress={() => router.push('/account')} style={styles.row}><ShieldAlert color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.rowTitle}>Conversation Spiciness</Text><Text style={styles.rowBody}>Current: {privacyChoices?.privateTextPreference ? privacyChoices.privateTextPreference.charAt(0).toUpperCase() + privacyChoices.privateTextPreference.slice(1) : 'Not chosen'}</Text></View></Pressable>
     <Pressable accessibilityRole="button" accessibilityLabel="Manage remembered information" onPress={() => router.push('/memories?privacy=1')} style={styles.row}><ShieldAlert color={colors.violet} /><View style={{ flex: 1 }}><Text style={styles.rowTitle}>Manage remembered information</Text><Text style={styles.rowBody}>Review, forget, or disable remembered information on any plan.</Text></View></Pressable>
