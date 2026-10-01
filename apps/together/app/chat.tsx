@@ -5,7 +5,7 @@ import { SchedulePauseControl } from '../src/components/settings/SchedulePauseCo
 import {ScenarioConversationBanner} from '../src/components/ScenarioConversationBanner';
 import { useTimelineReveal } from '../src/hooks/useTimelineReveal';
 import { coalescedRefresh } from '../src/lib/coalescedRefresh';
-import { photoRequestRestriction, PHOTO_CONTENT_BLOCKED, PHOTO_REQUEST_BLOCKED_MESSAGE } from '@together/domain/src/photo-request-policy';
+import { photoRequestRestriction, restrictedPhotoTextCanContinueAsChat, PHOTO_CONTENT_BLOCKED, PHOTO_REQUEST_BLOCKED_MESSAGE } from '@together/domain/src/photo-request-policy';
 import { useChatInboxNavigation } from '../src/hooks/useChatInboxNavigation';
 import { styles } from '../src/styles/chatStyles';
 import { CatalogImage as Image } from '../src/components/CatalogImage';
@@ -946,7 +946,8 @@ function ChatSession() {
     const draft = retryMessageId&&retryText==='[Photo]'&&pendingImage ? '' : retryText ?? input;
     if (draft.length > MESSAGE_CHARACTER_LIMIT) { setError(messageCharacterLimitError()); return; }
     const text = draft.trim(); if ((!text&&!pendingImage) || replyPending || sendInFlightRef.current) return;
-    if(!messageAction&&Platform.OS!=='web'&&shouldShowPhotoGenerationPending(text)&&photoRequestRestriction({requestText:text,adultPipelineAuthorized:false})) {
+    const photoAsChatIfUnavailable = Platform.OS === 'ios' && !messageAction && restrictedPhotoTextCanContinueAsChat(text);
+    if(!photoAsChatIfUnavailable&&!messageAction&&Platform.OS!=='web'&&shouldShowPhotoGenerationPending(text)&&photoRequestRestriction({requestText:text,adultPipelineAuthorized:false})) {
       setBlockedPhoto({text,message:PHOTO_REQUEST_BLOCKED_MESSAGE});setError('');return;
     }
     setBlockedPhoto(null);
@@ -964,7 +965,7 @@ function ChatSession() {
     keepPinnedToBottom.current=true;
     autoDialogueRequest.current?.abort();autoDialogueRequest.current=null;setAutoDialogue(null);setAutoDialogueBusy(false);if(!preserveComposer)currentInput.current='';
     const before = useTogether.getState().snapshot;
-    const expectsPhotoOffer=!messageAction&&shouldShowPhotoGenerationPending(text);
+    const expectsPhotoOffer=!messageAction&&!photoAsChatIfUnavailable&&shouldShowPhotoGenerationPending(text);
     const selectedImage=messageAction?null:pendingImage;if(!preserveComposer)setInput(''); setError(''); setSending(true); setStream(''); setFeedback(null);
     let preparedAttachmentId:string|undefined;let sentAttachment:ConversationAttachment|undefined;let sceneActionId:string|undefined;
     const clientRequestId=retryRequestId??createClientRequestId();
@@ -1004,7 +1005,7 @@ function ChatSession() {
           if(sceneResult.intentMatch){const sceneAction=await executeInteraction(sceneResult.intentMatch,'defer_to_current_message');sceneActionId=sceneAction?.id;}
         }catch{/* The sent message is still valid if the scene changed. */}
       }
-      const result = await sendDialogue({ ...contextAuthorization, conversationId: conversation.id, characterInstanceId: character.id, message: text,attachmentIds:preparedAttachmentId?[preparedAttachmentId]:retryAttachmentIds, clientRequestId,focusPlanId:focusPlanId??undefined,...(sceneActionId?{sceneActionId}:{}),...(messageAction?{messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:{}),...(effectiveMessagePresentation?{messagePresentation:effectiveMessagePresentation}:{}),...(sentAutoDialogue?{autoDialogueSuggestionId:sentAutoDialogue.suggestionId,autoDialogueSuggestionSource:sentAutoDialogue.source,autoDialogueSuggestionEdited:text!==sentAutoDialogue.text.trim(),autoDialogueSuggestionIntent:sentAutoDialogue.intent,autoDialogueSuggestionPreference:sentAutoDialogue.preference}:{}) }, (token) => {if(activeSendRequest.current!==clientRequestId)return;if(activeBottomPinRequest.current===clientRequestId)forcePinnedUntil.current=Date.now()+1_200;setStream((current) => current + token);}, {
+      const result = await sendDialogue({ ...contextAuthorization, conversationId: conversation.id, characterInstanceId: character.id, message: text,attachmentIds:preparedAttachmentId?[preparedAttachmentId]:retryAttachmentIds, clientRequestId,focusPlanId:focusPlanId??undefined,...(photoAsChatIfUnavailable?{photoAsChatIfUnavailable:true}:{}),...(sceneActionId?{sceneActionId}:{}),...(messageAction?{messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:{}),...(effectiveMessagePresentation?{messagePresentation:effectiveMessagePresentation}:{}),...(sentAutoDialogue?{autoDialogueSuggestionId:sentAutoDialogue.suggestionId,autoDialogueSuggestionSource:sentAutoDialogue.source,autoDialogueSuggestionEdited:text!==sentAutoDialogue.text.trim(),autoDialogueSuggestionIntent:sentAutoDialogue.intent,autoDialogueSuggestionPreference:sentAutoDialogue.preference}:{}) }, (token) => {if(activeSendRequest.current!==clientRequestId)return;if(activeBottomPinRequest.current===clientRequestId)forcePinnedUntil.current=Date.now()+1_200;setStream((current) => current + token);}, {
         onPrimary:(message)=>{
           if(activeSendRequest.current!==clientRequestId)return;
           primaryComplete=true;

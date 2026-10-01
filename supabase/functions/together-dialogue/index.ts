@@ -1,4 +1,5 @@
 import { assertPhotoRequestAllowed } from '../_shared/photo-request-policy.ts';
+import { restrictedPhotoTextCanContinueAsChat } from '../../../packages/together-domain/src/photo-request-policy.ts';
 import { chatSpeedEnabled, ChatTimings } from '../_shared/kivelle-chat-latency.ts';
 import { stageContextAuthorization } from '../_shared/kivelle-context-authorization.ts';
 import { z } from "zod";
@@ -173,6 +174,7 @@ const normalSchema = z.object({
   messageAction: z.enum(["continue"]).optional(),
   anchorMessageId: z.string().uuid().optional(),
   messagePresentation: z.literal(ONE_TAP_SELFIE_MESSAGE_PRESENTATION).optional(),
+  photoAsChatIfUnavailable: z.boolean().optional(),
   autoDialogueSuggestionId: z.string().min(8).max(120).optional(),
   autoDialogueSuggestionSource: z.enum([
     "openai",
@@ -277,7 +279,13 @@ Deno.serve(async (request) => {
         let requestId = assertChatRequestId(input.clientRequestId);
         const contextText = (isContinuation?String(continuationAnchor?.content??''):userText) ||
           "The user shared an image without a caption.";
-        const photoIntent = classifyPhotoRequest(isContinuation?'':contextText);
+        const detectedPhotoIntent = classifyPhotoRequest(isContinuation?'':contextText);
+        const photoAsChat = input.photoAsChatIfUnavailable === true &&
+          adultAccess.client_surface === 'native_or_unknown' &&
+          restrictedPhotoTextCanContinueAsChat(contextText);
+        const photoIntent = photoAsChat
+          ? { ...detectedPhotoIntent, requested: false, requestedContentLevel: undefined }
+          : detectedPhotoIntent;
         if (photoIntent.requested && !isContinuation) {
           try {
             assertPhotoRequestAllowed({requestText:contextText,requestedContentLevel:photoIntent.requestedContentLevel,adultPipelineAuthorized:adultAccess.authorized_web_adult}, {stage:'dialogue_input',userId:user.id,characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,requestId,clientSurface:adultAccess.client_surface});

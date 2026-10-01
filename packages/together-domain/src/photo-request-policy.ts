@@ -12,3 +12,13 @@ export function photoRequestRestriction(input: Parameters<typeof resolveProducti
     requestedContentLevel: input.requestedContentLevel ?? classifyPhotoIntent(input.requestText ?? '').requestedContentLevel ?? 'standard',
   } as const;
 }
+
+/** A native app may keep restricted photo-like wording in ordinary chat. */
+export function restrictedPhotoTextCanContinueAsChat(requestText: string): boolean {
+  const intent = classifyPhotoIntent(requestText);
+  return intent.requested && photoRequestRestriction({
+    requestText,
+    ...(intent.requestedContentLevel ? { requestedContentLevel: intent.requestedContentLevel } : {}),
+    adultPipelineAuthorized: false,
+  }) !== null;
+}

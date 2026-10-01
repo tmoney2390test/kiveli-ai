@@ -72,6 +72,7 @@ import { track } from "../_shared/together.ts";
 import { createMediaOffer } from "../_shared/together-media-offers.ts";
 import { configuredGroupImageRouteAvailable } from "../_shared/together-media-providers.ts";
 import { classifyPhotoRequest } from "../_shared/together-media.ts";
+import { restrictedPhotoTextCanContinueAsChat } from '../../../packages/together-domain/src/photo-request-policy.ts';
 import { AppError } from "../_shared/types.ts";
 import { waitUntil } from "../_shared/background.ts";
 import { consolidateConversationEpisodes } from "../_shared/kivelle-conversation-episodes.ts";
@@ -116,6 +117,7 @@ const normalSchema = z.object({
   clientRequestId: z.string().uuid(),
   mentionedCharacterInstanceIds: z.array(z.string().uuid()).max(5).refine((ids) => new Set(ids).size === ids.length, "A companion can only be mentioned once.").default([]),
   photoSubjectCharacterInstanceIds: z.array(z.string().uuid()).max(2).refine((ids) => new Set(ids).size === ids.length, "A photo subject can only be selected once.").default([]),
+  photoAsChatIfUnavailable: z.boolean().optional(),
   replyToMessageId: z.string().uuid().optional(),
   manualSpeakerInstanceId: z.string().uuid().optional(),
   broadGroupRequest: z.boolean().default(false),
@@ -307,7 +309,11 @@ Deno.serve(async (request) => {
     if(storedRequestedMode==='explicit')await track(db,user.id,'private_adult_text_policy_decision',privateAdultTextTelemetry({policy:groupDialoguePolicy,access:adultAccess,conversationMode:'group'}));
     const adultAttachment=attachments.some((attachment)=>attachment.content_rating==='explicit'||attachment.visibility_scope==='web_adult');
     const routingHistory=await loadAdultRoutingHistory(db,user.id,conversation.id,existingUserMessage?Number(existingUserMessage.conversation_sequence):undefined);
-    const groupRoutingEvidence=resolveDialogueRouting({message:messageText,requestedMode:groupDialoguePolicy.effectiveMode,ageVerified:adultAccess.adult_eligible,adultAuthorized:groupAdultAuthorized,characterAge:groupDialoguePolicy.allParticipantsAdults?18:null,adultAttachment,moderation:inputSafety,photoRequest:classifyPhotoRequest(messageText).requested}).adultRouting;
+    const photoAsChat = input.photoAsChatIfUnavailable === true &&
+      input.photoSubjectCharacterInstanceIds.length === 0 &&
+      adultAccess.client_surface === 'native_or_unknown' &&
+      restrictedPhotoTextCanContinueAsChat(messageText);
+    const groupRoutingEvidence=resolveDialogueRouting({message:messageText,requestedMode:groupDialoguePolicy.effectiveMode,ageVerified:adultAccess.adult_eligible,adultAuthorized:groupAdultAuthorized,characterAge:groupDialoguePolicy.allParticipantsAdults?18:null,adultAttachment,moderation:inputSafety,photoRequest:classifyPhotoRequest(messageText).requested&&!photoAsChat}).adultRouting;
     const restrictedUserMessage=groupAdultAuthorized&&(
       adultAttachment||
       hasSexualDialogueLanguage(messageText)||inputSafety.categories.some((category)=>/(?:sexual|adult|explicit)/i.test(category))
@@ -404,7 +410,10 @@ Deno.serve(async (request) => {
     );
     const candidates = groupCandidates(roster, recentIds, messageText, signals);
     const settings = normalizeGroupSettings(conversation.metadata);
-    const photoIntent = classifyPhotoRequest(messageText),
+    const detectedPhotoIntent = classifyPhotoRequest(messageText),
+      photoIntent = photoAsChat
+        ? { ...detectedPhotoIntent, requested: false, requestedContentLevel: undefined }
+        : detectedPhotoIntent,
       requestedPhotoSpeaker = input.photoSubjectCharacterInstanceIds[0] ??
         input.manualSpeakerInstanceId,
       basePlan = planGroupTurn({

@@ -2,12 +2,20 @@ import { createMediaOffer } from './together-media-offers.ts';
 import { acceptMediaOffer } from './together-media-offer-acceptance.ts';
 import { AppError } from './types.ts';
 import { classifyPhotoRequest } from './together-media-base.ts';
+import { restrictedPhotoTextCanContinueAsChat } from '../../../packages/together-domain/src/photo-request-policy.ts';
 
 Deno.test('relationship language does not become a server photo request', () => {
   if (classifyPhotoRequest('Sora you don’t want to see me you said it yourself').requested) throw new Error('A relationship message was routed to PhotoGen');
   if (classifyPhotoRequest('Don’t send me a photo.').requested) throw new Error('A negated photo request was routed to PhotoGen');
   if (classifyPhotoRequest('Do you me to send you something from my body like a snap').requested) throw new Error('A user media offer was routed to companion PhotoGen');
   if (!classifyPhotoRequest('You don’t want to see me. Send me a selfie.').requested) throw new Error('A separate photo request was lost');
+});
+
+Deno.test('restricted native photo-like wording can continue as chat without rerouting safe photos', () => {
+  if (!restrictedPhotoTextCanContinueAsChat('Send me a nude pic')) throw new Error('Restricted pic was not eligible for chat');
+  if (!restrictedPhotoTextCanContinueAsChat('Can I see a nude photo?')) throw new Error('Restricted photo was not eligible for chat');
+  if (restrictedPhotoTextCanContinueAsChat('Send me a photo in your blue dress')) throw new Error('Safe photo diverted from PhotoGen');
+  if (restrictedPhotoTextCanContinueAsChat('I liked the pic you sent yesterday')) throw new Error('Ordinary chat was classified as a photo request');
 });
 
 Deno.test('a disallowed photo creates no offer or allowance reservation', async () => {

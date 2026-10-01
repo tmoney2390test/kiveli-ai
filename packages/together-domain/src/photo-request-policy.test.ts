@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { photoRequestRestriction } from './photo-request-policy';
+import { photoRequestRestriction, restrictedPhotoTextCanContinueAsChat } from './photo-request-policy';
 
 describe('photo request authorization before prompt rewriting', () => {
   it.each(['Send me a nude photo', 'Send a naked selfie', 'Make this photo topless'])('blocks unauthorized authored intent: %s', (requestText) => {
@@ -17,5 +17,11 @@ describe('photo request authorization before prompt rewriting', () => {
     expect(photoRequestRestriction({ requestText: 'Send a romantic photo by the lake' })).toBeNull();
     expect(photoRequestRestriction({ requestText: 'Send me a photo showing exactly this: Wearing a bikini eating an apple', adultPipelineAuthorized: false })).toBeNull();
     expect(photoRequestRestriction({ requestText: 'Send me a photo in a see-through bikini', adultPipelineAuthorized: false })).not.toBeNull();
+  });
+  it('continues restricted photo-like wording as chat without diverting safe photo requests', () => {
+    expect(restrictedPhotoTextCanContinueAsChat('Send me a nude pic')).toBe(true);
+    expect(restrictedPhotoTextCanContinueAsChat('Can I see a nude photo?')).toBe(true);
+    expect(restrictedPhotoTextCanContinueAsChat('Send me a photo in your blue dress')).toBe(false);
+    expect(restrictedPhotoTextCanContinueAsChat('I liked the pic you sent yesterday')).toBe(false);
   });
 });

@@ -1,4 +1,5 @@
 import { ChatRecoveryNotice } from '../src/components/ChatRecoveryNotice';
+import { restrictedPhotoTextCanContinueAsChat } from '@together/domain/src/photo-request-policy';
 import { queueServerPhotoOfferAcceptance, waitForPhotoOfferStatus } from '../src/lib/photoOfferOptimism';
 import { loadPhotoOfferStatus } from '../src/lib/api';
 import { createRealtimeChannel } from '../src/lib/realtimeChannel';
@@ -1045,6 +1046,9 @@ export default function GroupChatScreen() {
           ...contextAuthorization,
           conversationId: detail.conversation.id,
           message,
+          ...(Platform.OS === 'ios' && !letThemTalk && restrictedPhotoTextCanContinueAsChat(message)
+            ? { photoAsChatIfUnavailable: true }
+            : {}),
           clientRequestId,
           mentionedCharacterInstanceIds: mentions,
           replyToMessageId: reply?.id,
