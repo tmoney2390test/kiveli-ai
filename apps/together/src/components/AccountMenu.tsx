@@ -31,8 +31,8 @@ export function AccountMenu({ visible, onClose }: { visible: boolean; onClose: (
   useEffect(() => {
     if (!visible) return;
     const prefetch = (href: string) => warmRoute(href, value => router.prefetch(value as never));
+    prefetch('/settings');
     const timers = [
-      setTimeout(() => prefetch('/settings'), 250),
       setTimeout(() => prefetch('/personas'), 500),
       setTimeout(() => prefetch('/memories'), 700),
     ];
@@ -46,7 +46,7 @@ export function AccountMenu({ visible, onClose }: { visible: boolean; onClose: (
   }, [visible, onClose]);
   const open = (href: string) => { onClose(); router.push(href as never); };
   const row = (label: string, icon: ReactNode, href: string, detail?: string) => <Pressable key={label} accessibilityRole="button" onHoverIn={() => warmRoute(href, value => router.prefetch(value as never))} onPressIn={() => warmRoute(href, value => router.prefetch(value as never))} onPress={() => open(href)} style={({ pressed }) => [s.row, pressed && s.pressed]}>{icon}<View style={s.copy}><Text style={s.label}>{label}</Text>{detail ? <Text style={s.muted}>{detail}</Text> : null}</View><ChevronRight size={18} color={accent}/></Pressable>;
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+  return <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
     <View accessibilityViewIsModal style={[s.backdrop, { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 12) }, desktop && s.desktop]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close account menu" style={StyleSheet.absoluteFill} onPress={onClose}/>
       <FrostedSurface intensity={92} style={[s.sheet, { maxHeight: height - insets.top - Math.max(insets.bottom, 12) - 24 }]}>

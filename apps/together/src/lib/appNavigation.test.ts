@@ -255,17 +255,17 @@ describe("app navigation", () => {
     try {
       const { browser, classes, history, storage } = browserAt("https://kivelli.app/chat?character=iris");
 
-      expect(navigateLocalRouteOnWeb("/subscription?intent=voice")).toBe(true);
+      expect(navigateLocalRouteOnWeb("/create/companion")).toBe(true);
 
       expect(browser.location.assign).not.toHaveBeenCalled();
       expect(browser.location.replace).not.toHaveBeenCalled();
-      expect(history.pushState).toHaveBeenCalledWith({}, "", "/subscription?intent=voice");
-      expect(browser.location.href).toBe("https://kivelli.app/subscription?intent=voice");
+      expect(history.pushState).toHaveBeenCalledWith({}, "", "/create/companion");
+      expect(browser.location.href).toBe("https://kivelli.app/create/companion");
       expect(browser.dispatchEvent).toHaveBeenCalled();
       expect(classes.has(WEB_ROUTE_TRANSITION_CLASS)).toBe(true);
-      expect(JSON.parse(storage.get(WEB_ROUTE_TRANSITION_KEY) ?? "{}").destination).toBe("/subscription");
+      expect(JSON.parse(storage.get(WEB_ROUTE_TRANSITION_KEY) ?? "{}").destination).toBe("/create/companion");
       expect(completePendingWebRouteTransition("/chat")).toBe(false);
-      expect(completePendingWebRouteTransition("/subscription")).toBe(true);
+      expect(completePendingWebRouteTransition("/create/companion")).toBe(true);
       expect(classes.has(WEB_ROUTE_TRANSITION_CLASS)).toBe(false);
       expect(storage.has(WEB_ROUTE_TRANSITION_KEY)).toBe(false);
     } finally {
@@ -278,6 +278,8 @@ describe("app navigation", () => {
     ["/explore", "/moments"],
     ["/moments", "/chat-tab?messages=1"],
     ["/home", "/chat?character=iris-vale"],
+    ["/home", "/settings?section=experience"],
+    ["/settings?section=experience", "/photo-settings"],
   ])("keeps a warm shell switch from %s to %s uncovered", (source, destination) => {
     const { browser, classes, storage } = browserAt(`https://kivelli.app${source}`);
 

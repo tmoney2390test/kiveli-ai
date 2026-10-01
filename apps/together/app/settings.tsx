@@ -1,5 +1,5 @@
 import { styles } from '../src/styles/settingsStyles';
-import { cloneElement, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { cloneElement, useEffect, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import {AccountProfilePanel} from '../src/components/AccountProfilePanel';
 import {
   Alert,
@@ -53,6 +53,7 @@ import { confirmAction, showActionAlert } from '../src/lib/dialogs';
 import { shouldRenderSettingsRoute, shouldUseDesktopSettingsLayout } from '../src/lib/settingsRoute';
 import { startSignOutTransition } from '../src/lib/signOutTransition';
 import { createClientRequestId } from '../src/lib/requestId';
+import { warmRoute } from '../src/lib/routeWarmup';
 import {
   settingsCloseTarget,
   settingsSearchMatches,
@@ -62,6 +63,8 @@ import {
 import { LoadingSkeleton } from '../src/components';
 import { ErrorState } from '../src/components/RouteState';
 import { FrostedSurface } from '../src/components/FrostedGlass';
+
+const useHydrationLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 type SaveNotice = { kind: 'success' | 'error'; message: string } | null;
 type Snapshot = NonNullable<ReturnType<typeof useTogether.getState>['snapshot']>;
@@ -82,6 +85,15 @@ const sections: SectionDefinition[] = [
   { id: 'privacy', label: 'Privacy & safety', description: 'Personalization, analytics, data, policies, and deletion.', searchTerms: 'export delete account terms refund community ai disclosure', icon: <Shield size={20} /> },
   { id: 'support', label: 'Help & Support', description: 'Help center and support requests.', searchTerms: 'contact report problem ticket', icon: <LifeBuoy size={20} /> },
 ];
+
+const linkedPagesBySection: Partial<Record<SettingsSection, readonly string[]>> = {
+  account: ['/account', '/subscription'],
+  identity: ['/personas', '/persona-editor'],
+  experience: ['/content-settings', '/notifications', '/photo-settings', '/media-preferences'],
+  relationships: ['/companions', '/conversation-controls', '/archived-chats', '/memories'],
+  privacy: ['/privacy', '/community-guidelines', '/privacy-policy', '/terms', '/refund-policy'],
+  support: ['/help', '/support/new'],
+};
 
 export default function Settings() {
   const router = useRouter();
@@ -107,7 +119,17 @@ export default function Settings() {
   const [signingOut, setSigningOut] = useState(false);
   const [accountBusy, setAccountBusy] = useState<'resend' | 'sessions' | null>(null);
   const avatar = useProfileAvatarUrl(avatarPath);
-  useEffect(() => { setWebHydrated(true); }, []);
+  // Resolve the desktop layout before the browser paints the mobile-safe SSR tree.
+  useHydrationLayoutEffect(() => { setWebHydrated(true); }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const linkedPages = activeSection ? linkedPagesBySection[activeSection] ?? [] : [];
+    const timers = linkedPages.map((href, index) => setTimeout(() => {
+      warmRoute(href, value => router.prefetch(value as never));
+    }, index * 60));
+    return () => timers.forEach(clearTimeout);
+  }, [activeSection, router]);
 
   useEffect(() => {
     const next = settingsSectionFromParam(params.section);
@@ -297,7 +319,7 @@ export default function Settings() {
   </View>;
   const settingsModal = desktop
     ? settingsSurface
-    : <Modal visible transparent animationType="fade" onRequestClose={close}>{settingsSurface}</Modal>;
+    : <Modal visible transparent animationType="none" onRequestClose={close}>{settingsSurface}</Modal>;
   return settingsModal;
 }
 

@@ -37,6 +37,14 @@ const TAB_ROUTE_PATHS = new Set([
 ]);
 const WARM_SHELL_ROUTE_PATHS = new Set([
   "/home", "/explore", "/chat-tab", "/chat", "/group-chat", "/moments",
+  "/settings", "/profile",
+]);
+const SETTINGS_LINKED_ROUTE_PATHS = new Set([
+  "/settings", "/profile", "/account", "/personas", "/persona-editor",
+  "/content-settings", "/notifications", "/photo-settings", "/media-preferences",
+  "/conversation-controls", "/archived-chats", "/privacy", "/help", "/support", "/support/new",
+  "/subscription", "/companions", "/memories", "/community-guidelines", "/privacy-policy",
+  "/terms", "/refund-policy",
 ]);
 
 function stripRouteGroups(pathname: string): string {
@@ -169,10 +177,16 @@ export function isWarmShellRoute(href: string): boolean {
   return WARM_SHELL_ROUTE_PATHS.has(routePath(href));
 }
 
+export function isSettingsFamilyTransition(current: string, destination: string): boolean {
+  const source = routePath(current);
+  const target = routePath(destination);
+  return SETTINGS_LINKED_ROUTE_PATHS.has(source) && SETTINGS_LINKED_ROUTE_PATHS.has(target);
+}
+
 function shouldCoverWebRouteTransition(current: string, destination: string): boolean {
   if (routePath(current) === routePath(destination)) return false;
   if (isConversationRoute(current) && isConversationRoute(destination)) return false;
-  return !(isWarmShellRoute(current) && isWarmShellRoute(destination));
+  return !(isSettingsFamilyTransition(current, destination) || (isWarmShellRoute(current) && isWarmShellRoute(destination)));
 }
 
 function isCapturedEntryRecovery(destination: string): boolean {

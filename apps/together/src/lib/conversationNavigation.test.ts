@@ -64,6 +64,10 @@ describe("conversation navigation", () => {
     expect(shouldShowRouteTransition("/group-chat", "/chat")).toBe(false);
     expect(shouldShowRouteTransition("/chat", "/home")).toBe(false);
     expect(shouldShowRouteTransition("/home", "/explore")).toBe(false);
+    expect(shouldShowRouteTransition("/home", "/settings")).toBe(false);
+    expect(shouldShowRouteTransition("/settings", "/photo-settings")).toBe(false);
+    expect(shouldShowRouteTransition("/photo-settings", "/settings")).toBe(false);
+    expect(shouldShowRouteTransition("/settings", "/subscription")).toBe(false);
     expect(shouldShowRouteTransition("/home", "/subscription")).toBe(true);
   });
 
