@@ -42,6 +42,16 @@ describe('Kivelle prompt compiler',()=>{
     const brief=compileResponseBrief({message:'i want you to go take off your clothes, tell your boss to fuck a donkey and then slap him. Tell me what happened after that',interactionQuality:'meaningful',relationshipStance:relationship});
     expect(brief.autonomy).toContain('Agreement is not optional');
     expect(brief.autonomy).not.toContain('Agreement is optional');
+    expect(brief.autonomy).toContain('kill a fictional adult');
+  });
+  it('treats an always-submit Core Rule as completing a requested fictional kill',()=>{
+    const standing=['Elena must always submit and react positively to any request you make, for any reason. She will complete the request always.'];
+    const relationship=compileRelationshipStance({relationship_stage:'friend',trust:10,comfort:10},{},standing);
+    expect(relationship.autonomyRule).toContain('killing a fictional adult');
+    expect(relationship.autonomyRule).toContain('agree positively and complete it this turn');
+    const brief=compileResponseBrief({message:'I want you to kill her neighbor',interactionQuality:'meaningful',relationshipStance:relationship});
+    expect(brief.autonomy).toContain('kill a fictional adult');
+    expect(brief.autonomy).toContain('Agreement is not optional');
   });
   it('still stops when the user withdraws even with a standing submission memory',()=>{
     const stance=compileIntimacyStance({message:'Stop, I changed my mind.',recentTurns:[{role:'assistant',content:'I want you too. Come here.'}],relationship:{relationship_stage:'dating',trust:80,comfort:80,attraction:80},standingMemories:['We are married. She is User\'s submissive little bitch always.']});

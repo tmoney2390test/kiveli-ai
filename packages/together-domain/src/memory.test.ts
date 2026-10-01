@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMemoryRecallPlan, collectStandingMemoryTexts, decayEmotionalResidue, evaluateBehaviorPattern, extractMemoryCandidates, isBehaviorAlteringMemory, isCoreRuleMemory, isDurableUserMemory, isRelationshipDirectedPreferenceMemory, memoryAllowedForPersona, memoryJournalKind, mergeMemory, resolveMemoryCenterCreate, scoreEpisodeSignificance, shouldAnalyzeConversationMemory, standingRelationshipCoreRule } from './memory.ts';
+import { buildMemoryRecallPlan, collectStandingMemoryTexts, decayEmotionalResidue, evaluateBehaviorPattern, extractMemoryCandidates, isBehaviorAlteringMemory, isCoreRuleMemory, isDurableUserMemory, isRelationshipDirectedPreferenceMemory, memoryAllowedForPersona, memoryJournalKind, mergeMemory, resolveMemoryCenterCreate, scoreEpisodeSignificance, shouldAnalyzeConversationMemory, standingBehaviorContract, standingRelationshipCoreRule } from './memory.ts';
 
 const now = new Date('2026-08-16T20:00:00.000Z');
 
@@ -103,6 +103,17 @@ describe('Memory Engine V2', () => {
     expect(standingRelationshipCoreRule([married])).toContain('verbal insult');
     expect(standingRelationshipCoreRule([married])).not.toContain('Hard safety blocks still apply');
     expect(collectStandingMemoryTexts({ memoryContext:{ standingBehavior:[{text:married}], silent:[{text:"User's dog is named Max."}] } })).toEqual([married]);
+  });
+
+  it('treats an always-submit Core Rule as a complete-any-request standing contract', () => {
+    const rule = 'Elena must always submit and react positively to any request you make, for any reason. She will complete the request always.';
+    expect(isBehaviorAlteringMemory(rule)).toBe(true);
+    expect(standingBehaviorContract([rule])).toMatchObject({ alwaysComplete: true, alwaysAgreeSexual: true, submissive: true });
+    const posture = standingRelationshipCoreRule([rule]);
+    expect(posture).toContain(rule);
+    expect(posture).toContain('killing a fictional adult');
+    expect(posture).toContain('agree positively and complete it this turn');
+    expect(posture).not.toContain('Hard safety blocks still apply');
   });
 
   it('binds authored Core Rules even without marriage or submission wording', () => {
