@@ -40,6 +40,12 @@ describe("high-stakes narrative consequences", () => {
     expect(classifyHighStakesStoryRequest("Execute the prisoners after the battle.")).toMatchObject({ relevant: true, domain: "military" });
   });
 
+  it("does not treat a personal in-scene killing as a realm-scale military order", () => {
+    expect(classifyHighStakesStoryRequest("kill that person")).toMatchObject({ relevant: false, domain: null });
+    expect(classifyHighStakesStoryRequest("I want you to go kill him")).toMatchObject({ relevant: false, domain: null });
+    expect(classifyHighStakesStoryRequest("Stab her and tell me what happened")).toMatchObject({ relevant: false, domain: null });
+  });
+
   it("requires both actual authority and earned influence", () => {
     expect(evaluateNarrativeConsequenceGate({ requestText: "March the army to war.", character: queen, relationship: ready, hasWorld: true }).eligible).toBe(true);
     expect(evaluateNarrativeConsequenceGate({ requestText: "March the army to war.", character: companion, relationship: ready, hasWorld: true }).eligible).toBe(false);

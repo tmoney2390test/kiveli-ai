@@ -25,6 +25,7 @@ export type SpeakerContextInput = {
   sceneContext?: Row;
   authorizedWebAdult?:boolean;
   authorizedPrivateAdultText?:boolean;
+  clientSurface?:string;
 };
 
 /**
@@ -223,6 +224,7 @@ export async function buildIsolatedSpeakerContext(
     forceRemoteInteraction: isPersistentGroup,
     authorizedWebAdult:input.authorizedWebAdult===true,
     authorizedPrivateAdultText:input.authorizedPrivateAdultText===true,
+    ...(input.clientSurface?{clientSurface:input.clientSurface}:{}),
     ...(input.sceneSessionId
       ? {
         visibleSceneSessionId: input.sceneSessionId,

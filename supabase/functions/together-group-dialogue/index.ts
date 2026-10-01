@@ -774,6 +774,7 @@ function groupStream(input: any): Response {
             correlationId: input.correlationId,
             authorizedWebAdult:input.adultAccess.authorized_web_adult,
             authorizedPrivateAdultText:liveDialoguePolicy.rollout.generationAllowed,
+            clientSurface:input.adultAccess.client_surface,
           });
           const context: any = selected.context;
           assertSpeakerPrivateContext(context, action.characterInstanceId);

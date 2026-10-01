@@ -978,9 +978,10 @@ Deno.serve(async (request) => {
           correlationId,
           authorizedWebAdult:adultAccess.authorized_web_adult,
           authorizedPrivateAdultText,
+          clientSurface:adultAccess.client_surface,
           conversationSceneResolution: sceneResolution,
         });
-        (dialogueContext as Record<string,unknown>).contentAccess={authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText};
+        (dialogueContext as Record<string,unknown>).contentAccess={authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText,clientSurface:adultAccess.client_surface};
         if(isContinuation){
           dialogueContext.userMessage='';
           (dialogueContext as Record<string,unknown>).continuationRequest={anchorMessageId:input.anchorMessageId,anchorSpeakerCharacterInstanceId:String(continuationAnchor?.speaker_character_instance_id??continuationAnchor?.character_instance_id??input.characterInstanceId)};

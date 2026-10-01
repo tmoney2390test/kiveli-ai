@@ -27,6 +27,7 @@ export type CurrentSceneContext = { schedulePaused?: boolean; locationId: string
 export type KivelleConversationContext = {
   contextInputCeiling?:number;
   personalizationEnabled:boolean;
+  contentAccess?:{authorizedWebAdult:boolean;authorizedPrivateAdultText:boolean;clientSurface?:string};
   contentMode?:string;
   photoRequest?:boolean;
   conversationStyle:ConversationStyle;
@@ -88,7 +89,7 @@ export function detectContextQueryIntent(message: string): ContextQueryIntent {
 export async function buildKivelleConversationContext(input: {
   db: SupabaseClient; userId:string; instance:Row; conversation:Row; userMessage:string;
   beforeConversationSequence?:number;
-  lifeRun:Row; semanticRows?:Row[]; semanticQueryEmbedding?:number[]|null; attachments?:Row[]; now?:Date; visibleHistoryFromSequence?:number; visibleSceneSessionId?:string; visibleSceneFromSequence?:number; forceRemoteInteraction?:boolean;conversationSceneResolution?:Row;authorizedWebAdult?:boolean;authorizedPrivateAdultText?:boolean;memoryCandidateLimit?:number;readOnly?:boolean;
+  lifeRun:Row; semanticRows?:Row[]; semanticQueryEmbedding?:number[]|null; attachments?:Row[]; now?:Date; visibleHistoryFromSequence?:number; visibleSceneSessionId?:string; visibleSceneFromSequence?:number; forceRemoteInteraction?:boolean;conversationSceneResolution?:Row;authorizedWebAdult?:boolean;authorizedPrivateAdultText?:boolean;clientSurface?:string;memoryCandidateLimit?:number;readOnly?:boolean;
 }): Promise<KivelleConversationContext> {
   const { db, userId, instance, conversation, userMessage } = input;
   const now = input.now ?? new Date();
@@ -262,6 +263,7 @@ export async function buildKivelleConversationContext(input: {
     sceneParticipants=(participantRows??[]).map((item:Row)=>{const participantId=String(item.character_instance_id),participantTemplateId=String(item.together_character_instances?.character_template_id??''),personality=item.together_character_instances?.together_character_versions?.personality_config??{},participantRelationship=(participantRelationships??[]).find((value:Row)=>String(value.character_instance_id)===participantId),social=(socialStates??[]).find((value:Row)=>(String(value.character_a_instance_id)===primaryId&&String(value.character_b_instance_id)===participantId)||(String(value.character_b_instance_id)===primaryId&&String(value.character_a_instance_id)===participantId)),authored=(edges.data??[]).find((value:Row)=>(String(value.source_template_id)===String(instance.character_template_id)&&String(value.target_template_id)===participantTemplateId)||(String(value.target_template_id)===String(instance.character_template_id)&&String(value.source_template_id)===participantTemplateId));return{characterInstanceId:participantId,name:String(item.together_character_instances?.together_character_templates?.name??'Companion'),role:String(item.role),joinedAt:String(item.joined_at),socialEnergy:normalizedPersonalityValue(personality.socialEnergy??personality.social_energy,.5),directness:normalizedPersonalityValue(personality.directness,.5),relationshipRelevance:Math.min(1,(Number(participantRelationship?.trust??0)+Number(participantRelationship?.comfort??0)+Number(participantRelationship?.affinity??0)+Number(participantRelationship?.familiarity??0))/320),socialAffinity:Math.min(1,Number(social?.affinity??authored?.affinity??40)/100),socialTension:Math.min(1,Number(social?.tension??0)/100),relationshipType:String(social?.relationship_type??authored?.relationship_type??'acquaintance')};});
   }
   return {
+    contentAccess:{authorizedWebAdult:input.authorizedWebAdult===true,authorizedPrivateAdultText:input.authorizedPrivateAdultText===true,clientSurface:input.clientSurface??(input.authorizedWebAdult?'web':'native_or_unknown')},
     personalizationEnabled,
     conversationStyle:resolveConversationStyle(profile.data?.conversation_preferences),
     chatLanguage:normalizeChatLanguage(conversation.metadata?.chatPreferences?.chatLanguage),

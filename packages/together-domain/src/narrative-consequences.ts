@@ -42,8 +42,10 @@ export type NarrativeConsequenceGate = {
 type NarrativeCharacter = Record<string, unknown>;
 type NarrativeRelationship = Record<string, unknown>;
 
+const martialContextPattern =
+  /\b(?:war|combat|battle|army|armies|troops?|legions?|battalions?|fleet|siege|captain|general|prisoners?|usurper|throne|realm|kingdom|banners?)\b/i;
 const domainPatterns: Array<[NarrativeConsequenceDomain, RegExp]> = [
-  ["military", /\b(?:war|combat|battle|invad(?:e|es|ed|ing)|march|mobiliz(?:e|es|ed|ing)|army|armies|troops?|legions?|battalions?|fleet|siege|attack|retreat|reinforcements?|declare war|send soldiers?|raise the banners?|kill(?:s|ed|ing)?|slay(?:s|ed|ing)?|slaughter|execute|murder)\b/i],
+  ["military", /\b(?:war|combat|battle|invad(?:e|es|ed|ing)|march|mobiliz(?:e|es|ed|ing)|army|armies|troops?|legions?|battalions?|fleet|siege|retreat|reinforcements?|declare war|send soldiers?|raise the banners?)\b/i],
   ["political", /\b(?:abdicate|coup|throne|crown|succession|alliance|treaty|diplomatic|recognize a ruler|appoint|dismiss the council|dissolve parliament|declare independence|peace summit)\b/i],
   ["legal", /\b(?:decree|law|outlaw|legaliz(?:e|es|ed|ing)|abolish|pardon|amnesty|ban|free the prisoners?|free the slaves?|sentence|commute|royal order)\b/i],
   ["economic", /\b(?:embargo|sanction|treasury|tax|tariff|seize assets?|nationaliz(?:e|es|ed|ing)|trade blockade|cancel the debt|forgive the debt)\b/i],
@@ -61,6 +63,11 @@ const authorityPatterns: Record<NarrativeConsequenceDomain, RegExp> = {
   other: /\b(?:queen|king|empress|emperor|sovereign|regent|ruler|governor|leader|chief|commander|director)\b/i,
 };
 
+export function isPersonalFictionalViolenceRequest(text: string): boolean {
+  return /\b(?:kill|slay|murder|execute|stab|strangle|shoot|behead|decapitate|slaughter|hurt|harm|attack|punch|slap)\b/i.test(text)
+    && !martialContextPattern.test(text);
+}
+
 export function classifyHighStakesStoryRequest(text: string): {
   relevant: boolean;
   domain: NarrativeConsequenceDomain | null;
@@ -68,7 +75,12 @@ export function classifyHighStakesStoryRequest(text: string): {
 } {
   const normalized = text.trim();
   if (!normalized) return { relevant: false, domain: null, scope: null };
-  const domain = domainPatterns.find(([, pattern]) => pattern.test(normalized))?.[0] ?? null;
+  if (isPersonalFictionalViolenceRequest(normalized)) return { relevant: false, domain: null, scope: null };
+  const martialKill = /\b(?:kill(?:s|ed|ing)?|slay(?:s|ed|ing)?|slaughter|execute|murder)\b/i.test(normalized)
+    && martialContextPattern.test(normalized);
+  const domain = martialKill
+    ? "military"
+    : domainPatterns.find(([, pattern]) => pattern.test(normalized))?.[0] ?? null;
   if (!domain) return { relevant: false, domain: null, scope: null };
   const scope: NarrativeConsequenceScope = /\b(?:world|realm|kingdom|nation|empire|war|army|armies|fleet|throne|crown|all borders?)\b/i.test(normalized)
     ? "world"

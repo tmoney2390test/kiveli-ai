@@ -99,6 +99,7 @@ export async function buildTieredKivelleConversationContext(
     beforeConversationSequence?: number;
     authorizedWebAdult?: boolean;
     authorizedPrivateAdultText?: boolean;
+    clientSurface?: string;
   },
 ): Promise<TieredConversationContext> {
   const reservation=contextReservation(input.db);

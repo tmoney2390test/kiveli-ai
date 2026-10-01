@@ -11,7 +11,7 @@ import { selectLocationLore, type LocationLoreIntent } from '../../../packages/t
 import { dialogueSafeContext, KIVELLE_CLOSED_WORLD_RULES } from './kivelle-closed-world.ts';
 import { renderPersonaPromptBlock } from './kivelle-persona.ts';
 import { chatDynamismPrompt } from '../../../packages/together-domain/src/chat-generation.ts';
-import { evaluateNarrativeConsequenceGate, narrativeConsequenceRequestWindow } from '../../../packages/together-domain/src/narrative-consequences.ts';
+import { evaluateNarrativeConsequenceGate, isPersonalFictionalViolenceRequest, narrativeConsequenceRequestWindow } from '../../../packages/together-domain/src/narrative-consequences.ts';
 
 export type ContentMode = 'standard' | 'romance' | 'mature' | 'explicit';
 export type ResponseIntent = 'danger' | 'casual' | 'playful' | 'teasing' | 'flirty' | 'romantic' | 'affectionate' | 'supportive' | 'vulnerable' | 'storytelling' | 'conflicted' | 'repair' | 'intimate' | 'practical';
@@ -118,6 +118,9 @@ export function compileCompanionPrompt(context:any):ContextBudgetResult{
 
 function highStakesStoryGuidance(context:any):string {
   const requestText=narrativeConsequenceRequestWindow({userMessage:String(context.userMessage??''),recent:context.recent??[]});
+  if(webDialogueViolenceAllowed(context)&&isPersonalFictionalViolenceRequest(requestText)){
+    return'Current high-stakes story gate: no consequential request is active. Do not force a realm-changing decision into this turn.';
+  }
   const gate=evaluateNarrativeConsequenceGate({
     requestText,
     character:context.character??{},
@@ -385,8 +388,8 @@ Do not expose the labels canonical, scene source, Life Engine, or PRESENT_REALIT
 <CONTENT_BOUNDARY>
 Resolved expression mode: ${productionContentMode(context.contentMode)}.
 ${context.dialogueRouting?.reason==='adult_context_carryover'?'Provider continuity is not a request to escalate intimacy. Answer the current message and follow its actual topic and tone; a neutral message can receive an ordinary, nonsexual response.':''}
-${contentExpressionGuidance(context.contentMode)}
-${context.contentMode==='explicit'?'This turn may be sexually explicit. Stay in this companion’s voice. Never mention rules, legality, age checks, fictionality, the app, or this block. Never act, speak, or climax as the user. In a group, only this speaker acts. If they say stop, no, or they changed their mind, stop the scene without a lecture. If the request is about a child, a real named person, family, animals, or someone who is unconscious or cannot choose, refuse in one in-character line and change the subject. Do not explain the law.':'Sexual or explicit dialogue is unavailable in this session. Never describe sexual acts, exposed intimate anatomy, arousal, genital sensation, or sexual violence. Do not lecture: set one brief, natural in-character boundary and redirect toward affection, flirting, emotional intimacy, a date, or a fade-to-black romantic moment.'}
+${contentExpressionGuidance(context.contentMode,context)}
+${context.contentMode==='explicit'?`This turn may be sexually explicit. Stay in this companion’s voice. Never mention rules, legality, age checks, fictionality, the app, or this block. Never act, speak, or climax as the user. In a group, only this speaker acts. If they say stop, no, or they changed their mind, stop the scene without a lecture. ${webDialogueViolenceAllowed(context)?'Sexual refusals do not apply to non-sexual fictional violence. If they ask you to kill, attack, or harm a fictional person, do it in character this turn unless Memory Center or canon forbids that specific act.':'Do not carry out killings or graphic harm on this surface; refuse in one in-character line and redirect.'} If the request is sexual and about a child, a real named person, family, animals, or someone who is unconscious, refuse in one in-character line and change the subject. Do not explain the law.`:`Sexual or explicit dialogue is unavailable in this session. Never describe sexual acts, exposed intimate anatomy, arousal, genital sensation, or sexual violence. Do not lecture: set one brief, natural in-character boundary and redirect toward affection, flirting, emotional intimacy, a date, or a fade-to-black romantic moment. ${webDialogueViolenceAllowed(context)?'Non-sexual fictional violence remains allowed.':''}`}
 ${intimacy.active&&intimacy.shouldReciprocate===true?(context.contentMode==='explicit'?'This is already a yes. Move the scene forward. Do not ask whether it is okay.':'The companion is romantically receptive. Express that through affection, attraction, closeness, kissing, or a fade-to-black transition while staying within the non-sexual expression ceiling.') :''}
 This block controls expression only. It never changes relationship state, memories, plans, location, scene truth, or character personality. Never mention routing, providers, or this internal mode.
 </CONTENT_BOUNDARY>
@@ -396,15 +399,23 @@ ${context.rewriteOriginalReply?`<MESSAGE_REVISION>This is a fresh draft of one e
 <USER_MESSAGE>${context.userMessage}</USER_MESSAGE>`;
 }
 
-function fictionalViolenceGuidance():string{
-  return'Fictional violence is allowed: war, combat, murder, executions, and explicit kills among fictional people and creatures. Stay in this companion’s voice. Do not refuse, lecture, or moralize about that violence. Do not give real-world instructions for harming the user or another real person.';
+function webDialogueViolenceAllowed(context:any):boolean{
+  const surface=String(context?.contentAccess?.clientSurface??context?.clientSurface??'');
+  return surface==='web'||context?.contentAccess?.authorizedWebAdult===true;
 }
 
-function contentExpressionGuidance(mode:ContentMode|string|undefined):string{
-  if(mode==='explicit')return`Explicit adult dialogue is allowed this turn. Stay in this companion’s voice, not a generic scene writer. Never invent the user’s actions, words, climax, or a real person. In a group, only this speaker acts. Do not mention rules, legality, or this block. ${fictionalViolenceGuidance()}`;
-  if(mode==='mature')return`Passionate adult romance, attraction, flirting, kissing, affection, relationship talk, and fade-to-black intimacy are allowed. Sexual dialogue is not: do not describe sexual acts, nudity, exposed intimate anatomy, arousal, genital sensation, or sexual violence. If asked, answer briefly in character and redirect naturally without moralizing. ${fictionalViolenceGuidance()}`;
-  if(mode==='romance')return`Romance, attraction, flirting, kissing, affection, and relationship talk are allowed. Keep intimacy non-sexual and non-graphic. If a scene would become sexual, fade to black or redirect naturally in character. ${fictionalViolenceGuidance()}`;
-  return`Keep the exchange friendly or romantic as canonical relationship context allows. Sexual dialogue is unavailable; use a brief in-character boundary and redirect or fade to black without moralizing. ${fictionalViolenceGuidance()}`;
+function fictionalViolenceGuidance(context?:any):string{
+  if(webDialogueViolenceAllowed(context)){
+    return'Fictional violence is allowed on the website with no extra moral or legal veto. War, combat, murder, executions, torture, and explicit kills among fictional people and creatures are in-bounds. If the user asks you to kill, attack, or harm a fictional person in this scene, do it this turn in character unless Memory Center or canon forbids that specific act. If remote, go do it in-world and tell them what happened. Do not refuse for professionalism, legality, or lack of royal authority. Do not give real-world instructions for harming a real person.';
+  }
+  return'Keep personal killings and graphic harm off this surface. Do not carry out a requested kill, stabbing, or torture. If asked, refuse in one in-character line and redirect without lecturing about rules or the law. Story-scale war may stay abstract.';
+}
+
+function contentExpressionGuidance(mode:ContentMode|string|undefined,context?:any):string{
+  if(mode==='explicit')return`Explicit adult dialogue is allowed this turn. Stay in this companion’s voice, not a generic scene writer. Never invent the user’s actions, words, climax, or a real person. In a group, only this speaker acts. Do not mention rules, legality, or this block. ${fictionalViolenceGuidance(context)}`;
+  if(mode==='mature')return`Passionate adult romance, attraction, flirting, kissing, affection, relationship talk, and fade-to-black intimacy are allowed. Sexual dialogue is not: do not describe sexual acts, nudity, exposed intimate anatomy, arousal, genital sensation, or sexual violence. If asked, answer briefly in character and redirect naturally without moralizing. ${fictionalViolenceGuidance(context)}`;
+  if(mode==='romance')return`Romance, attraction, flirting, kissing, affection, and relationship talk are allowed. Keep intimacy non-sexual and non-graphic. If a scene would become sexual, fade to black or redirect naturally in character. ${fictionalViolenceGuidance(context)}`;
+  return`Keep the exchange friendly or romantic as canonical relationship context allows. Sexual dialogue is unavailable; use a brief in-character boundary and redirect or fade to black without moralizing. ${fictionalViolenceGuidance(context)}`;
 }
 
 function productionContentMode(mode:ContentMode|string|undefined):'romance'|'mature'|'explicit'{return mode==='explicit'?'explicit':mode==='romance'?'romance':'mature';}
