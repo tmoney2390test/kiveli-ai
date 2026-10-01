@@ -85,7 +85,7 @@ test('six arcs have distinct bounded paths and no required romance',()=>{
   assert.equal(new Set(storyArcs.flatMap(a=>a.chapters.map(c=>c.title))).size,18);
   assert.equal(storyArcs.find(a=>a.slug==='eos-ghost-passenger').minStage,'friend');
   for(const arc of storyArcs){assert.equal(arc.chapters.length,3);assert.match(arc.chapters[2].narrativeSeed,/no decision|no decision/i);}
-  assert.equal(recurringEvents.length,9);assert.equal(worldFacts.length,37);
+  assert.equal(recurringEvents.length,9);assert.equal(worldFacts.length,40);
   assert.match(recurringEvents.at(-1).summary,/not a permanent closure/);
 });
 
