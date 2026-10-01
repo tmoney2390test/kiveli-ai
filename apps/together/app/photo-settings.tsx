@@ -3,6 +3,7 @@ import {router} from 'expo-router';
 import {ArrowLeft, Camera} from 'lucide-react-native';
 import {PageTitle, Screen, SectionHeader} from '../src/components';
 import {colors, radius} from '../src/theme';
+import {settingsMaterial as glass} from '../src/styles/settingsMaterial';
 import {useTogether} from '../src/store/useTogether';
 import {manageMedia} from '../src/lib/api';
 
@@ -15,7 +16,7 @@ export default function PhotoSettings() {
   };
   return <Screen>
     <View style={styles.header}><Pressable onPress={() => router.back()}><ArrowLeft color={colors.text}/></Pressable><PageTitle>Photos</PageTitle></View>
-    <View style={styles.intro}><Camera color={colors.rose}/><Text style={styles.lead}>Companions can share occasional photo offers that match where they are and what is happening in your story.</Text></View>
+    <View style={styles.intro}><Camera color={glass.accent}/><Text style={styles.lead}>Companions can share occasional photo offers that match where they are and what is happening in your story.</Text></View>
     <SectionHeader title="Photos from companions"/>
     <Toggle title="Companion photos" body="Allow photos and photo offers in Chat, Dates, Moments, and Galleries." value={preferences.companionPhotos !== false} onChange={(companionPhotos) => void save({companionPhotos, automaticPhotos: companionPhotos && preferences.automaticPhotos !== false})}/>
     <Toggle title="Automatic photo offers" body="Allow rare, meaningful life and Story photo offers. A provider is only called after you accept." value={preferences.companionPhotos !== false && preferences.automaticPhotos !== false} disabled={preferences.companionPhotos === false} onChange={(automaticPhotos) => void save({companionPhotos: true, automaticPhotos})}/>
@@ -24,14 +25,14 @@ export default function PhotoSettings() {
 }
 
 function Toggle({title, body, value, onChange, disabled = false}: {title: string; body: string; value: boolean; onChange: (value: boolean) => void; disabled?: boolean}) {
-  return <View style={[styles.row, disabled && {opacity: .5}]}><View style={{flex: 1}}><Text style={styles.title}>{title}</Text><Text style={styles.body}>{body}</Text></View><Switch disabled={disabled} value={value} onValueChange={onChange} trackColor={{false: colors.elevated, true: colors.rose}}/></View>;
+  return <View style={[styles.row, disabled && {opacity: .5}]}><View style={{flex: 1}}><Text style={styles.title}>{title}</Text><Text style={styles.body}>{body}</Text></View><Switch disabled={disabled} value={value} onValueChange={onChange} trackColor={{false: colors.elevated, true: glass.accent}}/></View>;
 }
 
 const styles = StyleSheet.create({
   header: {flexDirection: 'row', alignItems: 'center', gap: 14},
-  intro: {padding: 16, borderRadius: radius.lg, backgroundColor: 'rgba(216,62,234,.07)', borderWidth: 1, borderColor: 'rgba(216,62,234,.18)', gap: 10},
+  intro: {padding: 16, borderRadius: radius.lg, backgroundColor: glass.glass, borderWidth: 1, borderColor: glass.border, gap: 10},
   lead: {color: colors.text, fontSize: 13, lineHeight: 19},
-  row: {minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border},
+  row: {minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radius.md, backgroundColor: glass.glass, borderWidth: 1, borderColor: glass.border},
   title: {color: colors.text, fontWeight: '800'},
   body: {color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 3},
   note: {color: colors.muted, fontSize: 11, lineHeight: 17},

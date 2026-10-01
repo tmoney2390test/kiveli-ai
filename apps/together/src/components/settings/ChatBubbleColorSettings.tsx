@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { chatBubbleColorHex, chatBubbleColorOptions, chatBubbleTextColor, type ChatBubbleColor } from '@together/domain/src/chat-appearance';
 import { colors, radius, spacing, typography } from '../../theme';
 import { FrostedSurface } from '../FrostedGlass';
+import { chatSettingsPalette as glass } from './chatSettingsPalette';
 
 type BubbleOwner = 'user' | 'companion';
 
@@ -101,36 +102,36 @@ function ColorRow({ label, value, fallback, disabled, onPress }: { label: string
 }
 
 const styles = StyleSheet.create({
-  rows: { overflow: 'hidden', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: 'rgba(255,255,255,.025)' },
+  rows: { overflow: 'hidden', borderRadius: radius.md, borderWidth: 1, borderColor: glass.border, backgroundColor: glass.inset },
   row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
   rowLabel: { flex: 1, color: colors.text, fontSize: 13, fontWeight: '800' },
   rowPreview: { width: 48, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,.10)' },
   rowPreviewText: { fontSize: 13, fontWeight: '900' },
-  divider: { height: 1, marginLeft: 14, backgroundColor: colors.border },
-  overlay: { flex: 1, backgroundColor: 'rgba(3,2,7,.72)' },
+  divider: { height: 1, marginLeft: 14, backgroundColor: glass.divider },
+  overlay: { flex: 1, backgroundColor: glass.backdrop },
   overlayCompact: { justifyContent: 'flex-end' },
   overlayWide: { alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-  sheet: { width: '100%', maxWidth: 460, padding: spacing.lg, borderRadius: radius.xl, backgroundColor: 'rgba(28,21,39,.99)', borderWidth: 1, borderColor: 'rgba(199,120,255,.32)', shadowColor: '#000', shadowOpacity: .55, shadowRadius: 28, shadowOffset: { width: 0, height: 15 } },
+  sheet: { width: '100%', maxWidth: 460, padding: spacing.lg, borderRadius: radius.xl, backgroundColor: glass.nestedGlass, borderWidth: 1, borderColor: glass.border, shadowColor: '#000', shadowOpacity: .48, shadowRadius: 28, shadowOffset: { width: 0, height: 15 } },
   sheetCompact: { maxWidth: undefined, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
   handle: { width: 42, height: 4, alignSelf: 'center', borderRadius: 2, backgroundColor: 'rgba(255,255,255,.22)', marginTop: -7, marginBottom: 13 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   title: { flex: 1, color: colors.text, fontFamily: typography.display, fontSize: 23, fontWeight: '700' },
   close: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.045)' },
-  preview: { minHeight: 128, justifyContent: 'center', marginTop: 14, marginBottom: 18, padding: 18, borderRadius: radius.lg, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: colors.border },
+  preview: { minHeight: 128, justifyContent: 'center', marginTop: 14, marginBottom: 18, padding: 18, borderRadius: radius.lg, backgroundColor: glass.inset, borderWidth: 1, borderColor: glass.border },
   previewBubble: { maxWidth: '86%', paddingHorizontal: 16, paddingVertical: 13, borderRadius: radius.md },
   previewUser: { alignSelf: 'flex-end', borderBottomRightRadius: 4 },
   previewCompanion: { alignSelf: 'flex-start', borderBottomLeftRadius: 4 },
   previewText: { fontSize: 16, lineHeight: 22, fontWeight: '600' },
   palette: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 13 },
   swatchButton: { width: '30%', minHeight: 69, alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: radius.md, borderWidth: 1, borderColor: 'transparent' },
-  swatchButtonSelected: { borderColor: 'rgba(199,120,255,.55)', backgroundColor: 'rgba(157,66,228,.12)' },
+  swatchButtonSelected: { borderColor: glass.selectedBorder, backgroundColor: glass.selected },
   swatch: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,.16)' },
   swatchLabel: { color: colors.muted, fontSize: 10, fontWeight: '700' },
   swatchLabelSelected: { color: colors.text },
   actions: { flexDirection: 'row', gap: 10, marginTop: 20 },
-  reset: { minHeight: 48, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderBright },
+  reset: { minHeight: 48, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: radius.md, borderWidth: 1, borderColor: glass.border },
   resetText: { color: colors.textSecondary, fontSize: 13, fontWeight: '800' },
-  done: { minHeight: 48, flex: 1.55, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.violet },
+  done: { minHeight: 48, flex: 1.55, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: glass.accent },
   doneText: { color: '#fff', fontSize: 13, fontWeight: '900' },
   pressed: { opacity: .72 },
   disabled: { opacity: .5 },

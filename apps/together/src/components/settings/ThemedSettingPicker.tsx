@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing, typography } from '../../theme';
 import { chatGenerationChoiceInteraction, type ChatGenerationChoice } from '../../lib/chatGenerationOptions';
 import { FrostedSurface } from '../FrostedGlass';
+import { chatSettingsPalette as glass } from './chatSettingsPalette';
 
 type Props<T extends string|number>={
   visible:boolean;
@@ -65,9 +66,9 @@ export function ThemedSettingPicker<T extends string|number>({visible,title,desc
 }
 
 const styles=StyleSheet.create({
-  root:{flex:1,alignItems:'center',justifyContent:'center',padding:spacing.lg,backgroundColor:'rgba(3,2,7,.72)'},
+  root:{flex:1,alignItems:'center',justifyContent:'center',padding:spacing.lg,backgroundColor:glass.backdrop},
   rootCompact:{justifyContent:'flex-end',padding:0},
-  card:{width:'100%',maxWidth:480,maxHeight:'82%',overflow:'hidden',borderRadius:radius.xl,padding:spacing.lg,backgroundColor:'rgba(29,21,40,.99)',borderColor:'rgba(199,120,255,.38)'},
+  card:{width:'100%',maxWidth:480,maxHeight:'82%',overflow:'hidden',borderRadius:radius.xl,padding:spacing.lg,backgroundColor:glass.nestedGlass,borderColor:glass.border},
   cardCompact:{maxWidth:undefined,width:'100%',maxHeight:'88%',borderBottomLeftRadius:0,borderBottomRightRadius:0},
   header:{flexDirection:'row',alignItems:'center',gap:12,marginBottom:12},
   headerCopy:{flex:1,minWidth:0},
@@ -75,9 +76,9 @@ const styles=StyleSheet.create({
   description:{color:colors.muted,fontSize:11,lineHeight:16,marginTop:4},
   close:{width:40,height:40,borderRadius:20,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(255,255,255,.05)'},
   list:{paddingBottom:2},
-  option:{minHeight:72,flexDirection:'row',alignItems:'center',gap:12,paddingVertical:12,paddingHorizontal:13,borderRadius:radius.md,borderWidth:1,borderColor:'transparent'},
+  option:{minHeight:72,flexDirection:'row',alignItems:'center',gap:12,paddingVertical:12,paddingHorizontal:13,borderRadius:radius.md,borderWidth:1,borderColor:glass.border,backgroundColor:glass.inset,marginBottom:7},
   optionCompact:{minHeight:54},
-  optionActive:{backgroundColor:'rgba(112,55,139,.25)',borderColor:'rgba(199,120,255,.56)'},
+  optionActive:{backgroundColor:glass.selected,borderColor:glass.selectedBorder},
   optionCopy:{flex:1,minWidth:0},
   optionTitleRow:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:7},
   optionTitle:{color:colors.textSecondary,fontSize:14,fontWeight:'900'},
@@ -85,6 +86,6 @@ const styles=StyleSheet.create({
   optionDescription:{color:colors.muted,fontSize:11,lineHeight:16,marginTop:4},
   badge:{overflow:'hidden',color:'#E4BBFF',fontSize:9,fontWeight:'900',textTransform:'uppercase',paddingHorizontal:7,paddingVertical:3,borderRadius:999,backgroundColor:'rgba(168,69,242,.2)'},
   radio:{width:20,height:20,borderRadius:10,borderWidth:2,borderColor:colors.dimmed},
-  check:{width:22,height:22,borderRadius:11,alignItems:'center',justifyContent:'center',backgroundColor:colors.violet},
+  check:{width:22,height:22,borderRadius:11,alignItems:'center',justifyContent:'center',backgroundColor:glass.accent},
   pressed:{opacity:.8},
 });

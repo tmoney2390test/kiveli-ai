@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Check, ChevronDown, X } from 'lucide-react-native';
 import { GradientButton, Screen } from '../../src/components';
 import { colors, radius, typography } from '../../src/theme';
+import { settingsMaterial as glass } from '../../src/styles/settingsMaterial';
+import { FrostedSurface } from '../../src/components/FrostedGlass';
 import { createSupportTicket, type SupportCategory } from '../../src/lib/operations';
 import { canSubmitSupportRequest } from '../../src/lib/supportTicket';
 import { useSupportRequest } from '../../src/lib/useSupportRequest';
@@ -90,12 +92,12 @@ function SupportTopicPicker({ visible, value, onClose, onChoose }: { visible: bo
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
     <View style={[styles.pickerBackdrop, desktop && styles.pickerCentered]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close topic picker" onPress={onClose} style={StyleSheet.absoluteFill} />
-      <View accessibilityViewIsModal style={[styles.pickerSheet, desktop && styles.pickerDesktop, { maxHeight: height - 24, paddingBottom: Math.max(insets.bottom, 20) }]}>
+      <FrostedSurface intensity={92} style={[styles.pickerSheet, desktop && styles.pickerDesktop, { maxHeight: height - 24, paddingBottom: Math.max(insets.bottom, 20) }]}>
         <View style={styles.pickerHeader}><Text accessibilityRole="header" style={styles.pickerTitle}>What is this about?</Text><Pressable accessibilityRole="button" accessibilityLabel="Close topic picker" onPress={onClose} style={styles.pickerClose}><X size={20} color={colors.textSecondary} /></Pressable></View>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pickerOptions}>
-          {categories.map((item) => <Pressable key={item.value} accessibilityRole="radio" accessibilityState={{ checked: value === item.value }} onPress={() => onChoose(item.value)} style={({ pressed }) => [styles.pickerOption, value === item.value && styles.pickerOptionSelected, pressed && styles.pressed]}><Text style={[styles.pickerOptionText, value === item.value && styles.pickerOptionTextSelected]}>{item.label}</Text>{value === item.value ? <Check size={18} color={colors.rose} /> : null}</Pressable>)}
+          {categories.map((item) => <Pressable key={item.value} accessibilityRole="radio" accessibilityState={{ checked: value === item.value }} onPress={() => onChoose(item.value)} style={({ pressed }) => [styles.pickerOption, value === item.value && styles.pickerOptionSelected, pressed && styles.pressed]}><Text style={[styles.pickerOptionText, value === item.value && styles.pickerOptionTextSelected]}>{item.label}</Text>{value === item.value ? <Check size={18} color={glass.accent} /> : null}</Pressable>)}
         </ScrollView>
-      </View>
+      </FrostedSurface>
     </View>
   </Modal>;
 }
@@ -108,23 +110,23 @@ const styles = StyleSheet.create({
   intro: { color: colors.textSecondary, fontSize: 13, lineHeight: 20 },
   field: { gap: 8 },
   label: { color: colors.text, fontSize: 14, fontWeight: '800' },
-  input: { minHeight: 54, color: colors.text, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface, padding: 13, fontSize: 15 },
+  input: { minHeight: 54, color: colors.text, borderWidth: 1, borderColor: glass.border, borderRadius: radius.md, backgroundColor: glass.glass, padding: 13, fontSize: 15 },
   message: { minHeight: 160 },
-  pickerTrigger: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 15, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface },
+  pickerTrigger: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 15, borderWidth: 1, borderColor: glass.border, borderRadius: radius.md, backgroundColor: glass.glass },
   pickerValue: { flex: 1, color: colors.text, fontSize: 15 },
   meta: { color: colors.muted, fontSize: 12, lineHeight: 19 },
   error: { color: colors.danger, fontSize: 13, lineHeight: 19 },
   pressed: { opacity: .72 },
-  pickerBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(3,2,7,.74)' },
+  pickerBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: glass.backdrop },
   pickerCentered: { alignItems: 'center', justifyContent: 'center', padding: 18 },
-  pickerSheet: { width: '100%', padding: 20, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, borderWidth: 1, borderColor: 'rgba(225,146,198,.20)', backgroundColor: '#17121D' },
+  pickerSheet: { width: '100%', padding: 20, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, borderWidth: 1, borderColor: glass.border, backgroundColor: glass.nestedGlass },
   pickerDesktop: { maxWidth: 460, borderRadius: radius.xl },
   pickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   pickerTitle: { color: colors.text, fontFamily: typography.display, fontSize: 25, fontWeight: '700' },
   pickerClose: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   pickerOptions: { gap: 7, paddingTop: 18 },
-  pickerOption: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, borderRadius: radius.md, borderWidth: 1, borderColor: 'transparent' },
-  pickerOptionSelected: { borderColor: 'rgba(225,146,198,.32)', backgroundColor: 'rgba(216,62,234,.11)' },
+  pickerOption: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, borderRadius: radius.md, borderWidth: 1, borderColor: glass.border, backgroundColor: glass.inset },
+  pickerOptionSelected: { borderColor: glass.selectedBorder, backgroundColor: glass.selected },
   pickerOptionText: { flex: 1, color: colors.textSecondary, fontSize: 14, fontWeight: '800' },
   pickerOptionTextSelected: { color: colors.text },
 });

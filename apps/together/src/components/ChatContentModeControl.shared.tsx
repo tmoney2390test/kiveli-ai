@@ -5,6 +5,7 @@ import type { DialogueContentMode } from '../types';
 import { colors, radius } from '../theme';
 import type { ChatGenerationChoice } from '../lib/chatGenerationOptions';
 import { ThemedSettingPicker } from './settings/ThemedSettingPicker';
+import { chatSettingsPalette as glass } from './settings/chatSettingsPalette';
 
 type Props={value:DialogueContentMode;onChange:(value:DialogueContentMode)=>void;disabled:boolean;eligible:boolean};
 const baseOptions:ChatGenerationChoice<DialogueContentMode>[]=[
@@ -54,4 +55,4 @@ export function ChatContentModeControl({value,onChange,disabled,eligible}:Props)
   </View>;
 }
 
-const styles=StyleSheet.create({selector:{minHeight:64,flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:12,borderRadius:radius.md,backgroundColor:'rgba(255,255,255,.035)',borderWidth:1,borderColor:'rgba(199,120,255,.25)'},icon:{width:26,alignItems:'center'},label:{flex:1,minWidth:0,color:colors.text,fontSize:13,fontWeight:'900'},value:{color:'#E1B5FF',fontSize:12,fontWeight:'900'},disabled:{opacity:.48},pressed:{opacity:.74}});
+const styles=StyleSheet.create({selector:{minHeight:64,flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:12,borderRadius:radius.md,backgroundColor:glass.inset,borderWidth:1,borderColor:glass.border},icon:{width:26,alignItems:'center'},label:{flex:1,minWidth:0,color:colors.text,fontSize:13,fontWeight:'900'},value:{color:'#E1B5FF',fontSize:12,fontWeight:'900'},disabled:{opacity:.48},pressed:{opacity:.74}});

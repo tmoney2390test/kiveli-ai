@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, ChevronRight, RefreshCw } from 'lucide-react-native';
 import { GradientButton, PageTitle, Screen } from '../src/components';
 import { colors, radius } from '../src/theme';
+import { settingsMaterial as glass } from '../src/styles/settingsMaterial';
 import { type CustomerSupportDetail, loadMySupportTicket, loadMySupportTickets, replyToSupportTicket } from '../src/lib/operations';
 import { formatSupportTicketReference } from '../src/lib/supportTicket';
 import { useSupportRequest } from '../src/lib/useSupportRequest';
@@ -110,11 +111,11 @@ const styles = StyleSheet.create({
   label: { color: colors.text, fontWeight: '800', fontSize: 14 },
   meta: { color: colors.muted, fontSize: 12, lineHeight: 19 },
   sectionTitle: { color: colors.text, fontSize: 20, fontWeight: '800' },
-  newRequest: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 17, borderRadius: radius.md, borderWidth: 1, borderColor: 'rgba(203,166,239,.38)', backgroundColor: 'rgba(154,104,255,.14)' },
+  newRequest: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 17, borderRadius: radius.md, borderWidth: 1, borderColor: glass.selectedBorder, backgroundColor: glass.selected },
   newRequestText: { color: colors.text, fontSize: 15, fontWeight: '800' },
-  card: { gap: 9, padding: 16, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  staffCard: { borderColor: colors.violet, backgroundColor: 'rgba(154,104,255,.1)' },
-  input: { color: colors.text, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface, padding: 13 },
+  card: { gap: 9, padding: 16, borderRadius: radius.md, borderWidth: 1, borderColor: glass.border, backgroundColor: glass.glass },
+  staffCard: { borderColor: glass.selectedBorder, backgroundColor: glass.selected },
+  input: { color: colors.text, borderWidth: 1, borderColor: glass.border, borderRadius: radius.md, backgroundColor: glass.inset, padding: 13 },
   message: { minHeight: 130 },
   link: { color: colors.violet, fontWeight: '700', paddingVertical: 8 },
   pressed: { opacity: .75 },

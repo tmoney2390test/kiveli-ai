@@ -5,6 +5,7 @@ import { Screen } from '../src/components';
 import { SupportRecoveryLinks } from '../src/components/SupportRecoveryLinks';
 import { LegalSection } from '../src/components/LegalPage';
 import { colors, radius } from '../src/theme';
+import { settingsMaterial as glass } from '../src/styles/settingsMaterial';
 
 export default function Help() {
   return <Screen contentStyle={styles.page}>
@@ -41,9 +42,9 @@ const styles = StyleSheet.create({
   back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   heading: { color: colors.text, fontSize: 23, fontWeight: '800' },
   links: { gap: 10 },
-  answers: { gap: 22, padding: 20, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: 'rgba(22,16,31,.76)' },
-  row: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)' },
-  prominent: { borderColor: 'rgba(203,166,239,.38)', backgroundColor: 'rgba(154,104,255,.1)' },
+  answers: { gap: 22, padding: 20, borderWidth: 1, borderColor: glass.border, borderRadius: radius.lg, backgroundColor: glass.glass },
+  row: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderWidth: 1, borderColor: glass.border, borderRadius: radius.md, backgroundColor: glass.inset },
+  prominent: { borderColor: glass.selectedBorder, backgroundColor: glass.selected },
   pressed: { opacity: .75 },
   rowCopy: { flex: 1 },
   title: { color: colors.text, fontWeight: '900' },

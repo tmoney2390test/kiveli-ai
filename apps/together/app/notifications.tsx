@@ -6,6 +6,7 @@ import { ArrowLeft, Bell, CalendarDays, LockKeyhole, Moon, Sparkles } from 'luci
 import { GradientButton, PageTitle, Screen } from '../src/components';
 import {QuietHoursTimeField} from '../src/components/QuietHoursTimeField';
 import { colors, radius } from '../src/theme';
+import { settingsMaterial as glass } from '../src/styles/settingsMaterial';
 import { useTogether } from '../src/store/useTogether';
 import { invoke } from '../src/lib/api';
 import { deactivatePushNotifications, registerPushNotifications } from '../src/lib/pushNotifications';
@@ -26,7 +27,7 @@ export default function Notifications(){
   return <Screen contentStyle={styles.screen}>
     <View style={styles.header}><Pressable accessibilityLabel="Go back" onPress={()=>router.canGoBack()?router.back():router.replace('/settings')}><ArrowLeft color={colors.text}/></Pressable><PageTitle>Notifications & initiative</PageTitle></View>
     <Text style={styles.lead}>Choose when companions can reach out and whether Kivelle may alert this device.</Text>
-    <Toggle icon={<Bell color={colors.rose}/>} title="Device notifications" body="Show Kivelle messages outside the app." value={push} set={setPush}/>
+    <Toggle icon={<Bell color={glass.accent}/>} title="Device notifications" body="Show Kivelle messages outside the app." value={push} set={setPush}/>
 
     <Section title="Companion initiative" icon={<Sparkles size={17} color={colors.violet}/> }>
       {!initiativeEntitled?<Pressable onPress={()=>router.push(subscriptionHref({intent:'initiative',returnTo:'/notifications'}) as never)} style={styles.locked}><LockKeyhole size={18} color={colors.violet}/><View style={{flex:1}}><Text style={styles.lockedTitle}>Kivelle+ feature</Text><Text style={styles.body}>Companions remember their lives on every plan. Upgrade to let them naturally start conversations.</Text></View></Pressable>:null}
@@ -34,9 +35,9 @@ export default function Notifications(){
       <LevelChoices value={initiative} disabled={!initiativeEntitled} onChange={setInitiative}/>
     </Section>
 
-    <Section title="Reminders" icon={<CalendarDays size={17} color={colors.warm}/> }>
-      <Toggle icon={<CalendarDays color={colors.warm}/>} title="Date and plan reminders" body="Keep planned commitments visible even when companion initiative is off." value={dates} set={setDates}/>
-      <Toggle icon={<Bell color={colors.rose}/>} title="World events" body="Introductions and meaningful changes across your Kivelle worlds." value={world} set={setWorld}/>
+    <Section title="Reminders" icon={<CalendarDays size={17} color={glass.accent}/> }>
+      <Toggle icon={<CalendarDays color={glass.accent}/>} title="Date and plan reminders" body="Keep planned commitments visible even when companion initiative is off." value={dates} set={setDates}/>
+      <Toggle icon={<Bell color={glass.accent}/>} title="World events" body="Introductions and meaningful changes across your Kivelle worlds." value={world} set={setWorld}/>
     </Section>
 
     <Section title="Quiet hours" icon={<Moon size={17} color={colors.violet}/> }>
@@ -49,8 +50,8 @@ export default function Notifications(){
 
 function Section({title,icon,children}:{title:string;icon:React.ReactNode;children:React.ReactNode}){return <View style={styles.section}><View style={styles.sectionTitleRow}>{icon}<Text style={styles.sectionTitle}>{title}</Text></View>{children}</View>;}
 function LevelChoices({value,disabled,onChange}:{value:InitiativeLevel;disabled:boolean;onChange:(value:InitiativeLevel)=>void}){return <View accessibilityRole="radiogroup" style={styles.levels}>{initiativeLevels.map((level)=><Pressable key={level} accessibilityRole="radio" accessibilityState={{checked:value===level,disabled}} disabled={disabled} onPress={()=>onChange(level)} style={[styles.level,value===level&&styles.levelActive,disabled&&styles.disabled]}><Text style={[styles.levelText,value===level&&styles.levelTextActive]}>{level==='occasional'?'Quiet':level[0]!.toUpperCase()+level.slice(1)}</Text></Pressable>)}</View>;}
-function Toggle({icon,title,body,value,set}:{icon:React.ReactNode;title:string;body:string;value:boolean;set:(value:boolean)=>void}){return <View style={styles.row}>{icon}<View style={{flex:1}}><Text style={styles.title}>{title}</Text><Text style={styles.body}>{body}</Text></View><Switch accessibilityLabel={title} value={value} onValueChange={set} trackColor={{false:colors.elevated,true:colors.rose}}/></View>;}
+function Toggle({icon,title,body,value,set}:{icon:React.ReactNode;title:string;body:string;value:boolean;set:(value:boolean)=>void}){return <View style={styles.row}>{icon}<View style={{flex:1}}><Text style={styles.title}>{title}</Text><Text style={styles.body}>{body}</Text></View><Switch accessibilityLabel={title} value={value} onValueChange={set} trackColor={{false:colors.elevated,true:glass.accent}}/></View>;}
 
 const styles=StyleSheet.create({
-  screen:{maxWidth:760,width:'100%',alignSelf:'center',gap:18},header:{flexDirection:'row',gap:14,alignItems:'center'},lead:{color:colors.muted,lineHeight:20},section:{gap:12,padding:16,borderRadius:radius.lg,backgroundColor:'rgba(25,20,34,.78)',borderWidth:1,borderColor:colors.border},sectionTitleRow:{flexDirection:'row',alignItems:'center',gap:8},sectionTitle:{color:colors.text,fontFamily:'Georgia',fontSize:20,fontWeight:'700'},row:{minHeight:70,flexDirection:'row',gap:11,alignItems:'center',padding:13,borderRadius:radius.md,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},title:{color:colors.text,fontWeight:'800'},body:{color:colors.muted,fontSize:12,marginTop:3,lineHeight:17},hint:{color:colors.muted,fontSize:12,lineHeight:18},levels:{flexDirection:'row',flexWrap:'wrap',gap:7},level:{minHeight:40,paddingHorizontal:13,alignItems:'center',justifyContent:'center',borderRadius:radius.pill,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},levelActive:{backgroundColor:'rgba(155,99,215,.2)',borderColor:colors.violet},levelText:{color:colors.muted,fontSize:11,fontWeight:'800'},levelTextActive:{color:colors.text},disabled:{opacity:.42},locked:{flexDirection:'row',alignItems:'center',gap:11,padding:13,borderRadius:radius.md,backgroundColor:'rgba(155,99,215,.1)',borderWidth:1,borderColor:'rgba(155,99,215,.28)'},lockedTitle:{color:colors.text,fontWeight:'900'},quietTimeRow:{flexDirection:'row',flexWrap:'wrap',gap:10},
+  screen:{maxWidth:760,width:'100%',alignSelf:'center',gap:18},header:{flexDirection:'row',gap:14,alignItems:'center'},lead:{color:colors.muted,lineHeight:20},section:{gap:12,padding:16,borderRadius:radius.lg,backgroundColor:glass.glass,borderWidth:1,borderColor:glass.border},sectionTitleRow:{flexDirection:'row',alignItems:'center',gap:8},sectionTitle:{color:colors.text,fontFamily:'Georgia',fontSize:20,fontWeight:'700'},row:{minHeight:70,flexDirection:'row',gap:11,alignItems:'center',padding:13,borderRadius:radius.md,backgroundColor:glass.inset,borderWidth:1,borderColor:glass.border},title:{color:colors.text,fontWeight:'800'},body:{color:colors.muted,fontSize:12,marginTop:3,lineHeight:17},hint:{color:colors.muted,fontSize:12,lineHeight:18},levels:{flexDirection:'row',flexWrap:'wrap',gap:7},level:{minHeight:40,paddingHorizontal:13,alignItems:'center',justifyContent:'center',borderRadius:radius.pill,backgroundColor:glass.inset,borderWidth:1,borderColor:glass.border},levelActive:{backgroundColor:glass.selected,borderColor:glass.selectedBorder},levelText:{color:colors.muted,fontSize:11,fontWeight:'800'},levelTextActive:{color:colors.text},disabled:{opacity:.42},locked:{flexDirection:'row',alignItems:'center',gap:11,padding:13,borderRadius:radius.md,backgroundColor:glass.selected,borderWidth:1,borderColor:glass.border},lockedTitle:{color:colors.text,fontWeight:'900'},quietTimeRow:{flexDirection:'row',flexWrap:'wrap',gap:10},
 });

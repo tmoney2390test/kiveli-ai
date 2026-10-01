@@ -7,6 +7,8 @@ import { chatDynamismLabel, reasoningPreferenceLabel, type ChatDynamism, type Re
 import { chatDynamismChoices, reasoningChoicesForTier } from '../../lib/chatGenerationOptions';
 import { colors, radius } from '../../theme';
 import { ThemedSettingPicker } from './ThemedSettingPicker';
+import { chatSettingsPalette as glass } from './chatSettingsPalette';
+import { FrostedSurface } from '../FrostedGlass';
 
 type Props={
   veniceTest?:ChatTestCapability;
@@ -77,9 +79,11 @@ function SettingInfoTooltip({visible,title,body,onClose,testID}:{visible:boolean
   return <Modal transparent visible={visible} animationType="fade" statusBarTranslucent onRequestClose={onClose}>
     <View style={styles.tooltipRoot}>
       <Pressable accessibilityLabel={`Close ${title} information`} onPress={onClose} style={StyleSheet.absoluteFill}/>
-      <View testID={testID} accessibilityViewIsModal style={styles.tooltipCard}>
+      <View testID={testID} accessibilityViewIsModal style={styles.tooltipFrame}>
+      <FrostedSurface intensity={92} style={styles.tooltipCard}>
         <View style={styles.tooltipHeader}><View style={styles.tooltipMark}><Info size={18} color={colors.violet}/></View><Text style={styles.tooltipTitle}>{title}</Text><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={6} style={styles.tooltipClose}><X size={18} color={colors.muted}/></Pressable></View>
         <Text style={styles.tooltipBody}>{body}</Text>
+      </FrostedSurface>
       </View>
     </View>
   </Modal>;
@@ -88,14 +92,15 @@ function SettingInfoTooltip({visible,title,body,onClose,testID}:{visible:boolean
 const styles=StyleSheet.create({
   wrapper:{gap:10},
   testNotice:{color:colors.muted,fontSize:12,lineHeight:18,paddingHorizontal:8},
-  row:{minHeight:64,flexDirection:'row',alignItems:'stretch',paddingHorizontal:7,borderRadius:radius.md,backgroundColor:'rgba(255,255,255,.035)',borderWidth:1,borderColor:'rgba(199,120,255,.25)'},
+  row:{minHeight:64,flexDirection:'row',alignItems:'stretch',paddingHorizontal:7,borderRadius:radius.md,backgroundColor:glass.inset,borderWidth:1,borderColor:glass.border},
   infoButton:{width:44,minHeight:62,alignItems:'center',justifyContent:'center'},
   selector:{flex:1,minWidth:0,minHeight:62,flexDirection:'row',alignItems:'center',gap:10,paddingLeft:3,paddingRight:5},
   copy:{flex:1,minWidth:0},
   label:{color:colors.text,fontSize:13,fontWeight:'900'},
   value:{color:'#E1B5FF',fontSize:12,fontWeight:'900'},
-  tooltipRoot:{flex:1,alignItems:'center',justifyContent:'center',padding:20,backgroundColor:'rgba(3,2,7,.66)'},
-  tooltipCard:{width:'100%',maxWidth:380,padding:17,borderRadius:radius.lg,backgroundColor:'rgba(29,21,40,.99)',borderWidth:1,borderColor:'rgba(199,120,255,.42)'},
+  tooltipRoot:{flex:1,alignItems:'center',justifyContent:'center',padding:20,backgroundColor:glass.backdrop},
+  tooltipFrame:{width:'100%',maxWidth:380},
+  tooltipCard:{width:'100%',maxWidth:380,padding:17,borderRadius:radius.lg,backgroundColor:glass.nestedGlass,borderWidth:1,borderColor:glass.border},
   tooltipHeader:{flexDirection:'row',alignItems:'center',gap:9},
   tooltipMark:{width:32,height:32,borderRadius:16,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(168,69,242,.13)'},
   tooltipTitle:{flex:1,color:colors.text,fontFamily:'Georgia',fontSize:20,fontWeight:'800'},

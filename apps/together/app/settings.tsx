@@ -61,6 +61,7 @@ import {
 } from '../src/lib/settingsExperience';
 import { LoadingSkeleton } from '../src/components';
 import { ErrorState } from '../src/components/RouteState';
+import { FrostedSurface } from '../src/components/FrostedGlass';
 
 type SaveNotice = { kind: 'success' | 'error'; message: string } | null;
 type Snapshot = NonNullable<ReturnType<typeof useTogether.getState>['snapshot']>;
@@ -254,7 +255,7 @@ export default function Settings() {
 
   const settingsSurface = <View style={[styles.backdrop, desktop ? styles.backdropDesktop : { paddingTop: Math.max(insets.top, 8), paddingBottom: Math.max(insets.bottom, 8) }]} accessibilityViewIsModal={!desktop}>
     <Pressable accessible={false} onPress={close} style={StyleSheet.absoluteFill} />
-    <View style={[styles.modal, desktop ? styles.modalDesktop : styles.modalMobile, { height: modalHeight }]}>
+    <FrostedSurface intensity={92} style={[styles.modal, desktop ? styles.modalDesktop : styles.modalMobile, { height: modalHeight }]}>
       <View style={styles.header}>
         {!desktop && activeSection ? <Pressable accessibilityRole="button" accessibilityLabel="Back to all settings" onPress={showOverview} hitSlop={6} style={({ pressed }) => [styles.mobileBack, pressed && styles.pressed]}><ArrowLeft size={21} color={colors.text} /></Pressable> : <View style={styles.brandMark}><Text style={styles.brandInitial}>{(name || 'Y')[0]?.toUpperCase()}</Text></View>}
         <View style={styles.headerCopy}>
@@ -292,7 +293,7 @@ export default function Settings() {
 
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </FrostedSurface>
   </View>;
   const settingsModal = desktop
     ? settingsSurface

@@ -27,6 +27,7 @@ import { defaultDirectConversationTitle } from '../lib/conversation';
 import { type ChatBubbleColor } from '@together/domain/src/chat-appearance';
 import { ChatBubbleColorSettings } from './settings/ChatBubbleColorSettings';
 import { ChatSettingsTabs, type ChatSettingsTab } from './settings/ChatSettingsTabs';
+import { chatSettingsPalette as glass } from './settings/chatSettingsPalette';
 
 type Props = {
   visible: boolean;
@@ -223,7 +224,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
                   onPress={() => setResponseStyle(option.value)}
                   style={({ pressed }) => [styles.styleOption, active && styles.optionActive, pressed && styles.pressed]}
                 >
-                  <Icon size={21} color={active ? '#C778FF' : colors.muted} />
+                  <Icon size={21} color={active ? glass.accent : colors.muted} />
                   <Text style={[styles.styleOptionText, active && styles.optionTextActive]}>{option.value === 'texting' ? 'SMS' : 'Paragraph'}</Text>
                   {active ? <View style={styles.miniCheck}><Check size={11} color="#fff" strokeWidth={3} /></View> : null}
                 </Pressable>;
@@ -299,7 +300,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
           <View style={styles.intensityPopupHeader}><Text style={styles.intensityPopupTitle}>Chat language</Text><Pressable accessibilityLabel="Close" onPress={() => setLanguageMenuOpen(false)} style={styles.close}><X size={18} color={colors.muted} /></Pressable></View>
           <ScrollView style={styles.languageList} showsVerticalScrollIndicator={false}><View accessibilityRole="radiogroup" style={styles.intensityOptions}>{chatLanguageOptions.map((option) => {
             const active = option.value === chatLanguage;
-            return <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => { voicePlayer.pause(); setVoicePreview(null); setChatLanguage(option.value); setLanguageMenuOpen(false); }} style={({ pressed }) => [styles.voicePopupOption, active && styles.intensityOptionActive, pressed && styles.pressed]}><View style={{ flex: 1, minWidth: 0 }}><Text style={[styles.voicePopupLabel, active && styles.optionTextActive]}>{option.nativeLabel}</Text>{option.nativeLabel !== option.label ? <Text style={styles.voicePopupDetail}>{option.label}</Text> : null}</View>{active ? <Check size={17} color="#C778FF" strokeWidth={3} /> : null}</Pressable>;
+            return <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => { voicePlayer.pause(); setVoicePreview(null); setChatLanguage(option.value); setLanguageMenuOpen(false); }} style={({ pressed }) => [styles.voicePopupOption, active && styles.intensityOptionActive, pressed && styles.pressed]}><View style={{ flex: 1, minWidth: 0 }}><Text style={[styles.voicePopupLabel, active && styles.optionTextActive]}>{option.nativeLabel}</Text>{option.nativeLabel !== option.label ? <Text style={styles.voicePopupDetail}>{option.label}</Text> : null}</View>{active ? <Check size={17} color={glass.accent} strokeWidth={3} /> : null}</Pressable>;
           })}</View></ScrollView>
         </FrostedSurface>
       </View> : null}
@@ -309,7 +310,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
           <View style={styles.intensityPopupHeader}><Text style={styles.intensityPopupTitle}>Companion voice</Text><Pressable accessibilityLabel="Close" onPress={() => setVoiceMenuOpen(false)} style={styles.close}><X size={18} color={colors.muted} /></Pressable></View>
           <View accessibilityRole="radiogroup" style={styles.intensityOptions}>{selectableVoices.map((option) => {
             const active = option.value === voicePreset;
-            return <Pressable key={option.value ?? 'default'} accessibilityRole="radio" accessibilityState={{ checked: active, disabled: saving || voicePreviewBusy }} disabled={saving || voicePreviewBusy} onPress={() => selectVoice(option.value)} style={({ pressed }) => [styles.voicePopupOption, active && styles.intensityOptionActive, pressed && styles.pressed]}><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={[styles.voicePopupLabel, active && styles.optionTextActive]}>{option.label}</Text><Text numberOfLines={1} style={styles.voicePopupDetail}>{option.detail}</Text></View>{active ? <Check size={17} color="#C778FF" strokeWidth={3} /> : null}</Pressable>;
+            return <Pressable key={option.value ?? 'default'} accessibilityRole="radio" accessibilityState={{ checked: active, disabled: saving || voicePreviewBusy }} disabled={saving || voicePreviewBusy} onPress={() => selectVoice(option.value)} style={({ pressed }) => [styles.voicePopupOption, active && styles.intensityOptionActive, pressed && styles.pressed]}><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={[styles.voicePopupLabel, active && styles.optionTextActive]}>{option.label}</Text><Text numberOfLines={1} style={styles.voicePopupDetail}>{option.detail}</Text></View>{active ? <Check size={17} color={glass.accent} strokeWidth={3} /> : null}</Pressable>;
           })}</View>
         </FrostedSurface>
       </View> : null}
@@ -322,9 +323,9 @@ function SettingSection({ icon, label, optional = false, children }: { icon: Rea
 }
 
 const styles = StyleSheet.create({
-  modalRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.md, backgroundColor: 'rgba(3,2,7,.74)' },
-  modalCard: { width: '100%', maxWidth: 650, maxHeight: '92%', overflow: 'hidden', borderRadius: radius.xl, backgroundColor: 'rgba(31,24,42,.985)', borderColor: 'rgba(190,115,255,.30)', shadowColor: '#000', shadowOpacity: .56, shadowRadius: 32, shadowOffset: { width: 0, height: 18 } },
-  header: { minHeight: 67, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
+  modalRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.md, backgroundColor: glass.backdrop },
+  modalCard: { width: '100%', maxWidth: 650, maxHeight: '92%', overflow: 'hidden', borderRadius: radius.xl, backgroundColor: glass.glass, borderColor: glass.border, shadowColor: '#000', shadowOpacity: .48, shadowRadius: 32, shadowOffset: { width: 0, height: 18 } },
+  header: { minHeight: 67, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: glass.divider },
   title: { flex: 1, color: colors.text, fontFamily: typography.display, fontSize: 27, fontWeight: '700' },
   close: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.045)' },
   content: { gap: 24, padding: spacing.lg, paddingBottom: 26 },
@@ -332,56 +333,56 @@ const styles = StyleSheet.create({
   sectionLabel: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   sectionLabelText: { color: colors.text, fontSize: 14, fontWeight: '900' },
   optional: { color: colors.muted, fontSize: 12 },
-  input: { minHeight: 54, paddingHorizontal: 15, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.055)', borderWidth: 1, borderColor: 'rgba(199,120,255,.48)', color: colors.text, fontSize: 15 },
+  input: { minHeight: 54, paddingHorizontal: 15, borderRadius: radius.md, backgroundColor: glass.inset, borderWidth: 1, borderColor: glass.border, color: colors.text, fontSize: 15 },
   styleOptions: { flexDirection: 'row', gap: 10 },
-  styleOption: { minHeight: 78, flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-  optionActive: { backgroundColor: 'rgba(112,55,139,.26)', borderColor: '#A845F2', borderWidth: 2 },
+  styleOption: { minHeight: 78, flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: radius.md, backgroundColor: glass.inset, borderWidth: 1, borderColor: glass.border, overflow: 'hidden' },
+  optionActive: { backgroundColor: glass.selected, borderColor: glass.selectedBorder },
   styleOptionText: { color: colors.muted, fontSize: 14, fontWeight: '800' },
   optionTextActive: { color: colors.text },
-  miniCheck: { position: 'absolute', top: 8, right: 8, width: 19, height: 19, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.violet },
+  miniCheck: { position: 'absolute', top: 8, right: 8, width: 19, height: 19, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: glass.accent },
   textSizeOptions: { flexDirection: 'row', gap: 9 },
-  textSizeOption: { minHeight: 76, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: colors.border },
+  textSizeOption: { minHeight: 76, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: glass.inset, borderWidth: 1, borderColor: glass.border },
   aa: { color: colors.textSecondary, fontWeight: '900', lineHeight: 26 },
   textSizeLabel: { color: colors.muted, fontSize: 11, marginTop: 2 },
-  intensitySelect: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.04)', borderWidth: 1, borderColor: 'rgba(199,120,255,.30)' },
-  intensityIcon: { width: 31, height: 31, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#A845F2' },
+  intensitySelect: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, borderRadius: radius.md, backgroundColor: glass.inset, borderWidth: 1, borderColor: glass.border },
+  intensityIcon: { width: 31, height: 31, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: glass.accent },
   intensityValue: { flex: 1, color: colors.text, fontSize: 13, fontWeight: '900' },
   languageDetail: { color: colors.muted, fontSize: 10, lineHeight: 13, marginTop: 2 },
   languageHint: { color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: -3 },
   languageList: { maxHeight: 430 },
-  intensityOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 20, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, backgroundColor: 'rgba(3,2,7,.62)' },
-  intensityPopup: { width: '100%', maxWidth: 380, overflow: 'hidden', borderRadius: radius.xl, padding: 16, backgroundColor: 'rgba(28,21,39,.98)', borderColor: 'rgba(199,120,255,.38)', shadowColor: '#000', shadowOpacity: .55, shadowRadius: 28, shadowOffset: { width: 0, height: 15 } },
+  intensityOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 20, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, backgroundColor: glass.backdrop },
+  intensityPopup: { width: '100%', maxWidth: 380, overflow: 'hidden', borderRadius: radius.xl, padding: 16, backgroundColor: glass.nestedGlass, borderColor: glass.border, shadowColor: '#000', shadowOpacity: .48, shadowRadius: 28, shadowOffset: { width: 0, height: 15 } },
   intensityPopupHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   intensityPopupTitle: { flex: 1, color: colors.text, fontFamily: typography.display, fontSize: 22, fontWeight: '700' },
   intensityOptions: { gap: 7 },
-  intensityOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: colors.border },
-  intensityOptionActive: { backgroundColor: 'rgba(112,55,139,.26)', borderColor: '#A845F2' },
+  intensityOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: glass.inset, borderWidth: 1, borderColor: glass.border },
+  intensityOptionActive: { backgroundColor: glass.selected, borderColor: glass.selectedBorder },
   intensityOptionText: { color: colors.textSecondary, fontSize: 13, fontWeight: '900' },
   voiceControlRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
-  voiceSelect: { minHeight: 49, flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.04)', borderWidth: 1, borderColor: colors.border },
-  voiceSelectOpen: { borderColor: '#A845F2', backgroundColor: 'rgba(112,55,139,.18)' },
-  voiceSelectIcon: { width: 29, height: 29, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.violet },
+  voiceSelect: { minHeight: 49, flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, borderRadius: radius.md, backgroundColor: glass.inset, borderWidth: 1, borderColor: glass.border },
+  voiceSelectOpen: { borderColor: glass.selectedBorder, backgroundColor: glass.selected },
+  voiceSelectIcon: { width: 29, height: 29, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: glass.accent },
   voiceSelectLabel: { color: colors.text, fontSize: 12, fontWeight: '900' },
   voiceSelectDetail: { color: colors.muted, fontSize: 9, lineHeight: 12, marginTop: 2 },
-  voicePopupOption: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: colors.border },
+  voicePopupOption: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.md, backgroundColor: glass.inset, borderWidth: 1, borderColor: glass.border },
   voicePopupLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '900' },
   voicePopupDetail: { color: colors.muted, fontSize: 10, lineHeight: 14, marginTop: 2 },
-  voicePreviewButton: { minHeight: 49, minWidth: 78, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 11, borderRadius: radius.md, backgroundColor: colors.violet },
+  voicePreviewButton: { minHeight: 49, minWidth: 78, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 11, borderRadius: radius.md, backgroundColor: glass.accent },
   voicePreviewButtonText: { color: '#fff', fontSize: 10, fontWeight: '900' },
   voiceLoadingText: { color: colors.muted, fontSize: 9, marginTop: -5 },
-  voiceLocked: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.025)', borderWidth: 1, borderColor: colors.border },
+  voiceLocked: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, borderRadius: radius.md, backgroundColor: glass.inset, borderWidth: 1, borderColor: glass.border },
   voiceLockedTitle: { color: colors.textSecondary, fontSize: 11, fontWeight: '900' },
   voiceLockedCopy: { color: colors.muted, fontSize: 9, lineHeight: 13, marginTop: 3 },
-  divider: { height: 1, backgroundColor: colors.border },
+  divider: { height: 1, backgroundColor: glass.divider },
   manageTitle: { color: colors.dimmed, fontSize: 9, fontWeight: '900', letterSpacing: 1.2, marginBottom: -14 },
   tools: { gap: 7 },
-  toolRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: colors.border },
+  toolRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13, borderRadius: radius.md, backgroundColor: glass.inset, borderWidth: 1, borderColor: glass.border },
   toolTitle: { color: colors.text, fontSize: 12, fontWeight: '900' },
   toolBody: { color: colors.muted, fontSize: 9, lineHeight: 14, marginTop: 3 },
-  footer: { flexDirection: 'row', gap: 10, padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: 'rgba(17,13,24,.82)' },
-  cancel: { minHeight: 47, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderBright },
+  footer: { flexDirection: 'row', gap: 10, padding: spacing.lg, borderTopWidth: 1, borderTopColor: glass.divider, backgroundColor: 'rgba(17, 13, 26, .40)' },
+  cancel: { minHeight: 47, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: glass.border },
   cancelText: { color: colors.textSecondary, fontSize: 13, fontWeight: '800' },
-  save: { minHeight: 47, flex: 1.35, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: '#9D42E4', shadowColor: '#9D42E4', shadowOpacity: .28, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } },
+  save: { minHeight: 47, flex: 1.35, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: glass.accent, shadowColor: glass.accent, shadowOpacity: .24, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } },
   saveText: { color: '#fff', fontSize: 13, fontWeight: '900' },
   pressed: { opacity: .72 },
   disabled: { opacity: .52 },

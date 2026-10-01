@@ -7,6 +7,7 @@ import { confirmAction } from '../../lib/dialogs';
 import { useTogether } from '../../store/useTogether';
 import { colors, radius } from '../../theme';
 import type { CharacterInstance, Conversation } from '../../types';
+import { chatSettingsPalette as glass } from './chatSettingsPalette';
 
 export function SchedulePauseControl({character,conversation,disabled=false,compact=false}:{character:CharacterInstance;conversation:Conversation;disabled?:boolean;compact?:boolean}) {
   const stored=useTogether(state=>state.snapshot?.characters.find(item=>item.id===character.id));
@@ -37,7 +38,7 @@ export function SchedulePauseControl({character,conversation,disabled=false,comp
 }
 
 const styles=StyleSheet.create({
-  control:{minHeight:48,flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:14,borderRadius:radius.md,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface},
+  control:{minHeight:48,flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:14,borderRadius:radius.md,borderWidth:1,borderColor:glass.border,backgroundColor:glass.inset},
   menuControl:{minHeight:44,paddingHorizontal:9,borderWidth:0,backgroundColor:'transparent',borderRadius:radius.sm},
   menuLabel:{fontSize:12},
   label:{flex:1,color:colors.text,fontSize:14,fontWeight:'700'},pressed:{opacity:.8},disabled:{opacity:.5},

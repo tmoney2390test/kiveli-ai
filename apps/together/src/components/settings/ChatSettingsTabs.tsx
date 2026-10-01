@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius } from '../../theme';
+import { chatSettingsPalette as glass } from './chatSettingsPalette';
 
 export type ChatSettingsTab = 'chat' | 'appearance' | 'ai' | 'proactive';
 
@@ -30,9 +31,9 @@ export function ChatSettingsTabs({ value, disabled = false, includeProactive = f
 }
 
 const styles = StyleSheet.create({
-  tabs: { flexDirection: 'row', gap: 4, marginHorizontal: 18, marginTop: 14, padding: 4, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.04)', borderWidth: 1, borderColor: colors.border },
+  tabs: { flexDirection: 'row', gap: 4, marginHorizontal: 18, marginTop: 14, padding: 4, borderRadius: radius.md, backgroundColor: glass.inset, borderWidth: 1, borderColor: glass.border },
   tab: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
-  tabSelected: { backgroundColor: 'rgba(157,66,228,.24)', borderWidth: 1, borderColor: 'rgba(199,120,255,.52)' },
+  tabSelected: { backgroundColor: glass.selected, borderWidth: 1, borderColor: glass.selectedBorder },
   label: { color: colors.muted, fontSize: 12, fontWeight: '800' },
   labelSelected: { color: colors.text },
   pressed: { opacity: .72 },

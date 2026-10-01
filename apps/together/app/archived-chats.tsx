@@ -8,6 +8,7 @@ import{manageConversation}from'../src/lib/api';
 import{confirmAction}from'../src/lib/dialogs';
 import{useTogether}from'../src/store/useTogether';
 import{colors,radius}from'../src/theme';
+import{settingsMaterial as glass}from'../src/styles/settingsMaterial';
 import type{Conversation}from'../src/types';
 
 type ArchivedChat=Conversation&{message_count?:number;last_message_preview?:string|null};
@@ -81,13 +82,13 @@ export default function ArchivedChats(){
 const styles=StyleSheet.create({
   content:{width:'100%',maxWidth:760,alignSelf:'center',paddingBottom:80},
   header:{flexDirection:'row',alignItems:'flex-start',gap:13},
-  back:{width:40,height:40,alignItems:'center',justifyContent:'center',borderRadius:20,backgroundColor:colors.surface},
+  back:{width:40,height:40,alignItems:'center',justifyContent:'center',borderRadius:20,backgroundColor:glass.inset},
   subtitle:{color:colors.muted,fontSize:11,lineHeight:17,marginTop:4},
-  notice:{flexDirection:'row',alignItems:'flex-start',gap:12,padding:16,borderRadius:radius.lg,backgroundColor:'rgba(154,104,255,.08)',borderWidth:1,borderColor:'rgba(154,104,255,.22)'},
+  notice:{flexDirection:'row',alignItems:'flex-start',gap:12,padding:16,borderRadius:radius.lg,backgroundColor:glass.selected,borderWidth:1,borderColor:glass.border},
   noticeTitle:{color:colors.text,fontSize:13,fontWeight:'900'},
   noticeCopy:{color:colors.muted,fontSize:11,lineHeight:17,marginTop:4},
   list:{gap:10},
-  card:{padding:13,borderRadius:radius.lg,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,gap:11},
+  card:{padding:13,borderRadius:radius.lg,backgroundColor:glass.glass,borderWidth:1,borderColor:glass.border,gap:11},
   cardMain:{minWidth:0,flexDirection:'row',alignItems:'center',gap:13},
   copy:{minWidth:0,flex:1},
   nameRow:{flexDirection:'row',alignItems:'center',gap:8},

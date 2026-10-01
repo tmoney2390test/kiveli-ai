@@ -21,6 +21,7 @@ import { type ChatBubbleColor } from '@together/domain/src/chat-appearance';
 import { ChatBubbleColorSettings } from './settings/ChatBubbleColorSettings';
 import { ChatSettingsTabs, type ChatSettingsTab } from './settings/ChatSettingsTabs';
 import { QuietHoursSettingLink } from './settings/QuietHoursSettingLink';
+import { chatSettingsPalette as glass } from './settings/chatSettingsPalette';
 
 type Props = {
   visible: boolean;
@@ -202,9 +203,9 @@ function Choice({ label, selected, disabled, icon, onPress }: { label: string; s
 }
 
 const styles = StyleSheet.create({
-  modalRoot: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 18, backgroundColor: 'rgba(5,4,10,.72)' },
-  card: { width: '100%', maxWidth: 620, maxHeight: '92%', overflow: 'hidden', borderRadius: 24, backgroundColor: 'rgba(28,22,39,.97)', borderWidth: 1, borderColor: 'rgba(203,168,255,.2)' },
-  header: { minHeight: 67, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
+  modalRoot: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 18, backgroundColor: glass.backdrop },
+  card: { width: '100%', maxWidth: 620, maxHeight: '92%', overflow: 'hidden', borderRadius: 24, backgroundColor: glass.glass, borderWidth: 1, borderColor: glass.border },
+  header: { minHeight: 67, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: glass.divider },
   title: { flex: 1, color: colors.text, fontSize: 23, fontWeight: '900' },
   close: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   content: { padding: 20, gap: 22 },
@@ -212,29 +213,29 @@ const styles = StyleSheet.create({
   sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionLabel: { color: colors.text, fontSize: 13, fontWeight: '900' },
   sectionHint: { color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: -3 },
-  input: { minHeight: 50, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: 'rgba(255,255,255,.04)', paddingHorizontal: 14, color: colors.text, fontSize: 14 },
+  input: { minHeight: 50, borderRadius: radius.md, borderWidth: 1, borderColor: glass.border, backgroundColor: glass.inset, paddingHorizontal: 14, color: colors.text, fontSize: 14 },
   columns: { flexDirection: 'row', gap: 9 },
-  choice: { minHeight: 66, flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: colors.border },
+  choice: { minHeight: 66, flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8, borderRadius: radius.md, backgroundColor: glass.inset, borderWidth: 1, borderColor: glass.border },
   optionList: { gap: 7 },
-  choiceRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: colors.border },
-  languageSelect: { minHeight: 50, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: colors.border },
+  choiceRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: glass.inset, borderWidth: 1, borderColor: glass.border },
+  languageSelect: { minHeight: 50, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: glass.inset, borderWidth: 1, borderColor: glass.border },
   languageValue: { color: colors.text, fontSize: 13, fontWeight: '900' },
   languageDetail: { color: colors.muted, fontSize: 10, lineHeight: 14, marginTop: 2 },
   languageHint: { color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: -3 },
-  languageOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 20, alignItems: 'center', justifyContent: 'center', padding: 18, backgroundColor: 'rgba(3,2,7,.62)' },
-  languagePopup: { width: '100%', maxWidth: 380, maxHeight: '82%', overflow: 'hidden', borderRadius: 24, padding: 16, backgroundColor: 'rgba(28,21,39,.98)', borderWidth: 1, borderColor: 'rgba(199,120,255,.38)' },
+  languageOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 20, alignItems: 'center', justifyContent: 'center', padding: 18, backgroundColor: glass.backdrop },
+  languagePopup: { width: '100%', maxWidth: 380, maxHeight: '82%', overflow: 'hidden', borderRadius: 24, padding: 16, backgroundColor: glass.nestedGlass, borderWidth: 1, borderColor: glass.border },
   languagePopupHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   languagePopupTitle: { flex: 1, color: colors.text, fontSize: 22, fontWeight: '900' },
   languageList: { maxHeight: 430 },
-  selected: { backgroundColor: 'rgba(112,55,139,.24)', borderColor: '#A845F2' },
+  selected: { backgroundColor: glass.selected, borderColor: glass.selectedBorder },
   choiceText: { color: colors.muted, fontSize: 12, fontWeight: '800', textAlign: 'center' },
   selectedText: { color: colors.text },
   aa: { color: colors.muted, fontSize: 19, fontWeight: '900' },
-  divider: { height: 1, backgroundColor: colors.border },
-  footer: { flexDirection: 'row', gap: 10, padding: 20, borderTopWidth: 1, borderTopColor: colors.border },
-  cancel: { minHeight: 47, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderBright },
+  divider: { height: 1, backgroundColor: glass.divider },
+  footer: { flexDirection: 'row', gap: 10, padding: 20, borderTopWidth: 1, borderTopColor: glass.divider, backgroundColor: 'rgba(17, 13, 26, .40)' },
+  cancel: { minHeight: 47, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: glass.border },
   cancelText: { color: colors.textSecondary, fontSize: 13, fontWeight: '800' },
-  save: { minHeight: 47, flex: 1.35, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: '#9D42E4' },
+  save: { minHeight: 47, flex: 1.35, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: glass.accent },
   saveText: { color: '#fff', fontSize: 13, fontWeight: '900' },
   disabled: { opacity: .5 },
 });
