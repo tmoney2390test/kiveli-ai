@@ -20,6 +20,7 @@ describe('photo request authorization before prompt rewriting', () => {
   });
   it('continues restricted photo-like wording as chat without diverting safe photo requests', () => {
     expect(restrictedPhotoTextCanContinueAsChat('Send me a nude pic')).toBe(true);
+    expect(restrictedPhotoTextCanContinueAsChat('Send me a pic of you in your underwear')).toBe(true);
     expect(restrictedPhotoTextCanContinueAsChat('Can I see a nude photo?')).toBe(true);
     expect(restrictedPhotoTextCanContinueAsChat('Send me a photo in your blue dress')).toBe(false);
     expect(restrictedPhotoTextCanContinueAsChat('I liked the pic you sent yesterday')).toBe(false);

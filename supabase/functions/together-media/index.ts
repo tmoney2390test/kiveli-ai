@@ -31,7 +31,7 @@ import '../_shared/together-video-content.ts';
 import '../_shared/together-direct-video-frame.ts';
 import { resolveMediaContentPolicy } from '../../../packages/together-domain/src/media-routing.ts';
 import {acceptMediaOffer} from '../_shared/together-media-offer-acceptance.ts';
-import {declineMediaOffer,dismissMediaOffer,listPendingMediaOffers} from '../_shared/together-media-offers.ts';
+import {declineMediaOffer,dismissMediaOffer,listPendingMediaOffers,mediaOfferVisibleForSession} from '../_shared/together-media-offers.ts';
 import {queueMediaEdit} from '../_shared/together-media-edit.ts';
 import{synchronizedGeneratedPhotoPreferences}from'../_shared/together-photo-preferences.ts';
 import{isCustomCharacterTemplate,isFictionalCompanion}from'../_shared/together-media-character.ts';
@@ -131,7 +131,7 @@ serve(async(request,correlationId)=>{
     if(offerError)throw new AppError('INTERNAL_ERROR','That photo request could not be refreshed.',500,true);
     if(!offer)throw new AppError('NOT_FOUND','That photo request is unavailable.',404);
     const restricted=['suggestive','mature','explicit'].includes(String(offer.content_level));
-    if(restricted&&!adultAccess.authorized_web_adult)throw new AppError('NOT_FOUND','That photo request is unavailable.',404);
+    if((restricted||!mediaOfferVisibleForSession(offer,adultAccess.authorized_web_adult))&&!adultAccess.authorized_web_adult)throw new AppError('NOT_FOUND','That photo request is unavailable.',404);
     let media:Record<string,unknown>|null=null;
     if(typeof offer.generated_media_id==='string'&&offer.generated_media_id){
       let mediaQuery=db.from('together_generated_media').select('*').eq('id',offer.generated_media_id).eq('user_id',user.id).eq('continuity_id',continuity.id);

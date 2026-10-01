@@ -12,6 +12,7 @@ import{dailyPhotoAllowanceStatus,dailyPhotoReservationKey,releaseDailyPhotoAllow
 import{resolveCanonicalMediaWorld}from'./together-media-world.ts';
 import{resolveProductionSafePhotoRequest}from'../../../packages/together-domain/src/media.ts';
 import{configuredGroupImageRouteAvailable}from'./together-media-providers.ts';
+import { photoRequestRestriction } from '../../../packages/together-domain/src/photo-request-policy.ts';
 
 export type CreateMediaOfferInput={
   userId:string;characterInstanceId:string;source:MediaOfferSource;
@@ -20,6 +21,16 @@ export type CreateMediaOfferInput={
   title?:string;companionMessage?:string;contentLevel?:MediaContentLevel;shotType?:MediaShotType;offerKey?:string;previewMetadata?:Record<string,unknown>;
   adultPipelineAuthorized?:boolean;
 };
+
+export function mediaOfferVisibleForSession(offer:Record<string,any>,adultPipelineAuthorized:boolean):boolean{
+  if(adultPipelineAuthorized)return true;
+  const preview=(offer.preview_metadata??{}) as Record<string,unknown>;
+  return photoRequestRestriction({
+    ...(typeof preview.requestText==='string'?{requestText:preview.requestText}:{}),
+    requestedContentLevel:offer.content_level,
+    adultPipelineAuthorized:false,
+  })===null;
+}
 
 export async function createMediaOffer(db:SupabaseClient,input:CreateMediaOfferInput):Promise<Record<string,any>|null>{
   assertPhotoRequestAllowed({requestText:typeof input.previewMetadata?.requestText==='string'?input.previewMetadata.requestText:undefined,requestedContentLevel:input.contentLevel,adultPipelineAuthorized:input.adultPipelineAuthorized},{stage:'create_offer',userId:input.userId,characterInstanceId:input.characterInstanceId,conversationId:input.conversationId,requestId:input.offerKey});
@@ -72,9 +83,10 @@ export async function listPendingMediaOffers(db:SupabaseClient,input:{userId:str
   if(input.continuityId)query=query.eq('continuity_id',input.continuityId);
   if(input.characterInstanceId)query=query.eq('character_instance_id',input.characterInstanceId);
   const{data,error}=await query;if(error)throw new AppError('INTERNAL_ERROR','Photo offers could not be loaded.',500,true);
-  const unseen=(data??[]).filter((offer)=>offer.status==='pending'&&!offer.viewed_at);
+  const visible=(data??[]).filter((offer)=>mediaOfferVisibleForSession(offer,input.adultPipelineAuthorized===true));
+  const unseen=visible.filter((offer)=>offer.status==='pending'&&!offer.viewed_at);
   if(unseen.length){await db.from('together_media_offers').update({viewed_at:now,updated_at:now}).eq('user_id',input.userId).in('id',unseen.map((offer)=>offer.id)).is('viewed_at',null);for(const offer of unseen)await track(db,input.userId,'media_offer_viewed',{offerId:offer.id,source:offer.source,tier:offer.subscription_tier_at_creation,creditCost:offer.credit_cost,characterInstanceId:offer.character_instance_id});}
-  const presented=(data??[]).map((raw)=>unseen.some((item)=>item.id===raw.id)?{...raw,viewed_at:now}:raw);
+  const presented=visible.map((raw)=>unseen.some((item)=>item.id===raw.id)?{...raw,viewed_at:now}:raw);
   const tier=await resolveOfferSubscriptionTier(db,input.userId),allowance=await dailyPhotoAllowanceStatus(db,{userId:input.userId,limit:capabilitiesForTier(tier).includedCompanionPhotoDailyLimit});
   return presented.map((offer)=>{
     if(offer.source!=='user_request')return offer;

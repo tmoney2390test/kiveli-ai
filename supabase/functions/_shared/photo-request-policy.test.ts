@@ -3,6 +3,7 @@ import { acceptMediaOffer } from './together-media-offer-acceptance.ts';
 import { AppError } from './types.ts';
 import { classifyPhotoRequest } from './together-media-base.ts';
 import { restrictedPhotoTextCanContinueAsChat } from '../../../packages/together-domain/src/photo-request-policy.ts';
+import { mediaOfferVisibleForSession } from './together-media-offers.ts';
 
 Deno.test('relationship language does not become a server photo request', () => {
   if (classifyPhotoRequest('Sora you don’t want to see me you said it yourself').requested) throw new Error('A relationship message was routed to PhotoGen');
@@ -16,6 +17,19 @@ Deno.test('restricted native photo-like wording can continue as chat without rer
   if (!restrictedPhotoTextCanContinueAsChat('Can I see a nude photo?')) throw new Error('Restricted photo was not eligible for chat');
   if (restrictedPhotoTextCanContinueAsChat('Send me a photo in your blue dress')) throw new Error('Safe photo diverted from PhotoGen');
   if (restrictedPhotoTextCanContinueAsChat('I liked the pic you sent yesterday')) throw new Error('Ordinary chat was classified as a photo request');
+});
+
+Deno.test('underwear photo offers retain their adult classification across surfaces', () => {
+  const intent = classifyPhotoRequest('Maybe send me a pic of you in your underwear');
+  if (!intent.requested || intent.requestedContentLevel !== 'suggestive') {
+    throw new Error('Underwear photo was mislabeled as standard');
+  }
+});
+
+Deno.test('an older mislabeled adult offer is hidden from native sessions', () => {
+  const offer={content_level:'standard',preview_metadata:{requestText:'Send me a pic of you in your underwear'}};
+  if(mediaOfferVisibleForSession(offer,false))throw new Error('Mislabeled adult offer leaked to native');
+  if(!mediaOfferVisibleForSession(offer,true))throw new Error('Authorized web offer was hidden');
 });
 
 Deno.test('a disallowed photo creates no offer or allowance reservation', async () => {
