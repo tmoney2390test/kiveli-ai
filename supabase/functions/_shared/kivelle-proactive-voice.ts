@@ -13,7 +13,7 @@ type InitiativeInput = {
   db: SupabaseClient; userId: string; instance: Row; conversation: Row | null; relationship: Row;
   persona: unknown;
   draft: string; reason: string; sourceSummary?: string; sourceAt?: string; sourceMessageId?: string;
-  allowFallback?: boolean; timezone?: string; subscriptionTier: string; now: Date;
+  allowFallback?: boolean; messageKind?: string; timezone?: string; subscriptionTier: string; now: Date;
 };
 
 export async function renderCharacterInitiative(input: InitiativeInput): Promise<string> {
@@ -22,7 +22,8 @@ export async function renderCharacterInitiative(input: InitiativeInput): Promise
   const canonicalDraft = sanitizeInitiativeText(input.draft, { characterName: name, style });
   const chatLanguage = conversationChatLanguage(input.conversation);
   // Ambient drafts have not been checked against the recent conversation.
-  const fallback = input.allowFallback === true && /plan.*reminder|upcoming plan/i.test(input.reason) && chatLanguage === 'en' ? canonicalDraft : '';
+  const planReminder = input.messageKind === 'plan_reminder' || /plan.*reminder|upcoming plan/i.test(input.reason);
+  const fallback = input.allowFallback === true && planReminder && chatLanguage === 'en' ? canonicalDraft : '';
   const key = Deno.env.get('OPENAI_API_KEY');
   if (!input.conversation?.id) return '';
   const [history, initiatives, sourceMessage, latest] = await Promise.all([
@@ -48,6 +49,13 @@ export async function renderCharacterInitiative(input: InitiativeInput): Promise
   if (!key || Deno.env.get('KIVELLE_PROACTIVE_VOICE_ENABLED') === 'false') return safeFallback;
   const speakerRows = (history.data ?? []).filter((row) => row.role === 'user' ||
     String(row.speaker_character_instance_id ?? row.character_instance_id ?? '') === String(input.instance.id)).slice(0, 16);
+  const latestUserTurn = speakerRows.find((row) => row.role === 'user');
+  const isPlanReminder = planReminder;
+  // An ambient note needs a recent user topic. A life event alone must not
+  // change the subject of the user's private conversation.
+  if (!isPlanReminder && (!latestUserTurn ||
+    input.now.getTime() - Date.parse(String(latestUserTurn.created_at)) > 7 * 86400_000 ||
+    !conversationTopicWords(String(latestUserTurn.content ?? '')).size)) return '';
   if(!(await loadAiDataConsent(input.db,input.userId)).allowsProviderCalls)return '';
   const model = Deno.env.get('KIVELLE_PROACTIVE_MODEL')?.trim() || Deno.env.get('KIVELLE_OPENAI_DIALOGUE_MODEL')?.trim() || 'gpt-5.6-luna';
   const started = Date.now();
@@ -72,7 +80,9 @@ export async function renderCharacterInitiative(input: InitiativeInput): Promise
     const rawText = extractResponsesText(payload);
     const intentionallySkipped = payload.status !== 'incomplete' && ['', '""'].includes(rawText.trim());
     const candidate = sanitizeInitiativeText(rawText, { characterName: name, style });
-    const valid = payload.status !== 'incomplete' && initiativeRewritePreservesFacts(input.draft, candidate, chatLanguage) &&
+    const valid = payload.status !== 'incomplete' &&
+      (isPlanReminder ? initiativeRewritePreservesFacts(input.draft, candidate, chatLanguage) :
+        initiativeContinuesRecentConversation(candidate, String(latestUserTurn?.content ?? ''))) &&
       !isRepeatedInitiative(candidate, recentInitiatives);
     await recordAiUsage(scope(input), { provider: 'openai', model, operation: 'proactive_voice', usage, latencyMs: Date.now() - started,
       success: valid, httpStatus: response.status, errorCode: valid ? null : 'INITIATIVE_OUTPUT_REJECTED' });
@@ -85,7 +95,7 @@ export async function renderCharacterInitiative(input: InitiativeInput): Promise
 }
 
 export function proactiveVoicePrompt(input: {
-  instance: Row; relationship: Row; draft: string; reason: string; sourceSummary?: string; recent: Row[]; chatLanguage?: unknown;
+  instance: Row; relationship: Row; draft: string; reason: string; messageKind?: string; sourceSummary?: string; recent: Row[]; chatLanguage?: unknown;
   persona?: unknown; conversation?: Row | null; now?: Date; timezone?: string; sourceAt?: string; sourceMessage?: Row | null; recentInitiatives?: string[];
 }): string {
   const template = input.instance.together_character_templates ?? {}, version = input.instance.together_character_versions ?? {};
@@ -102,6 +112,7 @@ export function proactiveVoicePrompt(input: {
   const now = input.now ?? new Date(), timezone = input.timezone ?? 'UTC';
   const recent = input.recent.map((row) => ({ speaker: row.role === 'user' ? 'USER' : 'COMPANION',
     at: row.created_at ?? null, text: String(row.content ?? '').slice(0, 600) }));
+  const isPlanReminder = input.messageKind === 'plan_reminder' || /plan.*reminder|upcoming plan/i.test(input.reason);
   return `Write one naturally initiated message from this Kivelle companion. Return only the message text.
 
 CANONICAL SPEAKER — PRIVATE TO THIS CHARACTER
@@ -122,14 +133,16 @@ Now: ${now.toISOString()}; local time: ${now.toLocaleString('en-US', { timeZone:
 Source event/topic time: ${input.sourceAt ?? 'unknown'}.
 Source timestamps control tense. Never copy yesterday's "today", "tonight", "tomorrow", or "right now" as present truth.
 
-CANONICAL REASON FOR REACHING OUT
+RECENT SHARED CHAT — PRIMARY CONTEXT${isPlanReminder ? ' EXCEPT FOR A FACTUAL PLAN REMINDER' : ''}
+${JSON.stringify(recent)}
+The latest user turn and the companion's response are the topic to continue. If that exchange gives you no specific, natural follow-up, return an empty string.
+
+${isPlanReminder ? 'FACTUAL PLAN REMINDER' : 'OPTIONAL BACKGROUND SOURCE — USE ONLY IF IT NATURALLY FITS THE RECENT CHAT'}
 ${input.reason}
 Grounded source: ${input.sourceSummary ?? input.draft}
 Faithful draft: ${input.draft}
 Original user disclosure, if available: ${JSON.stringify(input.sourceMessage ?? null)}
 
-RECENT SHARED CHAT
-${JSON.stringify(recent)}
 Recent initiated messages — avoid repeating their topic presentation, opening, question, or joke:
 ${JSON.stringify(input.recentInitiatives ?? [])}
 
@@ -138,12 +151,12 @@ RULES
 - ${chatLanguagePromptInstruction(input.chatLanguage)} Do not announce or explain the language choice.
 - ${conversationStyleGuidance(input.conversation?.metadata?.chatPreferences)}
 - One to three short sentences, usually 40–220 characters, never more than 520. SMS: one compact paragraph. Paragraph mode: at most two compact paragraphs. Finish every thought; do not pad to reach a target.
-- Preserve the source's facts, timing, plan status, and intent. Do not invent a new event, promise, location, user action, memory, outcome, or relationship change.
+- Preserve any source facts you actually mention, including timing and plan status. Do not invent a new event, promise, location, user action, memory, outcome, or relationship change.
 - Use a specific reason to reach out and one fitting conversational move: a personal reaction, genuine curiosity, an established shared joke, or a concrete update. Only use a shared joke or unresolved discussion when the supplied chat establishes it.
 - A question is optional; at most one. Avoid generic check-ins, interviews, manufactured suspense, guilt, demands for a reply, or complaints about silence.
 - Sound like this character, including their era and register. Do not force slang, flirting, professional metaphors, cleverness, or emotional intimacy.
 - Keep background messages within the existing safe/suggestive content scope.
-- Continue the most recent shared conversation naturally. Its latest topic, tone, and unresolved thread take priority over a background event. Never restart an old topic that the user has moved past.
+- Continue the most recent shared conversation naturally. Refer to a specific topic from the latest user turn rather than a generic check-in. Its topic, tone, and unresolved thread take priority over a background event. Never restart an old topic that the user has moved past.
 - Only mention the source event if it connects naturally to the recent exchange; never invent that connection. For an explicitly scheduled plan reminder, a concise factual reminder is sufficient.
 - If there is no relevant recent exchange, the topic is already resolved, or the last message already asks the user the same thing, return an empty string. Do not answer on behalf of the user or stack another question onto an unanswered question.
 - Plain message text only: no speaker names, headings, lists, markdown, code, timestamps, quoted wrappers, or stage directions. This is remote communication; do not perform physical actions with the user.
@@ -191,6 +204,22 @@ export function initiativeRewritePreservesFacts(draft: string, candidate: string
   const anchors = (value: string) => new Set((value.toLowerCase().match(/[\p{L}]{4,}/gu) ?? []).filter((word) => !ignored.has(word)));
   const source = anchors(draft), output = anchors(candidate);
   return source.size === 0 || [...source].some((word) => output.has(word));
+}
+
+const conversationStopWords = new Set('about after again alright also are been before being can could did does doing done for from had has have having her here him his just know like maybe more much okay only our really said should some still than that the their them then there these they thing things think this those today tomorrow tonight very want wanted were what when where which with would yeah you your yours'.split(' '));
+function conversationTopicWords(value: string): Set<string> {
+  return new Set((value.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [])
+    .filter((word) => !conversationStopWords.has(word) && !/^\d+$/.test(word)));
+}
+
+/** Prefer silence to a note about a life event unrelated to the user's latest turn. */
+export function initiativeContinuesRecentConversation(candidate: string, latestUserMessage: string): boolean {
+  if (!candidate) return false;
+  const topic = conversationTopicWords(latestUserMessage);
+  const reply = conversationTopicWords(candidate);
+  if (!topic.size || ![...topic].some((word) => reply.has(word))) return false;
+  const knownNumbers = new Set(latestUserMessage.match(/\b\d{1,4}(?::\d{2})?\b/g) ?? []);
+  return (candidate.match(/\b\d{1,4}(?::\d{2})?\b/g) ?? []).every((number) => knownNumbers.has(number));
 }
 
 export function isRepeatedInitiative(candidate: string, recent: string[]): boolean {

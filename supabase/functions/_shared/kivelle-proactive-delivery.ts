@@ -76,7 +76,7 @@ export async function persistCharacterInitiative(input: DeliveryInput): Promise<
       const tier = entitlement?.expires_at && Date.parse(entitlement.expires_at) <= now.getTime()
         ? 'free' : normalizeSubscriptionTier(entitlement?.tier);
       content = await renderCharacterInitiative({ db, userId, instance, conversation, relationship: relationshipResult.data, persona:continuity.together_user_personas,
-        draft: source.draft, reason: String(proactive.reason ?? 'A grounded update'), sourceSummary: source.summary,
+        draft: source.draft, reason: String(proactive.reason ?? 'A grounded update'), messageKind: String(proactive.context?.messageKind ?? ''), sourceSummary: source.summary,
         sourceAt: source.occurredAt, sourceMessageId: source.sourceMessageId, allowFallback: source.allowFallback,
         timezone: input.timezone, subscriptionTier: tier, now });
       if (!content) return await cancel('no_suitable_message');

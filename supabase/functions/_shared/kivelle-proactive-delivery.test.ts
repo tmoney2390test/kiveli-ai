@@ -223,7 +223,9 @@ Deno.test('group plan reminders retain their speaker and survive recent user act
   f.tables.together_conversations![0]!.kind = 'group';
   f.tables.together_shared_plans!.push({ id: 'plan', user_id: 'user', participant_instance_ids: ['character'],
     title: 'Gallery coffee', status: 'scheduled', starts_at: '2026-09-07T14:00:00Z', ends_at: '2026-09-07T15:00:00Z' });
-  f.tables.together_messages!.push({ role: 'user', user_id: 'user', conversation_id: 'conversation', created_at: now.toISOString() });
+  f.tables.together_messages!.push({ id: 'recent-group-message', role: 'user', user_id: 'user', conversation_id: 'conversation',
+    character_instance_id: 'character', content: 'See you at Gallery coffee.', visibility_scope: 'all',
+    content_rating: 'safe', delivery_status: 'complete', created_at: now.toISOString() });
   await withModel(async () => {
     assert(await f.run());
     assertEquals(f.tables.together_messages!.at(-1)!.speaker_character_instance_id, 'character');
@@ -251,6 +253,24 @@ Deno.test('invalid event output never falls back to narrator prose', async () =>
   }, undefined, '*walks over to you* The first edition is damaged.');
 });
 
+Deno.test('an unrelated event cannot replace the latest conversation topic', async () => {
+  for (const [output, delivered] of [
+    ['I repaired the greenhouse door.', false],
+    ['How are you feeling about the museum interview?', true],
+  ] as const) {
+    const f = fixture();
+    Object.assign(f.tables.together_proactive_messages![0]!, {
+      open_thread_id: null, life_event_id: 'event', dedupe_key: 'event:event', reason: 'Life event: greenhouse repair',
+    });
+    f.tables.together_life_events!.push({ id: 'event', user_id: 'user', character_instance_id: 'character',
+      user_should_know: true, narrative_summary: 'Evelyn repaired the greenhouse door.', starts_at: yesterday });
+    await withModel(async () => {
+      assertEquals(Boolean(await f.run()), delivered);
+      assertEquals(f.tables.together_messages!.filter((message) => message.role === 'assistant').length, delivered ? 1 : 0);
+    }, undefined, output);
+  }
+});
+
 Deno.test('disabling initiative during generation prevents insertion', async () => {
   const f = fixture();
   await withModel(async () => {
@@ -270,9 +290,9 @@ Deno.test('withdrawn AI sharing prevents queued context from reaching the provid
 });
 
 Deno.test('unanswered check-ins back off and stop after three, including queued catch-up', async () => {
-  for (const [hours, count, expected] of [[20,1,false],[40,1,true],[40,2,false],[80,2,true],[200,3,false]] as const) {
+  for (const [hours, count, expected] of [[20,1,false],[40,1,true],[40,2,false],[80,2,true],[120,3,false]] as const) {
     const f=fixture();
-    f.tables.together_messages![0]!.created_at=new Date(now.getTime()-300*3600000).toISOString();
+    f.tables.together_messages![0]!.created_at=new Date(now.getTime()-150*3600000).toISOString();
     for(let i=0;i<count;i++) f.tables.together_messages!.push({id:'sent-'+i,user_id:'user',conversation_id:'conversation',character_instance_id:'character',role:'assistant',created_at:new Date(now.getTime()-(hours+i)*3600000).toISOString(),provider_metadata:{proactive:'true'}});
     await withModel(async calls=>{const result=await f.run();assertEquals(Boolean(result),expected);assertEquals(calls.count,expected?1:0);});
   }

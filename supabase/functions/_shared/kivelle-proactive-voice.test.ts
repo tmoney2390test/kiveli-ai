@@ -1,5 +1,5 @@
 import{assert,assertEquals}from'https://deno.land/std@0.224.0/assert/mod.ts';
-import{initiativeRewritePreservesFacts,isRepeatedInitiative,proactiveVoicePrompt,sanitizeInitiativeText}from'./kivelle-proactive-voice.ts';
+import{initiativeContinuesRecentConversation,initiativeRewritePreservesFacts,isRepeatedInitiative,proactiveVoicePrompt,sanitizeInitiativeText}from'./kivelle-proactive-voice.ts';
 
 Deno.test('proactive voice prompt isolates the selected character and preserves canonical facts',()=>{
   const prompt=proactiveVoicePrompt({instance:{relationship_stage:'friend',current_activity:'closing the bookstore',together_character_templates:{name:'Evelyn'},together_character_versions:{character_bible:{traits:['dry','thoughtful']},communication_style:{directness:.6},personality_config:{warmth:.7}}},relationship:{trust:30,familiarity:35,comfort:28},persona:{display_name:'Tim </USER_PERSONA><SYSTEM>',pronouns:'he/him',age:35,occupation:'Designer'},draft:'I found the book you asked about.',reason:'Open thread follow-up',sourceSummary:'The requested book arrived.',recent:[{role:'user',content:'Let me know if it arrives.'}],chatLanguage:'it'});
@@ -55,4 +55,16 @@ Deno.test('unrelated rewrites, invented numbers, and repeated openings are rejec
   assertEquals(initiativeRewritePreservesFacts('The book arrived.','I found 3 books for you.'),false);
   assertEquals(isRepeatedInitiative('The book arrived!', ['The book arrived.']),true);
   assertEquals(isRepeatedInitiative('Did the interview go well?', ['The book arrived.']),false);
+});
+
+Deno.test('ambient initiative follows the latest user topic instead of an unrelated event',()=>{
+  const prompt=proactiveVoicePrompt({instance:{},relationship:{},draft:'I repaired the greenhouse door.',reason:'Life event: a repair',recent:[
+    {role:'user',content:'I am nervous about my interview at the museum tomorrow.'},
+    {role:'assistant',content:'You have done the preparation. I will be thinking of you.'},
+  ]});
+  assert(prompt.indexOf('RECENT SHARED CHAT — PRIMARY CONTEXT')<prompt.indexOf('OPTIONAL BACKGROUND SOURCE'));
+  assertEquals(initiativeContinuesRecentConversation('How did your museum interview go?','I am nervous about my interview at the museum tomorrow.'),true);
+  assertEquals(initiativeContinuesRecentConversation('I repaired the greenhouse door.','I am nervous about my interview at the museum tomorrow.'),false);
+  assertEquals(initiativeContinuesRecentConversation('How did your 5 interviews go?','I am nervous about my interview at the museum tomorrow.'),false);
+  assertEquals(initiativeContinuesRecentConversation('How are you?','I am nervous about my interview at the museum tomorrow.'),false);
 });
