@@ -8,7 +8,6 @@ export const styles=StyleSheet.create({
   ,mobileLocationBackground:{...StyleSheet.absoluteFill,overflow:'hidden'}
   ,mobileLocationShade:{...StyleSheet.absoluteFill,backgroundColor:'rgba(5,7,13,.68)'}
   ,mobileLocationTopShade:{position:'absolute',top:0,left:0,right:0,height:190,backgroundColor:'rgba(5,7,13,.20)'}
-  ,mobileLocationBottomShade:{position:'absolute',left:0,right:0,bottom:0,height:210,backgroundColor:'rgba(5,7,13,.32)'}
   ,chatGlowLayer:{position:'absolute',top:0,right:0,bottom:0,left:0,overflow:'hidden'}
   ,chatGlow:{position:'absolute',borderRadius:999,backgroundColor:'rgba(156,68,196,.035)',...(Platform.OS==='web'?({filter:'blur(62px)'} as never):{})}
   ,chatGlowRose:{width:620,height:620,top:'14%',right:-250,backgroundColor:'rgba(216,62,234,.055)',...(Platform.OS==='web'?({backgroundImage:'radial-gradient(circle, rgba(216,62,234,.15) 0%, rgba(164,46,182,.055) 44%, transparent 73%)'} as never):{})}

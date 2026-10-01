@@ -1220,7 +1220,6 @@ function ChatSession() {
           <Image source={mobileLocationBackground} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" transition={180}/>
           <View style={styles.mobileLocationShade}/>
           <View style={styles.mobileLocationTopShade}/>
-          <View style={styles.mobileLocationBottomShade}/>
         </View>:null}
         <ChatAmbientGlow compact={width < 720} />
         {width<720?<MobileChatMediaHeader
