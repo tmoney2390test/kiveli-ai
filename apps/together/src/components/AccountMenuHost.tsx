@@ -1,18 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { Platform } from 'react-native';
 import { AccountMenu } from './AccountMenu';
 
 type AccountMenuContextValue = {
   openAccountMenu: () => void;
+  returnToAccountMenu: () => void;
   settingsReady: () => void;
 };
 
 const AccountMenuContext = createContext<AccountMenuContextValue | null>(null);
 
 export function AccountMenuHost({ children }: PropsWithChildren) {
+  const pathname = usePathname();
   const [visible, setVisible] = useState(false);
   const waitingForSettings = useRef(false);
+  const reopeningAfterSettings = useRef(false);
   const fallback = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const close = useCallback(() => {
@@ -24,6 +27,19 @@ export function AccountMenuHost({ children }: PropsWithChildren) {
 
   useEffect(() => () => {
     if (fallback.current) clearTimeout(fallback.current);
+  }, []);
+
+  useEffect(() => {
+    if (!reopeningAfterSettings.current || pathname.startsWith('/settings')) return;
+    reopeningAfterSettings.current = false;
+    const frame = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(frame);
+  }, [pathname]);
+
+  const returnToAccountMenu = useCallback(() => {
+    reopeningAfterSettings.current = true;
+    if (router.canGoBack()) router.back();
+    else router.replace('/home' as never);
   }, []);
 
   const navigate = useCallback((href: string) => {
@@ -46,7 +62,7 @@ export function AccountMenuHost({ children }: PropsWithChildren) {
     requestAnimationFrame(close);
   }, [close]);
 
-  const value = useMemo(() => ({ openAccountMenu: () => setVisible(true), settingsReady }), [settingsReady]);
+  const value = useMemo(() => ({ openAccountMenu: () => setVisible(true), returnToAccountMenu, settingsReady }), [returnToAccountMenu, settingsReady]);
   return <AccountMenuContext.Provider value={value}>
     {children}
     <AccountMenu visible={visible} onClose={close} onNavigate={navigate} />

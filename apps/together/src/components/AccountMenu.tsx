@@ -2,11 +2,12 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Brain, ChevronRight, CreditCard, Heart, KeyRound, LifeBuoy, MessageCircle, Shield, Sparkles, UsersRound, X } from 'lucide-react-native';
+import { Brain, ChevronRight, CreditCard, Heart, KeyRound, LifeBuoy, LogOut, MessageCircle, Shield, Sparkles, UsersRound, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTogether } from '../store/useTogether';
 import { useProfileAvatarUrl } from '../hooks/useProfileAvatarUrl';
 import { useSubscriptionStatus } from '../hooks/useSubscriptionStatus';
+import { useSignOutAction } from '../hooks/useSignOutAction';
 import { privateStoredImageSource } from '../lib/mediaImageSource';
 import { subscriptionHref } from '../lib/subscriptionPresentation';
 import { warmRoute } from '../lib/routeWarmup';
@@ -19,6 +20,7 @@ const accent = glass.accent;
 export function AccountMenu({ visible, onClose, onNavigate }: { visible: boolean; onClose: () => void; onNavigate: (href: string) => void }) {
   const snapshot = useTogether(state => state.snapshot);
   const { data: subscription, isError, refetch } = useSubscriptionStatus(visible && Boolean(snapshot));
+  const { signingOut, requestSignOut } = useSignOutAction(onClose);
   const avatarPath = snapshot?.profile?.avatar_path;
   const avatarUrl = useProfileAvatarUrl(avatarPath);
   const avatar = privateStoredImageSource(avatarUrl, avatarPath);
@@ -71,6 +73,7 @@ export function AccountMenu({ visible, onClose, onNavigate }: { visible: boolean
             {row('Help & support', <LifeBuoy size={21} color={accent}/>, '/settings?section=support')}
           </View>
         </ScrollView>
+        <View style={s.footer}><Pressable accessibilityRole="button" accessibilityLabel="Sign out" accessibilityState={{ disabled: signingOut }} disabled={signingOut} onPress={requestSignOut} style={({ pressed }) => [s.signOut, pressed && s.pressed]}><LogOut size={19} color={colors.danger}/><Text style={s.signOutLabel}>{signingOut ? 'Signing out…' : 'Sign out'}</Text></Pressable></View>
       </FrostedSurface>
     </View>
   </Modal>;
@@ -96,5 +99,8 @@ const s = StyleSheet.create({
   label: { color: colors.text, fontSize: 16, flexShrink: 1 },
   muted: { color: '#BDB0CA', fontSize: 12, lineHeight: 18 },
   retry: { padding: 14, minHeight: 44 },
+  footer: { padding: 16, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: glass.divider },
+  signOut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 52, borderWidth: 1, borderColor: glass.border, borderRadius: 14, backgroundColor: glass.inset },
+  signOutLabel: { color: colors.danger, fontSize: 16, fontWeight: '600' },
   pressed: { opacity: .72 },
 });
