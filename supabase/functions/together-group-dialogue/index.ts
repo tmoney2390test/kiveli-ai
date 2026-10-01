@@ -13,6 +13,7 @@ import {
   compileIntimacyStance,
   containsSecretLikeValue,
   hasExplicitSexualOutputLanguage,
+  hasFictionalViolenceLanguage,
   hasSexualDialogueLanguage,
   isDialogueHardBlocked,
   isLocationPlanDismissalCoolingDown,
@@ -307,10 +308,10 @@ Deno.serve(async (request) => {
     if(storedRequestedMode==='explicit')await track(db,user.id,'private_adult_text_policy_decision',privateAdultTextTelemetry({policy:groupDialoguePolicy,access:adultAccess,conversationMode:'group'}));
     const adultAttachment=attachments.some((attachment)=>attachment.content_rating==='explicit'||attachment.visibility_scope==='web_adult');
     const routingHistory=await loadAdultRoutingHistory(db,user.id,conversation.id,existingUserMessage?Number(existingUserMessage.conversation_sequence):undefined);
-    const groupRoutingEvidence=resolveDialogueRouting({message:messageText,requestedMode:groupDialoguePolicy.effectiveMode,ageVerified:adultAccess.adult_eligible,adultAuthorized:groupAdultAuthorized,characterAge:groupDialoguePolicy.allParticipantsAdults?18:null,adultAttachment,moderation:inputSafety,photoRequest:classifyPhotoRequest(messageText).requested}).adultRouting;
+    const groupRoutingEvidence=resolveDialogueRouting({message:messageText,requestedMode:groupDialoguePolicy.effectiveMode,ageVerified:adultAccess.adult_eligible,adultAuthorized:groupAdultAuthorized,characterAge:groupDialoguePolicy.allParticipantsAdults?18:null,adultAttachment,moderation:inputSafety,photoRequest:classifyPhotoRequest(messageText).requested,clientSurface:adultAccess.client_surface}).adultRouting;
     const restrictedUserMessage=groupAdultAuthorized&&(
       adultAttachment||
-      hasSexualDialogueLanguage(messageText)||inputSafety.categories.some((category)=>/(?:sexual|adult|explicit)/i.test(category))
+      hasSexualDialogueLanguage(messageText)||hasFictionalViolenceLanguage(messageText)||inputSafety.categories.some((category)=>/(?:sexual|adult|explicit|violence)/i.test(category))
     );
     let replyTargetId: string | undefined;
     if (input.replyToMessageId) {
@@ -841,6 +842,7 @@ function groupStream(input: any): Response {
               context.relationship?.romance_path_status !== "friends_only",
             photoRequest: action.intent === "media_offer",
             adultAttachment: input.adultAttachment === true,
+            clientSurface: input.adultAccess.client_surface,
             moderation: inputSafety,
           };
           let route = await applyChatTestRoute(input.db,input.userId,input.conversation,resolveDialogueRouting(routeInput),input.veniceExperiment);

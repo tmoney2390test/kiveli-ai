@@ -532,6 +532,7 @@ Deno.serve(async (request) => {
           photoAdultRequest: ['suggestive','mature','explicit'].includes(String(photoIntent.requestedContentLevel??'')),
           photoSafetyBlocked: photoSafety?.allowed===false,
           adultAttachment,
+          clientSurface: adultAccess.client_surface,
           moderation: inputSafety,
         });
         const characterName = String(
@@ -1129,6 +1130,7 @@ Deno.serve(async (request) => {
           photoAdultRequest: ['suggestive','mature','explicit'].includes(String(photoIntent.requestedContentLevel??'')),
           photoSafetyBlocked: photoSafety?.allowed===false,
           adultAttachment,
+          clientSurface: adultAccess.client_surface,
           moderation: inputSafety,
         };
         route = await applyChatTestRoute(db,user.id,conversation,resolveDialogueRouting(selectedRouteInput));
@@ -1916,7 +1918,7 @@ function dialogueRunOptions(
 function safeMessagePolicy(rating:'safe'|'suggestive'='safe'):Record<string,unknown>{return{contentRating:rating,visibilityScope:'all',moderationVersion:'web-adult-v1'};}
 function projectReplyForAccess(message:Record<string,any>,authorized:boolean):Record<string,any>{if(authorized||isSafePolicy(message))return message;return{id:`bridge-${String(message.id)}`,conversation_id:message.conversation_id,role:'system',content:'Private exchange\n\nA portion of this conversation is unavailable in this app.',delivery_status:'complete',moderation_status:'approved',content_rating:'safe',visibility_scope:'all',moderation_version:'safe-bridge-v1',created_at:message.created_at,updated_at:message.updated_at,provider_metadata:{systemEvent:'restricted_bridge'}};}
 function userMessagePolicy(route:DialogueRoutingDecision,adultAttachment=false):Record<string,unknown>{
-  const adult=adultAttachment||route.explicit&&(route.classification==='adult_intimacy'||route.classification==='explicit_adult');
+  const adult=adultAttachment||route.explicit&&(route.classification==='adult_intimacy'||route.classification==='explicit_adult'||route.classification==='fictional_violence');
   return adult?{contentRating:'explicit',visibilityScope:'all',moderationVersion:'private-adult-text-v1',adultAuthorized:true,safeBridge:'You and your companion shared a more intimate moment and grew closer.'}:safeMessagePolicy(route.resolvedMode==='standard'?'safe':'suggestive');
 }
 function assistantMessagePolicy(route:DialogueRoutingDecision):Record<string,unknown>{
@@ -2691,6 +2693,7 @@ async function generateAdditionalSceneReplies(
         relationshipAllowsExplicit:
           selected.context.relationship?.romance_enabled !== false &&
           selected.context.relationship?.romance_path_status !== "friends_only",
+        clientSurface: selected.context.contentAccess?.clientSurface,
       };
       let route = resolveDialogueRouting(routeInput);
       if (route.hardBlocked) continue;

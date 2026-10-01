@@ -67,6 +67,32 @@ Deno.test('adult photo routing still fails closed for age and media-safety viola
   assertEquals(resolveDialogueRouting({...base,ageVerified:true,photoSafetyBlocked:true}).hardBlocked,true);
 });
 
+Deno.test('website lethal violence routes through the adult dialogue provider', () => {
+  const previousKey = Deno.env.get('XAI_API_KEY');
+  const previousEnabled = Deno.env.get('KIVELLE_XAI_ENABLED');
+  const previousExplicit = Deno.env.get('KIVELLE_XAI_EXPLICIT_ENABLED');
+  const previousPrivateText = Deno.env.get('KIVELLE_PRIVATE_ADULT_TEXT_MODE');
+  try {
+    Deno.env.set('XAI_API_KEY', 'test-key');
+    Deno.env.set('KIVELLE_XAI_ENABLED', 'true');
+    Deno.env.set('KIVELLE_XAI_EXPLICIT_ENABLED', 'true');
+    Deno.env.set('KIVELLE_PRIVATE_ADULT_TEXT_MODE', 'on');
+    const web=resolveDialogueRouting({message:'I want you to kill her neighbor',requestedMode:'mature',ageVerified:true,adultAuthorized:true,characterAge:29,relationshipAllowsExplicit:true,clientSurface:'web'});
+    assertEquals(web.classification,'fictional_violence');
+    assertEquals(web.provider,'wavespeed');
+    assertEquals(web.explicit,true);
+    const ios=resolveDialogueRouting({message:'I want you to kill her neighbor',requestedMode:'explicit',ageVerified:true,adultAuthorized:true,characterAge:29,relationshipAllowsExplicit:true,clientSurface:'ios'});
+    assertEquals(ios.classification,'fictional_violence');
+    assertEquals(ios.explicit,false);
+    assertEquals(ios.provider==='wavespeed',false);
+  } finally {
+    restore('XAI_API_KEY', previousKey);
+    restore('KIVELLE_XAI_ENABLED', previousEnabled);
+    restore('KIVELLE_XAI_EXPLICIT_ENABLED', previousExplicit);
+    restore('KIVELLE_PRIVATE_ADULT_TEXT_MODE', previousPrivateText);
+  }
+});
+
 Deno.test('an authorized explicit upload routes its reaction through the adult dialogue provider', () => {
   const previousKey = Deno.env.get('XAI_API_KEY');
   const previousEnabled = Deno.env.get('KIVELLE_XAI_ENABLED');

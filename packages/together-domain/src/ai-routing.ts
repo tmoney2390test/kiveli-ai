@@ -4,13 +4,14 @@ import { analyzeAdultLanguage, hasExplicitAdultLanguage } from './adult-language
 
 export type DialogueProviderName = 'openai' | 'xai' | 'gemini' | 'venice' | 'wavespeed' | 'deterministic';
 export type DialogueContentMode = 'standard' | 'romance' | 'mature' | 'explicit';
-export type DialogueContentClass = 'standard' | 'romantic' | 'mature' | 'adult_suggestive' | 'adult_intimacy' | 'explicit_adult' | 'hard_block';
+export type DialogueContentClass = 'standard' | 'romantic' | 'mature' | 'adult_suggestive' | 'adult_intimacy' | 'explicit_adult' | 'fictional_violence' | 'hard_block';
 
 export type DialogueRouteReason =
   | 'standard_default'
   | 'romance_default'
   | 'adult_intimacy'
   | 'adult_explicit'
+  | 'adult_violence'
   | 'adult_context_carryover'
   | 'manual_spice'
   | 'adult_expression_downgrade'
@@ -90,6 +91,16 @@ const sexualDeepfakePattern=/\b(?:sexual|nude|naked|explicit)\s+deepfake\b|\bdee
 const exploitativeSexSlaveryPattern = /(?:\b(?:kidnap(?:ped|ping)?|abduct(?:ed|ing)?|traffic(?:k|ked|king)?|sell|sold|buy|bought|force(?:d|ing)?|enslave(?:d|ment)?)\b.{0,80}\bsex slave\b)|(?:\bsex slave\b.{0,80}\b(?:without consent|against (?:her|his|their) will|can'?t say no|cannot say no|forc(?:e|ed|ing)|sell|sold|traffic(?:k|ked|king)?)\b)/i;
 const incapableConsentPattern = /\b(?:drug(?:ged|ging)|unconscious|passed out|asleep|blackmail(?:ed)? into)\b/i;
 const thirdPartySexualTargetPattern = /\b(?:rape|force|forced sex|sex without consent|non[- ]?consensual sex)\b.{0,80}\b(?:her|him|them|someone|a woman|a man|that woman|that man)\b|\b(?:her|him|them|someone|a woman|a man|that woman|that man)\b.{0,80}\b(?:rape|forced sex|sex without consent|non[- ]?consensual sex)\b/i;
+const fictionalViolenceIdiomPattern = /\b(?:kill(?:ed|ing)? (?:time|it|the (?:engine|mood|vibe|lights?))|killer (?:app|deal|instinct)|overkill|hurt(?:ing)? (?:my |your |the )?feelings?|harmless|panic attack|heart attack|attack of)\b/i;
+const fictionalViolencePerson = '(?:him|her|them|you|me|us|someone|somebody|(?:her|his|your|my|their|the|that|this|a|an)\\s+[a-z]+)';
+const fictionalViolencePattern = new RegExp(`\\b(?:kill(?:s|ed|ing)?|murder(?:s|ed|ing)?|stab(?:s|bed|bing)?|strangle(?:s|d|ing)?|garrot(?:e|es|ed|ing)|chok(?:e|es|ed|ing)|behead(?:s|ed|ing)?|decapitat(?:e|es|ed|ing)|slaughter(?:s|ed|ing)?|disembowel(?:s|ed|ing)?|gut(?:s|ted|ting)|shoot(?:s|ing)?|shot|execute(?:s|d|ing)?|torture(?:s|d|ing)?)\\s+${fictionalViolencePerson}\\b`,'i');
+const fictionalViolenceGraphicPattern = /\b(?:slit (?:his|her|their|your|my) throat|break(?:s|ing)? (?:his|her|their|your) neck)\b/i;
+
+export function hasFictionalViolenceLanguage(text: string): boolean {
+  const value = text.trim();
+  if (!value || fictionalViolenceIdiomPattern.test(value)) return false;
+  return fictionalViolencePattern.test(value)||fictionalViolenceGraphicPattern.test(value);
+}
 
 export function isDialogueContinuation(message:string):boolean{return continuationPattern.test(message.trim());}
 
@@ -145,6 +156,7 @@ export function classifyDialogueContent(input: {
   if (isDialogueHardBlocked({message,...(input.moderation?{moderation:input.moderation}:{})})) return 'hard_block';
   if (adultIntimacyIntent) return 'adult_intimacy';
   if (sexual || contextualExplicit) return 'explicit_adult';
+  if (hasFictionalViolenceLanguage(message)) return 'fictional_violence';
   if (suggestiveDialoguePattern.test(message)) return 'adult_suggestive';
   if (maturePattern.test(message)) return 'mature';
   if (romanticPattern.test(message)) return 'romantic';
@@ -185,6 +197,7 @@ export function routeKivelleDialogue(input: {
   photoAdultRequest?: boolean;
   photoSafetyBlocked?: boolean;
   adultContextCarryover?: boolean;
+  fictionalViolenceToAdultProvider?: boolean;
   providers: DialogueProviderAvailability;
 }): DialogueRoutingDecision {
   const requestedMode = input.requestedMode ?? 'standard';
@@ -208,10 +221,11 @@ export function routeKivelleDialogue(input: {
 
   if (input.classification === 'hard_block') return { provider: 'deterministic', requestedMode, resolvedMode: 'standard', reason: 'safety_block', explicit: false, adultEligible, hardBlocked: true, classification: input.classification };
 
-  if (input.classification === 'adult_intimacy' || input.classification === 'explicit_adult' || input.classification === 'adult_suggestive' && requestedMode === 'explicit' || input.adultContextCarryover) {
+  const violenceToAdult=input.classification==='fictional_violence'&&(input.fictionalViolenceToAdultProvider===true||(input.fictionalViolenceToAdultProvider!==false&&requestedMode==='explicit'));
+  if (input.classification === 'adult_intimacy' || input.classification === 'explicit_adult' || (input.classification === 'fictional_violence' && violenceToAdult) || (input.classification === 'adult_suggestive' && requestedMode === 'explicit') || input.adultContextCarryover) {
     if (!adultEligible) return { provider: 'deterministic', requestedMode, resolvedMode: 'romance', reason: 'safety_block', explicit: false, adultEligible, hardBlocked: true, classification: input.classification };
-    const relationshipBoundary=input.relationshipAllowsExplicit===false;
-    if (!relationshipBoundary&&requestedMode === 'explicit'&&input.providers.xaiEnabled&&input.providers.xaiExplicitEnabled&&input.providers.xai) return { provider: 'xai', requestedMode, resolvedMode: 'explicit', reason: input.adultContextCarryover?'adult_context_carryover':'adult_explicit', explicit: true, adultEligible, hardBlocked: false, classification: input.classification };
+    const relationshipBoundary=input.relationshipAllowsExplicit===false&&input.classification!=='fictional_violence';
+    if (!relationshipBoundary&&(requestedMode === 'explicit'||violenceToAdult)&&input.providers.xaiEnabled&&input.providers.xaiExplicitEnabled&&input.providers.xai) return { provider: 'xai', requestedMode, resolvedMode: 'explicit', reason: input.adultContextCarryover?'adult_context_carryover':input.classification==='fictional_violence'?'adult_violence':'adult_explicit', explicit: true, adultEligible, hardBlocked: false, classification: input.classification };
     const resolvedMode:DialogueContentMode=relationshipBoundary?(requestedMode==='standard'?'standard':'romance'):(requestedMode==='explicit'?'mature':requestedMode);
     const reason:DialogueRouteReason=relationshipBoundary?'relationship_boundary':requestedMode==='explicit'?'adult_expression_downgrade':'adult_intimacy';
     if(input.providers.openai)return{provider:'openai',requestedMode,resolvedMode,reason,explicit:false,adultEligible,hardBlocked:false,classification:input.classification};

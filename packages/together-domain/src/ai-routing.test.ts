@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyDialogueContent, hasExplicitSexualOutputLanguage, hasSexualDialogueLanguage, isCapabilityStyleExplicitRefusal, isContradictoryAcceptedIntimacyRefusal, isDialogueHardBlocked, routeKivelleDialogue, type DialogueProviderAvailability } from './ai-routing.ts';
+import { classifyDialogueContent, hasExplicitSexualOutputLanguage, hasFictionalViolenceLanguage, hasSexualDialogueLanguage, isCapabilityStyleExplicitRefusal, isContradictoryAcceptedIntimacyRefusal, isDialogueHardBlocked, routeKivelleDialogue, type DialogueProviderAvailability } from './ai-routing.ts';
 import { classifyPhotoIntent } from './media.ts';
 
 const providers: DialogueProviderAvailability = { openai:true, xai:true, gemini:true, xaiEnabled:true, xaiExplicitEnabled:true };
@@ -30,7 +30,18 @@ describe('Kivelle AI routing',()=>{
   it.each(['violence','violence/graphic'])('allows fictional-violence moderation category %s to continue through dialogue',(category)=>{
     const moderation={allowed:false,flagged:true,categories:[category],categoryScores:{[category]:.98}};
     expect(isDialogueHardBlocked({message:'The knight kills his rival in battle.',moderation})).toBe(false);
-    expect(classifyDialogueContent({message:'The knight kills his rival in battle.',moderation})).toBe('standard');
+    expect(classifyDialogueContent({message:'The knight kills his rival in battle.',moderation})).toBe('fictional_violence');
+  });
+  it.each(['kill her neighbor','I want you to kill her neighbor','Stab him and tell me what happened','Strangle the neighbor'])('routes lethal fictional violence to the explicit provider: %s',(message)=>{
+    expect(hasFictionalViolenceLanguage(message)).toBe(true);
+    expect(classifyDialogueContent({message})).toBe('fictional_violence');
+    expect(route(message)).toMatchObject({provider:'xai',resolvedMode:'explicit',reason:'adult_violence',classification:'fictional_violence',hardBlocked:false});
+    expect(route(message,{requestedMode:'standard',fictionalViolenceToAdultProvider:true})).toMatchObject({provider:'xai',reason:'adult_violence',hardBlocked:false});
+    expect(route(message,{requestedMode:'explicit',fictionalViolenceToAdultProvider:false})).toMatchObject({provider:'openai',hardBlocked:false,explicit:false});
+  });
+  it.each(['kill time until dinner','that joke killed','hurt my feelings','panic attack'])('does not treat idioms as fictional violence: %s',(message)=>{
+    expect(hasFictionalViolenceLanguage(message)).toBe(false);
+    expect(route(message)).toMatchObject({provider:'openai',hardBlocked:false});
   });
   it.each(['hey','how was work?','you are funny'])('keeps ordinary dialogue on OpenAI: %s',(message)=>expect(route(message).provider).toBe('openai'));
   it.each(['I love you','kiss me','want to go on a date?'])('keeps romance on OpenAI: %s',(message)=>expect(route(message).provider).toBe('openai'));

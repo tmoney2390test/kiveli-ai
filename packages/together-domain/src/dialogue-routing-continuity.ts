@@ -10,7 +10,7 @@ export function adultRoutingEvidence(input: { message: string; classification: D
   return {
     version: 1,
     eligible: input.eligible,
-    freshAdult: !reset && !input.photoRequest && ['adult_suggestive', 'adult_intimacy', 'explicit_adult'].includes(input.classification),
+    freshAdult: !reset && !input.photoRequest && ['adult_suggestive', 'adult_intimacy', 'explicit_adult', 'fictional_violence'].includes(input.classification),
     reset,
   };
 }
