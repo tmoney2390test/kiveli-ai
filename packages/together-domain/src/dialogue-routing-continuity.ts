@@ -4,13 +4,13 @@ export const ADULT_ROUTING_CARRYOVER_TURNS = 3;
 export const DIALOGUE_ROUTING_VERSION = 'adult-routing-continuity-v1';
 export type AdultRoutingEvidence = { version: 1; eligible: boolean; freshAdult: boolean; reset: boolean };
 
-export function adultRoutingEvidence(input: { message: string; classification: DialogueContentClass; eligible: boolean; photoRequest?: boolean }): AdultRoutingEvidence {
+export function adultRoutingEvidence(input: { message: string; classification: DialogueContentClass; eligible: boolean; photoRequest?: boolean; continuationOfExplicitReply?: boolean }): AdultRoutingEvidence {
   const reset = !input.eligible || input.classification === 'hard_block' || hasConsentWithdrawalSignal(input.message)
     || /\b(?:change (?:the )?(?:subject|topic)|new topic|let['’]s talk about something else)\b/i.test(input.message);
   return {
     version: 1,
     eligible: input.eligible,
-    freshAdult: !reset && !input.photoRequest && ['adult_suggestive', 'adult_intimacy', 'explicit_adult'].includes(input.classification),
+    freshAdult: !reset && !input.photoRequest && (input.continuationOfExplicitReply === true || ['adult_suggestive', 'adult_intimacy', 'explicit_adult'].includes(input.classification)),
     reset,
   };
 }

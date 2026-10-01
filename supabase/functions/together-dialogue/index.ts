@@ -530,6 +530,8 @@ Deno.serve(async (request) => {
         const adultAttachment=attachments.some((attachment)=>attachment.content_rating==='explicit'||attachment.visibility_scope==='web_adult');
         let route = resolveDialogueRouting({
           message: contextText,
+          routingEvidenceMessage: userText,
+          continuationOfExplicitReply: isContinuation && continuationAnchor?.content_rating==='explicit',
           routingHistory,
           recentTurns: [...(recentRoutingRows ?? [])].reverse(),
           requestedMode,
@@ -1128,6 +1130,8 @@ Deno.serve(async (request) => {
         requestedMode=dialoguePolicy.effectiveMode;
         const selectedRouteInput = {
           message: contextText,
+          routingEvidenceMessage: userText,
+          continuationOfExplicitReply: isContinuation && continuationAnchor?.content_rating==='explicit',
           routingHistory,
           recentTurns: [...(recentRoutingRows ?? [])].reverse(),
           requestedMode,

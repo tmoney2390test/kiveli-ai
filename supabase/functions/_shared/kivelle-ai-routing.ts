@@ -15,14 +15,15 @@ export function configuredDialogueProviders(){return{
   xaiExplicitEnabled:enabled('KIVELLE_XAI_EXPLICIT_ENABLED')&&privateAdultTextEnabled(),
 };}
 
-export function resolveDialogueRouting(input:{message:string;recentTurns?:Array<{role:string;content:string}>;routingHistory?:unknown[];requestedMode?:DialogueContentMode;ageVerified:boolean;adultAuthorized?:boolean;characterAge?:number|null;relationshipAllowsExplicit?:boolean;photoRequest?:boolean;photoAdultRequest?:boolean;photoSafetyBlocked?:boolean;adultAttachment?:boolean;moderation?:NormalizedModerationResult}):DialogueRoutingDecision{
+export function resolveDialogueRouting(input:{message:string;routingEvidenceMessage?:string;continuationOfExplicitReply?:boolean;recentTurns?:Array<{role:string;content:string}>;routingHistory?:unknown[];requestedMode?:DialogueContentMode;ageVerified:boolean;adultAuthorized?:boolean;characterAge?:number|null;relationshipAllowsExplicit?:boolean;photoRequest?:boolean;photoAdultRequest?:boolean;photoSafetyBlocked?:boolean;adultAttachment?:boolean;moderation?:NormalizedModerationResult}):DialogueRoutingDecision{
   const requestedMode:DialogueContentMode=input.adultAuthorized&&input.requestedMode==='explicit'?'explicit':input.requestedMode==='romance'?'romance':'mature';
   const freshClassification=classifyDialogueContent({message:input.message,requestedMode,moderation:input.moderation});
   // An attachment must never override a fresh safety block on its caption.
   const classification=freshClassification==='hard_block'?'hard_block':input.adultAttachment&&input.adultAuthorized?'explicit_adult':classifyDialogueContent({message:input.message,recentTurns:input.recentTurns,requestedMode,moderation:input.moderation});
-  const adultRouting=adultRoutingEvidence({message:input.message,classification:freshClassification==='hard_block'?'hard_block':input.adultAttachment&&input.adultAuthorized?'explicit_adult':freshClassification,eligible:Boolean(input.adultAuthorized&&input.ageVerified&&requestedMode==='explicit'&&Number(input.characterAge)>=18&&input.relationshipAllowsExplicit!==false),photoRequest:input.photoRequest});
+  const adultRouting=adultRoutingEvidence({message:input.routingEvidenceMessage??input.message,classification:freshClassification==='hard_block'?'hard_block':input.adultAttachment&&input.adultAuthorized?'explicit_adult':freshClassification,eligible:Boolean(input.adultAuthorized&&input.ageVerified&&requestedMode==='explicit'&&Number(input.characterAge)>=18&&input.relationshipAllowsExplicit!==false),photoRequest:input.photoRequest,continuationOfExplicitReply:input.continuationOfExplicitReply});
   const carryoverTurnsRemaining=input.photoRequest?0:adultRoutingCarryover(adultRouting,input.routingHistory);
-  const adultRequest=classification==='adult_intimacy'||classification==='explicit_adult'||classification==='adult_suggestive'||carryoverTurnsRemaining>0;
+  const explicitContinuation=input.continuationOfExplicitReply===true&&adultRouting.freshAdult;
+  const adultRequest=classification==='adult_intimacy'||classification==='explicit_adult'||classification==='adult_suggestive'||carryoverTurnsRemaining>0||explicitContinuation;
   // PhotoGen owns adult-media authorization after the request is recognized.
   // Private-text rollout state must not turn an otherwise valid adult photo
   // request into a scripted consent/safety refusal before PhotoGen can apply
@@ -32,7 +33,7 @@ export function resolveDialogueRouting(input:{message:string;recentTurns?:Array<
     : adultRequest
     ? Boolean(input.adultAuthorized&&input.ageVerified)
     : input.ageVerified;
-  return useDeepSeekAdultModel({...routeKivelleDialogue({classification,requestedMode,ageVerified:routeAgeVerified,characterAge:input.characterAge,relationshipAllowsExplicit:input.relationshipAllowsExplicit,photoRequest:input.photoRequest,photoAdultRequest:input.photoAdultRequest,photoSafetyBlocked:input.photoSafetyBlocked,adultContextCarryover:carryoverTurnsRemaining>0,providers:configuredDialogueProviders()}),adultRouting,carryoverTurnsRemaining});
+  return useDeepSeekAdultModel({...routeKivelleDialogue({classification,requestedMode,ageVerified:routeAgeVerified,characterAge:input.characterAge,relationshipAllowsExplicit:input.relationshipAllowsExplicit,photoRequest:input.photoRequest,photoAdultRequest:input.photoAdultRequest,photoSafetyBlocked:input.photoSafetyBlocked,adultContextCarryover:carryoverTurnsRemaining>0||explicitContinuation,providers:configuredDialogueProviders()}),adultRouting,carryoverTurnsRemaining});
 }
 
 function enabled(name:string):boolean{return Deno.env.get(name)?.trim().toLowerCase()==='true';}

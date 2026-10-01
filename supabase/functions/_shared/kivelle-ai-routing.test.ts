@@ -90,6 +90,40 @@ Deno.test('an authorized explicit upload routes its reaction through the adult d
   }
 });
 
+Deno.test('continuing an explicit reply keeps the adult route for a brief follow-up', () => {
+  const previousKey = Deno.env.get('XAI_API_KEY');
+  const previousEnabled = Deno.env.get('KIVELLE_XAI_ENABLED');
+  const previousExplicit = Deno.env.get('KIVELLE_XAI_EXPLICIT_ENABLED');
+  const previousPrivateText = Deno.env.get('KIVELLE_PRIVATE_ADULT_TEXT_MODE');
+  try {
+    Deno.env.set('XAI_API_KEY', 'test-key');
+    Deno.env.set('KIVELLE_XAI_ENABLED', 'true');
+    Deno.env.set('KIVELLE_XAI_EXPLICIT_ENABLED', 'true');
+    Deno.env.set('KIVELLE_PRIVATE_ADULT_TEXT_MODE', 'on');
+    const base = { requestedMode:'explicit' as const, ageVerified:true, adultAuthorized:true, characterAge:29, relationshipAllowsExplicit:true };
+    const continuation = resolveDialogueRouting({
+      ...base,
+      message:'I stop for a breath.', // Assistant text is context, not the user's withdrawal.
+      routingEvidenceMessage:'Continue.',
+      continuationOfExplicitReply:true,
+    });
+    assertEquals(continuation.provider,'wavespeed');
+    assertEquals(continuation.adultRouting,{version:1,eligible:true,freshAdult:true,reset:false});
+    const followUp = resolveDialogueRouting({ ...base, message:'Yes, like that.', routingHistory:[continuation.adultRouting] });
+    assertEquals(followUp.provider,'wavespeed');
+    assertEquals(followUp.reason,'adult_context_carryover');
+    const stop = resolveDialogueRouting({ ...base, message:'Stop.', routingHistory:[continuation.adultRouting] });
+    assertEquals(stop.adultRouting?.reset,true);
+    assertEquals(stop.explicit,false);
+    assertEquals(resolveDialogueRouting({ ...base, ageVerified:false, message:'Continue.', continuationOfExplicitReply:true }).explicit,false);
+  } finally {
+    restore('XAI_API_KEY', previousKey);
+    restore('KIVELLE_XAI_ENABLED', previousEnabled);
+    restore('KIVELLE_XAI_EXPLICIT_ENABLED', previousExplicit);
+    restore('KIVELLE_PRIVATE_ADULT_TEXT_MODE', previousPrivateText);
+  }
+});
+
 function restore(name: string, value: string | undefined) {
   if (value === undefined) Deno.env.delete(name);
   else Deno.env.set(name, value);

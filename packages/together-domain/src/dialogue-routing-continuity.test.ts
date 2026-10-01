@@ -18,6 +18,13 @@ describe('bounded adult routing continuity',()=>{
     expect(adultRoutingCarryover(neutral,[fresh,neutral,neutral,fresh])).toBe(3);
     expect(adultRoutingCarryover(fresh,[neutral,neutral])).toBe(0);
   });
+  it('treats a user-requested continuation of an explicit reply as fresh evidence, not the reply text as a withdrawal',()=>{
+    const continuation=adultRoutingEvidence({message:'Continue.',classification:'standard',eligible:true,continuationOfExplicitReply:true});
+    expect(continuation).toEqual({version:1,eligible:true,freshAdult:true,reset:false});
+    expect(adultRoutingCarryover(neutral,[fresh,continuation])).toBe(3);
+    expect(adultRoutingEvidence({message:'Stop.',classification:'standard',eligible:true,continuationOfExplicitReply:true}).reset).toBe(true);
+    expect(adultRoutingEvidence({message:'Continue.',classification:'standard',eligible:false,continuationOfExplicitReply:true}).freshAdult).toBe(false);
+  });
   it.each(['Stop.','I changed my mind.','Change the subject.','New topic.'])(
     'clears carryover across %s',(message)=>{
       const reset=adultRoutingEvidence({message,classification:'standard',eligible:true});
