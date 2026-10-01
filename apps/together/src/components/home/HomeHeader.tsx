@@ -1,21 +1,19 @@
-import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { AccountMenu } from '../AccountMenu';
+import { useAccountMenu } from '../AccountMenuHost';
 import { colors, radius } from '../../theme';
 import type { SubscriptionStatus } from '../../lib/subscription';
 import { KivelleLogo } from '../KivelleLogo';
 import { KivelleCreditIcon } from '../KivelleCreditIcon';
 
 export function HomeHeader({ status, personaName, onCredits }: { status: SubscriptionStatus | null; personaName: string; onCredits: () => void }) {
-  const [accountOpen, setAccountOpen] = useState(false);
+  const { openAccountMenu } = useAccountMenu();
   const total = status?.creditBalance.total;
   return <View style={styles.header}>
     <KivelleLogo height={35} />
     <View style={styles.actions}>
       <Pressable accessibilityRole="button" accessibilityLabel={typeof total === 'number' ? `${total.toLocaleString()} Kivelle Credits` : 'Open Kivelle Credits'} onPress={onCredits} style={({ pressed }) => [styles.credits, pressed && styles.pressed]}><KivelleCreditIcon size={26}/><Text style={styles.creditText}>{typeof total === 'number' ? total.toLocaleString() : 'Credits'}</Text></Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel="Open your account" onPress={() => setAccountOpen(true)} style={({ pressed }) => [styles.profile, pressed && styles.pressed]}><Text style={styles.initial}>{personaName.trim()[0]?.toUpperCase() || 'Y'}</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Open your account" onPress={openAccountMenu} style={({ pressed }) => [styles.profile, pressed && styles.pressed]}><Text style={styles.initial}>{personaName.trim()[0]?.toUpperCase() || 'Y'}</Text></Pressable>
     </View>
-    <AccountMenu visible={accountOpen} onClose={() => setAccountOpen(false)}/>
   </View>;
 }
 

@@ -24,6 +24,7 @@ import { useTogether } from "../store/useTogether";
 import { PendingMediaRecovery } from "./PendingMediaRecovery";
 import { AiConsentBridge } from "./AiConsentBridge";
 import { WebDocumentAccessibilityBridge } from "./WebDocumentAccessibilityBridge";
+import { AccountMenuHost } from "../components/AccountMenuHost";
 
 function OperationsHeartbeat() {
   const { session } = useAuth();
@@ -72,9 +73,11 @@ export function AppProviders({ children }: PropsWithChildren) {
               <ClientPerformanceBridge />
               <GlobalErrorReporter />
               <AppErrorBoundary>
-                <KivelleSessionGate>
-                  <AppErrorBoundary>{children}</AppErrorBoundary>
-                </KivelleSessionGate>
+                <AccountMenuHost>
+                  <KivelleSessionGate>
+                    <AppErrorBoundary>{children}</AppErrorBoundary>
+                  </KivelleSessionGate>
+                </AccountMenuHost>
               </AppErrorBoundary>
             </AuthProvider>
           </QueryClientProvider>

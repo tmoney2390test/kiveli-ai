@@ -63,6 +63,7 @@ import {
 import { LoadingSkeleton } from '../src/components';
 import { ErrorState } from '../src/components/RouteState';
 import { FrostedSurface } from '../src/components/FrostedGlass';
+import { useAccountMenu } from '../src/components/AccountMenuHost';
 
 const useHydrationLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
@@ -96,6 +97,7 @@ const linkedPagesBySection: Partial<Record<SettingsSection, readonly string[]>> 
 };
 
 export default function Settings() {
+  const { settingsReady } = useAccountMenu();
   const pathname = usePathname();
   const params = useLocalSearchParams<{ section?: string | string[] }>();
   const { width, height } = useWindowDimensions();
@@ -120,6 +122,16 @@ export default function Settings() {
   const avatar = useProfileAvatarUrl(avatarPath);
   // Resolve the desktop layout before the browser paints the mobile-safe SSR tree.
   useHydrationLayoutEffect(() => { setWebHydrated(true); }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !webHydrated || !snapshot || !shouldRenderSettingsRoute({
+      platform: Platform.OS,
+      routerPathname: pathname,
+      browserPathname: typeof window !== 'undefined' ? window.location.pathname : null,
+    })) return;
+    const frame = requestAnimationFrame(settingsReady);
+    return () => cancelAnimationFrame(frame);
+  }, [activeSection, Boolean(snapshot), pathname, settingsReady, webHydrated]);
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;

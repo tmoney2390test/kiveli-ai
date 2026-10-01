@@ -9,7 +9,7 @@ import { installWebNavigationCompatibility } from '../src/lib/appNavigation';
 
 const navigationTheme=createKivelliNavigationTheme(DarkTheme);
 const instantSettingsScreens=new Set([
-  'settings','profile','account','personas','persona-editor','content-settings',
+  'account','personas','persona-editor','content-settings',
   'notifications','photo-settings','media-preferences','conversation-controls',
   'archived-chats','privacy','help','support','support/new',
   'subscription','companions','memories','community-guidelines','privacy-policy',

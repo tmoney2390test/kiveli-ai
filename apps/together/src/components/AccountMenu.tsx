@@ -16,7 +16,7 @@ import { FrostedSurface } from './FrostedGlass';
 
 const accent = glass.accent;
 
-export function AccountMenu({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+export function AccountMenu({ visible, onClose, onNavigate }: { visible: boolean; onClose: () => void; onNavigate: (href: string) => void }) {
   const snapshot = useTogether(state => state.snapshot);
   const { data: subscription, isError, refetch } = useSubscriptionStatus(visible && Boolean(snapshot));
   const avatarPath = snapshot?.profile?.avatar_path;
@@ -44,7 +44,7 @@ export function AccountMenu({ visible, onClose }: { visible: boolean; onClose: (
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [visible, onClose]);
-  const open = (href: string) => { onClose(); router.push(href as never); };
+  const open = onNavigate;
   const row = (label: string, icon: ReactNode, href: string, detail?: string) => <Pressable key={label} accessibilityRole="button" onHoverIn={() => warmRoute(href, value => router.prefetch(value as never))} onPressIn={() => warmRoute(href, value => router.prefetch(value as never))} onPress={() => open(href)} style={({ pressed }) => [s.row, pressed && s.pressed]}>{icon}<View style={s.copy}><Text style={s.label}>{label}</Text>{detail ? <Text style={s.muted}>{detail}</Text> : null}</View><ChevronRight size={18} color={accent}/></Pressable>;
   return <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
     <View accessibilityViewIsModal style={[s.backdrop, { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 12) }, desktop && s.desktop]}>
