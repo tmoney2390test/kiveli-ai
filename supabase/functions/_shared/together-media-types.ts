@@ -114,6 +114,7 @@ export type CanonicalImageGenerationRequest = {
     activity?: string;
     mood?: string;
     timeOfDay?: string;
+    captureClock?: PlaceContext["clock"];
     lifeEvent?: Record<string, unknown>;
     date?: Record<string, unknown>;
     plan?: Record<string, unknown>;
@@ -207,6 +208,7 @@ export type QueueMediaInput = {
   sceneActionId?: string;
   sharedPlanId?: string;
   requestText?: string;
+  requestedAt?: string;
   companionResponseText?: string;
   idempotencyKey?: string;
   force?: boolean;

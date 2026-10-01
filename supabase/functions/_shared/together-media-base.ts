@@ -55,19 +55,22 @@ import {
 } from "./together-media-world.ts";
 import {
   resolveMediaCaptureLighting,
+  resolveMediaCaptureTime,
   type MediaCaptureLighting,
 } from "./together-media-time.ts";
+import { experienceClock, resolveUserExperienceTimezone } from "./kivelle-time.ts";
 
 export function mediaCaptureLightingForRequest(
   request: CanonicalImageGenerationRequest,
 ): MediaCaptureLighting {
   const place = request.context.place;
+  const clock = request.context.captureClock ?? place?.clock;
   return resolveMediaCaptureLighting({
     requestText: request.generationIntent?.requestText,
-    localTime: place?.clock.localTime,
-    localIso: place?.clock.localIso,
-    timezone: place?.clock.timezone,
-    daypart: place?.clock.daypart ?? request.context.timeOfDay,
+    localTime: clock?.localTime,
+    localIso: clock?.localIso,
+    timezone: clock?.timezone,
+    daypart: clock?.daypart ?? request.context.timeOfDay,
     indoorOutdoor: place?.location.visualContext.indoorOutdoor,
   });
 }
@@ -511,12 +514,16 @@ export function buildImagePrompt(
         422,
       );
     }
+    const captureLighting = mediaCaptureLightingForRequest(request);
     return [
       "EDIT AN EXISTING KIVELLE PHOTOGRAPH",
       buildMediaEditConstraint(
         instruction,
         classifyMediaEditSemantics(instruction),
       ),
+      captureLighting.source === "explicit_request"
+        ? `CAPTURE TIME CHANGE: ${captureLighting.instruction}`
+        : "Preserve the source photograph's time of day and lighting.",
       "IDENTITY",
       `${request.companion.name} is one fictional adult age ${request.companion.age}. Preserve the exact same recognizable identity, facial geometry, hair, skin, body identity, adult age, and identifying features from the source photograph.`,
       "PHOTOREALISM",
@@ -606,6 +613,8 @@ export function buildImagePrompt(
   return [
     "PHOTOREALISM REQUIREMENT",
     CHARACTER_PHOTO_REALISM_GUIDANCE,
+    "TIME / LIGHTING",
+    captureLighting.instruction,
     "IDENTITY",
     referenceRule,
     `${request.companion.name} is a fictional adult age ${request.companion.age}.`,
@@ -678,8 +687,6 @@ export function buildImagePrompt(
     line(request.context.activity, "a natural moment from the current day"),
     "MOOD",
     line(request.context.mood, "natural and relaxed"),
-    "TIME / LIGHTING",
-    captureLighting.instruction,
     "WARDROBE",
     wardrobe,
     "COMPOSITION",
@@ -744,6 +751,10 @@ export function buildGroupImagePrompt(
     location = request.context.location,
     staged = request.context.groupSceneMode === "staged_group_portrait";
   const captureLighting = mediaCaptureLightingForRequest(request);
+  const captureTimeInstruction = request.generationKind === "photo_edit" &&
+      captureLighting.source !== "explicit_request"
+    ? "Preserve the source photograph's time of day and lighting."
+    : captureLighting.instruction;
   const visibleCaptureDevice = photoRequestWantsVisibleCaptureDevice(
     request.generationIntent?.requestText,
   );
@@ -813,6 +824,8 @@ export function buildGroupImagePrompt(
   return [
     "TWO-PERSON KIVELLE PHOTOGRAPH",
     edit,
+    "TIME / LIGHTING",
+    captureTimeInstruction,
     "PHOTOREALISM REQUIREMENT",
     CHARACTER_PHOTO_REALISM_GUIDANCE,
     "IDENTITY ASSIGNMENT",
@@ -822,8 +835,6 @@ export function buildGroupImagePrompt(
     "Each character identity reference belongs only to its named subject. Never copy one identity into both people. Never render any reference as a print, screen, inset, collage, or picture-in-picture.",
     "SCENE",
     scene,
-    "TIME / LIGHTING",
-    captureLighting.instruction,
     "COMPOSITION",
     `${
       request.composition.shotType.replace("_", " ")
@@ -1005,6 +1016,9 @@ export async function queueMediaRequest(
   if (duplicate) return duplicate;
   await enforceGenerationGuardrails(db, input.userId, "provider_cost_only");
   const now = new Date();
+  const captureAt = input.source === "user_request"
+    ? resolveMediaCaptureTime(input.requestedAt, now)
+    : now;
   const recentSince = new Date(now.getTime() - 24 * 3600000).toISOString();
   const { data: recent } = await db.from("together_generated_media").select(
     "id,created_at,status,metadata",
@@ -1192,7 +1206,7 @@ export async function queueMediaRequest(
     ? await resolvePlaceContext({
       db,
       locationId: presenceLocationId,
-      now,
+      now: captureAt,
       userId: input.userId,
       characterInstanceId: input.characterInstanceId,
     })
@@ -1202,10 +1216,21 @@ export async function queueMediaRequest(
       locationId: presenceLocationId,
       activity: mediaPresence.activity,
       activityKey: mediaPresence.activityKey,
-      now,
+      now: captureAt,
       userId: input.userId,
       characterInstanceId: input.characterInstanceId,
     });
+  const captureClock = place?.clock ?? await (async () => {
+    const timezone = await resolveUserExperienceTimezone(db, input.userId);
+    const clock = experienceClock(timezone, captureAt);
+    return {
+      timezone,
+      localIso: `${clock.localDate}T${clock.localTime}`,
+      weekday: "",
+      localTime: clock.localTime,
+      daypart: clock.daypart,
+    };
+  })();
   const virtualHome = place?.location.virtualType === "character_home";
   const locationId = virtualHome ? undefined : presenceLocationId;
   const location = virtualHome ? null : anchorLocation;
@@ -1505,7 +1530,9 @@ export async function queueMediaRequest(
     mood: mediaPresence.mood,
     presenceSource: mediaPresence.source,
     presenceResolvedAt: mediaPresence.resolvedAt ?? now.toISOString(),
-    timeOfDay: place?.clock.daypart ?? timeOfDay(now),
+    timeOfDay: captureClock.daypart,
+    captureClock,
+    captureRequestedAt: captureAt.toISOString(),
     outfitKey,
     outfitDescription: outfitDescription ?? null,
     relationshipStage: String(instance.relationship_stage),
@@ -2069,6 +2096,9 @@ export async function canonicalRequestForMedia(
       activity: String(meta.activity ?? instance.current_activity),
       mood: String(meta.mood ?? instance.current_mood),
       timeOfDay: String(meta.timeOfDay ?? place?.clock.daypart ?? timeOfDay()),
+      captureClock: meta.captureClock && typeof meta.captureClock === "object"
+        ? meta.captureClock as CanonicalImageGenerationRequest["context"]["captureClock"]
+        : undefined,
       outfitKey: outfitKey || undefined,
       outfitDescription,
       ...(typeof meta.groupSceneMode === "string"

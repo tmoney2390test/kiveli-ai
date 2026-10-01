@@ -1,5 +1,13 @@
 import { assert, assertEquals, assertStringIncludes } from "jsr:@std/assert";
-import { resolveMediaCaptureLighting } from "./together-media-time.ts";
+import { resolveMediaCaptureLighting, resolveMediaCaptureTime } from "./together-media-time.ts";
+
+Deno.test("a confirmed photo keeps the hour when the user requested it", () => {
+  const confirmedAt = new Date("2026-09-30T13:00:00Z");
+  const requestedAt = resolveMediaCaptureTime("2026-09-30T02:00:00Z", confirmedAt);
+  assertEquals(requestedAt.toISOString(), "2026-09-30T02:00:00.000Z");
+  assertEquals(resolveMediaCaptureTime("invalid", confirmedAt), confirmedAt);
+  assertEquals(resolveMediaCaptureTime("2026-10-01T02:00:00Z", confirmedAt), confirmedAt);
+});
 
 Deno.test("an outdoor request at 10 PM requires a visibly nighttime photograph", () => {
   const lighting = resolveMediaCaptureLighting({
@@ -15,6 +23,8 @@ Deno.test("an outdoor request at 10 PM requires a visibly nighttime photograph",
   assertEquals(lighting.source, "canonical_clock");
   assertStringIncludes(lighting.instruction, "OUTDOOR NIGHT REQUIRED");
   assertStringIncludes(lighting.instruction, "No daylight");
+  assertStringIncludes(lighting.instruction, "Reference images establish identity and place, not capture time");
+  assertStringIncludes(lighting.shortInstruction, "NIGHT photo");
   assertStringIncludes(lighting.qualityInstruction, "FAIL time_mismatch");
 });
 

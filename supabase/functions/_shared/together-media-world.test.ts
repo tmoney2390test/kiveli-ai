@@ -207,6 +207,7 @@ Deno.test("two-person WaveSpeed prompts include world containment before creativ
     context: { activity: "relaxing", mood: "warm", worldId: "eos", worldContainment: { worldId: "eos", worldSlug: "eos-meridian", worldName: "Eos Meridian", worldDescription: "A colony world.", worldVisualContext: { avoid: ["Earth skyline"] }, locationId: "baths", locationName: "Foundry Baths", resolutionReason: "requested_setting_match", requestedSetting: "pool", providerRequestText: "one photo together" } },
     composition: { shotType: "portrait", aspectRatio: "4:5" }, contentLevel: "standard", qualityTier: "standard", generationIntent: { requestText: "one photo together", requestedContentLevel: "standard" },
   };
-  const prompt = buildWaveSpeedGroupImagePrompt({ ...request, mediaType: "image" }, request.referenceImages);
+  const prompt = buildWaveSpeedGroupImagePrompt({ ...request, mediaType: "image", context: { ...request.context, captureClock: { timezone: "America/New_York", localIso: "2026-09-29T23:00", weekday: "Tuesday", localTime: "23:00", daypart: "late_night" } } }, request.referenceImages);
   assert(prompt.includes("WORLD/SETTING LOCK") && prompt.includes("Eos Meridian") && prompt.includes("Foundry Baths") && prompt.indexOf("WORLD/SETTING LOCK") < prompt.indexOf("Approved request"), "group prompt must establish world before user direction");
+  assert(prompt.includes("NIGHT photo") && prompt.includes("No daylight even if references show day"), "group prompt must retain nighttime lighting within its short limit");
 });

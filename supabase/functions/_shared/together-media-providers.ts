@@ -283,11 +283,11 @@ export function buildWaveSpeedAdultScenePrompt(request:CanonicalMediaRequest):st
   return clipWaveSpeedPrompt([
     `RAW documentary photograph captured with a full-frame professional camera of one real-looking fictional consenting adult, canonical age ${request.companion.age}.`,
     `MANDATORY TARGET: ${intent}.`,
+    `TIME/LIGHT: ${captureLighting.instruction}`,
     `POSE AND CAMERA: ${waveSpeedConciseDirection(direction.poseDirection)} ${rearAnatomy?direction.faceDirection:rearDirection?'Keep their face clearly visible in a natural over-the-shoulder glance for fictional identity matching.':direction.faceDirection}`,
     waveSpeedRequestedAnatomyGuidance(intent,true)||waveSpeedAdultNudityGuidance(resolveAdultNudityScope(intent),intent),
     appearance&&`APPEARANCE: ${appearance}.`,
     world&&`SETTING: ${world}.`,
-    `TIME/LIGHT: ${captureLighting.instruction}`,
     request.composition.framing&&`FRAMING: ${request.composition.framing}.`,
     request.qualityRetry?`CORRECT THE PREVIOUS MISS: ${request.qualityRetry.reasonCodes.join(', ')}.`:'',
     'The result must look like a genuine unretouched camera photograph: fine pores and small skin imperfections, individual hair strands, physically plausible natural light, optical depth of field, subtle sensor grain, and realistic color response. Exactly one adult subject and no other person. Coherent hands, limbs, joints, torso, pelvis and complete adult anatomy. No beauty-filter smoothing, airbrushing, anime, cartoon, painting, illustration, 2D or 3D render, CGI, game art, doll, mannequin, plastic or wax skin, oversized stylized eyes, robe, strategic covering, censoring, blur, blank anatomy, text, watermark, or collage.',
@@ -316,14 +316,14 @@ export function buildWaveSpeedAdultImagePrompt(request:CanonicalMediaRequest,ref
   if(!ADULT_CONTENT_LEVELS.includes(request.contentLevel)||request.adultPipelineAuthorized!==true)throw new AppError('PROVIDER_REQUEST_INVALID','The adult image route requires a currently authorized request.',403,false);
   const intent=request.generationIntent?.requestText?.replace(/\s+/g,' ').trim();
   if(!intent)throw new AppError('PROVIDER_REQUEST_INVALID','The approved adult photo request was incomplete.',422,false);
-  const identityIndex=Math.max(0,references.findIndex((item)=>item.role==='character_identity'))+1,locationIndex=references.findIndex((item)=>item.role==='location_environment'||item.role==='world_environment')+1,direction=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId}),containment=request.context.worldContainment,worldLock=containment?`Only ${containment.worldName} at ${containment.locationName??'its canonical setting'}; never Earth.`:'Keep the canonical setting.',captureLighting=mediaCaptureLightingForRequest(request),scope=resolveAdultNudityScope(intent),nude=requestRequiresIdentityPreservingAdultRoute(intent),sceneInstruction=request.generationKind==='photo_edit'?'EDIT SOURCE: Edit the approved source photo; change pose, camera, or clothing when required.':nude?`NEW PHOTO in ${locationIndex>0?`Image ${locationIndex}`:'the canonical place'}. Image ${identityIndex} is face/hair/body identity ONLY. Do not copy its clothing, standing pose, crop, or background.`:`NEW SCENE: Image ${identityIndex} supplies identity only. Replace its pose, clothes/robe, crop, background, and camera; do not make a small edit.`,required=[
+  const identityIndex=Math.max(0,references.findIndex((item)=>item.role==='character_identity'))+1,locationIndex=references.findIndex((item)=>item.role==='location_environment'||item.role==='world_environment')+1,direction=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId}),containment=request.context.worldContainment,worldLock=containment?`Only ${containment.worldName} at ${containment.locationName??'its canonical setting'}; never Earth.`:'Keep the canonical setting.',captureLighting=mediaCaptureLightingForRequest(request),scope=resolveAdultNudityScope(intent),nude=requestRequiresIdentityPreservingAdultRoute(intent),sceneInstruction=request.generationKind==='photo_edit'?'EDIT SOURCE: Edit the approved source photo as requested.':nude?`NEW PHOTO in ${locationIndex>0?`Image ${locationIndex}`:'the canonical place'}. Image ${identityIndex} is identity ONLY, not its clothes, pose or backdrop.`:`NEW SCENE: Image ${identityIndex} is identity ONLY; replace pose, clothes, crop and background.`,required=[
     sceneInstruction,
     `MANDATORY TARGET: ${clipWaveSpeedPrompt(intent,120)}.`,
+    `TIME/LIGHT: ${request.generationKind==='photo_edit'&&captureLighting.source!=='explicit_request'?'Preserve source lighting.':captureLighting.shortInstruction}`,
     `POSE/CAMERA: ${waveSpeedConciseDirection(direction.poseDirection)} ${direction.faceMayBeHidden?'Face may remain away or out of frame.':'Keep the same recognizable face when visible.'}`,
     waveSpeedRequestedAnatomyGuidance(intent)||waveSpeedAdultNudityGuidance(scope,intent),
-    `IDENTITY: Image ${identityIndex} = ${request.companion.name}, fictional consenting adult age ${request.companion.age}; match that exact face, hair, complexion, and adult identity.`,
-    locationIndex>0?`SETTING: Image ${locationIndex} is the exact canonical place; keep that location. ${clipWaveSpeedPrompt(worldLock,40)}`:`SETTING: ${clipWaveSpeedPrompt(worldLock,48)}`,
-    `TIME/LIGHT: ${clipWaveSpeedPrompt(captureLighting.instruction,120)}`,
+    `IDENTITY: Image ${identityIndex} = ${request.companion.name}, fictional consenting adult age ${request.companion.age}; match that exact face, hair and skin.`,
+    locationIndex>0?`SETTING: Image ${locationIndex} is the exact canonical place; keep it. ${clipWaveSpeedPrompt(worldLock,40)}`:`SETTING: ${clipWaveSpeedPrompt(worldLock,48)}`,
     request.qualityRetry?`FIX: ${clipWaveSpeedPrompt(request.qualityRetry.reasonCodes.join(', '),40)}.`:'',
   ].filter(Boolean);
   const closer='Photoreal; complete coherent adult anatomy; no doll, plastic, blank/censored parts, CGI, text, or visible reference.';
@@ -372,8 +372,9 @@ export function buildWaveSpeedGroupImagePrompt(request:CanonicalMediaRequest,ref
   const approved=visualIntent?`Approved request: ${clipWaveSpeedPrompt(visualIntent,320)}. Depict that action and coverage exactly.`:'';
   const content=waveSpeedGroupContentGuidance(request.contentLevel);
   const composition=`FRAME: ${request.composition.shotType.replace('_',' ')}, ${request.composition.aspectRatio}; both visible.`;
-  const required=[action,worldLock,approved,content,sourceIndex>=0?`Figure ${sourceIndex+1}=approved two-person source.`:'',`IDENTITY LOCK: ${identityLocks}. Preserve face, facial structure, complexion, hair, and heritage. Two visibly different people; no copying, blending, swapping, averaging, duplication, or ethnic redesign.`,composition].filter(Boolean).join(' ');
-  const captureLighting=mediaCaptureLightingForRequest(request),qualityRetry=request.qualityRetry?`CORRECT: ${clipVenicePrompt(request.qualityRetry.reasonCodes.join(', '),55)}.`:'',optional=[qualityRetry,`TIME/LIGHT: ${clipWaveSpeedPrompt(captureLighting.instruction,65)}`,'Exactly two people; no extra person, collage, text, CGI, or visible reference.'].filter(Boolean).join(' ');
+  const captureLighting=mediaCaptureLightingForRequest(request);
+  const required=[action,`TIME/LIGHT: ${request.generationKind==='photo_edit'&&captureLighting.source!=='explicit_request'?'Preserve source lighting.':captureLighting.shortInstruction}`,worldLock,approved,content,sourceIndex>=0?`Figure ${sourceIndex+1}=approved two-person source.`:'',`IDENTITY LOCK: ${identityLocks}. Preserve face, facial structure, complexion, hair, and heritage. Two visibly different people; no copying, blending, swapping, averaging, duplication, or ethnic redesign.`,composition].filter(Boolean).join(' ');
+  const qualityRetry=request.qualityRetry?`CORRECT: ${clipVenicePrompt(request.qualityRetry.reasonCodes.join(', '),55)}.`:'',optional=[qualityRetry,'Exactly two people; no extra person, collage, text, CGI, or visible reference.'].filter(Boolean).join(' ');
   return clipWaveSpeedPrompt(`${required} ${optional}`,800);
 }
 
@@ -502,7 +503,7 @@ function adultEditPrompt(request:CanonicalMediaRequest):string{
   const instruction=request.generationKind==='photo_edit'?buildMediaEditConstraint(intent,classifyMediaEditSemantics(intent)):requestRequiresIdentityPreservingAdultRoute(intent)?`Create a NEW photograph of this same adult. Do not keep the identity-reference standing pose, crop, or clothing. Approved request: ${clipVenicePrompt(intent,240)}.`:`Edit only this approved change: ${clipVenicePrompt(intent,300)}.`;
   const containment=request.context.worldContainment,worldLock=containment?`Only ${containment.worldName}; exact setting ${containment.locationName??'a native canonical setting'}; never Earth, another world, or generic real-world scenery.`:buildMediaWorldContainmentInstruction(undefined),captureLighting=mediaCaptureLightingForRequest(request);
   const people=request.anonymousAdultPartner===true?`${request.companion.name} is a fictional consenting adult age ${request.companion.age}, with one anonymous original fictional adult partner age 25 or older who is not the user or a real person.`:`${request.companion.name} is one fictional consenting adult age ${request.companion.age}.`;
-  return[instruction,people,`WORLD/SETTING LOCK: ${clipVenicePrompt(worldLock,180)}`,request.generationKind==='photo_edit'?'Preserve the source photograph’s established capture time and lighting unless the approved edit explicitly changes it.':`TIME/LIGHT: ${clipVenicePrompt(captureLighting.instruction,320)}`,`Pose: ${clipVenicePrompt(direction.poseDirection,400)}. ${clipVenicePrompt(direction.faceDirection,140)}`,nudityGuidance,preservationGuidance,clipVenicePrompt(faceGuidance,180),request.anonymousAdultPartner===true?'Two coherent adult bodies, realistic skin and anatomy, natural joints, connected limbs, and five fingers per visible hand. No duplication, fusion, distortion, blank anatomy, censorship, collage, caption, watermark, or text.':'One coherent adult body, realistic skin and anatomy, natural joints, connected limbs, and five fingers per visible hand. No duplication, fusion, distortion, blank anatomy, censorship, collage, caption, watermark, or text.'].join('\n').slice(0,1_600);
+  return[instruction,people,`WORLD/SETTING LOCK: ${clipVenicePrompt(worldLock,180)}`,request.generationKind==='photo_edit'&&captureLighting.source!=='explicit_request'?'Preserve the source photograph’s established capture time and lighting.':`TIME/LIGHT: ${captureLighting.shortInstruction}`,`Pose: ${clipVenicePrompt(direction.poseDirection,400)}. ${clipVenicePrompt(direction.faceDirection,140)}`,nudityGuidance,preservationGuidance,clipVenicePrompt(faceGuidance,180),request.anonymousAdultPartner===true?'Two coherent adult bodies, realistic skin and anatomy, natural joints, connected limbs, and five fingers per visible hand. No duplication, fusion, distortion, blank anatomy, censorship, collage, caption, watermark, or text.':'One coherent adult body, realistic skin and anatomy, natural joints, connected limbs, and five fingers per visible hand. No duplication, fusion, distortion, blank anatomy, censorship, collage, caption, watermark, or text.'].join('\n').slice(0,1_600);
 }
 function veniceAdultBaseWardrobe(intent:string|undefined,existing?:string):string{
   const scope=resolveAdultNudityScope(intent);
@@ -540,11 +541,11 @@ export function buildVeniceImagePrompt(request:CanonicalMediaRequest):string{
   const prompt=[
     `Create one new photorealistic personal photograph of ${request.companion.name}, one fictional adult age ${request.companion.age}.`,
     'Use the input image only to preserve the exact same adult face, hair, eyes, skin tone, body identity, age, and identifying features. Do not copy its clothing, pose, crop, background, or lighting.',
+    `TIME/LIGHT: ${captureLighting.shortInstruction}`,
     `Identity: ${clipVenicePrompt(identity.canonicalDescription,260)} Hair: ${clipVenicePrompt(identity.hair,100)}. Eyes: ${clipVenicePrompt(identity.eyes,70)}. Build: ${clipVenicePrompt(identity.build,100)}.`,
     `Scene: ${clipVenicePrompt(place?.path??location?.name??'the canonical current place',120)}. ${clipVenicePrompt(locationDescription,360)}`,
     `WORLD/SETTING LOCK: ${clipVenicePrompt(buildMediaWorldContainmentInstruction(request.context.worldContainment),380)}`,
     `Activity: ${clipVenicePrompt(request.context.activity,180)}. Mood: ${clipVenicePrompt(request.context.mood,100)}.`,
-    `TIME/LIGHT: ${clipVenicePrompt(captureLighting.instruction,420)}`,
     `Wardrobe: ${clipVenicePrompt(wardrobe,240)}.`,
     `Composition: ${request.composition.shotType.replace('_',' ')} photo; ${clipVenicePrompt(request.composition.framing,180)}. Pose: ${direction.poseDirection}.`,
     ...(request.generationIntent?.requestText?[`Approved request: ${clipVenicePrompt(request.generationIntent.requestText,300)}`]:[]),

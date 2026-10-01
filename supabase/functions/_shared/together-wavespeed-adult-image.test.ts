@@ -233,8 +233,22 @@ Deno.test("adult WaveSpeed payload keeps identity first and uses the exact Qwen 
   assert(prompt.includes("no doll")||prompt.includes("no robe")||prompt.includes("no blur"));
 }));
 
+Deno.test("adult WaveSpeed short prompt keeps nighttime lighting ahead of reference details", () => withProviderEnv(() => {
+  const base = request();
+  const canonical = {
+    ...base,
+    context: { ...base.context, captureClock: { timezone: "America/New_York", localIso: "2026-09-29T23:00", weekday: "Tuesday", localTime: "23:00", daypart: "late_night" } },
+  };
+  const route = configuredMediaRegistry().find((item) => item.id === WAVESPEED_ADULT_QWEN_ROUTE_ID)!;
+  const prompt = String(waveSpeedInput({ ...canonical, mediaType: "image" }, route).prompt);
+  assert(prompt.length <= 800);
+  assertStringIncludes(prompt, "NIGHT photo");
+  assertStringIncludes(prompt, "No daylight even if references show day");
+  assert(prompt.indexOf("NIGHT photo") < prompt.indexOf("IDENTITY:"));
+}));
+
 Deno.test("adult WaveSpeed prompt makes requested pose and anatomy outrank the identity portrait composition", () => withProviderEnv(() => {
-  const canonical={...request(),generationIntent:{requestText:"Send me a photo of you bent over with your ass and pussy showing",requestedContentLevel:"explicit" as const}},route=configuredMediaRegistry().find((item)=>item.id===WAVESPEED_ADULT_QWEN_ROUTE_ID)!;
+  const base=request(),canonical={...base,context:{...base.context,captureClock:{timezone:"America/New_York",localIso:"2026-09-29T23:00",weekday:"Tuesday",localTime:"23:00",daypart:"late_night"}},generationIntent:{requestText:"Send me a photo of you bent over with your ass and pussy showing",requestedContentLevel:"explicit" as const}},route=configuredMediaRegistry().find((item)=>item.id===WAVESPEED_ADULT_QWEN_ROUTE_ID)!;
   const input=waveSpeedInput({...canonical,mediaType:"image"},route),prompt=String(input.prompt);
   assert(prompt.length<=800);
   assertEquals(input.images, ["https://signed.test/suite.webp", "https://signed.test/elena.webp"]);
@@ -245,11 +259,12 @@ Deno.test("adult WaveSpeed prompt makes requested pose and anatomy outrank the i
   assert(prompt.includes("no robe, underwear, fabric"));
   assert(prompt.includes("match that exact face"));
   assert(prompt.includes("Image 1 is the exact canonical place"));
+  assert(prompt.includes("NIGHT photo"));
   assert(prompt.indexOf("MANDATORY TARGET")<prompt.indexOf("IDENTITY:"));
 }));
 
 Deno.test("a bent-over nude request without named genitals still demands visible anatomy on Qwen", () => withProviderEnv(() => {
-  const canonical={...request(),generationIntent:{requestText:"Send me a picture of you bent over nude",requestedContentLevel:"explicit" as const}},route=configuredMediaRegistry().find((item)=>item.id===WAVESPEED_ADULT_QWEN_ROUTE_ID)!;
+  const base=request(),canonical={...base,context:{...base.context,captureClock:{timezone:"America/New_York",localIso:"2026-09-29T23:00",weekday:"Tuesday",localTime:"23:00",daypart:"late_night"}},generationIntent:{requestText:"Send me a picture of you bent over nude",requestedContentLevel:"explicit" as const}},route=configuredMediaRegistry().find((item)=>item.id===WAVESPEED_ADULT_QWEN_ROUTE_ID)!;
   const prompt=String(waveSpeedInput({...canonical,mediaType:"image"},route).prompt);
   assert(prompt.length<=800);
   assert(prompt.includes("buttocks and genitals fill the center of the frame"));
@@ -257,6 +272,7 @@ Deno.test("a bent-over nude request without named genitals still demands visible
   assert(prompt.includes("buttocks and rear anatomy"));
   assert(prompt.includes("match that exact face"));
   assert(prompt.includes("Image 1 is the exact canonical place"));
+  assert(prompt.includes("NIGHT photo"));
 }));
 
 Deno.test("Wan Realism scene payload creates a fresh photographic composition without leaking private references", () => withProviderEnv(() => {

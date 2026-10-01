@@ -10,8 +10,17 @@ export type MediaCaptureLighting = {
   effectiveDaypart: MediaCaptureDaypart;
   source: "explicit_request" | "canonical_clock" | "context_daypart";
   instruction: string;
+  shortInstruction: string;
   qualityInstruction: string;
 };
+
+export function resolveMediaCaptureTime(requestedAt: string | undefined, now: Date): Date {
+  if (!requestedAt) return now;
+  const parsed = new Date(requestedAt);
+  return Number.isFinite(parsed.getTime()) && parsed.getTime() <= now.getTime()
+    ? parsed
+    : now;
+}
 
 type MediaCaptureLightingInput = {
   requestText?: string;
@@ -72,9 +81,19 @@ export function resolveMediaCaptureLighting(
   return {
     effectiveDaypart,
     source,
-    instruction: `${lighting} ${authority}`,
+    instruction: `${lighting} ${authority} Reference images establish identity and place, not capture time; relight this new photo to match the required time of day.`,
+    shortInstruction: shortLightingRequirement(effectiveDaypart),
     qualityInstruction,
   };
+}
+
+function shortLightingRequirement(daypart: MediaCaptureDaypart): string {
+  if (daypart === "night") return "NIGHT photo: dark outside/windows; No daylight even if references show day.";
+  if (daypart === "dawn") return "DAWN photo: early sky and low light, not midday or deep night. Relight daytime references.";
+  if (daypart === "dusk") return "DUSK photo: sunset or twilight and emerging lights, not midday. Relight references.";
+  if (daypart === "morning") return "MORNING photo: morning daylight, not night. Relight references.";
+  if (daypart === "afternoon") return "AFTERNOON photo: daytime light and shadows, not night. Relight references.";
+  return "EVENING photo: late light, not midday sun. Relight references.";
 }
 
 function daypartFromLocalTime(
