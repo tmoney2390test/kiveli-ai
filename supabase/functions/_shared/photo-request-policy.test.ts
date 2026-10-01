@@ -3,7 +3,7 @@ import { acceptMediaOffer } from './together-media-offer-acceptance.ts';
 import { AppError } from './types.ts';
 import { classifyPhotoRequest } from './together-media-base.ts';
 import { restrictedPhotoTextCanContinueAsChat } from '../../../packages/together-domain/src/photo-request-policy.ts';
-import { mediaOfferVisibleForSession } from './together-media-offers.ts';
+import { declinedPhotoConversationMessage, declinedPhotoSourceMessageId, mediaOfferVisibleForSession } from './together-media-offers.ts';
 
 Deno.test('relationship language does not become a server photo request', () => {
   if (classifyPhotoRequest('Sora you don’t want to see me you said it yourself').requested) throw new Error('A relationship message was routed to PhotoGen');
@@ -30,6 +30,25 @@ Deno.test('an older mislabeled adult offer is hidden from native sessions', () =
   const offer={content_level:'standard',preview_metadata:{requestText:'Send me a pic of you in your underwear'}};
   if(mediaOfferVisibleForSession(offer,false))throw new Error('Mislabeled adult offer leaked to native');
   if(!mediaOfferVisibleForSession(offer,true))throw new Error('Authorized web offer was hidden');
+});
+
+Deno.test('only a declined user photo can resume its original chat message', async () => {
+  const originalId='11111111-1111-4111-8111-111111111111',placeholderId='22222222-2222-4222-8222-222222222222';
+  const offer={id:'33333333-3333-4333-8333-333333333333',source:'user_request',status:'declined',offer_key:`user_request:${originalId}`,continuity_id:'life',conversation_id:'chat',message_id:placeholderId,generated_media_id:null};
+  if(declinedPhotoSourceMessageId(offer)!==originalId)throw new Error('The original user message was not identified');
+  if(declinedPhotoSourceMessageId({...offer,offer_key:`group_request:${originalId}:44444444-4444-4444-8444-444444444444`})!==originalId)throw new Error('The original group message was not identified');
+  if(declinedPhotoSourceMessageId({...offer,source:'story'})!==null)throw new Error('A story offer was treated as a user message');
+  let writes=0;
+  const db={from(table:string){
+    if(table==='together_media_offers')return{select(){return this;},eq(){return this;},maybeSingle:async()=>({data:offer,error:null})};
+    if(table==='together_messages')return{select(){return this;},eq(){return this;},in(){return this;},then(resolve:(value:unknown)=>unknown){return resolve({data:[{id:originalId,role:'user',content:'How do you feel about sending a picture?'},{id:placeholderId,role:'assistant',provider_metadata:{mediaOnly:true}}],error:null});}};
+    writes++;throw new Error('Resuming a declined photo must not create another user message');
+  }};
+  const original=await declinedPhotoConversationMessage(db as never,{userId:'user',continuityId:'life',conversationId:'chat',offerId:offer.id});
+  if(original.id!==originalId||writes!==0)throw new Error('The original user turn was not reused');
+  offer.status='pending';
+  try{await declinedPhotoConversationMessage(db as never,{userId:'user',continuityId:'life',conversationId:'chat',offerId:offer.id});throw new Error('Pending photo was allowed to resume');}
+  catch(error){if(!(error instanceof AppError)||error.code!=='CONFLICT')throw error;}
 });
 
 Deno.test('a disallowed photo creates no offer or allowance reservation', async () => {

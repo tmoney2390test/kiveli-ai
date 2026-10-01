@@ -78,7 +78,7 @@ import {
 } from "../_shared/together-conversation.ts";
 import { classifyPhotoRequest } from "../_shared/together-media.ts";
 import { waitUntil } from "../_shared/background.ts";
-import { createMediaOffer } from "../_shared/together-media-offers.ts";
+import { createMediaOffer, declinedPhotoConversationMessage } from "../_shared/together-media-offers.ts";
 import { writeConversationEvent } from "../_shared/together-plans.ts";
 import { activeContinuity } from "../_shared/together-continuity.ts";
 import {
@@ -175,6 +175,7 @@ const normalSchema = z.object({
   anchorMessageId: z.string().uuid().optional(),
   messagePresentation: z.literal(ONE_TAP_SELFIE_MESSAGE_PRESENTATION).optional(),
   photoAsChatIfUnavailable: z.boolean().optional(),
+  declinedPhotoOfferId: z.string().uuid().optional(),
   autoDialogueSuggestionId: z.string().min(8).max(120).optional(),
   autoDialogueSuggestionSource: z.enum([
     "openai",
@@ -210,13 +211,14 @@ const normalSchema = z.object({
     scheduleEventId: z.string().uuid().optional(),
   }).optional(),
 }).refine(
-  (value) => value.message.trim().length > 0 || value.attachmentIds.length > 0,
+  (value) => value.message.trim().length > 0 || value.attachmentIds.length > 0 || Boolean(value.declinedPhotoOfferId),
   { message: "Write a message or attach a photo." },
 ).superRefine((value,ctx)=>{
   if(value.messageAction==='continue'&&!value.anchorMessageId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['anchorMessageId'],message:'Choose the companion message to continue.'});
   if(!value.messageAction&&value.anchorMessageId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['messageAction'],message:'That message action is invalid.'});
   if(value.messagePresentation&&!isOneTapSelfiePhotoRequest(value.message))ctx.addIssue({code:z.ZodIssueCode.custom,path:['messagePresentation'],message:'That message presentation is invalid.'});
   if(value.messagePresentation&&value.messageAction)ctx.addIssue({code:z.ZodIssueCode.custom,path:['messagePresentation'],message:'That message presentation cannot be combined with another action.'});
+  if(value.declinedPhotoOfferId&&(value.message.trim()||value.attachmentIds.length||value.messageAction||value.messagePresentation))ctx.addIssue({code:z.ZodIssueCode.custom,path:['declinedPhotoOfferId'],message:'A declined photo must continue from its original message.'});
 });
 const schema=z.union([messageRewriteSchema,normalSchema]);
 const dialogue = new ConfiguredDialogueProvider();
@@ -263,8 +265,10 @@ Deno.serve(async (request) => {
         const projectionPolicy=resolvePrivateDialoguePolicy({access:adultAccess,requestedMode:'explicit',conversationMode:'direct',participants:[directParticipant],safetyAllowed:true});
         const authorizedPrivateAdultText=projectionPolicy.rollout.generationAllowed;
         const chatLanguage=normalizeChatLanguage(conversation.metadata?.chatPreferences?.chatLanguage);
-        const userText = normalizeChatMessage(input.message);
-        const hideOneTapSelfie=input.messagePresentation===ONE_TAP_SELFIE_MESSAGE_PRESENTATION&&isOneTapSelfiePhotoRequest(userText);
+        const declinedPhotoMessage=input.declinedPhotoOfferId?await declinedPhotoConversationMessage(db,{userId:user.id,continuityId:String(continuity.id),conversationId:input.conversationId,offerId:input.declinedPhotoOfferId}):null;
+        if(declinedPhotoMessage&&input.clientRequestId!==input.declinedPhotoOfferId)throw new AppError('VALIDATION_FAILED','The declined photo reply has an invalid request ID.',422);
+        const userText = normalizeChatMessage(declinedPhotoMessage?.content??input.message);
+        const hideOneTapSelfie=!declinedPhotoMessage&&input.messagePresentation===ONE_TAP_SELFIE_MESSAGE_PRESENTATION&&isOneTapSelfiePhotoRequest(userText);
         const isContinuation=input.messageAction==='continue';
         let continuationAnchor:Record<string,any>|null=null;
         if(isContinuation){
@@ -280,7 +284,7 @@ Deno.serve(async (request) => {
         const contextText = (isContinuation?String(continuationAnchor?.content??''):userText) ||
           "The user shared an image without a caption.";
         const detectedPhotoIntent = classifyPhotoRequest(isContinuation?'':contextText);
-        const photoAsChat = input.photoAsChatIfUnavailable === true &&
+        const photoAsChat = Boolean(declinedPhotoMessage) || input.photoAsChatIfUnavailable === true &&
           adultAccess.client_surface === 'native_or_unknown' &&
           restrictedPhotoTextCanContinueAsChat(contextText);
         const photoIntent = photoAsChat
@@ -321,14 +325,14 @@ Deno.serve(async (request) => {
           anchorMessageId: input.anchorMessageId ?? null,
           messagePresentation: input.messagePresentation ?? null,
         });
-        requestId=await canonicalizeReconnectRequestId(db,{
+        if(!declinedPhotoMessage)requestId=await canonicalizeReconnectRequestId(db,{
           userId:user.id,
           conversationId:input.conversationId,
           fingerprint:requestFingerprint,
           requestId,
         });
         const persistedContent = userText || "[Photo]";
-        const existingUserMessage = await findExistingChatRequest(db, {
+        const existingUserMessage = declinedPhotoMessage??await findExistingChatRequest(db, {
           userId: user.id,
           conversationId: input.conversationId,
           requestId,
@@ -978,6 +982,7 @@ Deno.serve(async (request) => {
           instance: currentInstance,
           conversation,
           userMessage: contextText,
+          ...(declinedPhotoMessage&&Number(declinedPhotoMessage.conversation_sequence)>0?{beforeConversationSequence:Number(declinedPhotoMessage.conversation_sequence)}:{}),
           lifeRun,
           semanticRows: semantic.result.data ?? [],
           semanticQueryEmbedding: semantic.queryEmbedding,
@@ -989,6 +994,7 @@ Deno.serve(async (request) => {
           conversationSceneResolution: sceneResolution,
         });
         (dialogueContext as Record<string,unknown>).contentAccess={authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText};
+        dialogueContext.declinedPhotoOffer=Boolean(declinedPhotoMessage);
         if(isContinuation){
           dialogueContext.userMessage='';
           (dialogueContext as Record<string,unknown>).continuationRequest={anchorMessageId:input.anchorMessageId,anchorSpeakerCharacterInstanceId:String(continuationAnchor?.speaker_character_instance_id??continuationAnchor?.character_instance_id??input.characterInstanceId)};

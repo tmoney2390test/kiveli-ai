@@ -44,6 +44,7 @@ export type TieredConversationContext = BaseContext & {
   speakerPrivateContextOwnerId?: string;
   characterVoiceOwnerId?: string;
   sceneSpeakerDirective?: { characterInstanceId: string; name: string };
+  declinedPhotoOffer?: boolean;
   commitments: ConversationCommitment[];
   subscription: {
     tier: string;
@@ -150,7 +151,7 @@ export async function buildTieredKivelleConversationContext(
       before=Number(page.at(-1)![sequenceKey]);
     }
     if (data?.length) {
-      recent = data.reverse().map((item: Row) => {
+      recent = data.reverse().filter((item: Row)=>item.provider_metadata?.uiHidden!==true).map((item: Row) => {
         const providerMetadata =
           item.provider_metadata && typeof item.provider_metadata === "object"
             ? item.provider_metadata as Record<string, unknown>

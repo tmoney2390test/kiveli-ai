@@ -157,6 +157,7 @@ function ChatSession() {
   const [stream, setStream] = useState('');
   const [error, setError] = useState('');
   const [blockedPhoto, setBlockedPhoto] = useState<{text:string;message:string}|null>(null);
+  const [declinedReplyRetryOffer,setDeclinedReplyRetryOffer]=useState<MediaOffer|null>(null);
   const [feedback, setFeedback] = useState<Feedback|null>(null);
   const [memorySavedNotice,setMemorySavedNotice]=useState<MemorySavedNotice|null>(null);
   const [showPlans, setShowPlans] = useState(params.plan === '1');
@@ -847,9 +848,29 @@ function ChatSession() {
     }finally{setMediaOfferBusy(null);}
   };
   const declineOffer=async(offer:MediaOffer)=>{
+    if(offer.source==='user_request'&&offer.status==='pending'&&replyPending){setError('Wait for the current reply before declining this photo.');return;}
+    let dismissed=false;
     setMediaOfferBusy(offer.id);setMediaOffers((current)=>current.filter((item)=>item.id!==offer.id));
-    try{const result=await manageMedia<{offer:MediaOffer;removedMediaId:string|null}>({action:'dismiss_offer',offerId:offer.id});if(result.removedMediaId)removeMedia(result.removedMediaId);}
-    catch(caught){setMediaOffers((current)=>current.some((item)=>item.id===offer.id)?current:[offer,...current]);setError(caught instanceof Error?caught.message:'The offer could not be dismissed.');}
+    try{
+      const result=await manageMedia<{offer:MediaOffer;removedMediaId:string|null}>({action:'dismiss_offer',offerId:offer.id});
+      dismissed=true;
+      if(result.removedMediaId)removeMedia(result.removedMediaId);
+      if(offer.source==='user_request'&&offer.status==='pending'&&result.offer.status==='declined'){
+        setMessages((current)=>current.map((message)=>message.id===offer.message_id?{...message,provider_metadata:{...message.provider_metadata,uiHidden:true}}:message));
+        setSending(true);setStream('');setError('');keepPinnedToBottom.current=true;
+        beginPendingDialogue({conversationId:conversation.id,characterInstanceId:character.id,clientRequestId:offer.id,startedAt:new Date().toISOString(),showTyping:true});
+        try{
+          const reply=await sendDialogue({conversationId:conversation.id,characterInstanceId:character.id,message:'',clientRequestId:offer.id,declinedPhotoOfferId:offer.id},(token)=>setStream((current)=>current+token),{
+            onPrimary:(message)=>{setMessages((current)=>reconcileMessages(current,[message]));setStream('');settleSentMessageAtBottom(offer.id);},
+            onMessage:(message)=>setMessages((current)=>reconcileMessages(current,[message])),
+          });
+          setMessages((current)=>reconcileMessages(current,[reply.message,...(reply.additionalMessages??[])]));
+          setStream('');setError('');setDeclinedReplyRetryOffer(null);settleSentMessageAtBottom(offer.id);
+          void refresh({force:true});
+        }finally{finishPendingDialogue(conversation.id,offer.id);setSending(false);setStream('');}
+      }
+    }
+    catch(caught){if(!dismissed)setMediaOffers((current)=>current.some((item)=>item.id===offer.id)?current:[offer,...current]);else if(offer.source==='user_request'&&offer.status==='pending')setDeclinedReplyRetryOffer(offer);setError(caught instanceof Error?caught.message:'The photo was skipped, but the chat reply was interrupted.');}
     finally{setMediaOfferBusy(null);}
   };
   const dispatchOptimisticPhotoDecision=(requestId:string,offer:MediaOffer,decision:QueuedPhotoOfferDecision)=>{
@@ -1352,7 +1373,7 @@ function ChatSession() {
           {conversationReady&&characterProposal&&!proposalDecisions.isHidden(characterProposal.actionId)?<CharacterProposalCard name={character.together_character_templates.name} proposal={characterProposal} busy={interactionLoading} onAccept={()=>void acceptCharacterProposal()} onDismiss={()=>void dismissCharacterProposal()}/>:null}
           {conversationReady&&feedback ? <StoryFeedback feedback={feedback} onView={() => navigateChatSurface(feedback.kind === 'memory' ? '/memories' : feedback.kind==='plan'? '/dates':'/moments')} onUndo={feedback.kind === 'memory' ? () => void undoMemory() : undefined} onDismiss={() => setFeedback(null)} /> : null}
           {blockedPhoto ? <View accessibilityRole="alert" style={styles.retry}><Text style={styles.retryText}>{blockedPhoto.message}</Text><View style={{flexDirection:'row',gap:24,paddingTop:12}}><Pressable accessibilityRole="button" onPress={()=>{setInput(blockedPhoto.text);currentInput.current=blockedPhoto.text;setBlockedPhoto(null);composerInput.current?.focus();}}><Text style={styles.retryText}>Edit request</Text></Pressable><Pressable accessibilityRole="button" onPress={()=>setBlockedPhoto(null)}><Text style={styles.retryText}>Dismiss</Text></Pressable></View></View> : null}
-          {error&&!blockedPhoto&&!historyLoadFailed ? <ChatRecoveryNotice error={error} onDismiss={()=>setError('')} onRetry={pendingSceneAction ? ()=>void generateSceneReaction(pendingSceneAction.id) : visibleMessages.some(item=>item.delivery_status==='failed') ? ()=>{const failed=[...visibleMessages].reverse().find(item=>item.delivery_status==='failed');if(failed)void send(failed.content,failed.client_request_id??undefined,failed.id);} : undefined} /> : null}
+          {error&&!blockedPhoto&&!historyLoadFailed ? <ChatRecoveryNotice error={error} onDismiss={()=>{setError('');setDeclinedReplyRetryOffer(null);}} onRetry={declinedReplyRetryOffer?()=>void declineOffer(declinedReplyRetryOffer):pendingSceneAction ? ()=>void generateSceneReaction(pendingSceneAction.id) : visibleMessages.some(item=>item.delivery_status==='failed') ? ()=>{const failed=[...visibleMessages].reverse().find(item=>item.delivery_status==='failed');if(failed)void send(failed.content,failed.client_request_id??undefined,failed.id);} : undefined} /> : null}
         </VirtualizedConversationList>}
         <JumpToLatestButton visible={!showPlans&&showJumpToLatest} bottom={width<720?floatingComposerHeight+12:92} onPress={jumpToLatest}/>
         {showInteractions?<InteractionTray name={character.together_character_templates.name} location={location} loading={interactionLoading||replyPending} interactions={interactionCandidates} destinations={movementCandidates} onInteraction={(candidate)=>void executeInteraction(candidate)} onMove={(candidate)=>void moveScene(candidate)} onClose={()=>setShowInteractions(false)} />:isCoPresent&&interactionCandidates.length&&shouldShowPlanInteractionTray({activePlanId:activeSharedPlan?.id,dismissedPlanId:dismissedInteractionPlanId,preferenceReady:interactionTrayPreferenceReady})?<ContextualInteractionTray loading={interactionLoading||replyPending} interactions={interactionCandidates.slice(0,3)} onOpen={()=>setShowInteractions(true)} onInteraction={(candidate)=>void executeInteraction(candidate)} onDismiss={activeSharedPlan?dismissPlanInteractionTray:undefined} />:null}

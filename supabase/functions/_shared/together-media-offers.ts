@@ -98,9 +98,39 @@ export async function declineMediaOffer(db:SupabaseClient,input:{userId:string;o
   const now=new Date().toISOString();
   const{data,error}=await db.from('together_media_offers').update({status:'declined',declined_at:now,updated_at:now}).eq('id',input.offerId).eq('user_id',input.userId).eq('status','pending').select('*').maybeSingle();
   if(error)throw new AppError('INTERNAL_ERROR','The photo offer could not be dismissed.',500,true);
-  if(!data){const{data:existing}=await db.from('together_media_offers').select('*').eq('id',input.offerId).eq('user_id',input.userId).maybeSingle();if(!existing)throw new AppError('NOT_FOUND','That photo offer is unavailable.',404);return existing;}
+  if(!data){const{data:existing}=await db.from('together_media_offers').select('*').eq('id',input.offerId).eq('user_id',input.userId).maybeSingle();if(!existing)throw new AppError('NOT_FOUND','That photo offer is unavailable.',404);if(existing.status==='declined')await hideDeclinedPhotoPlaceholder(db,input.userId,existing);return existing;}
   if(data.included_benefit_type==='daily_companion_photo')await releaseDailyPhotoAllowance(db,{userId:input.userId,reservationKey:dailyPhotoReservationKey(data.preview_metadata)});
+  await hideDeclinedPhotoPlaceholder(db,input.userId,data);
   await track(db,input.userId,'media_offer_declined',{offerId:data.id,source:data.source,tier:data.subscription_tier_at_creation,creditCost:data.credit_cost,characterInstanceId:data.character_instance_id});return data;
+}
+
+async function hideDeclinedPhotoPlaceholder(db:SupabaseClient,userId:string,offer:Record<string,any>):Promise<void>{
+  if(offer.source!=='user_request'||!offer.message_id)return;
+  const{data:placeholder,error:readError}=await db.from('together_messages').select('id,provider_metadata').eq('id',offer.message_id).eq('user_id',userId).maybeSingle();
+  if(readError)throw new AppError('INTERNAL_ERROR','The declined photo message could not be updated.',500,true);
+  if(placeholder?.provider_metadata?.mediaOnly!==true||placeholder.provider_metadata.uiHidden===true)return;
+  const{error}=await db.from('together_messages').update({provider_metadata:{...placeholder.provider_metadata,uiHidden:true}}).eq('id',placeholder.id).eq('user_id',userId);
+  if(error)throw new AppError('INTERNAL_ERROR','The declined photo message could not be updated.',500,true);
+}
+
+export function declinedPhotoSourceMessageId(offer:{source?:unknown;offer_key?:unknown}):string|null{
+  if(offer.source!=='user_request'||typeof offer.offer_key!=='string')return null;
+  const match=/^(?:user_request|group_request):([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?::|$)/i.exec(offer.offer_key);
+  return match?.[1]??null;
+}
+
+/** Reuse the original user turn after a declined photo instead of billing/counting a second message. */
+export async function declinedPhotoConversationMessage(db:SupabaseClient,input:{userId:string;continuityId:string;conversationId:string;offerId:string}):Promise<Record<string,any>>{
+  const{data:offer,error:offerError}=await db.from('together_media_offers').select('id,source,status,offer_key,continuity_id,conversation_id,message_id,generated_media_id').eq('id',input.offerId).eq('user_id',input.userId).eq('continuity_id',input.continuityId).eq('conversation_id',input.conversationId).maybeSingle();
+  if(offerError)throw new AppError('INTERNAL_ERROR','The declined photo could not be checked.',500,true);
+  const sourceId=offer&&offer.status==='declined'&&!offer.generated_media_id?declinedPhotoSourceMessageId(offer):null;
+  if(!sourceId||!offer?.message_id)throw new AppError('CONFLICT','That photo request cannot continue as chat.',409);
+  const{data:rows,error:messageError}=await db.from('together_messages').select('*').eq('user_id',input.userId).eq('continuity_id',input.continuityId).eq('conversation_id',input.conversationId).in('id',[sourceId,offer.message_id]);
+  if(messageError)throw new AppError('INTERNAL_ERROR','The original message could not be checked.',500,true);
+  const userMessage=(rows??[]).find((row)=>row.id===sourceId&&row.role==='user');
+  const placeholder=(rows??[]).find((row)=>row.id===offer.message_id&&row.role==='assistant'&&row.provider_metadata?.mediaOnly===true);
+  if(!userMessage||!placeholder)throw new AppError('CONFLICT','The original photo message is unavailable.',409);
+  return userMessage;
 }
 
 /**
@@ -114,7 +144,7 @@ export async function dismissMediaOffer(db:SupabaseClient,input:{userId:string;o
   if(offerError)throw new AppError('INTERNAL_ERROR','The photo request could not be checked.',500,true);
   if(!offer)throw new AppError('NOT_FOUND','That photo request is unavailable.',404);
   if(offer.status==='pending')return{offer:await declineMediaOffer(db,input),removedMediaId:null};
-  if(offer.status==='declined')return{offer,removedMediaId:null};
+  if(offer.status==='declined'){await hideDeclinedPhotoPlaceholder(db,input.userId,offer);return{offer,removedMediaId:null};}
   if(offer.status!=='failed')throw new AppError('CONFLICT','A photo that is currently being created cannot be removed.',409);
 
   const mediaId=typeof offer.generated_media_id==='string'?offer.generated_media_id:null;

@@ -282,6 +282,7 @@ export default function GroupChatScreen() {
     [loading, setLoading] = useState(!initialGroupCache?.complete),
     [groupLoadAttempt,setGroupLoadAttempt]=useState(0),
     [error, setError] = useState(""),
+    [declinedReplyRetryOffer,setDeclinedReplyRetryOffer]=useState<MediaOffer|null>(null),
     [input, setInput] = useState(""),
     [pendingImage, setPendingImage] = useState<PendingGroupImage | null>(
       null,
@@ -1420,13 +1421,17 @@ export default function GroupChatScreen() {
     }
   };
   const declineMediaOffer = async (offer: MediaOffer) => {
+    if(offer.source==='user_request'&&offer.status==='pending'&&replyPending){setError('Wait for the current reply before declining this photo.');return;}
+    let dismissed=false;
     setMediaOfferBusy(offer.id);
     try {
       const result=await manageMedia<{offer:MediaOffer;removedMediaId:string|null}>({ action: "dismiss_offer", offerId: offer.id });
+      dismissed=true;
       setDetail((current) =>
         current
           ? {
             ...current,
+            messages: current.messages.map((message)=>message.id===offer.message_id?{...message,provider_metadata:{...message.provider_metadata,uiHidden:true}}:message),
             mediaOffers: (current.mediaOffers ?? []).filter((item) =>
               item.id !== offer.id
             ),
@@ -1436,7 +1441,22 @@ export default function GroupChatScreen() {
           }
           : current
       );
+      if(offer.source==='user_request'&&offer.status==='pending'&&result.offer.status==='declined'&&detail){
+        const controller=new AbortController();abortRef.current=controller;
+        setSending(true);setError('');keepPinnedToBottom.current=true;
+        const anchorCharacterId=detail.conversation.character_instance_id??detail.participants[0]?.character_instance_id;
+        if(anchorCharacterId)beginPendingDialogue({conversationId:detail.conversation.id,characterInstanceId:anchorCharacterId,clientRequestId:offer.id,startedAt:new Date().toISOString(),showTyping:true});
+        try{
+          await sendGroupDialogue({conversationId:detail.conversation.id,message:'',clientRequestId:offer.id,declinedPhotoOfferId:offer.id},(event)=>{if(abortRef.current===controller&&!controller.signal.aborted)handleEvent(event);},controller.signal);
+          setDeclinedReplyRetryOffer(null);setError('');
+          void refreshGroupDelta();
+        }finally{
+          finishPendingDialogue(detail.conversation.id,offer.id);
+          if(abortRef.current===controller){abortRef.current=null;setSending(false);setTyping([]);setReplyDrafts(emptyReplyDrafts());}
+        }
+      }
     } catch (caught) {
+      if(dismissed&&offer.source==='user_request'&&offer.status==='pending')setDeclinedReplyRetryOffer(offer);
       setError(
         caught instanceof Error
           ? caught.message
@@ -2187,7 +2207,7 @@ export default function GroupChatScreen() {
       />
       {timelineReveal.hidden?<View pointerEvents="none" style={[StyleSheet.absoluteFill,{alignItems:"center",justifyContent:"center"}]}><ActivityIndicator accessibilityLabel="Opening conversation" color={colors.rose}/></View>:null}</View>
       <JumpToLatestButton visible={showJumpToLatest} bottom={width<720?floatingComposerHeight+12:92} onPress={()=>{if(params.id)clearChatScrollPosition(params.id);settleGroupAtBottom(true);}}/>
-      {error&&groupTimelineReady ? <ChatRecoveryNotice error={error} onDismiss={()=>setError("")} /> : null}
+      {error&&groupTimelineReady ? <ChatRecoveryNotice error={error} onDismiss={()=>{setError("");setDeclinedReplyRetryOffer(null);}} onRetry={declinedReplyRetryOffer?()=>void declineMediaOffer(declinedReplyRetryOffer):undefined} /> : null}
       {mentionOptions.length
         ? (
           <FrostedSurface intensity={92} style={styles.mentions}>

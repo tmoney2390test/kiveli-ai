@@ -69,7 +69,7 @@ import {
 } from "../_shared/private-adult-text-policy.ts";
 import { enforcePhotoSharingEntitlement } from "../_shared/kivelle-subscription.ts";
 import { track } from "../_shared/together.ts";
-import { createMediaOffer } from "../_shared/together-media-offers.ts";
+import { createMediaOffer, declinedPhotoConversationMessage } from "../_shared/together-media-offers.ts";
 import { configuredGroupImageRouteAvailable } from "../_shared/together-media-providers.ts";
 import { classifyPhotoRequest } from "../_shared/together-media.ts";
 import { restrictedPhotoTextCanContinueAsChat } from '../../../packages/together-domain/src/photo-request-policy.ts';
@@ -118,13 +118,17 @@ const normalSchema = z.object({
   mentionedCharacterInstanceIds: z.array(z.string().uuid()).max(5).refine((ids) => new Set(ids).size === ids.length, "A companion can only be mentioned once.").default([]),
   photoSubjectCharacterInstanceIds: z.array(z.string().uuid()).max(2).refine((ids) => new Set(ids).size === ids.length, "A photo subject can only be selected once.").default([]),
   photoAsChatIfUnavailable: z.boolean().optional(),
+  declinedPhotoOfferId: z.string().uuid().optional(),
   replyToMessageId: z.string().uuid().optional(),
   manualSpeakerInstanceId: z.string().uuid().optional(),
   broadGroupRequest: z.boolean().default(false),
   letThemTalk: z.boolean().default(false),
 }).refine(
-  (value) => value.message.length > 0 || value.attachmentIds.length > 0,
+  (value) => value.message.length > 0 || value.attachmentIds.length > 0 || Boolean(value.declinedPhotoOfferId),
   { message: "Write a message or attach a photo." },
+).refine(
+  (value) => !value.declinedPhotoOfferId || (!value.message.trim() && !value.attachmentIds.length && !value.photoSubjectCharacterInstanceIds.length && !value.letThemTalk),
+  { message: "A declined photo must continue from its original message." },
 );
 const schema=z.union([messageRewriteSchema,normalSchema]);
 const dialogue = new ConfiguredDialogueProvider(),
@@ -151,7 +155,7 @@ Deno.serve(async (request) => {
     await requireAiDataConsent(db,user.id);
     stageContextAuthorization(db,user.id,input);
     let requestId = assertChatRequestId(input.clientRequestId);
-    const normalizedMessage = normalizeChatMessage(input.message);
+    let normalizedMessage = normalizeChatMessage(input.message);
     const continuity = await activeContinuity(db, user.id);
     const subscription = await requireGroupChatAccess(db, user.id);
     const conversation = await requireOwnedGroupConversation(db, {
@@ -159,6 +163,9 @@ Deno.serve(async (request) => {
       continuityId: continuity.id,
       conversationId: input.conversationId,
     });
+    const declinedPhotoMessage=input.declinedPhotoOfferId?await declinedPhotoConversationMessage(db,{userId:user.id,continuityId:String(continuity.id),conversationId:conversation.id,offerId:input.declinedPhotoOfferId}):null;
+    if(declinedPhotoMessage&&requestId!==input.declinedPhotoOfferId)throw new AppError('VALIDATION_FAILED','The declined photo reply has an invalid request ID.',422);
+    if(declinedPhotoMessage)normalizedMessage=normalizeChatMessage(declinedPhotoMessage.content);
     const chatLanguage=normalizeChatLanguage(conversation.metadata?.chatPreferences?.chatLanguage);
     const roster = await activeGroupParticipants(db, {
       userId: user.id,
@@ -214,13 +221,13 @@ Deno.serve(async (request) => {
       broadGroupRequest: input.broadGroupRequest,
       letThemTalk: input.letThemTalk,
     });
-    requestId=await canonicalizeReconnectRequestId(db,{
+    if(!declinedPhotoMessage)requestId=await canonicalizeReconnectRequestId(db,{
       userId:user.id,
       conversationId:conversation.id,
       fingerprint:requestFingerprint,
       requestId,
     });
-    const existingUserMessage = await findExistingChatRequest(db, {
+    const existingUserMessage = declinedPhotoMessage??await findExistingChatRequest(db, {
       userId: user.id,
       conversationId: conversation.id,
       requestId,
@@ -230,7 +237,7 @@ Deno.serve(async (request) => {
     });
     if (existingUserMessage) {
       const { data: existingTurn } = await db.from("together_dialogue_turns")
-        .select("*").eq("source_message_id", existingUserMessage.id).maybeSingle();
+        .select("*").eq(declinedPhotoMessage?"request_id":"source_message_id", declinedPhotoMessage?requestId:existingUserMessage.id).maybeSingle();
       const { data: existingMessages } = existingTurn
         ? await db.from("together_messages").select("*").eq("user_id",user.id).eq(
           "dialogue_turn_id",
@@ -309,7 +316,7 @@ Deno.serve(async (request) => {
     if(storedRequestedMode==='explicit')await track(db,user.id,'private_adult_text_policy_decision',privateAdultTextTelemetry({policy:groupDialoguePolicy,access:adultAccess,conversationMode:'group'}));
     const adultAttachment=attachments.some((attachment)=>attachment.content_rating==='explicit'||attachment.visibility_scope==='web_adult');
     const routingHistory=await loadAdultRoutingHistory(db,user.id,conversation.id,existingUserMessage?Number(existingUserMessage.conversation_sequence):undefined);
-    const photoAsChat = input.photoAsChatIfUnavailable === true &&
+    const photoAsChat = Boolean(declinedPhotoMessage) || input.photoAsChatIfUnavailable === true &&
       input.photoSubjectCharacterInstanceIds.length === 0 &&
       adultAccess.client_surface === 'native_or_unknown' &&
       restrictedPhotoTextCanContinueAsChat(messageText);
@@ -778,6 +785,7 @@ function groupStream(input: any): Response {
             userMessage: String(
               input.userMessage.content ?? input.input.message,
             ),
+            ...(input.input.declinedPhotoOfferId&&Number(input.userMessage.conversation_sequence)>0?{beforeConversationSequence:Number(input.userMessage.conversation_sequence)}:{}),
             attachments: input.userMessage.together_conversation_attachments ??
               [],
             correlationId: input.correlationId,
@@ -785,6 +793,7 @@ function groupStream(input: any): Response {
             authorizedPrivateAdultText:liveDialoguePolicy.rollout.generationAllowed,
           });
           const context: any = selected.context;
+          context.declinedPhotoOffer=Boolean(input.input.declinedPhotoOfferId);
           assertSpeakerPrivateContext(context, action.characterInstanceId);
           context.sceneSpeakerDirective = {
             characterInstanceId: action.characterInstanceId,
