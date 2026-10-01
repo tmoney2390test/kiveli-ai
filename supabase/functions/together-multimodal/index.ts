@@ -530,9 +530,7 @@ serve(async (request, correlationId) => {
   if (input.action === "voice_note_quote") {
     if (preferences.companionVoiceNotes === false) throw new AppError("FORBIDDEN", "Voice notes are turned off in Settings.", 403);
     if (!capabilities.experience.voiceNotes) throw new AppError("PLAN_LIMIT_REACHED", "Voice notes are available with Kivelle+.", 403);
-    const { data: message } = await db.from("together_messages").select("id,content,together_conversations!inner(continuity_id)").eq("id", input.messageId).eq("user_id", user.id).eq("role", "assistant").maybeSingle();
-    const conversation = message?.together_conversations as Record<string, unknown> | undefined;
-    if (!message || String(conversation?.continuity_id) !== continuity.id) throw new AppError("NOT_FOUND", "That companion message is unavailable.", 404);
+    const { message } = await loadVoiceNoteMessage(db, user.id, continuity.id, input.messageId);
     const canonicalText = String(message.content ?? "").trim();
     if (hasSexualDialogueLanguage(canonicalText)) {
       throw new AppError(
@@ -572,20 +570,7 @@ serve(async (request, correlationId) => {
       30,
       3600,
     );
-    const { data: message } = await db.from("together_messages").select(
-      "*,together_conversations!inner(id,continuity_id,character_instance_id,user_id,metadata)",
-    ).eq("id", input.messageId).eq("user_id", user.id).eq("role", "assistant")
-      .maybeSingle();
-    const conversation = message?.together_conversations as
-      | Record<string, unknown>
-      | undefined;
-    if (!message || String(conversation?.continuity_id) !== continuity.id) {
-      throw new AppError(
-        "NOT_FOUND",
-        "That companion message is unavailable.",
-        404,
-      );
-    }
+    const { message, conversation } = await loadVoiceNoteMessage(db, user.id, continuity.id, input.messageId);
     const canonicalText = String(message.content ?? "").trim();
     if (!canonicalText) {
       throw new AppError(
@@ -859,6 +844,21 @@ serve(async (request, correlationId) => {
     correlationId,
   );
 });
+
+async function loadVoiceNoteMessage(db: any, userId: string, continuityId: string, messageId: string): Promise<{ message: Record<string, any>; conversation: Record<string, any> }> {
+  const { data: message, error: messageError } = await db.from("together_messages")
+    .select("*").eq("id", messageId).eq("user_id", userId).eq("role", "assistant").maybeSingle();
+  if (messageError) throw new AppError("INTERNAL_ERROR", "That companion message could not be checked.", 500, true);
+  if (!message) throw new AppError("NOT_FOUND", "That companion message is unavailable.", 404);
+  const { data: conversation, error: conversationError } = await db.from("together_conversations")
+    .select("id,continuity_id,character_instance_id,user_id,metadata")
+    .eq("id", message.conversation_id).eq("user_id", userId).maybeSingle();
+  if (conversationError) throw new AppError("INTERNAL_ERROR", "That conversation could not be checked.", 500, true);
+  if (!conversation || String(conversation.continuity_id) !== continuityId) {
+    throw new AppError("NOT_FOUND", "That companion message is unavailable.", 404);
+  }
+  return { message, conversation };
+}
 
 const MAX_DICTATION_BYTES = 8 * 1024 * 1024;
 const supportedDictationTypes = new Set([
