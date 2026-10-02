@@ -15,6 +15,10 @@ Gilded Coast is authored and staged with `published=false`. Its content migratio
 
 Set `together_worlds.published=false` and `together_world_pulse_settings.enabled=false` for world `10000000-0000-4000-8000-000000000014`. This hides discovery and stops new global events without deleting templates, snapshots, user conversations, or purchased media. Restore publication only after the failing path is fixed and verified. Do not delete or rewrite applied migrations.
 
-## Current verification limit
+## Production release, 2026-10-02
 
-The content, app, and Edge checks have passed locally, but a local Supabase database was unavailable (`127.0.0.1:54322` refused connections). The private reference upload, media-link transaction, and live photo/video/group checks have not been performed. The world must remain unpublished until those checks pass.
+The four Gilded Coast migrations were applied to project `mfysnlghlhxxcwnwpxog` after the major-Pulse schema migration. The 79 private reference records were uploaded and linked (36 portraits, 42 places, one world image). The public catalog publisher verified all 2,412 optimized variants, uploading 92 previously missing objects. The compatible Edge Functions and production web export were deployed; Cloudflare Worker version `da3b152f-6783-4f76-afb5-3872920a42ac` serves `kivelli.app`.
+
+The guarded publish transaction passed and set `published=true` and Pulse `enabled=true`. The live catalog has 200 routine and 15 major templates, eight scenarios, and 36 residents. Routine scheduling reserved 400 occurrences across 60 days with no shortages; six were published on release day. Major scheduling reserved 15 incidents across 70 days with no shortages. The world hero and a resident portrait returned HTTP 200 from the public artwork catalog; the web routes returned HTTP 200 and the unauthenticated Pulse function returned its expected HTTP 401.
+
+`pnpm gilded:test`, lint, typecheck, Edge typecheck, artwork verification, and the production web build passed. The local Supabase database test could not run because the local database was unavailable. Authenticated live chat, group, photo, video, and physical-device checks remain unverified; this release does not claim those checks passed. Existing iOS binaries do not contain the new client artwork mapping and need a separate native build for the complete visual experience.
