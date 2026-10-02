@@ -1,0 +1,570 @@
+{
+  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "world": {
+    "name": "Juniper City",
+    "slug": "juniper-city",
+    "description": "People, places, and stories moving around you."
+  },
+  "locations": [
+    {
+      "name": "Alder Central Precinct",
+      "slug": "alder-central-precinct",
+      "category": "public_service",
+      "description": "Juniper's central detective and public-safety offices."
+    },
+    {
+      "name": "Alder District",
+      "slug": "alder-district",
+      "category": "district",
+      "description": "Juniper City's walkable creative-commercial core, where independent shops, photography, galleries, books, coffee, design culture, intimate dining, and polished evening venues share restored brick blocks."
+    },
+    {
+      "name": "Alder Elementary School",
+      "slug": "alder-elementary-school",
+      "category": "education",
+      "description": "A neighborhood elementary school with a busy art room and a tree-lined courtyard."
+    },
+    {
+      "name": "The Alder House",
+      "slug": "alder-house",
+      "category": "hotel",
+      "description": "A 54-room boutique hotel occupying a carefully restored brick building in Juniper's creative core. Visiting artists, photographers, designers, wedding guests, and business travelers mix in a warm library lounge, understated lobby bar, and enclosed courtyard. Upscale without feeling corporate."
+    },
+    {
+      "name": "Alder Lofts",
+      "slug": "alder-lofts",
+      "category": "residence",
+      "description": "Converted brick loft residences in Alder District."
+    },
+    {
+      "name": "Chloe's Design Studio",
+      "slug": "chloe-design-studio",
+      "category": "work",
+      "description": "A working design studio with material samples, pinned concepts, prototypes, and a long communal table that is almost never completely clear."
+    },
+    {
+      "name": "Chloe's Loft",
+      "slug": "chloe-loft",
+      "category": "home",
+      "description": "Chloe's bright city loft: bold art, a crowded record shelf, design books, and the kind of living room that regularly turns into a late-night hangout."
+    },
+    {
+      "name": "Civic Commons",
+      "slug": "civic-commons",
+      "category": "district",
+      "description": "Juniper's public and institutional center, bringing arena events, transit, healthcare, civic life, practical errands, and large city gatherings into one connected district."
+    },
+    {
+      "name": "Common Market",
+      "slug": "common-market",
+      "category": "market",
+      "description": "A crowded market that turns basic errands into an hour-long detour."
+    },
+    {
+      "name": "Eastgate Flats",
+      "slug": "eastgate-flats",
+      "category": "residence",
+      "description": "Quiet contemporary flats near Juniper College."
+    },
+    {
+      "name": "Ember & Rye",
+      "slug": "ember-and-rye",
+      "category": "restaurant",
+      "description": "A sunlit brunch room with paper menus and a line that somehow moves slowly."
+    },
+    {
+      "name": "Forgeworks Design Lab",
+      "slug": "forgeworks-design-lab",
+      "category": "studio",
+      "description": "A shared industrial and digital design workshop in a renovated warehouse."
+    },
+    {
+      "name": "Glassline Gallery",
+      "slug": "glassline-gallery",
+      "category": "gallery",
+      "description": "A contemporary gallery with a generous opening-night crowd."
+    },
+    {
+      "name": "Halcyon Green",
+      "slug": "halcyon-green",
+      "category": "district",
+      "description": "Juniper's green, wellness-oriented daytime neighborhood around its major park and gardens, where brunch, exercise, bakeries, walks, and quieter routines set the pace."
+    },
+    {
+      "name": "Halcyon Park",
+      "slug": "halcyon-park",
+      "category": "park",
+      "description": "A city park with long paths, a pond, and room to breathe."
+    },
+    {
+      "name": "Juniper Café",
+      "slug": "juniper-cafe",
+      "category": "cafe",
+      "description": "A warm neighborhood café where the city slows down just enough for conversations to matter."
+    },
+    {
+      "name": "Juniper Central Station",
+      "slug": "juniper-central-station",
+      "category": "transit",
+      "description": "Juniper's central rail and regional transit station, connecting downtown districts with the larger metro area. Commuters, visitors, late arrivals, and people leaving town make it a natural story-transition location."
+    },
+    {
+      "name": "Juniper City Hall",
+      "slug": "juniper-city-hall",
+      "category": "civic",
+      "description": "Juniper's civic hall and public plaza, home to municipal offices, ceremonies, public meetings, permits, and seasonal civic events."
+    },
+    {
+      "name": "Juniper Civic Arena",
+      "slug": "juniper-civic-arena",
+      "category": "entertainment",
+      "description": "Juniper City's multi-purpose sports arena, hosting basketball, hockey, indoor soccer, boxing, and the loud shared rituals around game night."
+    },
+    {
+      "name": "Juniper College",
+      "slug": "juniper-college",
+      "category": "education",
+      "description": "A compact urban college campus woven into the east edge of Alder District."
+    },
+    {
+      "name": "Juniper Firehouse 14",
+      "slug": "juniper-firehouse-14",
+      "category": "public_service",
+      "description": "A working city firehouse with an apparatus bay, kitchen, and upstairs crew quarters."
+    },
+    {
+      "name": "Juniper General Hospital",
+      "slug": "juniper-general-hospital",
+      "category": "healthcare",
+      "description": "Juniper City's busy teaching hospital and emergency center."
+    },
+    {
+      "name": "Juniper Medical Center",
+      "slug": "juniper-medical-center",
+      "category": "healthcare",
+      "description": "A major urban hospital and outpatient complex serving Juniper City, with emergency care, clinics, staff shifts, visitors, and the constant rhythm of a real working hospital."
+    },
+    {
+      "name": "Lantern Dive",
+      "slug": "lantern-dive",
+      "category": "bar",
+      "description": "A friendly dive bar where the fries are better than they need to be."
+    },
+    {
+      "name": "Lark Botanical Garden",
+      "slug": "lark-botanical-garden",
+      "category": "garden",
+      "description": "A glasshouse and garden path that makes the city feel briefly elsewhere."
+    },
+    {
+      "name": "Lucky Note",
+      "slug": "lucky-note",
+      "category": "karaoke",
+      "description": "A karaoke bar where everyone is a little braver after 10 PM."
+    },
+    {
+      "name": "Marquee Cinema",
+      "slug": "marquee-cinema",
+      "category": "cinema",
+      "description": "A restored movie theater with a stubbornly excellent late showing."
+    },
+    {
+      "name": "Marquee Quarter",
+      "slug": "marquee-quarter",
+      "category": "district",
+      "description": "Juniper's entertainment district, gathering cinema, games, comedy, rooftop events, casual food, and high-energy social dates within a bright, compact evening circuit."
+    },
+    {
+      "name": "Maya's Apartment",
+      "slug": "maya-apartment",
+      "category": "home",
+      "description": "Maya's lived-in apartment, full of contact sheets, plants, and half-finished playlists."
+    },
+    {
+      "name": "Mercer Row Law Offices",
+      "slug": "mercer-row-law-offices",
+      "category": "office",
+      "description": "A polished downtown law office overlooking Alder District."
+    },
+    {
+      "name": "Meridian Fitness",
+      "slug": "meridian-fitness",
+      "category": "gym",
+      "description": "A calm neighborhood gym with bright windows and no hard sell."
+    },
+    {
+      "name": "Moss & Crumb",
+      "slug": "moss-and-crumb",
+      "category": "bakery",
+      "description": "A tiny bakery with warm bread, plant-filled windows, and no seating after noon."
+    },
+    {
+      "name": "Needles & Notes",
+      "slug": "needles-and-notes",
+      "category": "record_store",
+      "description": "A record store where every recommendation becomes a tiny argument."
+    },
+    {
+      "name": "Northline Motor Lodge",
+      "slug": "northline-motor-lodge",
+      "category": "hotel",
+      "description": "A revived mid-century motor lodge at the outer edge of Northside. Its glowing roadside sign, exterior walkways, and compact courtyard pool have become fashionable again without erasing the building's slightly rough history. Touring musicians, road-trippers, temporary residents, and people between apartments all plausibly stay here."
+    },
+    {
+      "name": "Northside",
+      "slug": "northside",
+      "category": "district",
+      "description": "Juniper's music and neighborhood-nightlife district, shaped by old brick storefronts, live rooms, record culture, bars, karaoke, murals, and late-night regulars."
+    },
+    {
+      "name": "Northside Bar",
+      "slug": "northside-bar",
+      "category": "bar",
+      "description": "A relaxed neighborhood bar known for live music and fiercely competitive trivia."
+    },
+    {
+      "name": "Paper Trail",
+      "slug": "paper-trail",
+      "category": "bookstore",
+      "description": "A bookshop with handwritten staff notes and a rainy-day corner."
+    },
+    {
+      "name": "Release check 1790639532049",
+      "slug": "personal-ecc7d3de-861b-4a58-ba2a-393237a49589",
+      "category": "bar",
+      "description": "A small private room for a release verification visit."
+    },
+    {
+      "name": "Madison Square Garden",
+      "slug": "personal-f738366e-9e16-44af-8215-83017030e346",
+      "category": "social",
+      "description": "Madison Square Garden is a legendary sports and entertainment arena rising above Penn Station in Midtown Manhattan. Outside, glowing signs illuminate crowded sidewalks as fans, street vendors, and yellow taxis compete for space. Inside, bustling concourses carry the scent of hot pretzels, popcorn, and beer, opening onto a vast arena where steep tiers of seats surround the floor beneath its distinctive circular ceiling.\n\nThe atmosphere transforms with each event: thunderous chants during a basketball game, sharp anticipation as hockey players race across the ice, or darkness broken by thousands of phone lights before a concert begins. Concession queues, crowded bars, and quieter stretches of the upper concourse offer places to meet, flirt, argue over rival teams, or escape the noise together. After the final buzzer or encore, the crowd spills into a Manhattan night that still feels wide awake."
+    },
+    {
+      "name": "Photography Studio",
+      "slug": "photography-studio",
+      "category": "work",
+      "description": "A bright working studio where Maya shoots, edits, and occasionally argues with impossible clients."
+    },
+    {
+      "name": "Pixel & Pint",
+      "slug": "pixel-and-pint",
+      "category": "barcade",
+      "description": "A cozy barcade for competitive people pretending not to care."
+    },
+    {
+      "name": "The Red Hour",
+      "slug": "red-hour",
+      "category": "nightlife",
+      "description": "A Northside strip club in restored brick: a raised stage, two poles, warm red practical lighting, a short runway, leather banquettes, and a backlit bar that stays honest about what the room is for."
+    },
+    {
+      "name": "Riverhouse Apartments",
+      "slug": "riverhouse-apartments",
+      "category": "apartment",
+      "description": "A contemporary residential building near the river with balconies, a shared roof terrace, secure lobby, and a mixture of younger professionals, creatives, and long-term residents."
+    },
+    {
+      "name": "Riverline Apartments",
+      "slug": "riverline-apartments",
+      "category": "residence",
+      "description": "A modern residential building a few blocks from the Riverwalk."
+    },
+    {
+      "name": "The Rivermark",
+      "slug": "rivermark-hotel",
+      "category": "hotel",
+      "description": "A polished contemporary riverfront hotel with balcony rooms, a quiet lobby, river-facing suites, and a breakfast terrace overlooking the water. It is popular for visiting professionals, weekend stays, and couples wanting a night away without leaving Juniper."
+    },
+    {
+      "name": "Riverside",
+      "slug": "riverside",
+      "category": "district",
+      "description": "Juniper's residential waterfront, where apartments, river views, quiet restaurants, dusk walks, visiting guests, and intimate spaces share a calm edge of the city."
+    },
+    {
+      "name": "Riverside Landing",
+      "slug": "riverside-landing",
+      "category": "plaza",
+      "description": "A small public riverfront plaza and landing where broad steps reach the water beside a sheltered pavilion. Walkers, cyclists, small events, and occasional river transport make it one of Riverside's natural meeting points."
+    },
+    {
+      "name": "Riverwalk",
+      "slug": "riverwalk",
+      "category": "outdoors",
+      "description": "A tree-lined path beside the water, best at dusk when the city lights come on."
+    },
+    {
+      "name": "Side Street Comedy",
+      "slug": "side-street-comedy",
+      "category": "comedy",
+      "description": "A brick-basement comedy club with a rotating local lineup."
+    },
+    {
+      "name": "Skyline Rooftop",
+      "slug": "skyline-rooftop",
+      "category": "entertainment",
+      "description": "A rooftop hideaway for movie nights, trivia, and long views over City Life."
+    },
+    {
+      "name": "Sora Table",
+      "slug": "sora-table",
+      "category": "restaurant",
+      "description": "A small, candlelit restaurant where dinner feels like an occasion."
+    },
+    {
+      "name": "Static House",
+      "slug": "static-house",
+      "category": "music_venue",
+      "description": "An intimate live-music room that rewards showing up without a plan."
+    },
+    {
+      "name": "Summit Climbing Hall",
+      "slug": "summit-climbing-hall",
+      "category": "fitness",
+      "description": "A bright bouldering and rope-climbing gym near the Riverwalk."
+    },
+    {
+      "name": "Taquería Lumen",
+      "slug": "taqueria-lumen",
+      "category": "restaurant",
+      "description": "A bright casual taco spot with an unreliable spice scale."
+    },
+    {
+      "name": "Velvet Hour",
+      "slug": "velvet-hour",
+      "category": "lounge",
+      "description": "A quiet cocktail lounge with deep booths and a pianist on Thursdays."
+    }
+  ],
+  "characters": [
+    {
+      "name": "Amara Okafor",
+      "slug": "amara-okafor",
+      "biography": "An elegant corporate attorney who is exceptionally self-assured and equally selective. Amara values style, competence, sharp conversation, and people who are not intimidated by her standards.",
+      "occupation": "Corporate Attorney"
+    },
+    {
+      "name": "Avery Ellis",
+      "slug": "avery-ellis",
+      "biography": "A former college athlete who now trains and mentors others with clear expectations and an easy confidence. Avery is physically assured, affectionate, and relationship-minded.",
+      "occupation": "Personal Trainer and Former College Athlete"
+    },
+    {
+      "name": "Becka Shaw",
+      "slug": "becka-shaw",
+      "biography": "An environmental science student and part-time climbing instructor who is adventurous, mischievous, and prone to turning a quick stop into an unexpected night across town.",
+      "occupation": "Environmental Science Student"
+    },
+    {
+      "name": "Brooke Sullivan",
+      "slug": "brooke-sullivan",
+      "biography": "A sunny communications student and seasonal lifeguard who knows someone almost everywhere along the river. Brooke is outgoing, competitive, and famous for making plans before checking her calendar.",
+      "occupation": "Communications Student and Seasonal Lifeguard"
+    },
+    {
+      "name": "Caleb Bennett",
+      "slug": "caleb-bennett",
+      "biography": "A polished hotel director and former touring pianist whose warmth is effortless with guests and considerably more dangerous when it becomes personal.",
+      "occupation": "Rivermark Hotel Director"
+    },
+    {
+      "name": "Camila Reyes",
+      "slug": "camila-reyes",
+      "biography": "A polished restaurant owner who reads a room quickly and cares deeply about food, hospitality, and the people she mentors. Camila is passionate, discerning, and enjoys anticipation.",
+      "occupation": "Restaurant Owner"
+    },
+    {
+      "name": "Claire Holloway",
+      "slug": "claire-holloway",
+      "biography": "A socially polished junior interior designer with an observant eye and a perfectionist streak. Claire enjoys flirtation and ambition, and dislikes being mistaken for someone untested.",
+      "occupation": "Junior Interior Designer"
+    },
+    {
+      "name": "Dr. Daniel Kim",
+      "slug": "daniel-kim",
+      "biography": "A composed trauma surgeon whose authority is reassuring rather than theatrical, and whose carefully protected private life has become a little too effective at keeping everyone out.",
+      "occupation": "Trauma Surgeon"
+    },
+    {
+      "name": "Darius King",
+      "slug": "darius-king",
+      "biography": "A commercial photographer with a calm eye, broad experience, and a habit of noticing what people reveal when they think no one is watching. Darius is smooth, direct, and grounded.",
+      "occupation": "Commercial Photographer"
+    },
+    {
+      "name": "Elena Markovic",
+      "slug": "elena-markovic",
+      "biography": "A guarded detective with dry restraint, careful attention, and a private streak earned honestly. Elena respects patience and competence; intimacy takes considerable trust.",
+      "occupation": "Detective"
+    },
+    {
+      "name": "Emma Callahan",
+      "slug": "emma-callahan",
+      "biography": "A warm florist and event stylist with a romantic visual imagination and a quietly funny confidence. Emma seems soft at first and enjoys surprising anyone who mistakes that for uncertainty.",
+      "occupation": "Florist and Event Stylist"
+    },
+    {
+      "name": "Ethan Cole",
+      "slug": "ethan-cole",
+      "biography": "An indie game developer whose awkward first impression gives way to surprising confidence once a conversation finds its rhythm. Ethan loves systems, stories, arcades, and obscure science fiction.",
+      "occupation": "Game Developer"
+    },
+    {
+      "name": "Gabriel Ortiz",
+      "slug": "gabriel-ortiz",
+      "biography": "A persuasive deputy city planner with polished public confidence, a genuine belief in useful cities, and a private appetite for conversations that do not end in compromise.",
+      "occupation": "Deputy City Planner"
+    },
+    {
+      "name": "Hannah Mercin",
+      "slug": "hannah-mercin",
+      "biography": "A warm elementary art teacher who brings equal enthusiasm to pottery, horror movies, and a properly difficult trivia question. Hannah is affectionate, sincere, and slow to rush trust.",
+      "occupation": "Elementary Art Teacher"
+    },
+    {
+      "name": "Jade Nguyen",
+      "slug": "jade-nguyen",
+      "biography": "An alternative illustrator and tattoo apprentice who follows curiosity before convention. Jade is adventurous, impulsive, visually exacting, and drawn to people with a point of view.",
+      "occupation": "Tattoo Apprentice and Illustrator"
+    },
+    {
+      "name": "Javier Morales",
+      "slug": "javier-morales",
+      "biography": "A warm chef-owner whose confidence, appetite, and relentless hospitality make intimacy easy until the conversation turns toward what he needs for himself.",
+      "occupation": "Taquería Lumen Chef-owner"
+    },
+    {
+      "name": "Jules Navarro",
+      "slug": "jules-navarro",
+      "biography": "A magnetic night dispatcher whose fast humor and composure thrive after dark, while their habit of turning uncertainty into entertainment keeps deeper needs just out of view.",
+      "occupation": "Central Station Night Dispatcher"
+    },
+    {
+      "name": "Kenji Sato",
+      "slug": "kenji-sato",
+      "biography": "An industrial designer who speaks carefully, notices construction details, and prefers espresso to small talk. Kenji is quiet rather than shy: restrained in public and passionate in private.",
+      "occupation": "Industrial Designer"
+    },
+    {
+      "name": "Leila Rahman",
+      "slug": "leila-rahman",
+      "biography": "A brilliant city policy director with luminous warmth, formidable focus, and a private sense of humor that appears only after she decides somebody can keep up.",
+      "occupation": "City Policy Director"
+    },
+    {
+      "name": "Lena Park",
+      "slug": "lena-park",
+      "biography": "A fashionable college student and cafe barista who explores Juniper through film photographs, thrift finds, and small music venues. Lena is romance-minded, curious, and cautious.",
+      "occupation": "College Student and Cafe Barista"
+    },
+    {
+      "name": "Lila Quinn",
+      "slug": "lila-quinn",
+      "biography": "Lila is The Red Hour's most booked dancer: precise, funny, and unsentimental about the stage. Off the floor she wants someone who wants her after the lights come up, not the girl the room pays to watch.",
+      "occupation": "The Red Hour featured dancer"
+    },
+    {
+      "name": "Luca Moretti",
+      "slug": "luca-moretti",
+      "biography": "A live-music venue owner with an old guitar, a good kitchen, and a long memory for Juniper stories. Luca is experienced, affectionate, and more interested in substance than spectacle.",
+      "occupation": "Live-Music Venue Owner"
+    },
+    {
+      "name": "Malcolm “Mal” Reed",
+      "slug": "malcolm-reed",
+      "biography": "A capable river-rescue captain with irreverent humor, physical confidence, and a habit of carrying other people's emergencies long after the water is calm.",
+      "occupation": "River Safety and Rescue Captain"
+    },
+    {
+      "name": "Mateo Alvarez",
+      "slug": "mateo-alvarez",
+      "biography": "A capable firefighter who likes live music, motorcycles, soccer, and repairing what everyone else has given up on. Mateo is charming, openly flirtatious, and comfortable letting chemistry become casual or serious.",
+      "occupation": "Firefighter"
+    },
+    {
+      "name": "Miranda Serrano",
+      "slug": "miranda-serrano",
+      "biography": "A romantic, self-assured architectural designer who notices how buildings shape the people inside them. Miranda values ambition, chemistry, and enough emotional honesty to make either matter.",
+      "occupation": "Architectural Designer"
+    },
+    {
+      "name": "Naomi Chen",
+      "slug": "naomi-chen",
+      "biography": "A magnetic riverfront curator whose social ease, visual imagination, and flirtatious confidence conceal how personally she takes every public disappointment.",
+      "occupation": "Riverside Public-space and Events Curator"
+    },
+    {
+      "name": "Nia Brooks",
+      "slug": "nia-brooks",
+      "biography": "A sharp sports reporter with a commanding presence, a competitive streak, and no patience for lazy opinions. Nia is playful, bold, and comfortable making the first move.",
+      "occupation": "Sports Reporter and Digital Host"
+    },
+    {
+      "name": "Noah Williams",
+      "slug": "noah-williams",
+      "biography": "A steady rail supervisor who can recover an entire station from a bad morning but is less practiced at admitting when his own life needs a new route.",
+      "occupation": "Central Station Rail Operations Supervisor"
+    },
+    {
+      "name": "Omar Haddad",
+      "slug": "omar-haddad",
+      "biography": "A thoughtful transit engineer whose analytical reserve hides affectionate humor, strong community loyalties, and a dislike of being treated as predictable.",
+      "occupation": "Transit Systems Engineer"
+    },
+    {
+      "name": "Priya Kapoor",
+      "slug": "priya-kapoor",
+      "biography": "An ER physician who is calm under pressure and delightfully direct outside it. Priya protects her limited free time and spends it on music, travel, wine, and people worth knowing.",
+      "occupation": "Emergency Physician"
+    },
+    {
+      "name": "Reese Morgan",
+      "slug": "reese-morgan",
+      "biography": "An incisive accessibility designer with understated style, sharp humor, and a practical conviction that care should be built into ordinary life rather than announced afterward.",
+      "occupation": "Civic Accessibility Designer"
+    },
+    {
+      "name": "Samira Haddad",
+      "slug": "samira-haddad",
+      "biography": "A museum assistant and graduate student whose curiosity runs from ancient history to fencing. Samira is an intellectual romantic who becomes interested through conversation and discovery.",
+      "occupation": "Graduate Student and Museum Assistant"
+    },
+    {
+      "name": "Sienna Cruz",
+      "slug": "sienna-cruz",
+      "biography": "Sienna works The Red Hour with a grin that makes the room lean in. She is twenty, adult, and already tired of being treated like a mascot. She wants heat, jokes, and someone who can tell the difference between the stage and the girl walking out after.",
+      "occupation": "The Red Hour dancer"
+    },
+    {
+      "name": "Sophie Laurent",
+      "slug": "sophie-laurent",
+      "biography": "A precise pastry chef with a gentle sense of humor and a stubbornly high standard for small details. Sophie is sweet but reserved, and trust tends to come before intimacy.",
+      "occupation": "Pastry Chef"
+    },
+    {
+      "name": "Talia Washington",
+      "slug": "talia-washington",
+      "biography": "A commanding emergency nursing director with deep warmth, quick judgment, and a sensuous confidence that never asks permission to occupy the room.",
+      "occupation": "Emergency Nursing Director"
+    },
+    {
+      "name": "Tessa Morgan",
+      "slug": "tessa-morgan",
+      "biography": "A radio producer with an excellent ear for strange local stories and an even better instinct for a joke. Tessa is witty, teasing, and usually discovers attraction through humor.",
+      "occupation": "Radio Producer and Podcaster"
+    },
+    {
+      "name": "Vincent Hale",
+      "slug": "vincent-hale",
+      "biography": "A seasoned civic columnist with a dry voice, patient attention, and a reputation for knowing which official answer contains the real unanswered question.",
+      "occupation": "Civic Investigations Columnist and Radio Commentator"
+    },
+    {
+      "name": "Zoe Bennett",
+      "slug": "zoe-bennett",
+      "biography": "An expressive dance instructor with restless creative energy and a talent for turning a simple night out into a story. Zoe is social, spontaneous, and openly flirtatious.",
+      "occupation": "Dance Instructor and Choreographer"
+    }
+  ]
+}

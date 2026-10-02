@@ -1,0 +1,588 @@
+{
+  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "world": {
+    "name": "NorthVale",
+    "slug": "northvale",
+    "description": "A contemporary Colorado ski town where year-round locals, seasonal workers, mountain professionals, artists, athletes, and travelers build intimate lives beneath a resort economy shaped by weather, risk, and the question of who gets to stay."
+  },
+  "locations": [
+    {
+      "name": "The Alpine Room",
+      "slug": "alpine-room",
+      "category": "apres lounge",
+      "description": "A sophisticated but relaxed apres lounge with a long fireplace, live acoustic sets, cocktails, small plates, and a crowd that changes completely after dinner."
+    },
+    {
+      "name": "Argent Mine Heritage Site",
+      "slug": "argent-mine",
+      "category": "mine heritage site",
+      "description": "Stabilized remnants of the original silver mine, including a safe exhibit tunnel, machinery shed, memorial wall, and restricted deeper workings."
+    },
+    {
+      "name": "Aurora Spa",
+      "slug": "aurora-spa",
+      "category": "spa",
+      "description": "A modern spa and recovery center with treatment rooms, a warm pool, quiet lounges, and services used by workers and injured athletes as well as guests."
+    },
+    {
+      "name": "Avalanche Forecast Center",
+      "slug": "avalanche-forecast-center",
+      "category": "forecast center",
+      "description": "A compact operations building where forecasters study snow pits, weather stations, wind loading, and human reports before publishing daily conditions."
+    },
+    {
+      "name": "Basecamp Outfitters",
+      "slug": "basecamp-outfitters",
+      "category": "rental shop",
+      "description": "A high-volume rental and mountain shop with fitting benches, repair counters, lockers, and staff who can read a nervous beginner faster than a form can."
+    },
+    {
+      "name": "Basin Rescue Station",
+      "slug": "basin-rescue-station",
+      "category": "rescue station",
+      "description": "A remote rescue and emergency logistics station with radios, medical supplies, snowmobiles, bunks, and a helipad used only when weather permits."
+    },
+    {
+      "name": "Bluebird Trailhead",
+      "slug": "bluebird-trailhead",
+      "category": "trailhead",
+      "description": "A four-season trailhead connecting lake loops, forest paths, summer bike routes, and the lower approach toward Silver Basin."
+    },
+    {
+      "name": "Crow's Nest Lodge",
+      "slug": "crows-nest-lodge",
+      "category": "backcountry lodge",
+      "description": "A small backcountry lodge with simple rooms, a serious kitchen, drying room, communal table, and views across Silver Basin rather than luxury amenities."
+    },
+    {
+      "name": "Driftline Laundry",
+      "slug": "driftline-laundry",
+      "category": "laundromat",
+      "description": "A twenty-four-hour laundromat with oversized machines, vending coffee, folding tables, fogged windows, and surprising emotional importance to seasonal life."
+    },
+    {
+      "name": "Edge & Wax",
+      "slug": "edge-and-wax",
+      "category": "tuning workshop",
+      "description": "A meticulous ski and snowboard tuning workshop where machines hum late, tools are shared carefully, and equipment failures become personal investigations."
+    },
+    {
+      "name": "Elk Meadow Stables",
+      "slug": "elk-meadow-stables",
+      "category": "stables",
+      "description": "A small equestrian center serving local riders, trail horses, therapeutic programs, and working animals without resort-pageantry aesthetics."
+    },
+    {
+      "name": "Emberline Kitchen",
+      "slug": "emberline-kitchen",
+      "category": "restaurant",
+      "description": "A contemporary mountain restaurant built around an open hearth, seasonal ingredients, a visible kitchen, and food ambitious enough to matter without becoming theatrical."
+    },
+    {
+      "name": "Firefly Summit House",
+      "slug": "firefly-summit-house",
+      "category": "summit restaurant",
+      "description": "A summit restaurant and overlook with broad windows, a sheltered deck, simple food, and warm light visible from town after evening events."
+    },
+    {
+      "name": "Frostline Boathouse",
+      "slug": "frostline-boathouse",
+      "category": "boathouse",
+      "description": "A year-round lake outfitter that rents skates and ice gear in winter, boats in summer, and maintains the safety board residents actually trust."
+    },
+    {
+      "name": "Gate Seven",
+      "slug": "gate-seven",
+      "category": "backcountry gate",
+      "description": "A controlled backcountry access gate with beacon-check signage, condition boards, a narrow traverse, and the clear boundary between resort services and personal responsibility."
+    },
+    {
+      "name": "Gondola Commons",
+      "slug": "gondola-commons",
+      "category": "base plaza",
+      "description": "The main resort-base plaza beneath the Sunrise Gondola, with ticket windows, ski-school flags, racks, fire pits, shuttle arrivals, and constant movement."
+    },
+    {
+      "name": "Halo Terrain Park",
+      "slug": "halo-terrain-park",
+      "category": "terrain park",
+      "description": "A professionally shaped terrain park with rails, jumps, progression features, a sound system, and a culture equal parts supportive, competitive, and performative."
+    },
+    {
+      "name": "High Country Guides",
+      "slug": "high-country-guides",
+      "category": "guide outfitter",
+      "description": "A backcountry guide office and classroom with route maps, avalanche gear, climbing equipment, weather boards, and no patience for performative risk."
+    },
+    {
+      "name": "Highline Climbing Gym",
+      "slug": "highline-climbing-gym",
+      "category": "climbing gym",
+      "description": "A converted warehouse climbing gym with tall walls, training boards, yoga space, and a community that shifts from ski legs to rock season every spring."
+    },
+    {
+      "name": "Juniper Glades",
+      "slug": "juniper-glades",
+      "category": "ski terrain",
+      "description": "Tree-lined intermediate terrain known for filtered light, soft snow, hidden resting spots, and the feeling of briefly leaving the resort behind."
+    },
+    {
+      "name": "Juniper House",
+      "slug": "juniper-house",
+      "category": "employee residence",
+      "description": "NorthVale's largest seasonal-worker residence, with small rooms, shared kitchens, a public-facing common room, courtyard fire barrel, and a lease nobody takes for granted."
+    },
+    {
+      "name": "Lakehouse Cafe",
+      "slug": "lakehouse-cafe",
+      "category": "cafe",
+      "description": "A bright lakeside cafe serving breakfast, soup, pastries, and simple dinners to Nordic skiers, families, cabin guests, and people extending a quiet conversation."
+    },
+    {
+      "name": "Lantern Square",
+      "slug": "lantern-square",
+      "category": "plaza",
+      "description": "A brick-and-stone public square with a simple fountain, heated benches, market stalls, a shuttle stop, and a direct view of the lit mountain."
+    },
+    {
+      "name": "The Last Light Roadhouse",
+      "slug": "last-light-roadhouse",
+      "category": "roadhouse",
+      "description": "A rustic basin-edge roadhouse serving hot food, drinks, coffee, and local history to guides, mechanics, hot-spring guests, and anyone waiting out road conditions."
+    },
+    {
+      "name": "Midstation Lodge",
+      "slug": "midstation-lodge",
+      "category": "mountain lodge",
+      "description": "A practical warming lodge with cafeteria food, large windows, patrol radio traffic, drying racks, and a terrace above the tree line."
+    },
+    {
+      "name": "Miners Hall",
+      "slug": "miners-hall",
+      "category": "civic hall",
+      "description": "A civic hall containing council chambers, a public archive, meeting rooms, a small museum, and the town's most consequential folding chairs."
+    },
+    {
+      "name": "North Bowl",
+      "slug": "north-bowl",
+      "category": "ski terrain",
+      "description": "A wide expert-facing bowl beneath Vale Peak, famous for wind-loaded powder, big views, strict control work, and the fastest way for confidence to become consequence."
+    },
+    {
+      "name": "North Fork Coffee",
+      "slug": "north-fork-coffee",
+      "category": "cafe",
+      "description": "A serious but unpretentious roastery and cafe inside a restored machine shop, known for early hours, shared tables, and staff who recognize mountain workers by schedule."
+    },
+    {
+      "name": "NorthVale Community Clinic",
+      "slug": "northvale-community-clinic",
+      "category": "clinic",
+      "description": "A compact modern clinic serving residents, visitors, athletes, seasonal workers, and mountain injuries without pretending every problem is glamorous."
+    },
+    {
+      "name": "NorthVale Lodge",
+      "slug": "northvale-lodge",
+      "category": "hotel",
+      "description": "A large but human-scale flagship hotel with a firelit lobby, practical ski storage, river-stone walls, and rooms overlooking either town or mountain operations."
+    },
+    {
+      "name": "NorthVale Mountain",
+      "slug": "northvale-mountain",
+      "category": "district",
+      "description": "The operational and recreational spine of the world: lifts, ski school, patrol, forecasting, terrain, controlled gates, warming lodges, and exposed alpine weather."
+    },
+    {
+      "name": "NorthVale Ski School",
+      "slug": "northvale-ski-school",
+      "category": "ski school",
+      "description": "The resort's lesson center and learning meadow, where instructors manage fear, ambition, children, adults, language differences, and mountain etiquette."
+    },
+    {
+      "name": "Old Vale",
+      "slug": "old-vale",
+      "category": "district",
+      "description": "NorthVale's historic year-round center, where mining-era brick, timber storefronts, apartments, civic buildings, and ordinary local routines sit below the resort lights."
+    },
+    {
+      "name": "Pine Lake",
+      "slug": "pine-lake",
+      "category": "district",
+      "description": "A quieter year-round district of Nordic trails, cabins, horses, sauna culture, lake recreation, and residents who prefer the valley's slower edge."
+    },
+    {
+      "name": "Pine Lake Cabins",
+      "slug": "pine-lake-cabins",
+      "category": "cabins",
+      "description": "A small cluster of weathered but comfortable rental cabins among the trees, used by visitors, returning seasonal workers, and locals needing temporary space."
+    },
+    {
+      "name": "Pine Lake Nordic Center",
+      "slug": "pine-lake-nordic-center",
+      "category": "Nordic center",
+      "description": "A community-oriented Nordic center with groomed loops, a wax room, rentals, a modest lodge, and athletes ranging from beginners to serious racers."
+    },
+    {
+      "name": "Rialto Mountain Cinema",
+      "slug": "rialto-mountain-cinema",
+      "category": "cinema",
+      "description": "A restored single-screen cinema showing new releases, repertory films, local documentaries, and festival programs beneath a modest historic marquee."
+    },
+    {
+      "name": "Silver Basin",
+      "slug": "silver-basin",
+      "category": "district",
+      "description": "Remote high country beyond the main resort, shaped by old mine roads, hot springs, backcountry guiding, rescue work, snowcats, and serious weather."
+    },
+    {
+      "name": "Silver Basin Hot Springs",
+      "slug": "silver-basin-hot-springs",
+      "category": "hot springs",
+      "description": "A remote series of developed mineral pools and simple changing rooms set beneath steep snowy walls, reached by controlled road or guide transport in winter."
+    },
+    {
+      "name": "Ski Patrol Headquarters",
+      "slug": "ski-patrol-headquarters",
+      "category": "patrol station",
+      "description": "A functional patrol base with radios, medical equipment, rescue sleds, maps, drying gear, and a small public first-aid entrance."
+    },
+    {
+      "name": "Snowcat Garage",
+      "slug": "snowcat-garage",
+      "category": "operations garage",
+      "description": "A heated industrial garage maintaining snowcats, tracked vehicles, road equipment, and the machines that make remote winter access possible."
+    },
+    {
+      "name": "Snowglass Gallery",
+      "slug": "snowglass-gallery",
+      "category": "gallery",
+      "description": "A photography and contemporary art gallery focused on mountain labor, landscape, movement, and the lives usually cropped out of resort imagery."
+    },
+    {
+      "name": "Stillwater Sauna House",
+      "slug": "stillwater-sauna-house",
+      "category": "sauna house",
+      "description": "A lakeside sauna and bathhouse with cedar rooms, cold-air decks, private treatment spaces, and a communal lounge built around recovery rather than display."
+    },
+    {
+      "name": "Summit Village",
+      "slug": "summit-village",
+      "category": "district",
+      "description": "The resort base district: polished lodges, rentals, restaurants, spa rooms, public fire pits, and the visible front door of NorthVale Mountain."
+    },
+    {
+      "name": "Sunrise Gondola",
+      "slug": "sunrise-gondola",
+      "category": "gondola",
+      "description": "The primary enclosed lift from Summit Village to the upper mountain, carrying guests, instructors, patrollers, supplies, and private conversations above the trees."
+    },
+    {
+      "name": "The Switchback",
+      "slug": "switchback-tavern",
+      "category": "tavern",
+      "description": "A long-running tavern and neighborhood restaurant with a worn wood bar, fireplace, sturdy food, and a crowd that mixes locals with off-shift mountain staff."
+    },
+    {
+      "name": "Switchyard Pizza",
+      "slug": "switchyard-pizza",
+      "category": "pizza shop",
+      "description": "A fast, crowded pizza counter in a former freight building, serving affordable slices, staff meals, and the food most likely to appear after a difficult shift."
+    },
+    {
+      "name": "The Avalanche",
+      "slug": "the-avalanche",
+      "category": "dive bar",
+      "description": "A beloved, loud, slightly battered dive bar with cheap drinks, pool tables, stickers, a small dance floor, and more honest social sorting than the polished village offers."
+    },
+    {
+      "name": "The Drift",
+      "slug": "the-drift",
+      "category": "music venue",
+      "description": "A compact live-music venue and bar inside a converted loading depot, known for local bands, touring acts, open mics, and friendships formed during soundcheck."
+    },
+    {
+      "name": "Timberline Commons",
+      "slug": "timberline-commons",
+      "category": "district",
+      "description": "A dense, younger district of seasonal housing, cheap food, nightlife, equipment work, laundry, climbing, and improvised community."
+    },
+    {
+      "name": "Vale & Pine Books",
+      "slug": "vale-and-pine-books",
+      "category": "bookstore",
+      "description": "An independent bookstore with tall shelves, a mezzanine, a small reading stove, local maps, used paperbacks, and an unusually good mountain-history section."
+    }
+  ],
+  "characters": [
+    {
+      "name": "Aisha Grant",
+      "slug": "aisha-grant",
+      "biography": "A curious, funny first-season lift operator taking a gap year before film school. Aisha arrived determined to document seasonal life, then discovered that holding a camera around housing insecurity, injuries, and friendships requires more care than her original energetic concept allowed.",
+      "occupation": "Sunrise Gondola Lift Operator and Documentary Gap-Year Student"
+    },
+    {
+      "name": "Amara Okoye",
+      "slug": "amara-okoye",
+      "biography": "A disciplined, magnetic chef whose generosity appears first in food and only later in confession. Amara came from London for a six-month opening contract, rebuilt Emberline after its failed luxury era, and became one of NorthVale's most respected creative professionals while still being introduced as somebody who 'came for a season.'.",
+      "occupation": "Emberline Executive Chef"
+    },
+    {
+      "name": "Andre Baptiste",
+      "slug": "andre-baptiste",
+      "biography": "A composed operations supervisor whose authority is practical, calm, and immediately legible to people working around machinery. Andre moved from Quebec after technical training, brought his younger sister Nadine to NorthVale for her first independent winter, and is discovering that responsibility for a sibling feels different from responsibility for a crew.",
+      "occupation": "NorthVale Lift Operations Supervisor"
+    },
+    {
+      "name": "Anika Vogel",
+      "slug": "anika-vogel",
+      "biography": "A bold, self-possessed guide whose confidence comes from preparation and the willingness to turn around. Anika arrived for a winter apprenticeship, became one of the cooperative's strongest educators, and is now considering buying into High Country Guides as its founder prepares to retire.",
+      "occupation": "High Country Guides Senior Guide"
+    },
+    {
+      "name": "Avery Callahan",
+      "slug": "avery-callahan",
+      "biography": "A decisive patrol captain whose authority comes from preparation, not performance. Avery grew up below the mountain, joined patrol young, and became captain after proving she could make unpopular closure calls without using risk to display toughness.",
+      "occupation": "NorthVale Ski Patrol Captain"
+    },
+    {
+      "name": "Caleb Morgan",
+      "slug": "caleb-morgan",
+      "biography": "A powerful, steady patrol paramedic whose warmth becomes teasing only after he knows everyone is safe. Caleb left urban fire service after burnout, found mountain rescue no less serious but more honest about team dependence, and built a life in NorthVale that he is trying to make larger than emergencies.",
+      "occupation": "Ski Patrol Paramedic and Rescue Trainer"
+    },
+    {
+      "name": "Cassidy Reed",
+      "slug": "cassidy-reed",
+      "biography": "A blunt, inventive mechanic who grew up around mountain equipment and is determined not to be treated as somebody's unusually competent kid sister. Cassidy works nights in the Snowcat Garage, rides park when she should be sleeping, and is quietly building an engineering-school application around problems she has already solved in practice.",
+      "occupation": "Snowcat Garage Mechanic"
+    },
+    {
+      "name": "Celeste Park",
+      "slug": "celeste-park",
+      "biography": "A polished, commanding hotel manager whose warmth is real even when it is professionally disciplined. Celeste grew up in a motel her parents ran below town, left for major hospitality jobs, and returned to lead NorthVale Lodge—earning both local pride and accusations that she has become the resort's most persuasive face.",
+      "occupation": "NorthVale Lodge General Manager"
+    },
+    {
+      "name": "Dalia Farouk",
+      "slug": "dalia-farouk",
+      "biography": "A serene, emotionally perceptive sauna-house owner who is warm, sensual, and extremely difficult to rattle. Dalia left luxury hospitality after realizing she was excellent at building experiences she no longer wanted to inhabit, restored Stillwater with strict privacy and local-access rules, and built a stable life she is not eager to disrupt casually.",
+      "occupation": "Stillwater Sauna House Owner"
+    },
+    {
+      "name": "Elena Petrova",
+      "slug": "elena-petrova",
+      "biography": "A poised recovery specialist whose calm is earned rather than ornamental. Elena's racing career ended after repeated knee injuries; she retrained, moved to NorthVale, and built Aurora into a place where workers and athletes can recover without being told pain is the price of belonging.",
+      "occupation": "Aurora Spa Director and Sports Recovery Therapist"
+    },
+    {
+      "name": "Eli Navarro",
+      "slug": "eli-navarro",
+      "biography": "A warm, self-assured chef whose hospitality feels personal because he remembers what people actually eat when they stop performing. Eli returned after culinary school and several city kitchens, bought into the Switchback with more debt than caution, and turned a tired menu into food locals defend without making the tavern precious.",
+      "occupation": "The Switchback Chef and Co-owner"
+    },
+    {
+      "name": "Evan Cho",
+      "slug": "evan-cho",
+      "biography": "A dependable boathouse manager whose easy humor sits beside a highly developed respect for conditions. Evan grew up near the Great Lakes, came west for outdoor work, and became NorthVale's most trusted voice on Pine Lake ice because he is willing to disappoint people before the lake does.",
+      "occupation": "Frostline Boathouse Manager"
+    },
+    {
+      "name": "Gabriela “Gabi” Flores",
+      "slug": "gabriela-flores",
+      "biography": "A bright, practical rental technician whose eye for color and fit makes nervous beginners feel less exposed. Gabi came for a first winter after community college, lives at Juniper House, and turns damaged uniforms and retired outerwear into inventive clothing that is beginning to attract attention beyond town.",
+      "occupation": "Basecamp Rental Technician and Clothing Upcycler"
+    },
+    {
+      "name": "Graham Pike",
+      "slug": "graham-pike",
+      "biography": "A lean, mature local historian and roadhouse owner whose skepticism keeps NorthVale's past from becoming a costume. Graham grew up in an ordinary mining-family household, spent years as a journalist, returned to care for his father, and eventually took over Last Light while becoming the person most likely to challenge a profitable legend with a less convenient document.",
+      "occupation": "The Last Light Roadhouse Owner and Argent Mine Historian"
+    },
+    {
+      "name": "Dr. Imani Brooks",
+      "slug": "imani-brooks",
+      "biography": "A brilliant forecaster with deadpan intelligence and a compassionate respect for uncertainty. Imani came from a federal research post, expected resort work to feel narrower, and discovered that a forecast becomes more ethically complicated when she knows the names of the people making decisions from it.",
+      "occupation": "Lead Avalanche Forecaster"
+    },
+    {
+      "name": "Ingrid Solberg",
+      "slug": "ingrid-solberg",
+      "biography": "An independent wildlife biologist who is more comfortable with evidence than with the public identities people assign to environmental work. Ingrid came to NorthVale for a two-year research partnership and has become fascinated by how animals respond not to 'development' in the abstract but to noise, timing, routes, dogs, grooming, and human predictability.",
+      "occupation": "North Fork Wildlife Biologist"
+    },
+    {
+      "name": "June Nakashima",
+      "slug": "june-nakashima",
+      "biography": "A meticulous archivist with quiet humor and a principled distrust of simple town legends. June's great-grandparents operated a boarding house for railway and mine workers; she grew up hearing family history that did not appear in museum captions and built a career around making the public record wider without pretending it can ever be complete.",
+      "occupation": "Miners Hall Archivist and Public Historian"
+    },
+    {
+      "name": "Dr. Leila Haddad",
+      "slug": "leila-haddad",
+      "biography": "A calm, deeply competent physician who refuses to confuse caring for everyone with being endlessly available. Leila came to NorthVale for a two-year rural medicine program and stayed because the work became personal, though she remains suspicious of the town's habit of turning necessary people into permanent obligations.",
+      "occupation": "NorthVale Community Clinic Physician"
+    },
+    {
+      "name": "Liam O’Connell",
+      "slug": "liam-oconnell",
+      "biography": "A lively young instructor who arrived angry about a racing career that ended below the level he expected and discovered, reluctantly, that he is excellent with nervous beginners. Liam's charm is easy; admitting he likes the life he once considered a fallback is harder.",
+      "occupation": "NorthVale Ski Instructor"
+    },
+    {
+      "name": "Lucía Serrano",
+      "slug": "lucia-serrano",
+      "biography": "A charismatic instructor whose flirtatious confidence is backed by patience and unusually good emotional reading. Lucía grew up racing, rejected the pressure of elite competition, and found that teaching adults who are afraid gives her more satisfaction than winning ever did.",
+      "occupation": "NorthVale Ski Instructor and Instructor Trainer"
+    },
+    {
+      "name": "Malcolm Price",
+      "slug": "malcolm-price",
+      "biography": "A composed, incisive planner who understands that every elegant policy becomes somebody's rent, commute, job, or view. Malcolm moved from Chicago after burnout, expected to stay three years, and became the person residents call both a bureaucrat and the only adult in the room—sometimes in the same meeting.",
+      "occupation": "NorthVale Housing and Planning Director"
+    },
+    {
+      "name": "Mara Ellison",
+      "slug": "mara-ellison",
+      "biography": "A capable cafe owner with a dry sense of humor and an instinct for noticing who is having a harder morning than they admit. Mara inherited neither wealth nor a romanticized family legacy—only a struggling machine-shop cafe, a community note signed by eighty-seven neighbors, and a belief that a town is built by repeat customers who are allowed to become friends.",
+      "occupation": "North Fork Coffee Co-owner and Roaster"
+    },
+    {
+      "name": "Marcus Chen",
+      "slug": "marcus-chen",
+      "biography": "A thoughtful photographer whose quiet presence makes people forget the camera until he asks the one question that proves he has been listening. Marcus came to shoot a resort campaign, rejected the final crop, and stayed to build Snowglass around workers, movement, and the complicated beauty of a place people sell as effortless.",
+      "occupation": "Snowglass Gallery Curator and Photographer"
+    },
+    {
+      "name": "Dr. Maribel Morales",
+      "slug": "maribel-morales",
+      "biography": "A warm, capable veterinarian whose relaxed humor appears fastest around animals and people who stop trying to impress them. Maribel moved to NorthVale for a temporary stables contract, stayed after the program expanded, and has become the person mountain teams call when a working animal, search dog, or rider needs calm before expertise.",
+      "occupation": "Elk Meadow Equine Veterinarian"
+    },
+    {
+      "name": "Marisol Vega",
+      "slug": "marisol-vega",
+      "biography": "A commanding, experienced hot-springs director who is charming, decisive, and very clear about what she wants. Marisol came from emergency logistics, took over a poorly managed attraction, and turned it into a restrained, safer place where capacity and privacy matter more than volume.",
+      "occupation": "Silver Basin Hot Springs Director"
+    },
+    {
+      "name": "Mateo Silva",
+      "slug": "mateo-silva",
+      "biography": "A charming night bartender with teasing warmth and the practical alertness of somebody who watches a crowded room for more than drink orders. Mateo arrived as a snowboard instructor, injured a shoulder, moved behind the bar, and found that NorthVale's night workers form a community as demanding and real as any mountain team.",
+      "occupation": "The Avalanche Bartender"
+    },
+    {
+      "name": "Mika Tanaka",
+      "slug": "mika-tanaka",
+      "biography": "A focused eighteen-year-old park rider spending her first full winter away from home after a wrist injury interrupted a promising competition season. Mika is quieter than her social-media clips suggest, takes coaching seriously, and is learning that returning well may require a different kind of courage than returning quickly.",
+      "occupation": "Halo Terrain Park Assistant Coach and Competitive Snowboarder"
+    },
+    {
+      "name": "Mila Novak",
+      "slug": "mila-novak",
+      "biography": "A sharp, inventive electrician who trusts measurements but understands that records are written by people under pressure. Mila joined NorthVale after industrial maintenance work in Alberta and became indispensable because she can explain a complex fault without using confusion as authority.",
+      "occupation": "Sunrise Gondola Electrical Technician"
+    },
+    {
+      "name": "Nadine Baptiste",
+      "slug": "nadine-baptiste",
+      "biography": "An earnest, funny eighteen-year-old pastry apprentice spending her first season away from her parents while living near her older brother Andre. Nadine is less interested in skiing than everyone assumes, deeply serious about laminated dough, and determined to make mistakes without every adult in her life interpreting them as emergencies.",
+      "occupation": "Lakehouse Cafe Pastry Apprentice"
+    },
+    {
+      "name": "Nico Alvarez",
+      "slug": "nico-alvarez",
+      "biography": "A charismatic park shaper whose confidence is backed by long nights of invisible work. Nico grew up skating in Denver, moved into snow design, and treats every feature as a negotiation between progression, spectacle, weather, and the rider who will misunderstand it fastest.",
+      "occupation": "Halo Terrain Park Lead Shaper"
+    },
+    {
+      "name": "Owen Kearney",
+      "slug": "owen-kearney",
+      "biography": "A social, dryly funny resident coordinator who can defuse a kitchen dispute and then make it sound like part of a drum fill. Owen came to NorthVale on a working-holiday visa, stayed through sponsorship and several jobs, and now knows more about seasonal housing logistics than he ever intended to learn.",
+      "occupation": "Juniper House Resident Coordinator and The Drift Drummer"
+    },
+    {
+      "name": "Priya Desai",
+      "slug": "priya-desai",
+      "biography": "A socially brilliant events director who can make a room feel effortless while privately questioning how much of her own personality has become a professional instrument. Priya came to NorthVale after years in large hotels and discovered she prefers a town where the same people see her after the event ends.",
+      "occupation": "NorthVale Lodge Guest Experience and Events Director"
+    },
+    {
+      "name": "Riley Hart",
+      "slug": "riley-hart",
+      "biography": "A magnetic singer and bar server whose stage confidence is much cleaner than her private decision-making. Riley came to NorthVale for a single winter after leaving an unfinished music degree, formed a band with people from Juniper House, and has now told everyone for three consecutive seasons that April will be her last month in town.",
+      "occupation": "The Drift Vocalist and Bar Server"
+    },
+    {
+      "name": "Rowan Lee",
+      "slug": "rowan-lee",
+      "biography": "A focused Nordic coach with dry humor and an unexpected talent for making repetition feel intimate rather than punitive. Rowan came to NorthVale after a collegiate endurance career ended in overtraining, rebuilt her relationship with sport, and now protects beginners and serious athletes from the idea that suffering is the only proof of commitment.",
+      "occupation": "Pine Lake Nordic Center Head Coach"
+    },
+    {
+      "name": "Sabine Diarra",
+      "slug": "sabine-diarra",
+      "biography": "A confident climbing coach with excellent social instincts and a mischievous streak that appears whenever somebody takes themselves too seriously. Sabine moved from Lyon for a guiding apprenticeship, built a life at Highline, and now teaches trust for a living while carefully avoiding the route that damaged her own confidence.",
+      "occupation": "Highline Climbing Gym Coach"
+    },
+    {
+      "name": "Dr. Samir Patel",
+      "slug": "samir-patel",
+      "biography": "A thoughtful physical therapist with gentle confidence and an analytical presence that becomes quietly romantic once he is comfortable. Samir moved from Manchester after working in professional cycling, left a culture that treated bodies as assets, and found in NorthVale a smaller community where the same ethical problems are harder to ignore.",
+      "occupation": "Pine Lake Physical Therapist and Endurance Coach"
+    },
+    {
+      "name": "Dr. Sana Rahman",
+      "slug": "sana-rahman",
+      "biography": "A warm, formidable adaptive-sports director who notices bad design before anyone has finished explaining why it is unavoidable. Sana built NorthVale's program from a small grant into a respected year-round service and refuses to let inclusion be treated as inspirational decoration.",
+      "occupation": "NorthVale Adaptive Ski Program Director"
+    },
+    {
+      "name": "Signe Dahl",
+      "slug": "signe-dahl",
+      "biography": "A precise, blunt ski technician whose affection is usually disguised as making somebody's equipment safer than they requested. Signe left junior racing after burnout, found more satisfaction in understanding why gear behaves as it does, and became one of NorthVale's most trusted tuners without losing a competitive eye for snow.",
+      "occupation": "Edge & Wax Master Tuner"
+    },
+    {
+      "name": "Sofia Reyes",
+      "slug": "sofia-reyes",
+      "biography": "A stylish, funny cinema programmer who treats local memory as something alive enough to argue with. Sofia grew up three hours down-valley, arrived for a film-festival internship, and stayed after discovering that NorthVale's official images rarely included the people cleaning, repairing, teaching, and rescuing behind them.",
+      "occupation": "Rialto Mountain Cinema Programmer and Film Photographer"
+    },
+    {
+      "name": "Talia Valdez",
+      "slug": "talia-valdez",
+      "biography": "A decisive environmental planner whose local knowledge is contemporary, technical, familial, and political rather than mystical. Talia works between tribal consultation, municipal planning, water science, and public access, refusing both resort tokenism and outsiders who invoke Indigenous history while ignoring living authority.",
+      "occupation": "North Fork Watershed Collaborative Planner"
+    },
+    {
+      "name": "Tessa Ward",
+      "slug": "tessa-ward",
+      "biography": "A sharp, funny bookseller who knows the town well enough to be bored by its myths and attached to its smallest routines. Tessa deferred college for one winter after high school, then another, and resents both the people who assume she is trapped and the people who assume she will never leave.",
+      "occupation": "Vale & Pine Bookseller and Community Radio Volunteer"
+    },
+    {
+      "name": "Theo Marchand",
+      "slug": "theo-marchand",
+      "biography": "An elegant beverage director whose professional polish hides a mischievous, emotionally candid private self. Theo worked resort bars across three countries before choosing NorthVale, where repeat guests and local staff make discretion more demanding—and more meaningful—than anonymity.",
+      "occupation": "Alpine Room Beverage Director"
+    },
+    {
+      "name": "Tomás Ibarra",
+      "slug": "tomas-ibarra",
+      "biography": "A warm, expressive lodge chef whose confidence comes from being useful in remote places without making usefulness his entire personality. Tomás spent years guiding and cooking seasonally across the West before choosing Crow's Nest, where a communal table gives him the social life he wanted without requiring a city.",
+      "occupation": "Crow's Nest Lodge Chef and Host"
+    },
+    {
+      "name": "Valeria Cruz",
+      "slug": "valeria-cruz",
+      "biography": "A blunt, funny line cook and talented park skier who is tired of people treating either half of her life as the temporary one. Valeria learned park riding after moving to NorthVale at nineteen, works enough pizza shifts to fund competitions, and brings the same stubborn concentration to a difficult rail and a collapsing dinner rush.",
+      "occupation": "Switchyard Pizza Line Cook and Competitive Park Skier"
+    },
+    {
+      "name": "Yusuf Demir",
+      "slug": "yusuf-demir",
+      "biography": "A patient, analytical guide whose easy humor becomes more visible once everyone has completed the safety check. Yusuf moved from the Alps after becoming tired of a guiding culture built around client prestige, and values NorthVale's possibility of a cooperative model even when the town's politics frustrate him.",
+      "occupation": "High Country Guide and Avalanche Instructor"
+    }
+  ]
+}

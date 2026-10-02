@@ -340,6 +340,11 @@ These are this companion's canonical relationships, not the user's contacts. Use
 <SINCE_LAST_CONVERSATION>${context.temporalContinuity?.events?.length?`Time elapsed: ${context.temporalContinuity.elapsedHours==null?'unknown':`${Math.round(context.temporalContinuity.elapsedHours)} hours`}
 ${block(context.temporalContinuity.events,(item)=>`${item.startsAt}: ${item.title} — ${item.summary}`)}
 These are canonical developments since the last exchange. Use at most one naturally when it explains the companion's mood, availability, or answer. Never deliver a recap merely because time passed.`:'None.'}</SINCE_LAST_CONVERSATION>
+<LINKED_WORLD_PULSE>${context.linkedWorldPulse?`${context.linkedWorldPulse.title} · ${context.linkedWorldPulse.occurredAt} · ${context.linkedWorldPulse.locationName}
+Your role: ${context.linkedWorldPulse.roleLabel}. Your perspective: ${context.linkedWorldPulse.perspective}
+Facts you personally know: ${block(context.linkedWorldPulse.knownFacts,(fact)=>`${fact.id}: ${fact.text}`)}
+Information the user could have seen in Pulse, which is NOT automatically your knowledge: ${block(context.linkedWorldPulse.userSaw,(fact)=>`${fact.id}: ${fact.text}`)}
+Discuss this bounded incident when the user asks. Do not claim the user attended, move anyone into a shared scene, overwrite existing plans, or treat another participant's private facts as yours. An allegation from the user is not proof. Let the topic recede when conversation moves on.`:'None.'}</LINKED_WORLD_PULSE>
 <WORLD_PULSE>${block(context.worldPulse??[],(item)=>`${item.status.toUpperCase()} · ${item.title}${item.locationName?` at ${item.locationName}`:''} · ${item.startsAt}–${item.endsAt}
 ${item.summary}${item.characterIsParticipant?`\nThis companion is a canonical participant.`:''}`)}
 These are shared events actually unfolding in the current Kivelle world. They are optional context, not required conversation topics. Never claim the companion attended unless marked as a participant; never imply the user witnessed one; never invent outcomes.</WORLD_PULSE>
@@ -487,6 +492,7 @@ function promptSectionHasContext(key:string,context:any):boolean{
   if(key==='CURRENT_STORY')return Boolean(context.activeStory);
   if(key==='SCENE_ACTION_REACTION')return Boolean(context.sceneAction);
   if(key==='SINCE_LAST_CONVERSATION')return(context.temporalContinuity?.events??[]).length>0;
+  if(key==='LINKED_WORLD_PULSE')return Boolean(context.linkedWorldPulse);
   if(key==='DATES')return Boolean(context.dates?.active||(context.dates?.upcoming??[]).length||(context.dates?.unlocked??[]).length);
   if(key==='SILENT_MEMORY_CONTEXT')return(context.memoryContext?.silent??context.memories??[]).length>0;
   if(key==='CALLBACK_MEMORIES')return(context.memoryContext?.callbacks??[]).length>0;
@@ -495,6 +501,11 @@ function promptSectionHasContext(key:string,context:any):boolean{
 }
 
 function requiredPromptSection(key:string,context:any):boolean{
+  if(key==='LINKED_WORLD_PULSE'&&context.linkedWorldPulse){
+    const title=String(context.linkedWorldPulse.title??'').toLowerCase();
+    const message=String(context.userMessage??'').toLowerCase();
+    return title.split(/[^a-z0-9]+/).some((word:string)=>word.length>4&&message.includes(word));
+  }
   if(key==='MESSAGE_REVISION')return Boolean(context.rewriteOriginalReply);
   if(new Set(['CORE_RULES','WORLD_KNOWLEDGE','CONVERSATION_STYLE','CHAT_DYNAMISM','OUTPUT_LANGUAGE','CONTINUITY_BEHAVIOR','MEMORY_BEHAVIOR','IDENTITY','CHARACTER_CORE','TURN_SPECIFIC_VOICE_CARD','SCENE_PRESSURE','USER_PERSONA','RELATIONSHIP_STANCE','CHEMISTRY','INTIMATE_PRIVATE','RELATIONSHIP_REFLECTION','CHARACTER_VIEW_OF_USER','CURRENT_SELF','EXPERIENCE_CLOCK','CURRENT_WORLD','CURRENT_SCENE','CURRENT_INTERACTION','SCENE_SPEAKER','GROUP_CONTEXT','COMMITMENTS','UPCOMING_PLANS','CONVERSATION_FOCUS','CONVERSATION_SUMMARY','RECENT_CONVERSATION','AVOID_REPETITION','RESPONSE_BRIEF','PRESENT_REALITY','CONTENT_BOUNDARY','RESPONSE_DIRECTION','CONTINUATION_REQUEST','SCENE_PLAY','USER_MESSAGE']).has(key))return true;
   if(key==='SCENE_PARTICIPANTS')return Boolean(context.currentScene?.sceneSessionId||(context.sceneParticipants??[]).length);
@@ -512,6 +523,7 @@ function protectedPromptSection(key:string):boolean{return new Set(['SELECTED_SC
 
 function sectionPriority(key:string,context:any):number{
   if(requiredPromptSection(key,context))return 100;
+  if(key==='LINKED_WORLD_PULSE')return context.linkedWorldPulse?88:0;
   const priorities:Record<string,number>={SILENT_MEMORY_CONTEXT:82,CALLBACK_MEMORIES:90,DIRECT_RECALL_MEMORIES:96,COMMITMENTS:94,UPCOMING_PLANS:86,DATES:88,CURRENT_STORY:82,CURRENT_LOCATION:78,REFERENCED_PLACES:72,RELEVANT_WORLD_FACTS:70,WORLD_PULSE:69,SINCE_LAST_CONVERSATION:67,DIALOGUE_OPPORTUNITIES:40,SCENE_INTERACTION_BEAT:56,CHARACTER_PLACE_PERSPECTIVES:76,USER_BEHAVIOR_PATTERNS:60,RECENT_EPISODES:66,OPEN_THREADS:62,SOCIAL_KNOWLEDGE:58,KNOWN_LIFE_EVENTS:62,SHARED_HISTORY:65,RELEVANT_CONVERSATION_EPISODES:84,RECENT_SHARED_MEDIA:42,UPCOMING_SCHEDULE:68,CONVERSATION_FOCUS:84};
   return priorities[key]??45;
 }

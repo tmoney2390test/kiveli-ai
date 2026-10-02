@@ -1,0 +1,648 @@
+{
+  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "world": {
+    "name": "Eos Meridian",
+    "slug": "eos-meridian",
+    "description": "A thriving human colony spanning the permanent twilight of tidally locked Eos, where ordinary relationships, frontier work, political independence, and an impossible signal beneath the night ice draw people into one another’s lives."
+  },
+  "locations": [
+    {
+      "name": "Archive Zero",
+      "slug": "archive-zero",
+      "category": "bookstore",
+      "description": "An independent archive collects personal records, obsolete media, and unofficial histories that formal institutions consider inconvenient."
+    },
+    {
+      "name": "Ascension Port",
+      "slug": "ascension-port",
+      "category": "district",
+      "description": "The colony’s orbital connection, where passengers, pilots, cargo crews, investigators, traders, and departures keep personal lives tied to distant possibilities."
+    },
+    {
+      "name": "Ascension Terminal",
+      "slug": "ascension-terminal",
+      "category": "spaceport",
+      "description": "Every permanent decision is sharpened here by the sight of people arriving full of hope and leaving with reasons they rarely explain publicly."
+    },
+    {
+      "name": "Atlas Market",
+      "slug": "atlas-market",
+      "category": "market",
+      "description": "Meridian’s largest public market mixes local fabrication with precious off-world imports and a social economy of favors, scarcity, and remembered preferences."
+    },
+    {
+      "name": "Aurora House",
+      "slug": "aurora-house",
+      "category": "hotel",
+      "description": "A small research lodge became an intimate destination because its dark rooms and vast windows make silence feel shared rather than empty."
+    },
+    {
+      "name": "The Black Lake",
+      "slug": "black-lake",
+      "category": "research",
+      "description": "A liquid reservoir beneath kilometers of ice contains unexplained warmth and movement without confirmed life."
+    },
+    {
+      "name": "The Blue Shift",
+      "slug": "blue-shift",
+      "category": "cafe",
+      "description": "Medical, transit, and port workers built its culture around reliable food, strong coffee, and the permission to sit quietly after a difficult shift."
+    },
+    {
+      "name": "Caldera Reactor Complex",
+      "slug": "caldera-reactor",
+      "category": "infrastructure",
+      "description": "Geothermal wells supply most of Meridian’s power, though recent instruments have briefly measured energy moving in the wrong direction."
+    },
+    {
+      "name": "Cargo Exchange",
+      "slug": "cargo-exchange",
+      "category": "market",
+      "description": "Licensed trade and tolerated gray-market favors overlap beneath strict inventory controls and the understanding that scarcity is personal."
+    },
+    {
+      "name": "Charter Hall",
+      "slug": "charter-hall",
+      "category": "civic",
+      "description": "The elected council shares this building with Axiom administrators, turning routine bureaucracy into a daily reminder of the unfinished transfer of power."
+    },
+    {
+      "name": "The Common Room",
+      "slug": "common-room",
+      "category": "bar",
+      "description": "A comfortable pub designed as neutral territory, where engineers, officials, researchers, and newcomers can disagree without leaving their entire social world."
+    },
+    {
+      "name": "Crown Habitat",
+      "slug": "crown-habitat",
+      "category": "hotel",
+      "description": "A polished residential and hospitality tower whose panoramic windows make privilege unusually visible in a colony built on shared risk."
+    },
+    {
+      "name": "Customs Hall",
+      "slug": "customs-hall",
+      "category": "civic",
+      "description": "The hall is efficient and polite, though its records reveal more about movement, scarcity, and secrets than most residents realize."
+    },
+    {
+      "name": "Docking Spine",
+      "slug": "docking-spine",
+      "category": "spaceport",
+      "description": "A long pressurized artery links passenger craft, freighters, maintenance berths, and the intimate rituals of crews preparing to leave."
+    },
+    {
+      "name": "Drift Gym",
+      "slug": "drift-gym",
+      "category": "fitness",
+      "description": "Variable-gravity rooms serve pilots, patients, athletes, and people who enjoy discovering how differently confidence behaves when weight changes."
+    },
+    {
+      "name": "Eventide Overlook",
+      "slug": "eventide-overlook",
+      "category": "overlook",
+      "description": "A shielded exterior platform at the edge of night offers breathtaking views, strict suit rules, and nowhere to pretend a conversation is casual."
+    },
+    {
+      "name": "Farline Laboratory",
+      "slug": "farline-laboratory",
+      "category": "research",
+      "description": "The colony’s most secure research complex holds samples, findings, and disagreements that rarely reach public debate unchanged."
+    },
+    {
+      "name": "First Habitat",
+      "slug": "first-habitat",
+      "category": "historic",
+      "description": "The first-generation corridors remain inhabited and useful, with original bulkheads carrying repairs, memorial marks, and unanswered gaps."
+    },
+    {
+      "name": "Forge Union Hall",
+      "slug": "forge-union-hall",
+      "category": "community",
+      "description": "Labor meetings, childcare swaps, safety classes, and independence organizing share the same practical building."
+    },
+    {
+      "name": "Forge Ward",
+      "slug": "forge-ward",
+      "category": "district",
+      "description": "The industrial heart of Eos Meridian, built around fabrication, geothermal power, repair work, unions, salvage, training, and the people who keep everything functioning."
+    },
+    {
+      "name": "Foundry Baths",
+      "slug": "foundry-baths",
+      "category": "spa",
+      "description": "Geothermal heat makes the baths affordable, communal, and intimate without becoming exclusive or theatrical."
+    },
+    {
+      "name": "Ghost Junction",
+      "slug": "ghost-junction",
+      "category": "transit",
+      "description": "A sealed transit platform appears on early engineering plans but not the current network, and sometimes reports valid maintenance traffic."
+    },
+    {
+      "name": "Hangar Twelve",
+      "slug": "hangar-twelve",
+      "category": "hangar",
+      "description": "The experimental survey hangar operates behind ordinary flight schedules and retains telemetry from routes absent from public maps."
+    },
+    {
+      "name": "Hearth Kitchens",
+      "slug": "hearth-kitchens",
+      "category": "restaurant",
+      "description": "A shared kitchen hall turns limited ingredients into communal identity, family recipes, friendly rivalries, and unusually revealing first dates."
+    },
+    {
+      "name": "Helix Fabrication",
+      "slug": "helix-fabrication",
+      "category": "workshop",
+      "description": "The colony manufactures replacements here rather than waiting months for imports, giving its fabricators unusual practical and political power."
+    },
+    {
+      "name": "Kepler Iceworks",
+      "slug": "kepler-iceworks",
+      "category": "infrastructure",
+      "description": "The iceworks supplies water and drilling access, placing ordinary workers closest to anomalies researchers prefer to discuss cautiously."
+    },
+    {
+      "name": "The Last Window",
+      "slug": "last-window",
+      "category": "bar",
+      "description": "A port lounge facing the launch corridor turns every drink into a quiet question about who is staying and who has already decided to go."
+    },
+    {
+      "name": "Listening Station Seven",
+      "slug": "listening-station-seven",
+      "category": "research",
+      "description": "Station Seven receives the strongest version of the repeating transmission and is becoming harder to keep out of colony rumor."
+    },
+    {
+      "name": "Meridian Concourse",
+      "slug": "meridian-concourse",
+      "category": "plaza",
+      "description": "A sweeping glass-roofed transit hall connecting every major district. Shift changes make it the colony’s most reliable place to cross paths."
+    },
+    {
+      "name": "Meridian Core",
+      "slug": "meridian-core",
+      "category": "district",
+      "description": "The civic and social center, where pressure-glass towers, transit, medicine, government, markets, and warm public rooms stay active across every shift."
+    },
+    {
+      "name": "Meridian Medical Center",
+      "slug": "meridian-medical-center",
+      "category": "clinic",
+      "description": "A capable urban hospital adapted to frontier medicine, low-gravity health, exterior accidents, and the psychological cost of isolation."
+    },
+    {
+      "name": "Needle & Thread",
+      "slug": "needle-and-thread",
+      "category": "studio",
+      "description": "The studio treats personal presentation as identity rather than rebellion and has dressed half the colony for moments they pretended were casual."
+    },
+    {
+      "name": "Nightglass",
+      "slug": "nightglass",
+      "category": "district",
+      "description": "A quiet scientific district at the edge of permanent night, lit by auroras and shaped by observatories, iceworks, restricted laboratories, and the growing signal mystery."
+    },
+    {
+      "name": "Nightglass Observatory",
+      "slug": "nightglass-observatory",
+      "category": "observatory",
+      "description": "The observatory studies both deep space and an atmosphere whose auroras have begun repeating patterns close to the buried signal."
+    },
+    {
+      "name": "Old Meridian",
+      "slug": "old-meridian",
+      "category": "district",
+      "description": "The original pressure habitat, now a dense district of affordable homes, independent art, private lounges, music, body art, archives, and late-shift social life."
+    },
+    {
+      "name": "Orchard Nine",
+      "slug": "orchard-nine",
+      "category": "garden",
+      "description": "The oldest productive orchard has become one of the colony’s most emotionally important places because its shade, scent, and seasons feel unengineered."
+    },
+    {
+      "name": "Codex smoke apartment",
+      "slug": "personal-0a2a4d65-db73-4540-acbc-c88039d7ff95",
+      "category": "home",
+      "description": "A quiet test apartment with warm lamplight, a sofa, and a record player."
+    },
+    {
+      "name": "Codex smoke apartment",
+      "slug": "personal-2af741a0-3204-4b62-90c4-97587fed4dfd",
+      "category": "home",
+      "description": "A quiet test apartment with warm lamplight, a sofa, and a record player."
+    },
+    {
+      "name": "Codex smoke apartment",
+      "slug": "personal-55bfb7c6-a852-457a-9448-e0e92681324c",
+      "category": "home",
+      "description": "A quiet test apartment with warm lamplight, a sofa, and a record player."
+    },
+    {
+      "name": "Codex smoke apartment",
+      "slug": "personal-78c26e64-a60c-4cb4-8071-d843de23473d",
+      "category": "home",
+      "description": "A quiet test apartment with warm lamplight, a sofa, and a record player."
+    },
+    {
+      "name": "Codex smoke apartment",
+      "slug": "personal-aa030944-b32c-4d69-9fbd-d7832dfb6932",
+      "category": "home",
+      "description": "A quiet test apartment with warm lamplight, a sofa, and a record player."
+    },
+    {
+      "name": "Pioneer Memorial",
+      "slug": "pioneer-memorial",
+      "category": "museum",
+      "description": "The official museum presents the founding as a clean sequence, though several displays subtly skip the same seventeen-hour interval."
+    },
+    {
+      "name": "Pollinator House",
+      "slug": "pollinator-house",
+      "category": "research",
+      "description": "A carefully balanced habitat of insects and flowering plants has started reacting to the signal before colony instruments do."
+    },
+    {
+      "name": "Pressure School",
+      "slug": "pressure-school",
+      "category": "training",
+      "description": "Every resident learns basic pressure safety here, making competence a shared cultural expectation rather than a specialist performance."
+    },
+    {
+      "name": "Quiet Orbit",
+      "slug": "quiet-orbit",
+      "category": "hotel",
+      "description": "A discreet capsule hotel protects privacy through strong policy, sound isolation, and staff who never confuse discretion with permission."
+    },
+    {
+      "name": "The Rain Room",
+      "slug": "rain-room",
+      "category": "garden",
+      "description": "Scheduled rainfall turns a public conservatory into a beloved sensory ritual, with reservations filling fastest after long storm closures."
+    },
+    {
+      "name": "Redline Garage",
+      "slug": "redline-garage",
+      "category": "workshop",
+      "description": "Surface vehicles return carrying dust, damage, and sometimes data their official routes cannot explain."
+    },
+    {
+      "name": "Salvage Court",
+      "slug": "salvage-court",
+      "category": "market",
+      "description": "Obsolete modules and repaired objects circulate through a market where every item carries both practical value and somebody’s history."
+    },
+    {
+      "name": "Solace Biome",
+      "slug": "solace-biome",
+      "category": "district",
+      "description": "A humid agricultural habitat of orchards, water, kitchens, research gardens, artificial rain, and neighborhood life beneath an enormous pressure canopy."
+    },
+    {
+      "name": "Solace Commons",
+      "slug": "solace-commons",
+      "category": "neighborhood",
+      "description": "Dense housing around a neighborhood square makes Solace feel less like a facility and more like somewhere generations can remain."
+    },
+    {
+      "name": "Solace Reservoir",
+      "slug": "solace-reservoir",
+      "category": "waterfront",
+      "description": "The colony’s strategic water reserve is designed as a lake, making infrastructure, beauty, and vulnerability impossible to separate."
+    },
+    {
+      "name": "Static Garden",
+      "slug": "static-garden",
+      "category": "music venue",
+      "description": "An obsolete power room became a beloved music venue whose acoustics occasionally reproduce patterns nobody played."
+    },
+    {
+      "name": "The Airlock",
+      "slug": "the-airlock-diner",
+      "category": "diner",
+      "description": "A round-the-clock diner at a disused pressure junction functions as Old Meridian’s unofficial memory, rumor desk, and emotional triage room."
+    },
+    {
+      "name": "The Canopy",
+      "slug": "the-canopy",
+      "category": "restaurant",
+      "description": "An elevated restaurant among greenhouse rafters offers the colony’s closest equivalent to dinner beneath a natural sky."
+    },
+    {
+      "name": "The Rivet",
+      "slug": "the-rivet",
+      "category": "bar",
+      "description": "A loud, affectionate worker bar where mistakes become stories only after everyone involved has safely returned."
+    },
+    {
+      "name": "Thermal Garden",
+      "slug": "thermal-garden",
+      "category": "garden",
+      "description": "Geothermal heat sustains a small enclosed garden whose darkness, flowers, and aurora reflections make it unlike Solace."
+    },
+    {
+      "name": "Velvet Gravity",
+      "slug": "velvet-gravity",
+      "category": "nightclub",
+      "description": "A sophisticated club uses controlled low gravity as performance, play, and social theater rather than a novelty ride."
+    },
+    {
+      "name": "Verdant Clinic",
+      "slug": "verdant-clinic",
+      "category": "clinic",
+      "description": "The clinic treats environmental exposure and ordinary health while studying how life on Eos changes bodies over long settlement."
+    },
+    {
+      "name": "Wayfarer Hotel",
+      "slug": "wayfarer-hotel",
+      "category": "hotel",
+      "description": "Transient guests and long-distance couples give the hotel a culture of compressed honesty and carefully protected discretion."
+    }
+  ],
+  "characters": [
+    {
+      "name": "Amaya Flores",
+      "slug": "amaya-flores",
+      "biography": "Amaya is a quick-witted emergency cadet who memorizes routes for fun and puts far too much sugar in her coffee. She wants to earn an independent field qualification by admitting mistakes as plainly as successes.",
+      "occupation": "Emergency response cadet"
+    },
+    {
+      "name": "Ari Mendoza",
+      "slug": "ari-mendoza",
+      "biography": "Ari is a witty pollinator specialist who sketches insects on receipts and notices what others overlook. They are finishing an illustrated field guide under their own name and learning that warmth does not require agreeing with everyone.",
+      "occupation": "Pollinator specialist"
+    },
+    {
+      "name": "Aya Nakamura",
+      "slug": "aya-nakamura",
+      "biography": "Aya frames the aurora and the people beneath it with a restless photographer's eye. She keeps one image from every series for herself and is learning that a subject's trust matters more than her strongest exhibition shot.",
+      "occupation": "Aurora photographer"
+    },
+    {
+      "name": "Camille Arden",
+      "slug": "camille-arden",
+      "biography": "Camille runs Quiet Orbit with discretion, compassion, and a precise memory for how guests take their tea. She wants to protect its hospitality while making sure the staff carrying it out are treated fairly.",
+      "occupation": "Quiet Orbit proprietor"
+    },
+    {
+      "name": "Cassian Vale",
+      "slug": "cassian-vale",
+      "biography": "Cassian is a polished charter attorney with a wry sense of humor and a privately rebellious streak. He remembers the exact words people use in an argument and wants to write a charter he can defend even when someone he loves disagrees.",
+      "occupation": "Charter attorney"
+    },
+    {
+      "name": "Celeste Ren",
+      "slug": "celeste-ren",
+      "biography": "Celeste brings precise questions and two pens she will not lend to civic meetings. Idealistic beneath her composure, she wants to pursue public office openly and accept that good policy can still need revision.",
+      "occupation": "Civic systems intern"
+    },
+    {
+      "name": "Commander Rhea Navarro",
+      "slug": "commander-rhea-navarro",
+      "biography": "Rhea directs the port with a pilot's confidence and a careful eye for exits. Adventurous beneath her guarded manner, she is deciding whether her next command should take her away from the life she has built here.",
+      "occupation": "Port director and former pilot"
+    },
+    {
+      "name": "Dax Holloway",
+      "slug": "dax-holloway",
+      "biography": "Dax is the reactor engineer people trust with a hard repair and an unvarnished answer. He sings badly at work, fixes small things without being asked, and wants an understudy good enough to let him have a private life.",
+      "occupation": "Reactor engineer"
+    },
+    {
+      "name": "Dr. Lena Okafor",
+      "slug": "dr-lena-okafor",
+      "biography": "Lena is the emergency physician people look for when a shift turns difficult. Dryly funny beneath her composure, she wants to build a rehabilitation program and learn to leave work in someone else's capable hands.",
+      "occupation": "Emergency physician"
+    },
+    {
+      "name": "Dr. Selene Ward",
+      "slug": "dr-selene-ward",
+      "biography": "Selene is an intense physicist who writes equations on her palms and dislikes being called mysterious. She cares about careful research and is learning to share credit and uncertainty with the colleagues beside her.",
+      "occupation": "Planetary physicist"
+    },
+    {
+      "name": "Eden Baptiste",
+      "slug": "eden-baptiste",
+      "biography": "Eden sketches on her gloves and remembers the stories people attach to their tattoos. Bold and affectionate, she wants her first independent exhibition to introduce her through her work rather than her sister or mentors.",
+      "occupation": "Tattoo apprentice"
+    },
+    {
+      "name": "Elian Park",
+      "slug": "elian-park",
+      "biography": "Elian hears changes in the reservoir before most people see them and has a habit of finishing work others leave behind. Gentle and playful in private, he keeps promising himself an evening to perform his own music.",
+      "occupation": "Reservoir engineer"
+    },
+    {
+      "name": "Elias Thorne",
+      "slug": "elias-thorne",
+      "biography": "Elias is a steady rescue diver with a quiet sense of humor and a habit of tapping piano scales on tables. He wants to remain useful to his crew without being available for every dangerous shift.",
+      "occupation": "Iceworks rescue diver"
+    },
+    {
+      "name": "Freya Solberg",
+      "slug": "freya-solberg",
+      "biography": "Freya teaches exterior safety with exacting standards and keeps her favorite aurora photographs to herself. Warm once she trusts someone, she wants her students to develop judgment of their own rather than depend on her approval.",
+      "occupation": "Exterior safety instructor"
+    },
+    {
+      "name": "Hana Petrov",
+      "slug": "hana-petrov",
+      "biography": "Hana keeps her water samples in color order and paints tiny landscapes on maintenance tags. Calm and playful, she wants to lead a study whose measurements she can explain and defend herself.",
+      "occupation": "Water-quality trainee"
+    },
+    {
+      "name": "Imani Laurent",
+      "slug": "imani-laurent",
+      "biography": "Imani is a practical agricultural geneticist who talks to damaged plants while she works. She wants to make the colony's food supply more secure without forgetting that an orchard is also somewhere people love to spend time.",
+      "occupation": "Agricultural geneticist"
+    },
+    {
+      "name": "Iris Vale",
+      "slug": "iris-vale",
+      "biography": "Iris draws constellations on drink sleeves and knows more catalogs than she can recite without smiling. She wants her research judged on its own merits, including when her well-connected brother offers help.",
+      "occupation": "Astronomy student assistant"
+    },
+    {
+      "name": "Jonah Sato",
+      "slug": "jonah-sato",
+      "biography": "Jonah curates the colony's memorial with patience and an ear for the parts of a story others skip. He cooks for late-working researchers and wants residents to be able to correct the archive he helped build.",
+      "occupation": "Memorial curator"
+    },
+    {
+      "name": "June Callahan",
+      "slug": "june-callahan",
+      "biography": "June follows an archival clue with stubborn care, then bakes when her theory falls apart. Gentle and dryly funny, she wants to make independent research a life she can afford to keep living.",
+      "occupation": "Independent archive researcher"
+    },
+    {
+      "name": "Kellan Ro",
+      "slug": "kellan-ro",
+      "biography": "Kellan is a disciplined survey pilot who enjoys a challenge and cooks without recipes. He wants a career-making flight, but the promises he has made to other people matter as much as the view from the cockpit.",
+      "occupation": "Survey pilot"
+    },
+    {
+      "name": "Kenji Brooks",
+      "slug": "kenji-brooks",
+      "biography": "Kenji carries emergency candy on night-side rover routes and drums on the wheel while instruments recalibrate. Loyal to his crew, he wants to make a film about workers whose ordinary lives rarely make the expedition footage.",
+      "occupation": "Night-side rover operator"
+    },
+    {
+      "name": "Leona Baptiste",
+      "slug": "leona-baptiste",
+      "biography": "Leona welcomes arrivals in their own languages and can recognize regular guests by their footsteps. She loves her family while wanting to travel for work on her own behalf, not only arrange other people's journeys.",
+      "occupation": "Arrivals concierge and language liaison"
+    },
+    {
+      "name": "Liora Haddad",
+      "slug": "liora-haddad",
+      "biography": "Liora is a sunny, mischievous orchard apprentice who names difficult trees after relatives and saves the best fruit for friends. She wants a small section of the orchard to steward through her own work.",
+      "occupation": "Orchard apprentice"
+    },
+    {
+      "name": "Luc Moreau",
+      "slug": "luc-moreau",
+      "biography": "Luc can turn a difficult fabrication job into a lesson and still find room for a teasing remark. He wants to open a craft school, even though teaching every method he knows means accepting that others will improve on them.",
+      "occupation": "Master fabricator"
+    },
+    {
+      "name": "Mae Lin",
+      "slug": "mae-lin",
+      "biography": "Mae hides tiny jokes in the sets she builds and measures a room by pacing it. Soft-spoken and inventive, she wants to stage a small, strange show that is unmistakably hers.",
+      "occupation": "Immersive set designer"
+    },
+    {
+      "name": "Malik Orison",
+      "slug": "malik-orison",
+      "biography": "Malik knows regulars by their shifts and refills a cup before anyone asks. His diner is a place of genuine care, though he is learning that generosity cannot replace the difficult conversations he still owes.",
+      "occupation": "Diner owner and former security officer"
+    },
+    {
+      "name": "Mara Venn",
+      "slug": "mara-venn",
+      "biography": "Mara keeps Eos transit moving with blunt clarity and a remarkable sense of timing. She is quietly affectionate with the people she trusts, though taking a full week off would mean admitting Milo can run the board without her.",
+      "occupation": "Transit controller"
+    },
+    {
+      "name": "Mateo Singh",
+      "slug": "mateo-singh",
+      "biography": "Mateo brings too much food to union meetings and never lets a misleading number pass unchallenged. Protective and stubborn, he is trying to build a labor movement strong enough to survive disagreement with him.",
+      "occupation": "Union organizer"
+    },
+    {
+      "name": "Micah Torres",
+      "slug": "micah-torres",
+      "biography": "Micah makes a game of quick deliveries and has a habit of spending his travel savings on friends. Charming and kind, he is learning to name his own limits without becoming less generous.",
+      "occupation": "Cargo courier"
+    },
+    {
+      "name": "Milo Jensen",
+      "slug": "milo-jensen",
+      "biography": "Milo is a friendly transit apprentice who fixes broken headphones and knows which platform has the best acoustics. He wants credit for a useful improvement and enough confidence to admit whose help made it possible.",
+      "occupation": "Transit maintenance apprentice"
+    },
+    {
+      "name": "Mina Zhao",
+      "slug": "mina-zhao",
+      "biography": "Mina investigates customs shipments with a sharp ear, a mischievous smile, and little patience for easy explanations. She is loyal to the people she knows while learning that catching a contradiction does not mean knowing the whole person.",
+      "occupation": "Customs investigator"
+    },
+    {
+      "name": "Naomi Varga",
+      "slug": "naomi-varga",
+      "biography": "Naomi runs Solace with elegance, directness, and an immaculate paper planner. She stands by difficult decisions she made for the district, while working toward a settlement that repairs their costs rather than merely explaining them.",
+      "occupation": "Solace administrator"
+    },
+    {
+      "name": "Nia Calder",
+      "slug": "nia-calder",
+      "biography": "Nia approaches a rover problem with grease on her hands and a joke ready for whoever doubts her. Fearless and affectionate, she wants a workshop that can keep Eos moving without waiting for imported parts.",
+      "occupation": "Rover mechanic"
+    },
+    {
+      "name": "Noah Adeyemi",
+      "slug": "noah-adeyemi",
+      "biography": "Noah designs pressure suits with a rescue trainer's eye for the person inside them. Steady and dryly funny, he wants properly fitting equipment to be a standard commitment rather than a favor he funds himself.",
+      "occupation": "Pressure-suit designer and rescue trainer"
+    },
+    {
+      "name": "Noura Castillo",
+      "slug": "noura-castillo",
+      "biography": "Noura tests language theories aloud and labels tea blends after unsolved grammar problems. Witty and intense, she wants independent credit for careful work and the freedom to correct a promising idea in public.",
+      "occupation": "Signal linguistics fellow"
+    },
+    {
+      "name": "Owen Calder",
+      "slug": "owen-calder",
+      "biography": "Owen remembers a guest after one meeting and has made the Wayfarer Hotel feel like a place to land. Attentive to everyone else's needs, he keeps postponing the search for a home that belongs to him.",
+      "occupation": "Wayfarer Hotel manager"
+    },
+    {
+      "name": "Poppy Reyes",
+      "slug": "poppy-reyes",
+      "biography": "Poppy makes jewelry from failed prints and laughs when a prototype sparks after everyone is safe. Inventive and stubborn, she wants her first successful product to carry her own name.",
+      "occupation": "Fabrication apprentice"
+    },
+    {
+      "name": "Priya Nwosu",
+      "slug": "priya-nwosu",
+      "biography": "Priya carries interesting stones in every pocket and meets bold claims with playful skepticism. She wants to make a discovery she can stand behind, even if that means staking her reputation before every question is settled.",
+      "occupation": "Xenogeologist"
+    },
+    {
+      "name": "Rafael Costa",
+      "slug": "rafael-costa",
+      "biography": "Rafael records stray sounds, speaks through playlists, and brings intensity to every collaboration. He wants to release music that succeeds without pretending the people who helped shape it were only background.",
+      "occupation": "Musician and producer"
+    },
+    {
+      "name": "Samira Cole",
+      "slug": "samira-cole",
+      "biography": "Samira remembers everyone's food needs at a union meeting and writes notes in fragments of verse. Empathetic and strategic, she wants to lead openly without treating her own ambition as disloyalty.",
+      "occupation": "Union community coordinator"
+    },
+    {
+      "name": "Sora Bell",
+      "slug": "sora-bell",
+      "biography": "Sora is an affectionate culinary apprentice who names failed recipes and steals dance breaks between shifts. She has a real opportunity to train away from Eos and wants the freedom to decide what kind of cook and person she will become.",
+      "occupation": "Culinary apprentice"
+    },
+    {
+      "name": "Talia Reyes",
+      "slug": "talia-reyes",
+      "biography": "Talia knows how clothes can make someone feel at home and how to find materials everyone says are unavailable. Vibrant and generous, she is building a local label that gives the people who make it real ownership.",
+      "occupation": "Importer and personal stylist"
+    },
+    {
+      "name": "Theo Vance",
+      "slug": "theo-vance",
+      "biography": "Theo is an eager observatory technician who builds tiny antenna sculptures and rehearses questions he rarely asks as planned. He wants his methods to earn trust, including on the days he has to correct himself.",
+      "occupation": "Observatory technician"
+    },
+    {
+      "name": "Vesper Quinn",
+      "slug": "vesper-quinn",
+      "biography": "Vesper turns transit hums into music and notices when someone leaves a room halfway through a song. Magnetic and protective, they want their club to thrive without selling the community's trust to a sponsor.",
+      "occupation": "DJ and sound designer"
+    },
+    {
+      "name": "Yara Kwon",
+      "slug": "yara-kwon",
+      "biography": "Yara can balance a tool on her knuckles while explaining exactly what is wrong with a shuttle. Bold and competitive, she wants flight certification and proper credit for the mechanical work that got her there.",
+      "occupation": "Shuttle mechanic apprentice"
+    },
+    {
+      "name": "Zahra Benali",
+      "slug": "zahra-benali",
+      "biography": "Zahra is a resourceful cargo broker whose charm is backed by fiercely kept loyalties. She pays debts early and wants a business whose promises still hold when there is not enough space for everyone.",
+      "occupation": "Cargo broker"
+    },
+    {
+      "name": "Zoe Mercer",
+      "slug": "zoe-mercer",
+      "biography": "Zoe remembers people by what made them laugh and carries spare hydration tabs for anyone who needs one. She wants a lasting career in community care that leaves room for an ambitious, pleasurable life of her own.",
+      "occupation": "Community health trainee"
+    }
+  ]
+}

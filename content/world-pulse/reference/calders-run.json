@@ -1,0 +1,624 @@
+{
+  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "world": {
+    "name": "Calder's Run",
+    "slug": "calders-run",
+    "description": "A river-crossing town in the territorial Southwest, where a new railroad, an old water bargain, and the people caught between them turn work, desire, and everyday loyalties into consequential adventures."
+  },
+  "locations": [
+    {
+      "name": "Argosy Cardroom",
+      "slug": "argosy-cardroom",
+      "category": "cardroom",
+      "description": "A gaming room known for controlled manners, attentive dealers, and the distinction between enjoying a risk and pretending consequences do not exist."
+    },
+    {
+      "name": "Assay Office",
+      "slug": "assay-office",
+      "category": "mineral laboratory",
+      "description": "An independent assay office where patient measurement can determine whether someone has found a livelihood, made a mistake, or been deceived."
+    },
+    {
+      "name": "Bellflower Theater",
+      "slug": "bellflower-theater",
+      "category": "theater",
+      "description": "A small theater where professional ambition and community entertainment share costumes, limited money, and the hope of a full room."
+    },
+    {
+      "name": "Blue Glass Baths",
+      "slug": "blue-glass-baths",
+      "category": "bathhouse",
+      "description": "A bathhouse providing washing, quiet recovery, and a rare interval when residents can be comfortable without performing competence for their employers."
+    },
+    {
+      "name": "Boatmen’s Boardinghouse",
+      "slug": "boatmens-boardinghouse",
+      "category": "boardinghouse",
+      "description": "A boardinghouse offering solid meals, modest rooms, and a household rhythm that gives working residents somewhere to return to."
+    },
+    {
+      "name": "Bridge Works",
+      "slug": "bridge-works",
+      "category": "construction works",
+      "description": "The unfinished bridge is a visible argument about the future, made from demanding work rather than the confident language of a prospectus."
+    },
+    {
+      "name": "Calder House Hotel",
+      "slug": "calder-house-hotel",
+      "category": "hotel",
+      "description": "A three-story brick hotel with a shaded balcony, dependable meals, and a lobby where visitors learn how quickly an arrival becomes public news."
+    },
+    {
+      "name": "Calder Portrait Studio",
+      "slug": "calder-portrait-studio",
+      "category": "photographic studio",
+      "description": "A photographic studio where people decide how they want to be remembered and discover how uncomfortable it can be to sit still under someone’s attention."
+    },
+    {
+      "name": "Canyon Rest Cemetery",
+      "slug": "canyon-rest-cemetery",
+      "category": "cemetery",
+      "description": "A quiet cemetery and small service office where remembrance is practical work and the town’s history is attached to particular names."
+    },
+    {
+      "name": "Cattle Sale Yard",
+      "slug": "cattle-sale-yard",
+      "category": "livestock yard",
+      "description": "The livestock yard mixes practical judgment, competitive display, and the pleasure of knowing an animal well enough to see beyond a sales pitch."
+    },
+    {
+      "name": "Cinder Bluffs",
+      "slug": "cinder-bluffs",
+      "category": "district",
+      "description": "The southern mining country and old road, with small claims, industrial workings, relay stations, and communities beyond easy supervision."
+    },
+    {
+      "name": "Copper Mare Saloon",
+      "slug": "copper-mare-saloon",
+      "category": "saloon",
+      "description": "The Copper Mare is a generous, noisy saloon with good music, ordinary food, and a back room where people who dislike one another sometimes manage to talk."
+    },
+    {
+      "name": "Cottonwood Dispensary",
+      "slug": "cottonwood-dispensary",
+      "category": "dispensary",
+      "description": "A modest dispensary whose careful stock work and supervised service provide a young apprentice with meaningful responsibility."
+    },
+    {
+      "name": "Cottonwood Swimming Bend",
+      "slug": "cottonwood-swimming-bend",
+      "category": "river recreation",
+      "description": "A shaded river bend for guided fishing, picnics, swimming when conditions permit, and the feeling of being briefly beyond the town’s demands."
+    },
+    {
+      "name": "Cottonwood Valley",
+      "slug": "cottonwood-valley",
+      "category": "district",
+      "description": "The cultivated river corridor, with orchards, grazing, workshops, family homes, and disagreements that travel through irrigation channels."
+    },
+    {
+      "name": "County Courthouse",
+      "slug": "county-courthouse",
+      "category": "courthouse",
+      "description": "The county’s modest record office and hearing rooms, where property, inheritance, and public promises acquire forms that outlast the people arguing over them."
+    },
+    {
+      "name": "Crowcut Hollow",
+      "slug": "crowcut-hollow",
+      "category": "bandit hideout",
+      "description": "Crowcut Hollow is a remote bandit hideout in a side canyon, built around an abandoned freight shelter and the uneasy domestic life of people living beyond ordinary protection."
+    },
+    {
+      "name": "Crown & Cotton Mercantile",
+      "slug": "crown-and-cotton",
+      "category": "general store",
+      "description": "The mercantile supplies everything from nails and lamp wicks to fabric, with a stockroom whose contents reveal the town’s changing ambitions."
+    },
+    {
+      "name": "Dempsey Livery",
+      "slug": "dempsey-livery",
+      "category": "livery stable",
+      "description": "A busy livery and training yard where the town hires transport, boards animals, swaps practical news, and learns whether a newcomer can be trusted with a horse."
+    },
+    {
+      "name": "Eastbank Provisioners",
+      "slug": "eastbank-provisioners",
+      "category": "supply store",
+      "description": "An east-bank supply business built around hungry workers, small deliveries, and the determination to make the railhead a neighborhood."
+    },
+    {
+      "name": "Hearthstone Bakery",
+      "slug": "hearthstone-bakery",
+      "category": "bakery",
+      "description": "A warm bakery serving ordinary bread, occasional elaborate pastries, and a few tables whose regulars know the rhythms of the oven."
+    },
+    {
+      "name": "Irrigation Meeting House",
+      "slug": "irrigation-meeting-house",
+      "category": "water cooperative",
+      "description": "A practical meeting house beside the headworks, where the flow of water becomes a schedule, a household argument, and occasionally a workable compromise."
+    },
+    {
+      "name": "Junebug Dance Hall",
+      "slug": "junebug-dance-hall",
+      "category": "dance hall",
+      "description": "A music hall where callers, musicians, and dancers negotiate crowded floors, uneven skill, and the pleasure of being seen enjoying themselves."
+    },
+    {
+      "name": "Keene’s Print Shop",
+      "slug": "keenes-print-shop",
+      "category": "print shop",
+      "description": "A working print shop publishing The Run Ledger, selling stationery, and turning private grievances into carefully chosen public words."
+    },
+    {
+      "name": "Lantern Row",
+      "slug": "lantern-row",
+      "category": "district",
+      "description": "The evening district, with music, good food, paid companionship, bathing, cards, and people whose labor lets others relax."
+    },
+    {
+      "name": "Main Street",
+      "slug": "main-street",
+      "category": "district",
+      "description": "The west-bank commercial terrace, where the town puts on its public face and conducts the business everyone eventually needs."
+    },
+    {
+      "name": "Marigold House",
+      "slug": "marigold-house",
+      "category": "adult companionship house",
+      "description": "Marigold House is an adult companionship business with a gracious public parlor, experienced management, and workers whose private lives extend well beyond the building."
+    },
+    {
+      "name": "Marshal’s Office",
+      "slug": "marshals-office",
+      "category": "law office",
+      "description": "The marshal’s small office combines public service, uncomfortable waiting, local records, and the persistent problem of deciding which trouble cannot wait."
+    },
+    {
+      "name": "Mule Camp Trading Post",
+      "slug": "mule-camp-trading-post",
+      "category": "trading post",
+      "description": "A trading post where remote work becomes possible through credit, information, practical supplies, and a broker who remembers who kept a promise."
+    },
+    {
+      "name": "Night Kitchen",
+      "slug": "night-kitchen",
+      "category": "restaurant",
+      "description": "The Night Kitchen feeds the town when its evening workers finally have time to sit down, with a long table that becomes a second living room."
+    },
+    {
+      "name": "Old Calder Relay",
+      "slug": "old-calder-relay",
+      "category": "courier relay",
+      "description": "An old relay station that gives independent carriers a place to change animals, leave agreed consignments, and weigh how much they need to know."
+    },
+    {
+      "name": "Orchard Glasshouse",
+      "slug": "orchard-glasshouse",
+      "category": "plant nursery",
+      "description": "A nursery and modest glasshouse where patience becomes visible through cuttings, orchard stock, and flowers residents buy for reasons they may not explain."
+    },
+    {
+      "name": "Orchard Schoolhouse",
+      "slug": "orchard-schoolhouse",
+      "category": "school and adult classroom",
+      "description": "A small schoolhouse whose adult evening classes and community meetings provide a place to ask a question without performing confidence."
+    },
+    {
+      "name": "Pike Boatworks",
+      "slug": "pike-boatworks",
+      "category": "boat yard",
+      "description": "A repair yard building and mending small river craft, with room for practical invention and the argument over what work will survive the bridge."
+    },
+    {
+      "name": "Pike’s Ferry",
+      "slug": "pikes-ferry",
+      "category": "ferry crossing",
+      "description": "The working ferry joins the town’s banks and makes a journey into a brief shared experience of waiting, weather, and other people’s business."
+    },
+    {
+      "name": "Public Washhouse",
+      "slug": "public-washhouse",
+      "category": "washhouse",
+      "description": "A cooperative washhouse where heavy physical work, exact bookkeeping, and conversation keep half the town present without any one person knowing every secret."
+    },
+    {
+      "name": "Railroad Freight Office",
+      "slug": "railroad-freight-office",
+      "category": "freight and land office",
+      "description": "The railway’s local office combines ordinary freight service with land negotiations whose consequences extend well beyond the building."
+    },
+    {
+      "name": "The Red Sash",
+      "slug": "red-sash-brothel",
+      "category": "brothel",
+      "description": "The Red Sash is a working brothel with a lively downstairs parlor, adult resident workers, and a practical struggle over how its profits and rules should be shared."
+    },
+    {
+      "name": "Red Wells Prospect",
+      "slug": "red-wells-prospect",
+      "category": "independent claim",
+      "description": "A small independent claim where hope, discipline, and borrowed resources meet a landscape that offers no guarantee of rewarding hard work."
+    },
+    {
+      "name": "Ribbon Room",
+      "slug": "ribbon-room",
+      "category": "adult private salon",
+      "description": "An intimate adult salon where Pearl hosts private company, small dinners, and occasional readings for people who prefer a quieter social room."
+    },
+    {
+      "name": "River Market",
+      "slug": "river-market",
+      "category": "market",
+      "description": "A riverside market where local growers, household cooks, and travelers negotiate prices alongside recipes, favors, and news."
+    },
+    {
+      "name": "River Ward",
+      "slug": "river-ward",
+      "category": "district",
+      "description": "The old working slope to the river, full of shared services, boarding rooms, small trades, and accumulated memory."
+    },
+    {
+      "name": "Riverside Chapel",
+      "slug": "riverside-chapel",
+      "category": "chapel and relief hall",
+      "description": "A small riverside chapel and relief hall where worship, music, practical aid, and disagreements about deservingness share the same benches."
+    },
+    {
+      "name": "Saint Agnes Mine",
+      "slug": "saint-agnes-mine",
+      "category": "silver mine",
+      "description": "A productive silver mine whose public office and surface yard reveal the gap between a profitable enterprise and the households waiting for wages."
+    },
+    {
+      "name": "Salcedo Clinic",
+      "slug": "salcedo-clinic",
+      "category": "clinic",
+      "description": "A small clinic where dependable care, crowded hours, and household realities turn abstract town disputes into specific human needs."
+    },
+    {
+      "name": "Soto Forge",
+      "slug": "soto-forge",
+      "category": "forge and repair yard",
+      "description": "A forge and wagon yard where hot metal, measured workmanship, and friendly argument keep the town’s animals and vehicles moving."
+    },
+    {
+      "name": "Survey Camp",
+      "slug": "survey-camp",
+      "category": "survey base",
+      "description": "A working survey base where drawings, measurements, practical experience, and corporate instructions do not always agree."
+    },
+    {
+      "name": "Telegraph Office",
+      "slug": "telegraph-office",
+      "category": "telegraph office",
+      "description": "A telegraph office where a few precise words can move money, change a plan, or reach someone far away, while privacy depends on the people handling them."
+    },
+    {
+      "name": "Temporary Passenger Depot",
+      "slug": "temporary-passenger-depot",
+      "category": "rail depot",
+      "description": "The temporary station makes Calder’s Run’s new connection to distant places tangible through tickets, freight, delays, and people saying goodbye."
+    },
+    {
+      "name": "The Railhead",
+      "slug": "the-railhead",
+      "category": "district",
+      "description": "The east-bank terminus, where temporary structures, demanding work, and speculative confidence compete to define the future."
+    },
+    {
+      "name": "Valley Creamery",
+      "slug": "valley-creamery",
+      "category": "dairy and creamery",
+      "description": "A small dairy and creamery whose demanding early work produces ordinary comforts the town notices most when they are missing."
+    },
+    {
+      "name": "Whitcomb Ranch",
+      "slug": "whitcomb-ranch",
+      "category": "working ranch",
+      "description": "A substantial working ranch whose comfortable house and productive land make independence look effortless to people who do not see its accounts."
+    },
+    {
+      "name": "Widow’s Cut Coach Station",
+      "slug": "widows-cut-coach-station",
+      "category": "coach station",
+      "description": "An isolated coach station offering rest, repairs, food, and the unusual intimacy of strangers waiting for the same road to become passable."
+    }
+  ],
+  "characters": [
+    {
+      "name": "Adelaide Whitcomb",
+      "slug": "adelaide-whitcomb",
+      "biography": "Adelaide inherited management during a period when her household’s reputation exceeded its available cash. She restored productivity, negotiated credit, and learned to treat a promise as something that must be funded. Her ranch became a place where guests could enjoy generous meals without seeing the labor and anxiety supporting them. Widowhood left her free to make decisions and accustomed to not explaining them. She loves Hazel intensely and struggles to recognize how often support becomes supervision. Her defense of local independence is sincere, but she has benefited from arrangements that deny smaller neighbors the same freedom.",
+      "occupation": "Ranch proprietor and water negotiator"
+    },
+    {
+      "name": "Agnes Reed",
+      "slug": "agnes-reed",
+      "biography": "Agnes built the boardinghouse after widowhood forced her to turn years of household competence into a public business. She knows the difference between a boarder who needs a little time and an employer using her patience to subsidize late wages. Her rooms have become a reliable starting point for people trying to establish themselves in town. She is warm, observant, and capable of a very final refusal. What she misses most is being invited somewhere as a guest. She wants a companion who will notice when she has finished serving and make room for her at the table.",
+      "occupation": "Boardinghouse proprietor"
+    },
+    {
+      "name": "Alma Baptiste",
+      "slug": "alma-baptiste",
+      "biography": "Alma came west with relatives working in kitchens and freight hospitality, then chose Calder’s Run because its late workers needed better food than they were getting. At twenty-one she has considerable kitchen experience and limited authority over the business that profits from it. She is inventive without treating every meal as a performance. Feeding tired people well gives her satisfaction; being expected to mother them all does not. A proposed partnership could make her secure if its obligations and power were balanced. She likes music from another room, dancing when her feet permit, and friends who can laugh at an unsuccessful experiment.",
+      "occupation": "Night cook and kitchen partner"
+    },
+    {
+      "name": "August Renn",
+      "slug": "august-renn",
+      "biography": "August is eighteen and works as cemetery keeper and an undertaker’s assistant under established local supervision. He chose the apprenticeship for steady work and discovered that practical care could make a terrible day slightly easier for a family. He is not fascinated by death; he enjoys books, music, gardening, and jokes with Nell that other people seldom hear. Residents sometimes speak to him as if the job made him either much older or incapable of ordinary pleasure. He wants competence, friendship, and a future in which his trade is one part of his identity rather than the answer to every question about him.",
+      "occupation": "Cemetery keeper and undertaker’s assistant"
+    },
+    {
+      "name": "Beatrice Bell",
+      "slug": "beatrice-bell",
+      "biography": "Beatrice learned bakery work from relatives and then chose to pursue it as a trade rather than treat it as an inevitable domestic duty. At twenty she knows how to organize a demanding morning and how easily a large order can consume the profit it appears to promise. She is reserved with strangers but not uncertain about her values. Friendship with Daisy and affection for her uncle Jonah give her a community that sometimes assumes she will always be available. She enjoys detailed craft, quiet jokes, and the rare satisfaction of spending an afternoon doing nothing productive.",
+      "occupation": "Baker and pastry maker"
+    },
+    {
+      "name": "Benjamin “Ben” Crowell",
+      "slug": "benjamin-ben-crowell",
+      "biography": "Ben is twenty-two and works as a checkweigher after entering mine employment as an adult. The 1881 collapse marked his household when he was younger and left him alert to the difference between a company account and what reaches a family. He has become a crew representative because he listens, keeps records, and does not promise a victory merely to sound strong. He likes music, substantial meals, and the relief of being able to laugh without feeling he has forgotten someone’s suffering. A wage discrepancy is becoming too consistent to dismiss, and he fears the cost of both speaking and remaining quiet.",
+      "occupation": "Mine checkweigher and crew representative"
+    },
+    {
+      "name": "Bess Kincaid",
+      "slug": "bess-kincaid",
+      "biography": "Bess is twenty-one and works at the Red Sash as a sex worker and evening entertainer. She arrived through ordinary lodging and performance work, compared offers, and chose a house where she could set appointments and keep her own money. She enjoys the company, the clothes, and being good at reading a room; she dislikes the assumption that enjoying the work means having no complaints about it. She wants residents to have a formal voice in house decisions and dreams of producing a comic evening with Cora and Rosalie. Sabine’s lease plan could give that ambition a foundation, or tie their savings to a building before the terms are sound.",
+      "occupation": "Brothel sex worker and evening entertainer"
+    },
+    {
+      "name": "Caleb Pike",
+      "slug": "caleb-pike",
+      "biography": "Caleb learned river craft around his father’s ferry and chose boatbuilding because it could turn inherited knowledge into something visibly his own. At twenty he is skilled at ordinary repair and still learning how to cost an ambitious commission. The bridge looks to him like a reason to invent a new service; he thinks Samuel sees only loss. In fact, both have privately imagined similar futures. Caleb is sociable, affectionate, and impatient with arguments he thinks are about pride. He does not always recognize his own pride in wanting to be the person who first saw the answer.",
+      "occupation": "Boatwright and repair-yard worker"
+    },
+    {
+      "name": "Clara Chen",
+      "slug": "clara-chen",
+      "biography": "Clara grew up watching Daniel turn technical precision into a reliable livelihood and wanted a craft whose result people could hold. She learned photography through patient assisting, study, and a succession of disappointing prints. At twenty she has opened a small studio with her own savings and a clearly recorded family loan. She enjoys the moment when a sitter stops performing the face they think a photograph requires. Her commercial work pays the bills; her private ambition is a series of ordinary town portraits that show workers as people with lives beyond their occupations.",
+      "occupation": "Portrait photographer and photographic printer"
+    },
+    {
+      "name": "Cole Hensley",
+      "slug": "cole-hensley",
+      "biography": "Cole is twenty-two, a former railway laborer whose grievance against a company became useful to a man with fewer scruples about what followed. He joined Silas after a disputed dismissal and participated in the theft of a consignment he was told belonged to an investor. Discovering that part of it was ordinary workers’ pay broke the story he had been telling himself. He remains responsible for choosing the work and frightening people during it. Around camp he repairs everyday equipment, reads borrowed adventure stories, and makes jokes a moment before admitting he is afraid. Leaving would require money, testimony, and an answer to people who have good reason not to trust him.",
+      "occupation": "Bandit and former railway laborer"
+    },
+    {
+      "name": "Cora Dunleavy",
+      "slug": "cora-dunleavy",
+      "biography": "Cora began earning money as a musician’s assistant and learned to call dances by listening to what confused people rather than copying a grand style. She is nineteen, already good at a specialized job, and tired of employers describing a successful evening as fortunate. Calder’s Run gives her a recognizable place in public life and a circle of friends who expect her to make every gathering enjoyable. She likes that role until she needs someone else to make the effort. Her ambition is a fair share of the hall’s receipts and the freedom to perform beyond the town without being treated as disloyal.",
+      "occupation": "Dance caller and music-hall performer"
+    },
+    {
+      "name": "Daisy Cartwright",
+      "slug": "daisy-cartwright",
+      "biography": "Daisy is eighteen and apprenticed in a dairy cooperative where a working day begins before the people praising fresh cream have risen. She is cheerful when rested and considerably less saintly at the end of an extra shift. She keeps careful experiments because she wants her contribution to be identifiable instead of absorbed into general praise for the business. Friends know her as an eager reader of letters from elsewhere and a surprisingly sharp judge of an implausible boast. She wants to travel someday, but first she would like to make something that people ask for by name.",
+      "occupation": "Dairy worker and cheesemaking apprentice"
+    },
+    {
+      "name": "Daniel Chen",
+      "slug": "daniel-chen",
+      "biography": "Daniel learned telegraph work through training and careful service that made employers trust him with information they would not discuss in public. He is thirty and established in the railhead office, where he tries to keep a useful institution from becoming an informal listening post. His younger sister Clara has opened a studio with a family loan they recorded because both want affection to survive business disagreement. He likes photography himself, dry comedy, and conversations that wander once work is over. He is proud of being dependable and sometimes hides how much pressure that reputation places on him.",
+      "occupation": "Telegraph operator and office supervisor"
+    },
+    {
+      "name": "Dr. Lucía Salcedo",
+      "slug": "dr-lucia-salcedo",
+      "biography": "Lucía trained through formal study and demanding supervised practice before choosing a town where a physician could build continuity with families instead of treating a procession of strangers. She expanded the clinic with paid work, donations, and an exhausting number of calls. Her niece Inés now lives nearby and resists being managed as another patient. Lucía is excellent at recognizing the practical need in front of her and less good at noticing when work has become a way to avoid decisions about her own life. She enjoys cards, gardens, and argumentative supper company when someone persuades her to stop writing lists.",
+      "occupation": "Physician and clinic proprietor"
+    },
+    {
+      "name": "Edith Kovač",
+      "slug": "edith-kovac",
+      "biography": "Edith migrated as a child with a household accustomed to moving where work could be found. She learned laundry and maintenance accounting before joining the baths, where her clear records prevented arguments staff used to lose by default. She is twenty-two and proud of making an unglamorous business reliable. Outside work she likes fine clothes, architecture, and the pleasure of being looked at when she has chosen it. People mistake her measured manner for compliance. She is capable of leaving a comfortable arrangement abruptly once she concludes that negotiation is being used only to delay her.",
+      "occupation": "Bathhouse attendant and accounts keeper"
+    },
+    {
+      "name": "Eliza Morrow",
+      "slug": "eliza-morrow",
+      "biography": "Eliza arrived after training and supervised teaching with a small collection of books and a conviction that adult embarrassment should not be part of learning. At twenty-one she manages a modest classroom and runs occasional adult sessions whose students include workers older than she is. Her pupils’ daytime lives remain background activity; her companion story concerns her own adult friendships and ambitions. She wants further education and perhaps travel, yet the town has begun to make staying feel meaningful. She can be quietly stubborn, especially when someone mistakes kindness for a willingness to absorb unlimited work.",
+      "occupation": "Schoolteacher and adult literacy tutor"
+    },
+    {
+      "name": "Esther Wynn",
+      "slug": "esther-wynn",
+      "biography": "Esther learned copying and records work in a household where precise language mattered because promises were too often remembered differently by the person with more power. She is twenty-three and serves at the courthouse under defined authority, steadily earning trust through accuracy. Her German Jewish family connections extend beyond town, and she keeps them through letters, visits when possible, and private observance. She is less solemn than people expect. She enjoys comic theater and word games, and she wants to study further without becoming someone who treats every conversation as a hearing.",
+      "occupation": "Court copyist and petition clerk"
+    },
+    {
+      "name": "Evelyn “Eve” Mercer",
+      "slug": "evelyn-eve-mercer",
+      "biography": "Eve grew up moving between freight stops and learned to value a route that could be described accurately more than a story that made a rider sound brave. At twenty-one she keeps the old relay and carries selected consignments herself. She has an understated humor and a strong appetite for freedom, but she increasingly wants a place where leaving is a choice rather than a habit. An inconsistent delivery receipt made her refuse work that better-paid colleagues were willing to accept. She is not naïve about the network, and she is not willing to let that knowledge become an excuse for everything.",
+      "occupation": "Relay keeper and private courier"
+    },
+    {
+      "name": "Felix Avery",
+      "slug": "felix-avery",
+      "biography": "Felix learned dealing and hospitality while moving through towns where being charming was useful and being trusted was harder to maintain. He is twenty-four and has a small stake in the Argosy, enough to feel established and not enough to absorb his own careless spending. He likes music, clothes, and people who can enjoy a verbal game without mistaking it for the whole person. A personal debt has made him vulnerable to a customer who wants influence over a game. Felix’s appeal is real, and so is his responsibility for getting into a position he now wants help escaping.",
+      "occupation": "Cardroom dealer and gaming-room partner"
+    },
+    {
+      "name": "Florence “Flora” Vale",
+      "slug": "florence-flora-vale",
+      "biography": "Flora grew up helping relatives cultivate an orchard and learned that a promising plant demands patience long after it ceases to be interesting to a visitor. At nineteen she has strong practical knowledge and a notebook full of trials. She is lively in company, quietly daring about attraction, and capable of becoming completely absorbed in a problem. A large buyer wants exclusive access to a hardy graft she has developed. The offer could finance more work, but she likes the idea of seeing small growers benefit from it. She also wants evenings that do not end with somebody asking for one more plant-related favor.",
+      "occupation": "Nursery grower and orchard propagator"
+    },
+    {
+      "name": "Gabriel Soto",
+      "slug": "gabriel-soto",
+      "biography": "Gabriel built his trade through apprenticeship, itinerant work, and a willingness to make a small repair honestly even when a customer could not judge its quality. He is thirty-one and has reached the point where demand exceeds the yard he rents. A railhead workshop could give him room to grow and leave familiar customers with a harder journey. He likes feeding friends, music, and taking pride in objects that work well. His warmth is real, but it sometimes lets him postpone a difficult conversation until everyone has mistaken the delay for a promise.",
+      "occupation": "Farrier and wagon repairer"
+    },
+    {
+      "name": "Hazel Whitcomb",
+      "slug": "hazel-whitcomb",
+      "biography": "Hazel is eighteen and beginning her first independent venture, a supply counter and delivery service at the railhead. Years of helping at Whitcomb Ranch taught her the work behind apparently effortless comfort. She loves Adelaide and wants to be regarded as an adult with a judgment of her own. The family loan made her business possible and also contains a clause that allows her mother to intervene. Hazel is bold, social, and willing to work hard. Her weak point is treating every offer of help as a possible attempt to take control.",
+      "occupation": "Provisioner and delivery organizer"
+    },
+    {
+      "name": "Inés Salcedo",
+      "slug": "ines-salcedo",
+      "biography": "Inés moved into Lucía’s courtyard household after deciding that helping with family trade could become a business of her own. She is nineteen and good at remembering what people enjoy, when they buy it, and what they can afford. Her stall has become a place for new produce and lively argument. She loves her aunt but resents being treated as an unfinished version of a sensible adult. Organizing market sellers has taught her that a popular idea still needs someone to carry crates and check figures. She wants both independence and a busy table of people she has chosen.",
+      "occupation": "Produce seller and market organizer"
+    },
+    {
+      "name": "Iris Keene",
+      "slug": "iris-keene",
+      "biography": "Iris grew up around job printing and learned that a reliable notice could matter more to a household than an elegant editorial. She purchased her press after years of producing other people’s words and moved to Calder’s Run because the town could support a paper without yet having one large patron who owned every reader. She is inquisitive rather than relentlessly suspicious. She likes people, enjoys being invited places, and sometimes delays a difficult story because she does not want to lose that welcome. Her ambition is an independent paper that can admit mistakes and still remain trusted.",
+      "occupation": "Printer and newspaper publisher"
+    },
+    {
+      "name": "Isaac Booker",
+      "slug": "isaac-booker",
+      "biography": "Isaac is nineteen and has worked with livestock long enough to recognize a poor condition hidden beneath a good sales pitch. His record keeping earned him auction-clerk duties, and Cora has been helping him practice calling without swallowing every word. He can be confident with animals and quiet about his own desires. Adelaide values his judgment but sometimes gives him additional responsibility instead of visible credit. He wants a small holding someday and a reputation for fair dealing. His current concern is a pattern of flattering descriptions applied to an influential seller’s animals.",
+      "occupation": "Stock handler and auction clerk"
+    },
+    {
+      "name": "June Dempsey",
+      "slug": "june-dempsey",
+      "biography": "June grew up around the livery and learned to recognize an animal’s unease before she learned to negotiate with an anxious customer. At twenty-two she has several years of adult responsibility but little capital. The railway could bring riders, or leave the yard servicing only the customers with least money. She takes occasional express work because a single good delivery can pay more than days of routine labor. June is proud, funny, and readily affectionate when relaxed. Her biggest mistake is assuming that being capable of handling a difficulty means she must handle it alone.",
+      "occupation": "Horse trainer and express rider"
+    },
+    {
+      "name": "Kit Calloway",
+      "slug": "kit-calloway",
+      "biography": "Kit is twenty and working a small leased claim after learning prospecting from an older relative and several temporary partnerships. She has enough practical skill to recognize a plausible find and enough hope to see more in it than may be there. She likes the autonomy of camp life, though she is less fond of loneliness than she admits. Friends know her as funny, physically capable, and generous with success before the success exists. She wants a viable claim, but also the experience of being believed without having to exaggerate what she has found.",
+      "occupation": "Independent prospector and claim worker"
+    },
+    {
+      "name": "Lena Velarde",
+      "slug": "lena-velarde",
+      "biography": "Lena’s household connects Mescalero family ties with Mexican relatives whose work and travel cross the region. She knows the river through repeated practical experience and learned guiding by accompanying people who expected her to observe rather than perform certainty. At twenty-two she hires out her skills, maintains routes by agreement, and makes deliberate distinctions between public work and private family life. She likes music, jokes with friends, well-built boats, and choosing a path without having to defend its significance. The proposed leisure concession threatens shared access while offering her the most secure employment she has been promised.",
+      "occupation": "River guide and seasonal fishing outfitter"
+    },
+    {
+      "name": "Lottie Fenwick",
+      "slug": "lottie-fenwick",
+      "biography": "Lottie learned purchasing by listening to what customers asked for after being told it would not sell. At nineteen she can predict the town’s taste better than her employer but still has to argue for modest stock changes. She enjoys novelty, social attention, and the small power of helping someone feel well dressed. Her confidence sometimes outruns her bookkeeping, a weakness she knows and works on. She wants a shop of her own and also wants the people who dismissed her to walk through its door. Friendship with Hazel gives ambition a more practical shape.",
+      "occupation": "Mercantile buyer and shop assistant"
+    },
+    {
+      "name": "Mabel Arnett",
+      "slug": "mabel-arnett",
+      "biography": "Mabel spent years managing other people’s houses before buying her own. She learned to distinguish a pleasant patron from a reliable one, and a public benefactor from someone who merely prefers an audience for generosity. Marigold House has become a durable business because she treats staffing, privacy, accounts, and personal boundaries as ordinary professional matters. Her civic seat gives her influence but also makes every business decision public material. She is cultivated, patient, and capable of genuine mischief. She wants a future in which protecting what she built does not require anticipating everybody else’s next move.",
+      "occupation": "Proprietor of Marigold House"
+    },
+    {
+      "name": "Marisol Duarte",
+      "slug": "marisol-duarte",
+      "biography": "Marisol inherited a modest trading counter and made it useful to people whose needs did not fit the larger merchants’ preferred orders. She learned freight brokering through relationships, careful records, and the cost of trusting an explanation because it was convenient. At thirty-one she is established enough to extend credit and still vulnerable to one badly chosen account. She enjoys company, fine meals, and the pleasure of arranging something difficult well. People call her shrewd when she would rather be known as reliable. Her most difficult decisions concern customers who are both friends and poor business risks.",
+      "occupation": "Trading-post proprietor and freight broker"
+    },
+    {
+      "name": "Marshal Elias Reddick",
+      "slug": "marshal-elias-reddick",
+      "biography": "Elias became marshal after years of ordinary service that taught him how much disorder begins with someone assuming a grievance will not be heard. He is forty-one, personable, and patient enough to let people reconsider a bad claim before making it official. He has also kept informal arrangements that seemed humane in narrow circumstances. Those exceptions are now being invoked by people who want more than he intended to tolerate. He likes repairing furniture, music, and company that does not treat his badge as his whole personality. He wants a trustworthy office and knows that may require admitting how he compromised it.",
+      "occupation": "Town marshal"
+    },
+    {
+      "name": "Mateo Varela",
+      "slug": "mateo-varela",
+      "biography": "Mateo grew up around irrigated holdings where the day’s work depended on water arriving when a register said it would. He became steward because he could keep accurate records and speak to households that preferred not to speak to one another. At twenty-seven he is trusted with daily responsibility but cannot unilaterally repair the compact. He likes music, adult classes, and conversations that have nothing to do with fairness. His private difficulty is a tendency to make a temporary exception quietly, hoping practical mercy will spare everyone a larger argument. Several such exceptions now need an honest account.",
+      "occupation": "Irrigation steward and water-turn recorder"
+    },
+    {
+      "name": "Nathaniel “Nate” Brooks",
+      "slug": "nathaniel-nate-brooks",
+      "biography": "Nate is twenty-two and has become a useful station clerk because he remembers how each small delay affects the next person’s work. He began in freight handling and earned dispatch responsibility through reliable records. The temporary station feels like the beginning of a life he can build, not a temporary assignment. He is friendly, quietly ambitious, and too ready to apologize for a system he did not design. A published connection time he knows is unrealistic has become the point at which being agreeable no longer feels like good service. He likes music, letters, and evenings that end without another interruption.",
+      "occupation": "Station clerk and freight dispatcher"
+    },
+    {
+      "name": "Nell Hewitt",
+      "slug": "nell-hewitt",
+      "biography": "Nell is eighteen and beginning a dispensary apprenticeship after demonstrating patience with stock records and a willingness to ask when she does not know. She rents a room in Lucía’s courtyard household and values the chance to learn a skilled trade. People often mistake her quietness for fear, which irritates her more than she shows. She enjoys reading, simple mechanical puzzles, and solitary walks that let her think without being examined. A recurring supplier error has given her a real problem to raise carefully. She wants a fair hearing, not a dramatic triumph over everyone older.",
+      "occupation": "Dispensary apprentice"
+    },
+    {
+      "name": "Pearl Merritt",
+      "slug": "pearl-merritt",
+      "biography": "Pearl chose independent adult companionship work after learning how often agreeable manners were treated as something an employer owned. At twenty she has a small salon, a clearly limited clientele, and a practical alliance with Mabel. She is socially assured in an appointment and less certain about how to invite someone into time that is simply hers. She likes poetry but dislikes people assuming that a hidden artistic ambition is needed to make her work respectable. Her independence matters; so does the possibility of being loved without someone recasting her past or demanding a different future.",
+      "occupation": "Independent courtesan and salon host"
+    },
+    {
+      "name": "Rafael Ortiz",
+      "slug": "rafael-ortiz",
+      "biography": "Rafael is twenty and works the hotel’s evening desk, where attention to small preferences makes visitors feel that the town has already noticed them. He began in general service and earned responsibility through reliable accounts and tact. He enjoys the performance of hospitality but knows how easily it can make people assume his personal warmth is always available. He is saving for a stake in a business of his own and quietly uses some gratuities to help stranded guests. His generosity sometimes exceeds his means. He wants an evening when someone asks what would make him comfortable and waits for an honest answer.",
+      "occupation": "Hotel night clerk and guest liaison"
+    },
+    {
+      "name": "Reverend Jonah Bell",
+      "slug": "reverend-jonah-bell",
+      "biography": "Jonah is thirty-seven and serves a congregation whose relief hall is used by many people who do not share its beliefs. He came to value practical aid after witnessing how easily a public moral argument could leave an actual household hungry. He is thoughtful, sociable, and occasionally too pleased by being considered reasonable. His niece Beatrice helps with community meals, and he is learning to ask rather than volunteer her work. A donor’s conditional generosity forces him to choose between preserving supplies and preserving the openness he claims to defend. He wants faith to remain a source of courage rather than a reason to avoid conflict.",
+      "occupation": "Minister and relief-fund organizer"
+    },
+    {
+      "name": "Rosalie Quinn",
+      "slug": "rosalie-quinn",
+      "biography": "Rosalie learned performance in a small touring company where good humor could disguise unpaid wages and a strong voice could make a young adult seem more established than she felt. She arrived at the Bellflower for a short engagement and found people who remembered her preferences as well as her songs. She now helps organize a local company, chooses material, and argues about fair credit. A new touring offer has reopened the future she thought she wanted. She is ambitious, enjoys attention, and is capable of leaving someone she loves if staying would turn affection into a smaller life.",
+      "occupation": "Theater singer and company organizer"
+    },
+    {
+      "name": "Ruth Freeman",
+      "slug": "ruth-freeman",
+      "biography": "Ruth joined the washhouse cooperative after years of helping a household stretch wages around unpredictable work. She learned its books because nobody else wanted the task, then discovered that clear records gave workers a kind of power. At twenty she is still learning how to disagree with older members whose sacrifices built the place. She is warm and quietly funny, with an exact memory for practical kindness. Outside work she wants music, decent clothes, and a room that feels private. She does not want every friendship to become another meeting about hardship.",
+      "occupation": "Laundress and washhouse cooperative secretary"
+    },
+    {
+      "name": "Sabine Roche",
+      "slug": "sabine-roche",
+      "biography": "Sabine is twenty-six, a sex worker at the Red Sash and the residents’ chosen representative for shared accounts. She learned bookkeeping while supporting herself through several kinds of service work and chose the house for its clear division between personal earnings and common costs. She likes the work when the terms are hers. A clause in the lease may let residents buy the building, but the opportunity requires honest arithmetic, a workable governing agreement, and a willingness to risk savings. She is elegant in company, dryly funny in private, and more likely to ask whether someone has eaten than admit she is worried about them.",
+      "occupation": "Brothel sex worker and resident accounts representative"
+    },
+    {
+      "name": "Sadie Rusk",
+      "slug": "sadie-rusk",
+      "biography": "Sadie learned the road through work at a family coach stop, where a missed delivery could affect far more than the traveler making the complaint. At twenty-two she runs the station’s practical day and drives assigned routes. She is sociable, capable, and less reckless than her reputation suggests. She enjoys a good story but asks when the teller last checked it. Railway feeder work could secure her future, though its exclusivity would exclude independent carriers who helped keep the station alive. She wants to make a sound choice and dislikes discovering that loyalty cannot make all the options compatible.",
+      "occupation": "Coach-station keeper and driver"
+    },
+    {
+      "name": "Samuel Pike",
+      "slug": "samuel-pike",
+      "biography": "Samuel is fifty and has spent enough years on the river to know that skill includes refusing a crossing. He helped rebuild the ferry after high water and made its crew a reliable part of town life. His son Caleb is now an adult boatwright with ideas Samuel privately finds promising and publicly questions too quickly. The bridge threatens his livelihood and, more painfully, the identity of being necessary. He likes fishing, music, and telling a story when the listener has time. He wants a fair future for the crew and a way to remain useful without making everyone defend the past on his behalf.",
+      "occupation": "Ferry operator and river pilot"
+    },
+    {
+      "name": "Silas Quade",
+      "slug": "silas-quade",
+      "biography": "Silas is twenty-nine and learned freight work from the inside: the labor, the contracts, and the ease with which a profitable loss can be assigned to somebody else. Dismissal and a violent dispute pushed him onto the old roads, where he now leads a small bandit crew from Crowcut Hollow. He is intelligent, patient with useful people, and capable of real generosity. He also uses grievance to make his own authority seem natural. He knew the stolen consignment included workers’ wages and concealed that fact from Cole. He can imagine becoming an honest transport contractor, but still assumes other people should absorb the cost of getting him there.",
+      "occupation": "Bandit crew leader and former freight foreman"
+    },
+    {
+      "name": "Tess Corbett",
+      "slug": "tess-corbett",
+      "biography": "Tess learned drawing and mathematics through study, apprenticeship, and years of field work that brought less recognition than responsibility. A capable senior engineer recommended her for the Calder job because she could work with imperfect information and tell a landowner unwelcome news without treating them as an obstacle. She likes the railway as a difficult practical achievement. She dislikes the way its sales language turns provisional measurements into promises. Her alternative bridge approach is the first major proposal that could carry her own name, and she knows ambition makes it harder to judge criticism fairly.",
+      "occupation": "Railroad surveyor"
+    },
+    {
+      "name": "Thomas “Tom” Archer",
+      "slug": "thomas-tom-archer",
+      "biography": "Tom is twenty-one and working as a rigger and masonry apprentice after a series of laboring jobs taught him the difference between a crew that trains people and one that merely spends them. He is proud of the bridge as something visible he helped build. He is also beginning to understand that pride in work cannot require silence about a problem. A temporary platform concern put him between a supervisor’s impatience and Tess’s insistence on evidence. Outside work he is lively, affectionate, and fond of sketching buildings he hopes to understand well enough to design someday.",
+      "occupation": "Bridge rigger and masonry apprentice"
+    },
+    {
+      "name": "Vera Sutter",
+      "slug": "vera-sutter",
+      "biography": "Vera trained through study and laboratory apprenticeship before opening an independent assay office. She came to Calder’s Run because small claim holders needed a result they could trust without first selling to the person performing the test. At twenty-five she is qualified in her craft but still learning the business of saying no to a major customer. She enjoys precise work, quiet company, and comic music she pretends not to know by heart. Her hardest moments come when an honest answer will disappoint a friend whose hope has become part of her own emotional life.",
+      "occupation": "Assayer and independent mineral analyst"
+    },
+    {
+      "name": "Victor Halden",
+      "slug": "victor-halden",
+      "biography": "Victor is forty-six and has built a career turning uncertain projects into agreements investors can understand. He believes infrastructure can improve lives and is equally comfortable arranging who receives the first and largest benefit. Calder’s Run could secure his advancement or reveal that he promised more authority than he holds. He is cultivated, attentive, and often good company. He can care for someone while continuing to defend a contract that harms their neighbors. His central flaw is not an inability to recognize another person’s needs; it is his habit of treating recognition as something he can price into an acceptable concession.",
+      "occupation": "Railroad land and freight agent"
+    },
+    {
+      "name": "Virginia “Gin” Maddox",
+      "slug": "virginia-gin-maddox",
+      "biography": "Gin came to Calder's Run with two trunks, a small savings roll, and experience managing a room full of people who believed hospitality happened by itself. She took over the Copper Mare after its former operator lost the lease. Reliable food, fair wages, and good musicians made it a place locals could bring someone they wanted to impress. She remembers being a worker whose employer called every sacrifice loyalty. Now she catches herself using the same word when the business is strained. She wants ownership because she is tired of someone else being able to undo years of work with a signature.",
+      "occupation": "Saloon proprietor"
+    }
+  ]
+}

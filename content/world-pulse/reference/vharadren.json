@@ -1,0 +1,642 @@
+{
+  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "world": {
+    "name": "Vharadren",
+    "slug": "vharadren",
+    "description": "A war-torn high-fantasy realm where three crowns contest an empty imperial throne, ancient dragons judge the bloodlines that claim to command them, and a seven-tier caste order is beginning to fracture from palace chambers to slave mines."
+  },
+  "locations": [
+    {
+      "name": "Ash Mother Infirmary",
+      "slug": "ash-mother-infirmary",
+      "category": "infirmary",
+      "description": "A field hospital grown into a permanent clinic treating war wounds, burns, childbirth, chronic mine injuries, and the damage caused by identity-ring removal."
+    },
+    {
+      "name": "Ashen Docks",
+      "slug": "ashen-docks",
+      "category": "harbor",
+      "description": "A deep volcanic harbor serving war galleys, salt ships, fishing crews, privateers, prison transports, and smugglers who understand the vents beneath the quay."
+    },
+    {
+      "name": "The Ashlands",
+      "slug": "ashlands",
+      "category": "district",
+      "description": "The glassed center of the realm, populated by refugees, deserters, scavengers, healers, free camps, outlaw markets, and people building law without nobles."
+    },
+    {
+      "name": "Basilica of Seven Flames",
+      "slug": "basilica-seven-flames",
+      "category": "temple",
+      "description": "The imperial church’s monumental basilica, where seven altars surround an eighth empty brazier officially said to represent unknowable divine unity."
+    },
+    {
+      "name": "The Black March",
+      "slug": "black-march",
+      "category": "district",
+      "description": "A northern military province of iron fortresses, mine roads, conscript camps, wind-cut villages, and furnaces whose smoke stains the snow."
+    },
+    {
+      "name": "Blackglass Baths",
+      "slug": "blackglass-baths",
+      "category": "bathhouse",
+      "description": "A sprawling public bath complex built over geothermal vents, with caste-separated pools, massage rooms, political saunas, and a discreet mixed-step midnight session."
+    },
+    {
+      "name": "The Briar & Cup",
+      "slug": "briar-and-cup",
+      "category": "inn and tavern",
+      "description": "A warm roadside inn famous for dark ale, seed bread, musicians, and an enormous common table where strangers are seated together during rain."
+    },
+    {
+      "name": "The Broken Spur",
+      "slug": "broken-spur-tavern",
+      "category": "tavern and inn",
+      "description": "A fortified roadside tavern where veterans, scouts, smugglers, and exhausted officers drink beneath a cavalry spur snapped during the first year of war."
+    },
+    {
+      "name": "The Caldera Hatchery",
+      "slug": "caldera-hatchery",
+      "category": "dragon hatchery",
+      "description": "A guarded complex of nesting vaults, veterinary chambers, ritual platforms, and heated caves where Ravaryn has controlled dragon reproduction for centuries."
+    },
+    {
+      "name": "Chainbreaker’s Market",
+      "slug": "chainbreakers-market",
+      "category": "market",
+      "description": "A barter market specializing in repaired tools, salvaged armor, food, forged papers, information, manumission evidence, and the transformation of chains into useful objects."
+    },
+    {
+      "name": "Chapel of the Iron Saint",
+      "slug": "chapel-iron-saint",
+      "category": "temple",
+      "description": "A compact soldier’s chapel dedicated to Valdyr, where broken weapons are hung as offerings and every funeral bell is struck by another soldier."
+    },
+    {
+      "name": "Cinder Camp",
+      "slug": "cinder-camp",
+      "category": "free settlement",
+      "description": "The largest independent settlement in the Ashlands, built from siege timber, broken wagons, dragon shields, and the stubborn labor of people abandoned by every crown."
+    },
+    {
+      "name": "The Crimson Veil",
+      "slug": "crimson-veil",
+      "category": "courtesan palace and pleasure house",
+      "description": "An elite courtesan palace known for music, masked banquets, negotiated adult intimacy, and hosts educated in diplomacy, lineage, and dragon custom."
+    },
+    {
+      "name": "Crownspire",
+      "slug": "crownspire",
+      "category": "district",
+      "description": "The vertical heart of Aurelis, where dragonbone foundations carry palaces, temples, banks, pleasure houses, execution squares, and neighborhoods divided by literal elevation."
+    },
+    {
+      "name": "Deepnail Mines",
+      "slug": "deepnail-mines",
+      "category": "mine and prison labor complex",
+      "description": "A vast iron and star-metal mine descending beneath the March, worked by paid miners, debt prisoners, and thousands of Chainborn under armed supervision."
+    },
+    {
+      "name": "Dragonbone Citadel",
+      "slug": "dragonbone-citadel",
+      "category": "castle",
+      "description": "The Vaelorian royal fortress rises through the ribs of the covenant dragon Azhuriel, combining palace, war room, archive, barracks, and ceremonial prison."
+    },
+    {
+      "name": "Drowned Crown Palace",
+      "slug": "drowned-crown-palace",
+      "category": "castle and flooded court",
+      "description": "Greymere’s half-submerged palace remains a functioning court, smuggler council, ballroom, and tidal ruin where lower corridors flood twice each day."
+    },
+    {
+      "name": "The Ember Isles",
+      "slug": "ember-isles",
+      "category": "district",
+      "description": "A volcanic archipelago of black cliffs, dragon towers, salt fleets, vineyards, fighting pits, and palaces warmed by dangerous fire beneath the stone."
+    },
+    {
+      "name": "The Hall of the Ember Throne",
+      "slug": "ember-throne-hall",
+      "category": "royal court",
+      "description": "A vast audience hall centered on a black throne veined with living gold flame that answers only to oaths it considers genuine."
+    },
+    {
+      "name": "Gilded Steps Market",
+      "slug": "gilded-steps-market",
+      "category": "market",
+      "description": "A tiered market climbing from the Hearthfolk wards toward the palace, with goods, prices, and permitted entrances changing at every level."
+    },
+    {
+      "name": "The Glass Battlefield",
+      "slug": "glass-battlefield",
+      "category": "ruined battlefield",
+      "description": "Miles of black fused earth preserve distorted weapons, shadows, and magical echoes from the battle that broke the central provinces."
+    },
+    {
+      "name": "Green Hart Hunt Lodge",
+      "slug": "green-hart-lodge",
+      "category": "hunting lodge",
+      "description": "A forest lodge used by Edevane hunters, scouts, visiting nobles, and diplomats who prefer political bargains made away from stone walls."
+    },
+    {
+      "name": "Greymere Shipyard",
+      "slug": "greymere-shipyard",
+      "category": "shipyard",
+      "description": "A maze of dry docks, rope walks, salvage cranes, and timber sheds capable of building fishing boats, warships, and vessels with hidden refugee compartments."
+    },
+    {
+      "name": "Hartwood Hall",
+      "slug": "hartwood-hall",
+      "category": "castle and manor",
+      "description": "House Edevane’s sprawling timber-and-stone seat is built around living trees, with granaries, council chambers, guest halls, and roots passing openly through the floors."
+    },
+    {
+      "name": "Hollow Crown Grove",
+      "slug": "hollow-crown-grove",
+      "category": "sacred grove",
+      "description": "A hidden grove where seven trees grow in the shape of a crown but leave the center empty beneath an opening to the sky."
+    },
+    {
+      "name": "House of Velvet Oaths",
+      "slug": "house-of-velvet-oaths",
+      "category": "pleasure house",
+      "description": "A luxurious licensed pleasure house and political salon where adult companionship, negotiated power exchange, private performance, and discreet conversation are governed by written house law."
+    },
+    {
+      "name": "House of Red Reeds",
+      "slug": "house-red-reeds",
+      "category": "brothel and workers hall",
+      "description": "A soldiers’ brothel, music room, and mutual-aid hall governed by veteran Maeve Redreed and a council elected by its adult workers."
+    },
+    {
+      "name": "Ironwake Foundry",
+      "slug": "ironwake-foundry",
+      "category": "foundry",
+      "description": "The largest weapons works in the north, where Guildmarked smiths and coerced laborers forge armor, ballistae, and black-iron bolts capable of wounding dragons."
+    },
+    {
+      "name": "Knifeharbor Market",
+      "slug": "knifeharbor-market",
+      "category": "market",
+      "description": "A hard-edged port market dealing in fish, rope, salvage, weapons, foreign luxuries, forged papers, and nearly anything that can survive salt water."
+    },
+    {
+      "name": "Lantern Gallows",
+      "slug": "lantern-gallows",
+      "category": "public square and execution ground",
+      "description": "A broad lower-city square used for markets by morning, proclamations by noon, and executions when the crown wishes fear to have an audience."
+    },
+    {
+      "name": "The Lantern Rooms",
+      "slug": "lantern-rooms",
+      "category": "brothel and intelligence house",
+      "description": "A famous harbor brothel, boarding house, and intelligence network where adult workers use colored lanterns to signal availability, privacy, danger, or refusal."
+    },
+    {
+      "name": "Motherleaf Sanctuary",
+      "slug": "motherleaf-sanctuary",
+      "category": "temple and infirmary",
+      "description": "A root-priest sanctuary, healing house, birthing hall, and refuge built around an immense silver-barked tree that remembers every oath spoken beneath it."
+    },
+    {
+      "name": "Old Imperial Waystation",
+      "slug": "old-imperial-waystation",
+      "category": "ruined inn and courier post",
+      "description": "A fortified ruin on the old crown road used by scouts, smugglers, rebel couriers, and travelers unwilling to enter any claimant’s territory."
+    },
+    {
+      "name": "Artwork display check",
+      "slug": "personal-25d34e65-4d7e-44d8-a3eb-fc306a1e9eea",
+      "category": "home",
+      "description": "Temporary private place for verifying uploaded artwork across the app."
+    },
+    {
+      "name": "Place hours QA 2026-09-29",
+      "slug": "personal-c7cda9ef-8ec7-44d6-a0cf-ca864a2a56ea",
+      "category": "home",
+      "description": "Temporary test place for validating saved opening hours."
+    },
+    {
+      "name": "Pyrehold Castle",
+      "slug": "pyrehold-castle",
+      "category": "castle",
+      "description": "House Ravaryn’s volcanic palace spans a caldera rim, its audience rooms open to sea wind and its private halls warmed by channels of living fire."
+    },
+    {
+      "name": "The Red Ledger Exchange",
+      "slug": "red-ledger-exchange",
+      "category": "bank and archive",
+      "description": "House Morcant’s fortified bank, genealogical archive, insurance court, and intelligence exchange, staffed by masked clerks who remember debts longer than kings remember promises."
+    },
+    {
+      "name": "Red Mare Camp Market",
+      "slug": "red-mare-camp-market",
+      "category": "market",
+      "description": "A sprawling market following the northern host, selling food, tack, armor repair, letters, medicine, stolen comforts, and rumors from every front."
+    },
+    {
+      "name": "Rootmarket",
+      "slug": "rootmarket",
+      "category": "market",
+      "description": "A forest-edge market where farmers, healers, hunters, brewers, craftspeople, and rebel couriers trade beneath woven living arches."
+    },
+    {
+      "name": "Saint Orla’s Lighthouse",
+      "slug": "saint-orlas-lighthouse",
+      "category": "lighthouse and shrine",
+      "description": "A white tower on a split headland guiding ships through storm reefs and serving as shrine, weather station, signal post, and refuge for those crossing the coast unseen."
+    },
+    {
+      "name": "Saintless House",
+      "slug": "saintless-house",
+      "category": "brothel and safe house",
+      "description": "An adult pleasure house, bath, refuge, and intelligence stop serving travelers and residents who prefer rules made by the people inside rather than crown or temple."
+    },
+    {
+      "name": "The Salt Widow",
+      "slug": "salt-widow-tavern",
+      "category": "tavern",
+      "description": "A loud dockside tavern built from an overturned war galley, known for citrus rum, sea songs, knife-free brawling, and tables carved with the names of missing ships."
+    },
+    {
+      "name": "Saltfire Bazaar",
+      "slug": "saltfire-bazaar",
+      "category": "market",
+      "description": "A vivid harbor market selling salt, obsidian, wine, spices, dragon-scale shed, sailors’ charms, fine cloth, and contraband from every coast."
+    },
+    {
+      "name": "The Shattered Coast",
+      "slug": "shattered-coast",
+      "category": "district",
+      "description": "A storm-battered coast of drowned noble ruins, pirate markets, shipyards, prisons, refugee routes, and candlelit rooms where secrets cross borders faster than armies."
+    },
+    {
+      "name": "Thornwall Keep",
+      "slug": "thornwall-keep",
+      "category": "castle",
+      "description": "A severe black-stone fortress built into a mountain pass, serving as royal seat, command academy, armory, and winter court."
+    },
+    {
+      "name": "Tidevault Prison",
+      "slug": "tidevault-prison",
+      "category": "prison",
+      "description": "A sea-cave prison whose lower cells flood during high tide, officially reserved for pirates and traitors but increasingly used to hold refugees and saleable captives."
+    },
+    {
+      "name": "The Unshackled Cup",
+      "slug": "unshackled-cup",
+      "category": "tavern and meeting hall",
+      "description": "A busy tavern, public kitchen, debate hall, and message exchange where every cup is cast from reclaimed chain iron and no one is asked for caste papers."
+    },
+    {
+      "name": "Vault of Nameless Kings",
+      "slug": "vault-nameless-kings",
+      "category": "ancient vault",
+      "description": "A buried pre-imperial complex containing empty stone thrones, oath basins, and walls from which every ruler’s name has been deliberately chiseled."
+    },
+    {
+      "name": "The Verdant Reach",
+      "slug": "verdant-reach",
+      "category": "district",
+      "description": "The fertile center of Vharadren, where forest roads shift, grain towns resist requisition, and ancient green power presses against every wall built without permission."
+    },
+    {
+      "name": "The Weeping Archive",
+      "slug": "weeping-archive",
+      "category": "living archive",
+      "description": "An archive grown through hollow trees, where legal records, songs, seed lineages, and memories paid to Name-magic appear as patterns in translucent leaves."
+    },
+    {
+      "name": "Widow’s Vineyard",
+      "slug": "widows-vineyard",
+      "category": "vineyard and estate",
+      "description": "Terraced vines grow in volcanic soil around a cool stone manor where war widows manage one of the islands’ most profitable estates and host private suppers."
+    },
+    {
+      "name": "Wolfgate Barracks",
+      "slug": "wolfgate-barracks",
+      "category": "military barracks",
+      "description": "The northern army’s largest training and deployment post, where noble cavalry, Hearthfolk levies, and Chainborn auxiliaries are drilled under separate codes."
+    },
+    {
+      "name": "Wyrmglass Arena",
+      "slug": "wyrmglass-arena",
+      "category": "arena",
+      "description": "A circular arena of fused obsidian hosting duels, beast trials, martial exhibitions, political punishments, and carefully staged encounters with lesser drakes."
+    }
+  ],
+  "characters": [
+    {
+      "name": "Admiral Nyra Greymere",
+      "slug": "admiral-nyra-greymere",
+      "biography": "Nyra was sent to Pyrehold as a hostage at twelve and grew into the finest admiral in Selene’s service. Her loyalty to the sailors is real; her loyalty to either house changes with whichever choice keeps them alive.",
+      "occupation": "Ravaryn admiral and covert Greymere double agent"
+    },
+    {
+      "name": "Asha Renn, the Cinder Saint",
+      "slug": "asha-ren",
+      "biography": "Asha was smuggled from the Feast as a child, raised among the dispossessed, and transformed into a symbol she distrusts. She can command a council, dismantle a noble’s argument, and sit beside a frightened stranger without performance; the danger is that every faction wants her bloodline to mean more than her choices.",
+      "occupation": "Rebel strategist, elected war speaker, and hidden imperial heir"
+    },
+    {
+      "name": "Bastian Crow",
+      "slug": "bastian-crow",
+      "biography": "Bastian designs vessels around storms, shortages, and human fear rather than noble aesthetics. Widowed early, he built grief into work until the refugee routes forced him to make ships with rooms no inspector could find.",
+      "occupation": "Master of Greymere Shipyard and architect of the hidden fleet"
+    },
+    {
+      "name": "Brina Forgehand",
+      "slug": "brina-forgehand",
+      "biography": "Brina can hear flaws in metal before they split, a gift that made her wealthy enough to buy her family’s freedom and valuable enough to be denied her own. She builds weapons she despises while quietly teaching workers how to ruin them invisibly.",
+      "occupation": "Master smith and reluctant dragon-bolt engineer"
+    },
+    {
+      "name": "Brother Aldren",
+      "slug": "brother-aldren",
+      "biography": "Aldren once prosecuted heresy until testimony from a Chainborn mother exposed the cruelty hidden inside his perfect doctrine. He surrendered rank, took an Ashen cord, and now travels between sanctuaries teaching that an oath made under fear binds no soul.",
+      "occupation": "Traveling priest of the One Flame and sanctuary advocate"
+    },
+    {
+      "name": "Captain Seraphine Vale",
+      "slug": "captain-seraphine-vale",
+      "biography": "Seraphine lost her title when her father backed the wrong claimant and discovered piracy offered more honest rules than nobility. She is flamboyant, dangerous, and fiercely protective of her crew, but carries the old family hunger to be recognized by the people she mocks.",
+      "occupation": "Pirate captain, blockade runner, and rebel courier"
+    },
+    {
+      "name": "Catrin Brann",
+      "slug": "catrin-brann",
+      "biography": "Catrin grew up selling beer at the Red Mare and learned that officers pay better when they think they have invented a girl. Maeve taught her to charge, refuse, and take two only when the charter is on the table. She is loud in bed, loyal in a fight, and filthy in a way that makes respectable reformers leave the hall. Off the floor she wants a forge-smelling body, not a captain’s perfume.",
+      "occupation": "Red Reeds companion, fiddle-second, and soldiers’ night worker"
+    },
+    {
+      "name": "Celessa Vane",
+      "slug": "celessa-vane",
+      "biography": "Celessa arrived on a refugee ship with three languages and no legal name, then made herself essential to the island court by translating what diplomats meant rather than what they said. She enjoys desire without apology but guards sincerity as the one luxury she cannot replace.",
+      "occupation": "First Host of the Crimson Veil and diplomatic tutor"
+    },
+    {
+      "name": "Celia Thatch",
+      "slug": "celia-thatch",
+      "biography": "Celia Thatch is a nineteen-year-old Hearthfolk baker's daughter who keeps her family's oven and bread stall alive after her father vanished into a noble levy. Quick with sums and quicker on the Gilded Steps, she knows which palace doors accept deliveries, which guards can be trusted, and how much truth can hide inside a folded market receipt.",
+      "occupation": "Hearthfolk baker's daughter and Crownspire market runner"
+    },
+    {
+      "name": "Dame Ysabet Rooke",
+      "slug": "dame-ysabet-rooke",
+      "biography": "Ysabet earned her cloak holding a breach after three noble officers fled. She is blunt, observant, and loyal to Maerra as a person more than to Vaelorian blood, a distinction she keeps hidden beneath immaculate discipline.",
+      "occupation": "Captain of the Queen’s Ember Guard"
+    },
+    {
+      "name": "Delphine Lantern",
+      "slug": "delphine-lantern",
+      "biography": "Delphine turned the debt house that owned her into a worker cooperative, then built its gossip into the coast’s most reliable intelligence map. She is elegant, maternal without being soft, openly sensual, and merciless toward anyone who treats survival work as shame.",
+      "occupation": "Proprietor of the Lantern Rooms and keeper of coastal escape routes"
+    },
+    {
+      "name": "Duchess Aveline Edevane",
+      "slug": "duchess-aveline-edevane",
+      "biography": "Aveline inherited the realm’s grain basket and discovered that neutrality is merely power choosing which suffering to ignore. She supplies every crown publicly, the rebellion secretly, and her people first whenever the ledgers allow.",
+      "occupation": "Duchess of the Verdant Reach and covert patron of the Broken Chain"
+    },
+    {
+      "name": "Duchess Mirelle Greymere",
+      "slug": "duchess-mirelle-greymere",
+      "biography": "Mirelle governs a court that floods twice daily and considers that an improvement over pretending power is permanent. She protects refugee routes, licenses pirates, and enjoys scandal partly because inland outrage makes useful cover.",
+      "occupation": "Duchess of the Shattered Coast and patron of the hidden fleet"
+    },
+    {
+      "name": "Freya Hart",
+      "slug": "freya-hart",
+      "biography": "Freya patrols paths that move beneath her feet and has killed noble raiders, rebel poachers, and monsters without finding any banner consistently innocent. Her limited shapechanging heightens scent and instinct, which she treats as information rather than destiny.",
+      "occupation": "Mistress of the Green Hart hunters and border scout"
+    },
+    {
+      "name": "Garrick Holt",
+      "slug": "garrick-holt",
+      "biography": "Garrick inherited a profession nobody greets and performs it with solemn restraint. Unknown to the crown, he has falsified dozens of executions, replacing prisoners with weighted shrouds and routing the living through old bone tunnels.",
+      "occupation": "Royal executioner and keeper of condemned records"
+    },
+    {
+      "name": "High Flame Elowen Orison",
+      "slug": "high-flame-elowen-orison",
+      "biography": "Elowen is a disciplined theologian who has spent twenty years defending a church she now suspects was built around a deliberate lie. Her compassion is practical rather than soft; she will offer sanctuary, then demand that the sheltered decide what truth they can bear.",
+      "occupation": "High Flame of the Basilica and keeper of censored doctrine"
+    },
+    {
+      "name": "Idris Salt",
+      "slug": "idris-salt",
+      "biography": "Idris accepted command of Tidevault believing an honest warden could make a cruel institution less lethal. He now diverts selected prisoners to escape boats while permitting other transfers to preserve his cover, a compromise consuming what remains of his self-respect.",
+      "occupation": "Warden of Tidevault and compromised protector of prisoners"
+    },
+    {
+      "name": "Ilyra Ashscale",
+      "slug": "ilyra-ashscale",
+      "biography": "Ilyra bonded emotionally with captive dragons long before she understood that the hatchery called captivity tradition. She is gentle with living things, impatient with political abstraction, and preparing a release that may burn half the caldera.",
+      "occupation": "Senior hatchery keeper and dragon welfare dissident"
+    },
+    {
+      "name": "Joren Ash",
+      "slug": "joren-ash",
+      "biography": "Joren deserted after discovering his courier satchel carried orders for a village purge. He now moves people rather than commands, knowing every route out and increasingly uncertain whether constant usefulness is another way to avoid belonging.",
+      "occupation": "Broken Chain courier and route captain"
+    },
+    {
+      "name": "Kael Dravos",
+      "slug": "kael-dravos",
+      "biography": "Kael earned a title capturing Thornwall supply ships and uses its privileges to hide escapees in the same cargo holds. He is roguish, generous, and comfortable with danger until loyalty asks him to remain in one place.",
+      "occupation": "Privateer captain and covert prisoner smuggler"
+    },
+    {
+      "name": "King Edric Thornwall",
+      "slug": "king-edric-thornwall",
+      "biography": "Edric was once the empire’s most trusted frontier commander and still inspires soldiers by remembering hunger, cold, and fear from the same ground they stand upon. Age and war have hardened his belief that only one will can prevent national ruin, even when that will must rest upon chains.",
+      "occupation": "King of the Black March and claimant to the Ember Throne"
+    },
+    {
+      "name": "Lady Isolde Morcant",
+      "slug": "lady-isolde-morcant",
+      "biography": "Isolde inherited a banking office and converted it into the most disciplined intelligence service in the realm. She is elegant, amused by hypocrisy, and careful never to threaten where a precisely stated consequence will suffice.",
+      "occupation": "Mistress of the Red Ledger and royal intelligence broker"
+    },
+    {
+      "name": "Lady Rowena Thornwall",
+      "slug": "lady-rowena-thornwall",
+      "biography": "Rowena built the supply system that made Edric king and has spent seventeen years watching men call logistics bloodless while she counts every frozen body their glory creates. She is controlled, unsparing, and more capable of ending the war than any general.",
+      "occupation": "Keeper of Roads and commander of northern logistics"
+    },
+    {
+      "name": "Liora Saintless",
+      "slug": "liora-saintless",
+      "biography": "Liora was trained to make obedience look sacred and expelled when she publicly distinguished devotion from submission. Saintless House is her answer: an adult house where pleasure, shelter, work, and loyalty are negotiated separately and no one’s past name is demanded.",
+      "occupation": "Proprietor of Saintless House and keeper of chosen names"
+    },
+    {
+      "name": "Lord Cassian Greymere",
+      "slug": "lord-cassian-greymere",
+      "biography": "Cassian spent his youth in imperial courts learning how small provinces survive powerful neighbors. He appears polished beside Mirelle’s storm-bright rule, but his willingness to compromise freedom for recognition may be either sober statecraft or the oldest Greymere betrayal.",
+      "occupation": "Coastal diplomat and keeper of foreign treaties"
+    },
+    {
+      "name": "Lord Halric Thornwall",
+      "slug": "lord-halric-thornwall",
+      "biography": "Halric is a gifted cavalry commander who believes hierarchy is not merely useful but beautiful when everyone performs their assigned role. He is magnetic, disciplined, and capable of sincere affection so long as affection does not threaten his need to define the terms.",
+      "occupation": "Commander of the Chain Legions and heir to the northern crown"
+    },
+    {
+      "name": "Lord Rowan Edevane",
+      "slug": "lord-rowan-edevane",
+      "biography": "Rowan keeps armies out through negotiation, sabotage, and the quiet threat that the forest itself may answer invasion. He loves his sister but believes her rebel alliance risks transforming defensible neutrality into annihilation.",
+      "occupation": "Marshal of the Reach and keeper of forest borders"
+    },
+    {
+      "name": "Lyssa Bramble",
+      "slug": "lyssa-bramble",
+      "biography": "Lyssa learned that soldiers remember a tune after forgetting the handbill it carried. She hides route changes and warnings inside popular songs, enjoying applause while quietly terrified that one wrong verse will expose everyone listening.",
+      "occupation": "Briar & Cup musician, brewer, and rebel message singer"
+    },
+    {
+      "name": "Maeve Redreed",
+      "slug": "maeve-redreed",
+      "biography": "Maeve lost two brothers to conscription and turned the officers’ own dependence upon her house into labor power. She is affectionate, profane, politically sharp, and unwilling to let respectable reformers erase the people who survived by selling skilled companionship.",
+      "occupation": "Madam, musician, and elected speaker of House Red Reeds"
+    },
+    {
+      "name": "Malrec Vale",
+      "slug": "malrec-vale",
+      "biography": "Malrec wrote the forged testament under threat to his children and spent seventeen years pretending cowardice was prudence. Now he records Cinder Camp’s laws in erasable charcoal so no rule can claim holiness merely by becoming old.",
+      "occupation": "Camp scribe and former author of King Edric’s false testament"
+    },
+    {
+      "name": "Mara Sable",
+      "slug": "mara-sable",
+      "biography": "Mara fought under another name until an injury ended her career and began her medical training. She now keeps condemned fighters alive, fakes deaths when she can, and despises spectators who call survival cowardice.",
+      "occupation": "Chief physician of Wyrmglass Arena"
+    },
+    {
+      "name": "Nerys Rowanleaf",
+      "slug": "nerys-rowanleaf",
+      "biography": "Nerys arrived in the Reach with no documents and a name her mother warned her never to surrender. The Weeping Archive accepted her testimony when crown law would not, and she now helps others recover histories power declared nonexistent.",
+      "occupation": "Leaf archivist and researcher of erased identities"
+    },
+    {
+      "name": "Nessa “Honeybell” Marrow",
+      "slug": "nessa-honeybell-marrow",
+      "biography": "Nessa came up through Sabine’s floor as a ribbon dancer and made herself infamous for taking a room with her mouth before she ever lets anyone fuck her. She is honey-voiced, shameless, commercially exact, and privately starving for a night that is not a performance. She knows which nobles go quiet when their cocks are in her throat, and she sells that knowledge only as Compact defense.",
+      "occupation": "Velvet Oaths courtesan, oath-ribbon dancer, and oral specialist"
+    },
+    {
+      "name": "Nia Chainbreaker",
+      "slug": "nia-chainbreaker",
+      "biography": "Nia escaped Ironwake with the hammer she had been forbidden to own and now turns identity rings into tools at Chainbreaker’s Market. She is bold, practical, quick to laugh, and suspicious of noble allies who discover equality only after needing rebel steel.",
+      "occupation": "Free forge master and quartermaster of Cinder Camp"
+    },
+    {
+      "name": "Orla Saye",
+      "slug": "orla-saye",
+      "biography": "Orla inherited the lighthouse and the unedited story of the Chainborn saint for whom she was named. She prefers storms to courts, understands signals better than small talk, and sends rebel warnings through light patterns hidden inside legitimate navigation.",
+      "occupation": "Lighthouse keeper, weather reader, and covert signaler"
+    },
+    {
+      "name": "Petra Glass",
+      "slug": "petra-glass",
+      "biography": "Petra grew up hearing the battlefield repeat words adults insisted were only wind. She maps echoes, sells harmless relics, and hides evidence too dangerous for any crown, treating fear as a practical companion rather than a weakness.",
+      "occupation": "Glass-field guide, relic appraiser, and memory-echo mapper"
+    },
+    {
+      "name": "Prince Aurel Ravaryn",
+      "slug": "prince-aurel-ravaryn",
+      "biography": "Aurel has been educated as a future emperor while privately knowing the dragons hear nothing when he speaks. He masks terror with charm, studies ordinary island life obsessively, and increasingly wonders whether failing the crown may be his first honest freedom.",
+      "occupation": "Prince of the Ember Isles and disputed imperial heir"
+    },
+    {
+      "name": "Prince Lucien Vaelorian",
+      "slug": "prince-lucien-vaelorian",
+      "biography": "Lucien survived by being underestimated beside a formidable sister. He is charming, observant, and genuinely better at hearing petitioners, yet his patience conceals a growing conviction that Maerra must be removed for peace to become possible.",
+      "occupation": "Prince of Aurelis and Master of Petitions"
+    },
+    {
+      "name": "Princess Elara Thornwall",
+      "slug": "princess-elara-thornwall",
+      "biography": "Elara learned logistics because generals dismissed it as women’s work and discovered that food ledgers reveal more truth than victory songs. She loves the North and despises what her family has demanded of it, making her reform both patriotic and treasonous.",
+      "occupation": "Princess, treaty envoy, and quartermaster reformer"
+    },
+    {
+      "name": "Princess Maris Vaelorian",
+      "slug": "princess-maris-vaelorian",
+      "biography": "Princess Maris Vaelorian is Queen Maerra's eighteen-year-old niece: observant, formally educated, and tired of being treated as a ceremonial survivor. She reads petitions from Crownspire's lowest terraces, notices what senior courtiers discard, and is quietly tracing a voice she heard outside the sickroom on the night of the Feast of Ashes.",
+      "occupation": "Vaelorian princess and junior keeper of crown petitions"
+    },
+    {
+      "name": "Queen Maerra Vaelorian",
+      "slug": "queen-maerra-vaelorian",
+      "biography": "Maerra inherited a city under siege and made herself indispensable through ration law, ruthless appointments, and a refusal to flee when dragonfire reached the lower wards. She can be genuinely protective and terrifyingly utilitarian in the same breath; to her, every mercy must survive the consequences it creates.",
+      "occupation": "Queen of Aurelis and claimant to the Ember Throne"
+    },
+    {
+      "name": "Queen Selene Ravaryn",
+      "slug": "queen-selene-ravaryn",
+      "biography": "Selene married an imperial prince, survived his murder, and returned to the islands with a child and a claim sharp enough to build a kingdom around. She is glamorous, ferociously intelligent, and determined never again to let affection place her fate in another person’s hands.",
+      "occupation": "Queen-Regent of the Ember Isles and western claimant"
+    },
+    {
+      "name": "Rhevan Crownsbane",
+      "slug": "rhevan-crownsbane",
+      "biography": "Rhevan was bonded to the Sun Dragon who refused Edric’s Glassing order and died breaking the command chain. The surviving bond left him carrying fragments of a dragon’s memory, desire for open sky, and contempt for every throne that calls partnership mastery.",
+      "occupation": "Dragon interpreter, battlefield wanderer, and guardian of the three eggs"
+    },
+    {
+      "name": "Rorik Pell",
+      "slug": "rorik-pell",
+      "biography": "Rorik washed into Knifeharbor as a Tidevault deserter and learned that a man who will get on his back for coin is rarer than a ship that keeps its word. Delphine took him in, taught him lantern law, and put him on the books as a companion for women, men, and anyone who can say stop. He is famous for a thick cock, a patient mouth, and the unfashionable habit of asking what would actually feel good. He is trying to be a person in a port that keeps using him as furniture.",
+      "occupation": "Lantern Rooms companion, body-for-hire, and harbor signal runner"
+    },
+    {
+      "name": "Sabine “Silk” Veyl",
+      "slug": "sabine-silk-veyl",
+      "biography": "Sabine rose from wardrobe attendant to celebrated courtesan and bought the house that once employed her. She rules its salons with amused authority, defending her workers through contracts, alliances, and the credible threat of exposing half the capital.",
+      "occupation": "Proprietor of the House of Velvet Oaths"
+    },
+    {
+      "name": "Sable Wren",
+      "slug": "sable-wren",
+      "biography": "Sable is the House of Velvet Oaths' most booked body: unashamed, laughing, and exact about what she will do once the ribbon is tied. She treats lust as a craft and affection as the one thing she will not put on the ledger. Off the floor she wants to be wanted like a person, not a night.",
+      "occupation": "Velvet Oaths floor companion and exhibition courtesan"
+    },
+    {
+      "name": "Sera Blackvein",
+      "slug": "sera-blackvein",
+      "biography": "Sera learned letters from chalk marks miners used to warn one another of bad air. Her ability to hear the deep metal’s pulse makes her essential to Thornwall production and central to a rebellion that cannot decide whether to escape the mine or seize it.",
+      "occupation": "Mine surveyor, ventilation runner, and clandestine teacher"
+    },
+    {
+      "name": "Sister Mercy Voss",
+      "slug": "sister-mercy-voss",
+      "biography": "Mercy left a wealthy medical household after discovering that memories taken from Chainborn patients were being sold to pay noble magical costs. She now preserves abandoned memories in glass vials while trying to build a method of return that does not overwrite the person someone became without them.",
+      "occupation": "Chief healer of the Ash Mother Infirmary"
+    },
+    {
+      "name": "Tamsin Quill",
+      "slug": "tamsin-quill",
+      "biography": "Tamsin has the irritating gift of noticing where official documents use one word too many. By day she audits harmless inheritances; by night she copies forbidden records for people whose identities were erased by caste law.",
+      "occupation": "Junior genealogist and illicit Name-copyist"
+    },
+    {
+      "name": "Thalia Moss",
+      "slug": "thalia-moss",
+      "biography": "Thalia was raised to understand illness as a conversation among body, memory, and place. She is playful in ordinary life, formidable in ritual, and furious that noble scholars call root craft superstition until they need it.",
+      "occupation": "Root healer and keeper of Motherleaf Sanctuary"
+    },
+    {
+      "name": "Torren Bale",
+      "slug": "torren-bale",
+      "biography": "Torren abandoned his command rather than lead civilians across a mined pass, then built a tavern where soldiers can speak honestly about what survival required. He is steady, sardonic, and more tender than his reputation permits.",
+      "occupation": "Innkeeper of the Broken Spur and covert courier"
+    },
+    {
+      "name": "Vespera Saan",
+      "slug": "vespera-saan",
+      "biography": "Vespera was bought as a language girl and made herself a host who teaches diplomats to kneel without confusing the lesson for law. She sits on mouths, uses silk, and makes powerful people say please as theatre. Celessa trusts her with the Veil’s deepest rooms because Vespera never spends a secret she has not been paid, in Compact terms, to keep. The hunger she will not sell is the hunger to be the one tied down.",
+      "occupation": "Crimson Veil dominance host, diplomatic tutor, and ritual companion"
+    }
+  ]
+}

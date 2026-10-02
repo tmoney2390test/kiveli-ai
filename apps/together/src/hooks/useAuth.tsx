@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import { Platform } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import type { AuthError, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { authErrorMessage } from '../lib/authErrors';
@@ -50,6 +51,7 @@ function readableAuthError(error: AuthError) {
 }
 
 export function AuthProvider({ children }: PropsWithChildren) {
+  const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
@@ -68,7 +70,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     let mounted = true;
     let bootstrapped = false;
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data } = supabase.auth.onAuthStateChange((event, next) => {
+      if (event === 'SIGNED_OUT') {
+        queryClient.removeQueries({ queryKey: ['kivelle-world-pulse'] });
+        queryClient.removeQueries({ queryKey: ['world-pulse-detail'] });
+        queryClient.removeQueries({ queryKey: ['world-pulse-conversation-label'] });
+      }
       if(next?.provider_refresh_token&&next.user.app_metadata?.provider==='apple'){
         // Never await Auth or API calls within the auth event lock.
         const token=next.provider_refresh_token,owner=next.user.id;

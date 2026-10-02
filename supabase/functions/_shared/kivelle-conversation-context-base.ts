@@ -17,6 +17,8 @@ import { filterMemoriesForPreferences } from './kivelle-memory-access.ts';
 import { resolveRelevantConversationEpisodes, type RelevantConversationEpisode } from './kivelle-conversation-episodes.ts';
 import { temporalContinuitySummary, type WorldPulseContextEvent } from '../../../packages/together-domain/src/world-pulse.ts';
 import { resolveRelevantWorldPulse } from './kivelle-world-pulse.ts';
+import { worldPulseV2Enabled } from './kivelle-world-pulse-v2.ts';
+import { loadLinkedWorldPulseForSpeaker, type LinkedWorldPulseSpeakerContext } from './world-pulse-speaker-context.ts';
 import { naturalizeCharacterActivity, naturalizeCharacterEventSummary, naturalizeCharacterEventTitle } from '../../../packages/together-domain/src/character-language.ts';
 import type { ChatGenerationPreferences } from '../../../packages/together-domain/src/chat-generation.ts';
 
@@ -60,6 +62,7 @@ export type KivelleConversationContext = {
   social: Array<{ id:string; characterTemplateId:string; name:string; slug:string; relationship:string; history:string|null; affinity:number; trust:number; direction:'outgoing'|'incoming'; privateTension:string|null; knowledgeScope:string; userHasMet:boolean }>;
   knownLifeEvents: Array<{ id:string; title:string; summary:string; startsAt:string }>;
   worldPulse:WorldPulseContextEvent[];
+  linkedWorldPulse:LinkedWorldPulseSpeakerContext|null;
   temporalContinuity:{elapsedHours:number|null;events:Array<{title:string;summary:string;startsAt:string}>};
   location: Row|null;
   place: PlaceContext|null;
@@ -162,7 +165,7 @@ export async function buildKivelleConversationContext(input: {
   const referencedPlaces=(await Promise.all(referencedLocationRows.map((item:Row)=>resolvePlaceContext({db,locationId:String(item.id),now,userId,characterInstanceId:String(instance.id)}).catch(()=>null)))).filter((item):item is PlaceContext=>Boolean(item));
   const [placePerspectives,worldPulse]=await Promise.all([
     loadPlacePerspectives({db,userId,characterInstanceId:String(instance.id),characterVersionId:String(instance.character_version_id),places:[place,...referencedPlaces].filter((item):item is PlaceContext=>Boolean(item))}),
-    place?.world.id?resolveRelevantWorldPulse({db,userId,continuityId:String(instance.continuity_id),worldId:String(place.world.id),userMessage,currentLocationId:locationId,districtLocationId:place.district?.id??null,characterInstanceId:String(instance.id),characterIsLocal:true,now,maximumResults:historyIntent||planningIntent?3:2}).catch(()=>[]):[],
+    place?.world.id&&!worldPulseV2Enabled()?resolveRelevantWorldPulse({db,userId,continuityId:String(instance.continuity_id),worldId:String(place.world.id),userMessage,currentLocationId:locationId,districtLocationId:place.district?.id??null,characterInstanceId:String(instance.id),characterIsLocal:true,now,maximumResults:historyIntent||planningIntent?3:2}).catch(()=>[]):[],
   ]);
   const visibleLifeEvents=(events.data??[]).filter((item:Row)=>item.user_should_know!==false&&!isConvertedArcEvent(item)).map((item:Row)=>({id:String(item.id),title:naturalizeCharacterEventTitle(item.title,item.event_type),summary:naturalizeCharacterEventSummary(item.narrative_summary),startsAt:String(item.starts_at),significance:Number(item.significance??.5)}));
   const temporalContinuity=temporalContinuitySummary({lastMessageAt:conversation.last_message_at??conversation.updated_at,now,events:[...visibleLifeEvents,...worldPulse.map(item=>({title:item.title,summary:item.summary,startsAt:item.startsAt,significance:item.significance}))]});
@@ -262,6 +265,9 @@ export async function buildKivelleConversationContext(input: {
     const primaryId=String(instance.id);
     sceneParticipants=(participantRows??[]).map((item:Row)=>{const participantId=String(item.character_instance_id),participantTemplateId=String(item.together_character_instances?.character_template_id??''),personality=item.together_character_instances?.together_character_versions?.personality_config??{},participantRelationship=(participantRelationships??[]).find((value:Row)=>String(value.character_instance_id)===participantId),social=(socialStates??[]).find((value:Row)=>(String(value.character_a_instance_id)===primaryId&&String(value.character_b_instance_id)===participantId)||(String(value.character_b_instance_id)===primaryId&&String(value.character_a_instance_id)===participantId)),authored=(edges.data??[]).find((value:Row)=>(String(value.source_template_id)===String(instance.character_template_id)&&String(value.target_template_id)===participantTemplateId)||(String(value.target_template_id)===String(instance.character_template_id)&&String(value.source_template_id)===participantTemplateId));return{characterInstanceId:participantId,name:String(item.together_character_instances?.together_character_templates?.name??'Companion'),role:String(item.role),joinedAt:String(item.joined_at),socialEnergy:normalizedPersonalityValue(personality.socialEnergy??personality.social_energy,.5),directness:normalizedPersonalityValue(personality.directness,.5),relationshipRelevance:Math.min(1,(Number(participantRelationship?.trust??0)+Number(participantRelationship?.comfort??0)+Number(participantRelationship?.affinity??0)+Number(participantRelationship?.familiarity??0))/320),socialAffinity:Math.min(1,Number(social?.affinity??authored?.affinity??40)/100),socialTension:Math.min(1,Number(social?.tension??0)/100),relationshipType:String(social?.relationship_type??authored?.relationship_type??'acquaintance')};});
   }
+  const linkedWorldPulse = await loadLinkedWorldPulseForSpeaker({ db, userId,
+    continuityId: String(instance.continuity_id), conversationId: String(conversation.id),
+    characterTemplateId: String(instance.character_template_id), userMessage, now });
   return {
     contentAccess:{authorizedWebAdult:input.authorizedWebAdult===true,authorizedPrivateAdultText:input.authorizedPrivateAdultText===true,clientSurface:input.clientSurface??(input.authorizedWebAdult?'web':'native_or_unknown')},
     personalizationEnabled,
@@ -280,7 +286,7 @@ export async function buildKivelleConversationContext(input: {
     userPatterns:personalizationEnabled?(patterns.data??[]).map((item:Row)=>({id:String(item.id),patternKey:String(item.pattern_key),category:String(item.category),summary:String(item.summary),confidence:Number(item.confidence??0)})):[],
     recentEpisodes:personalizationEnabled?(episodes.data??[]).map((item:Row)=>({id:String(item.id),title:String(item.title),summary:String(item.summary),significance:Number(item.significance??0),locationId:item.location_id??null,endedAt:String(item.ended_at)})):[],
     openThreads:personalizationEnabled&&memoryPreferences.open_thread!==false?(threads.data??[]).map((thread:Row)=>threadContext(thread)):[], social,
-    knownLifeEvents:visibleLifeEvents.map(({id,title,summary,startsAt})=>({id,title,summary,startsAt})).slice(0,6),worldPulse,temporalContinuity,
+    knownLifeEvents:visibleLifeEvents.map(({id,title,summary,startsAt})=>({id,title,summary,startsAt})).slice(0,6),worldPulse,linkedWorldPulse,temporalContinuity,
     location:currentLocation,place,referencedPlaces,placePerspectives,userAttachments,sceneParticipants,worldFacts:[],dialogueOpportunities:[],sceneInteractionBeats:[],
     recentMedia:personalizationEnabled?(media.data??[]).map((item:Row)=>({id:String(item.id),summary:String(item.metadata?.sceneSummary??'A recent shared photo.'),createdAt:String(item.created_at),locationId:item.location_id})):[],
     sharedHistory:history,conversationEpisodes, conversationSummary:input.authorizedPrivateAdultText?String((conversation.canonical_context as Row|undefined)?.summary??conversation.summary??''):String((conversation.safe_context as Row|undefined)?.summary??''), conversationSummaryUpdatedAt:conversation.summary_through??conversation.updated_at??undefined, conversationFocus:resolveConversationFocus(conversation.metadata?.focus as Row|null,plansView,now),

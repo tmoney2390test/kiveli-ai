@@ -27,8 +27,11 @@ import { chatBubbleColorValues, normalizeChatBubbleColor } from '../../../packag
 import { startConfirmedFreshChat } from '../_shared/fresh-chat.ts';
 import { setCompanionSchedulePause } from '../_shared/companion-schedule-pause.ts';
 import { ensureConversationOpener } from '../_shared/conversation-opener.ts';
+import { openDirectFromWorldPulse } from '../_shared/world-pulse-handoff.ts';
+import { worldPulseV2Enabled } from '../_shared/kivelle-world-pulse-v2.ts';
 
 const schema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('open_from_world_pulse'), occurrenceId: z.string().uuid(), characterTemplateId: z.string().uuid(), requestId: z.string().uuid() }),
   z.object({action:z.literal('schedule_pause'),conversationId:z.string().uuid(),paused:z.boolean(),confirmation:z.enum(['pause_schedule','resume_schedule']),expectedPausedAt:z.string().datetime({offset:true}).nullable()}),
   z.object({ action: z.literal('inbox') }),
   z.object({ action: z.literal('inbox_v2'), limit: z.number().int().min(10).max(100).default(40), offset: z.number().int().min(0).max(5000).default(0) }),
@@ -69,6 +72,15 @@ serve(async (request, correlationId) => {
     enforceRateLimit(db,user.id,`together_conversation_${input.action}`,requestLimit.limit,requestLimit.windowSeconds),
   ]);
   const preparedAt=performance.now();
+
+  if (input.action === 'open_from_world_pulse') {
+    if (!worldPulseV2Enabled()) throw new AppError('NOT_FOUND', 'World Pulse is unavailable.', 404);
+    const result = await openDirectFromWorldPulse({ db, userId: user.id, continuityId: String(continuity.id),
+      occurrenceId: input.occurrenceId, characterTemplateId: input.characterTemplateId, requestId: input.requestId });
+    await track(db, user.id, 'world_pulse_direct_handoff', { occurrenceId: input.occurrenceId,
+      characterTemplateId: input.characterTemplateId, conversationId: result.conversation.id });
+    return json({ data: result, correlationId }, 200, correlationId);
+  }
 
   if (input.action === 'inbox') {
     const { data, error } = await db.from('together_conversations').select('*').eq('user_id', user.id).eq('continuity_id', continuity.id).is('archived_at', null).in('kind', ['direct', 'first_meeting','group']).order('last_message_at', { ascending: false, nullsFirst: false }).limit(100);

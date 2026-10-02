@@ -1,4 +1,5 @@
 import { ChatRecoveryNotice } from '../src/components/ChatRecoveryNotice';
+import { WorldPulseConversationBanner } from '../src/components/WorldPulseConversationBanner';
 import { queueServerPhotoOfferAcceptance, waitForPhotoOfferStatus } from '../src/lib/photoOfferOptimism';
 import { loadPhotoOfferStatus } from '../src/lib/api';
 import { createRealtimeChannel } from '../src/lib/realtimeChannel';
@@ -245,6 +246,7 @@ export default function GroupChatScreen() {
       activity?: string;
       switchPlanId?: string;
       sharePhoto?: string;
+      draft?: string;
     }>(),
     { width } = useWindowDimensions(),
     snapshot = useTogether((state) => state.snapshot),
@@ -336,7 +338,7 @@ export default function GroupChatScreen() {
   const subscriptionReturnTo=params.id?`/group-chat?id=${encodeURIComponent(params.id)}`:"/messages";
   const creditsSubscriptionHref=subscriptionHref({intent:"credits",returnTo:subscriptionReturnTo});
   const photoSharingSubscriptionHref=subscriptionHref({intent:"photo_sharing",returnTo:`${subscriptionReturnTo}${subscriptionReturnTo.includes("?")?"&":"?"}sharePhoto=1`});
-  const clearStoredDraft=usePersistentMessageDraft({userId:session?.user.id,conversationId:params.id,kind:"group",value:input,setValue:setInput});
+  const clearStoredDraft=usePersistentMessageDraft({userId:session?.user.id,conversationId:params.id,kind:"group",value:input,setValue:setInput,routeDraft:params.draft});
   currentComposer.current=input;
   const abortRef = useRef<AbortController | null>(null),
     recipientConversationRef = useRef<string | null>(null),
@@ -1881,6 +1883,7 @@ export default function GroupChatScreen() {
         onDetails={() => setShowGroupMenu((value) => !value)}
       />}
       <ConnectionBanner sendFailed={detail.messages.some((message)=>message.delivery_status==="failed")} sendScoped={showSendConnectionNotice}/>
+      {detail.conversation.metadata?.worldPulseOccurrenceId?<WorldPulseConversationBanner conversationId={detail.conversation.id} continuityId={snapshot?.activeContinuity?.id??''}/>:null}
       {!showRightRail&&activeGroupPlan?<MobileChatContextCard
         identityKey={`${detail.conversation.id}:${activeGroupPlan.id}`}
         name={detail.conversation.title??"the group"}

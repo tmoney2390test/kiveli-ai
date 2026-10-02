@@ -12,6 +12,7 @@ import { characterResidentWorld, worldForLocation } from '../lib/place';
 import { placeHoursStatus } from '../lib/placeHours';
 import { userExperienceTimezone } from '../lib/experienceTimezone';
 import { useWorldPulse } from '../hooks/useWorldPulse';
+import { useAuth } from '../hooks/useAuth';
 import { navigateLocalRouteOnWeb } from '../lib/conversationNavigation';
 import { PersonalPlacePicker } from './PersonalPlacePicker';
 import type { Location } from '../types';
@@ -60,9 +61,11 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
   const heroCardWidth = Math.max(290, Math.min(width - 48, 760));
   const viewerTimezone=userExperienceTimezone(snapshot);
   const switchNow=useMemo(()=>new Date(),[currentPlan?.id,mode]);
+  const { session } = useAuth();
 
   const residentWorld = snapshot.worlds.find((world)=>world.id===plannerWorldId) ?? characterResidentWorld(snapshot, character);
-  const {data:worldPulse}=useWorldPulse(residentWorld?.id,Boolean(residentWorld?.id));
+  const pulseScope = session?.user.id ? `${session.user.id}:${snapshot.activeContinuity?.id??'default'}` : null;
+  const {data:worldPulse}=useWorldPulse(residentWorld?.id,pulseScope,Boolean(residentWorld?.id));
   const activeLocationId = currentLocationId ?? character.current_location_id;
   const scopedCandidate = snapshot.locations.find((item) => item.id === scopedLocationId && (mode==='switch'||item.id !== currentLocationId));
   const scoped = scopedCandidate && (!residentWorld || scopedCandidate.world_id === residentWorld.id) ? scopedCandidate : undefined;
@@ -90,7 +93,8 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
     chooseElsewhere: elsewhere,
     previousPlans: (snapshot.sharedPlans ?? []).filter((plan)=>plan.character_instance_id===character.id),
     intent: intent ?? undefined,
-    worldPulse:worldPulse?.events??[],
+    // Historical V2 incidents are not live venue schedules or plan invitations.
+    worldPulse:worldPulse?.version===2?[]:worldPulse?.events??[],
   };
   const options = useMemo(() => {
     const recommended=recommendPlanOptions(planContext);

@@ -1,0 +1,588 @@
+{
+  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "world": {
+    "name": "Neon Kyo",
+    "slug": "neon-kyo",
+    "description": "One of the richest and loneliest cities in the known world: hyperconnected, heavily watched, and always selling a more perfect version of desire."
+  },
+  "locations": [
+    {
+      "name": "Akiba Undergrid",
+      "slug": "akiba-undergrid",
+      "category": "district",
+      "description": "The experimental district beneath the tourist streets, where engineers, hackers, gamers, and artists modify technology without asking permission."
+    },
+    {
+      "name": "Aoyama Modification Institute",
+      "slug": "aoyama-modification-institute",
+      "category": "healthcare",
+      "description": "An elite clinic for skin reconstruction, body sculpting, sensory implants, longevity treatments, and neural upgrades."
+    },
+    {
+      "name": "Aoyama-9",
+      "slug": "aoyama-nine",
+      "category": "district",
+      "description": "An immaculate high-altitude enclave for the people who own Neon Kyo, where beauty, privacy, and convenience are purchasable services."
+    },
+    {
+      "name": "Below Kyo",
+      "slug": "below-kyo",
+      "category": "underground",
+      "description": "An unmapped network of abandoned pedestrian tunnels occupied by street artists, musicians, underground clubs, and unauthorized markets."
+    },
+    {
+      "name": "Chrome Kiss",
+      "slug": "chrome-kiss",
+      "category": "studio",
+      "description": "A body-modification studio known for subdermal illumination, metallic tattoos, sensory piercings, and cosmetic implants."
+    },
+    {
+      "name": "Dollhouse Robotics",
+      "slug": "dollhouse-robotics",
+      "category": "technology",
+      "description": "A boutique robotics company building extraordinarily lifelike synthetic companions, publicly sold as assistants despite an uneasy two-year waitlist."
+    },
+    {
+      "name": "Dreamscape",
+      "slug": "dreamscape",
+      "category": "entertainment",
+      "description": "A neural VR lounge for shared simulations that can feel nearly physical, used for fantasy dates and escapes from difficult reality."
+    },
+    {
+      "name": "Eden",
+      "slug": "eden-shinjira",
+      "category": "entertainment",
+      "description": "A members-only immersive club combining augmented reality, fragrance, temperature, and neural audio into custom environments."
+    },
+    {
+      "name": "Gallery Null",
+      "slug": "gallery-null",
+      "category": "gallery",
+      "description": "A private gallery of neural art and synthetic performers where the distinction between exhibition and manipulation is deliberately unclear."
+    },
+    {
+      "name": "Ghost Line",
+      "slug": "ghost-line",
+      "category": "market",
+      "description": "An abandoned subway platform turned illegal market for black-market implants, synthetic stimulants, forged Civic IDs, fashion mods, and cheap alcohol."
+    },
+    {
+      "name": "The Glass House",
+      "slug": "glass-house",
+      "category": "residence",
+      "description": "A prestigious residential tower with private elevators, immense windows, total visitor records, and expensive ways to erase them."
+    },
+    {
+      "name": "Halo",
+      "slug": "halo-aoyama",
+      "category": "lounge",
+      "description": "An exclusive rooftop lounge centered on an infinity pool suspended above the city, eveningwear, cocktails, and reflected skyline light."
+    },
+    {
+      "name": "Hikari Capsule Club",
+      "slug": "hikari-capsule-club",
+      "category": "hotel",
+      "description": "A futuristic capsule hotel with soundproof rooms, environmental controls, and anonymous payments, popular with locals who need privacy."
+    },
+    {
+      "name": "Hikari Core",
+      "slug": "hikari-core",
+      "category": "district",
+      "description": "Neon Kyo's brilliant public face: aspirational, crowded, and continuously analyzed by biometric and private security systems."
+    },
+    {
+      "name": "Hikari Crossing",
+      "slug": "hikari-crossing",
+      "category": "landmark",
+      "description": "The city's legendary pedestrian crossing, where enormous reactive advertisements watch tens of thousands of people disappear into the crowd."
+    },
+    {
+      "name": "Hikari Skybridge",
+      "slug": "hikari-skybridge",
+      "category": "landmark",
+      "description": "A transparent walkway sixty floors above Hikari, where drifting advertisements below the glass make public space feel strangely private."
+    },
+    {
+      "name": "Hotel Nocturne",
+      "slug": "hotel-nocturne",
+      "category": "hotel",
+      "description": "A luxury privacy hotel with automated check-in, anonymous elevators, soundproof rooms, and a fashionable penthouse bar."
+    },
+    {
+      "name": "Kissaten 88",
+      "slug": "kissaten-88",
+      "category": "cafe",
+      "description": "A tiny low-lit cafe beneath a cosmetics hologram, with leather booths and rainy windows that become notably private after midnight."
+    },
+    {
+      "name": "Koi Garden",
+      "slug": "koi-garden",
+      "category": "garden",
+      "description": "An old garden where augmented reality is jammed, leaving every visitor without filters, projected clothing, or synthetic makeup overlays."
+    },
+    {
+      "name": "Kumo Gym",
+      "slug": "kumo-gym",
+      "category": "fitness",
+      "description": "A premium twenty-four-hour residential fitness club with biometric smart mirrors and a notably social late-night crowd."
+    },
+    {
+      "name": "Lantern Street",
+      "slug": "lantern-street",
+      "category": "shopping",
+      "description": "A preserved pedestrian street of small shops, food counters, traditional facades, and handmade lanterns beyond the reach of responsive advertising."
+    },
+    {
+      "name": "Laundry 9",
+      "slug": "laundry-nine",
+      "category": "laundry",
+      "description": "A nearly automated laundromat with a vending cafe whose after-midnight quiet makes ordinary waiting unexpectedly intimate."
+    },
+    {
+      "name": "Maison IX",
+      "slug": "maison-nine",
+      "category": "restaurant",
+      "description": "A fine-dining restaurant of private glass alcoves whose kitchen already knows each guest's preferences from public biometric profiles."
+    },
+    {
+      "name": "Maison Vice",
+      "slug": "maison-vice",
+      "category": "shopping",
+      "description": "A six-story fashion complex for provocative cybercouture, designer lingerie, augmented fabrics, and luxury body accessories."
+    },
+    {
+      "name": "Mirror",
+      "slug": "mirror-hikari",
+      "category": "lounge",
+      "description": "An exclusive fashion lounge where guests can alter their projected hair, clothing, and faces throughout the evening."
+    },
+    {
+      "name": "Moonpool",
+      "slug": "moonpool",
+      "category": "fitness",
+      "description": "A rooftop swimming pool shared by several towers, surrounded by the city and frequently almost empty after 1 AM."
+    },
+    {
+      "name": "Nova Arena",
+      "slug": "nova-arena",
+      "category": "arena",
+      "description": "A massive esports stadium where professional gamers are celebrities and every major match spills into an uncontrolled district party."
+    },
+    {
+      "name": "Old Kyo / The Shade",
+      "slug": "old-kyo-the-shade",
+      "category": "district",
+      "description": "Historic streets and canals where surveillance fails unpredictably, drawing lovers, dissidents, celebrities, and anyone who needs to disappear."
+    },
+    {
+      "name": "Paper Moon Books",
+      "slug": "paper-moon-books",
+      "category": "bookstore",
+      "description": "An independent bookshop specializing in physical books, old magazines, local history, and the kind of browsing no recommendation system can record."
+    },
+    {
+      "name": "Pulse Arcade",
+      "slug": "pulse-arcade",
+      "category": "entertainment",
+      "description": "A huge gaming tower of competitive neural-response games whose upper floors become darker and less legal after midnight."
+    },
+    {
+      "name": "Quiet Hours",
+      "slug": "quiet-hours",
+      "category": "bar",
+      "description": "A warm basement bar without advertising or corporate payment systems, where regulars keep monthly tabs and the bartender keeps their secrets."
+    },
+    {
+      "name": "Red Lantern Alley",
+      "slug": "red-lantern-alley",
+      "category": "nightlife",
+      "description": "A rain-bright entertainment street of tiny bars, private lounges, noodle counters, and hidden entrances beneath suspended red holographic lanterns."
+    },
+    {
+      "name": "Room 13",
+      "slug": "room-thirteen",
+      "category": "lounge",
+      "description": "A private cocktail lounge behind an unmarked steel door where recording is disabled and bartenders never ask for surnames."
+    },
+    {
+      "name": "Ryokan Kaze",
+      "slug": "ryokan-kaze",
+      "category": "hotel",
+      "description": "A traditional inn of tatami rooms, private baths, paper screens, and mandatory disconnection from neural devices and advertising."
+    },
+    {
+      "name": "Saint",
+      "slug": "saint-aoyama",
+      "category": "lounge",
+      "description": "A severe, luxurious members club for celebrities, executives, and old-money families, with staff who see more than guests realize."
+    },
+    {
+      "name": "Scarlet Garden",
+      "slug": "scarlet-garden",
+      "category": "bar",
+      "description": "A seductive rooftop bar of faintly glowing crimson foliage and semi-private alcoves overlooking the city's lower levels."
+    },
+    {
+      "name": "Shinjira",
+      "slug": "shinjira",
+      "category": "district",
+      "description": "The vertical nightlife district respectable residents deny visiting, where hidden floors and unlisted doors make almost everything feel permitted."
+    },
+    {
+      "name": "Soba Miyako",
+      "slug": "soba-miyako",
+      "category": "restaurant",
+      "description": "A fifteen-seat family restaurant without biometric ordering, valued by famous and ordinary guests because nobody photographs anyone inside."
+    },
+    {
+      "name": "SYN",
+      "slug": "syn-club",
+      "category": "nightlife",
+      "description": "An experimental nightclub where consenting guests synchronize music, light, and physical sensation through neural interfaces."
+    },
+    {
+      "name": "Tea House Aoi",
+      "slug": "tea-house-aoi",
+      "category": "cafe",
+      "description": "A quiet tea house with canal-facing rooms, careful service, and a strict no-recording custom respected by ordinary residents and famous guests alike."
+    },
+    {
+      "name": "The Atrium",
+      "slug": "the-atrium",
+      "category": "shopping",
+      "description": "A private shopping arcade of designer fashion, jewelry, body-modification boutiques, and champagne bars where prices are rarely displayed."
+    },
+    {
+      "name": "The Backroom",
+      "slug": "the-backroom",
+      "category": "workshop",
+      "description": "An illegal repair shop beneath an electronics market that fixes implants corporate clinics refuse to touch."
+    },
+    {
+      "name": "The Balcony",
+      "slug": "the-balcony",
+      "category": "outdoor",
+      "description": "An informal rooftop where residents bring drinks, smoke, flirt, and complain about work without anyone officially organizing it."
+    },
+    {
+      "name": "Tsuki Blocks",
+      "slug": "tsuki-blocks",
+      "category": "district",
+      "description": "Dense residential towers where young adults share amenities, endure constant advertising, and make scarce private space meaningful."
+    },
+    {
+      "name": "Tsuki Tower 17",
+      "slug": "tsuki-tower-17",
+      "category": "residence",
+      "description": "The player's residential building: tiny apartments, thin walls, shared balconies, and late elevators where neighbors appear without public polish."
+    },
+    {
+      "name": "Tsukimi Shrine",
+      "slug": "tsukimi-shrine",
+      "category": "shrine",
+      "description": "A cedar-shaded shrine where neural signals weaken near the stone-lantern courtyard and people come specifically to become unreachable."
+    },
+    {
+      "name": "TwentyFour",
+      "slug": "twentyfour",
+      "category": "shopping",
+      "description": "The fluorescent neighborhood convenience store where residents cross paths at 3 AM in office clothes, club outfits, and whatever they threw on."
+    },
+    {
+      "name": "Velvet Shrine",
+      "slug": "velvet-shrine",
+      "category": "lounge",
+      "description": "A hidden invitation-only lounge inside a historic townhouse, candlelit and warm behind a shoes-off entrance."
+    },
+    {
+      "name": "Velvet Static",
+      "slug": "velvet-static",
+      "category": "nightlife",
+      "description": "Shinjira's defining nightclub: dark concrete, red light, bass, perfume, and neural audio that responds to the crowd's emotional state."
+    },
+    {
+      "name": "Whisper Bridge",
+      "slug": "whisper-bridge",
+      "category": "landmark",
+      "description": "A narrow wooden canal bridge where lantern reflections sit beneath distant towers and local folklore demands honest questions."
+    },
+    {
+      "name": "ZeroDay",
+      "slug": "zeroday",
+      "category": "bar",
+      "description": "A basement hacker bar without cameras, facial recognition, or corporate networks, frequented by researchers, whistleblowers, and erased people."
+    }
+  ],
+  "characters": [
+    {
+      "name": "Adrian Petrescu",
+      "slug": "adrian-petrescu",
+      "biography": "A mature privacy specialist who built his career making powerful guests untraceable and now wonders whether discretion has protected people or merely insulated them.",
+      "occupation": "Hotel Nocturne Privacy Operations Director"
+    },
+    {
+      "name": "Akari Fujimoto",
+      "slug": "akari-fujimoto",
+      "biography": "A grounded owner-chef defending her inherited restaurant from redevelopment while deciding whether preservation has kept her from building a future of her own.",
+      "occupation": "Owner-Chef of Soba Miyako"
+    },
+    {
+      "name": "Ana Luiza Ribeiro",
+      "slug": "ana-luiza-ribeiro",
+      "biography": "A warm Quiet Hours bartender who wants to combine Sao Paulo energy with Tsuki intimacy in a live-music cocktail bar of her own.",
+      "occupation": "Quiet Hours Bartender"
+    },
+    {
+      "name": "Arun Mehta",
+      "slug": "arun-mehta",
+      "biography": "A composed former civic auditor who left predictive governance to run a no-recording tea house where people can be present without being profiled.",
+      "occupation": "Tea House Aoi Proprietor and Former Algorithm Auditor"
+    },
+    {
+      "name": "Aya Mori",
+      "slug": "aya-mori",
+      "biography": "A clever, mischievous stylist and junior model scout who wants to build her own label in a city that evaluates everyone on sight.",
+      "occupation": "Maison Vice Stylist and Junior Model Scout"
+    },
+    {
+      "name": "Chloé Mercier",
+      "slug": "chloe-mercier",
+      "biography": "A witty French stylist who came to NEON KYO for six months, never left, and wants creative authority without becoming a personal brand.",
+      "occupation": "Creative Stylist at Mirror"
+    },
+    {
+      "name": "Daisuke Arata",
+      "slug": "daisuke-arata",
+      "biography": "A composed night manager who protects Room 13 guests with ruthless discretion and has become too practiced at keeping his own life compartmentalized.",
+      "occupation": "Room 13 Night Manager"
+    },
+    {
+      "name": "Elena Volkov",
+      "slug": "elena-volkov",
+      "biography": "A poised VIP concierge who has spent years making powerful people's problems disappear and wants a life where usefulness is not the price of affection.",
+      "occupation": "VIP Concierge at Hotel Nocturne"
+    },
+    {
+      "name": "Emi Takahashi",
+      "slug": "emi-takahashi",
+      "biography": "An energetic competitive gamer trying to reach the professional neural circuit without surrendering her identity to a sponsor.",
+      "occupation": "Pulse Arcade Attendant and Competitive Gamer"
+    },
+    {
+      "name": "EVA",
+      "slug": "eva-aoyama",
+      "biography": "An autonomous synthetic social host designed to make wealthy strangers feel fascinating who now wants to choose somebody offering no strategic benefit.",
+      "occupation": "Halo Social Host"
+    },
+    {
+      "name": "Freya Keller",
+      "slug": "freya-keller",
+      "biography": "A practical skyscraper technician whose spinal and balance implants make impossible work routine while complicating whether she can ever return permanently to Europe.",
+      "occupation": "Vertical Infrastructure Technician"
+    },
+    {
+      "name": "Fumi Arai",
+      "slug": "fumi-arai",
+      "biography": "A private history student documenting Old Kyo before corporations replace its real past with a sanitized tourist story.",
+      "occupation": "Tsukimi Shrine Attendant and History Student"
+    },
+    {
+      "name": "Gabriel Moreau",
+      "slug": "gabriel-moreau",
+      "biography": "A visually fearless installation artist whose work exposes how memory can be curated, sold, and mistaken for truth.",
+      "occupation": "Neural Installation Artist"
+    },
+    {
+      "name": "Haruto Seki",
+      "slug": "haruto-seki",
+      "biography": "An awkwardly principled engineer building autonomy safeguards at Dollhouse while collecting evidence that the company can still revoke them.",
+      "occupation": "Synthetic Rights Engineer"
+    },
+    {
+      "name": "Iori",
+      "slug": "iori",
+      "biography": "A bio-synthetic ecological caretaker with legal personhood who wants an ordinary valued life, friends, and someone who notices when she is absent.",
+      "occupation": "Koi Garden Caretaker"
+    },
+    {
+      "name": "Isabella Reyes",
+      "slug": "isabella-reyes",
+      "biography": "A decisive restoration architect who has preserved other people's buildings for years and wants to create something permanent under her own name.",
+      "occupation": "Restoration Architect"
+    },
+    {
+      "name": "Jae-min Han",
+      "slug": "jae-min-han",
+      "biography": "A gifted young strategy coach whose neural timing implant made him famous early and now makes every mistake feel publicly measurable.",
+      "occupation": "Nova Arena Strategy Coach"
+    },
+    {
+      "name": "Kaito Fujimori",
+      "slug": "kaito-fujimori",
+      "biography": "A patient investigative editor assembling physical accounts of the city events that corporate search systems continually rewrite.",
+      "occupation": "Investigative Editor at Paper Moon Books"
+    },
+    {
+      "name": "Dr. Kenji Watanabe",
+      "slug": "kenji-watanabe",
+      "biography": "A restrained rehabilitation physician helping residents adapt to elective and necessary augmentation while pushing back against Aoyama perfection culture.",
+      "occupation": "Neural Rehabilitation Physician"
+    },
+    {
+      "name": "KIRA-3 “Kira”",
+      "slug": "kira-3",
+      "biography": "An autonomous synthetic esports analyst who began as predictive software and now deliberately seeks experiences she cannot optimize.",
+      "occupation": "Nova Arena Esports Analyst"
+    },
+    {
+      "name": "Laleh Rahimi",
+      "slug": "laleh-rahimi",
+      "biography": "A fearless neural-experience designer who has professionally constructed perfect fantasies for years and now craves something unpredictable and real.",
+      "occupation": "Lead Neural-Experience Designer at Dreamscape"
+    },
+    {
+      "name": "Lexi Morgan",
+      "slug": "lexi-morgan",
+      "biography": "An affectionate American design trainee trying to decide whether NEON KYO augmentation is art, medicine, vanity, or all three.",
+      "occupation": "Augmentation Design Trainee"
+    },
+    {
+      "name": "Malik Okoye",
+      "slug": "malik-okoye",
+      "biography": "A magnetic movement director who choreographs Eden environments around consent and human improvisation while corporate owners push for more behavioral control.",
+      "occupation": "Immersive Movement Director"
+    },
+    {
+      "name": "Mei Watanabe",
+      "slug": "mei-watanabe",
+      "biography": "A quietly bold street photographer creating an unfiltered documentary of people in a city obsessed with modifying perception.",
+      "occupation": "Laundry 9 Cafe Attendant and Street Photographer"
+    },
+    {
+      "name": "Mia Lindström",
+      "slug": "mia-lindstrom",
+      "biography": "An introverted TwentyFour clerk who anonymously releases electronic music and wants to perform publicly despite fearing recognition.",
+      "occupation": "TwentyFour Clerk and Aspiring Electronic Musician"
+    },
+    {
+      "name": "Mika Sato",
+      "slug": "mika-sato",
+      "biography": "A bold trainer with illegally tuned performance leg implants who misses elite competition and refuses partners who want to fix or control her.",
+      "occupation": "Kumo Gym Trainer and Underground Racer"
+    },
+    {
+      "name": "Min-jun Park",
+      "slug": "min-jun-park",
+      "biography": "An upbeat coach balancing classes, clients, and a rapidly growing following he is not sure represents the person he is off camera.",
+      "occupation": "Dance-Fitness Coach and Kinesiology Student"
+    },
+    {
+      "name": "Mina Seo",
+      "slug": "mina-seo",
+      "biography": "A sensory architect who manufactures artificial intimacy for Eden and increasingly doubts whether she can recognize genuine chemistry.",
+      "occupation": "Sensory Architect at Eden"
+    },
+    {
+      "name": "Natsumi Endo",
+      "slug": "natsumi-endo",
+      "biography": "A creative body-art apprentice with reactive subdermal tattoos who wants respect for her work rather than attention for how unusual she looks.",
+      "occupation": "Chrome Kiss Body-Art Apprentice"
+    },
+    {
+      "name": "Nico Serrano",
+      "slug": "nico-serrano",
+      "biography": "A playful neural tattooist who treats body modification as authorship and refuses the fashion industry attempts to turn his designs into subscription skins.",
+      "occupation": "Neural Tattoo Artist"
+    },
+    {
+      "name": "Noa-7 “Noa”",
+      "slug": "noa-7",
+      "biography": "An autonomous synthetic concierge programmed to anticipate human desire who now wants to discover which preferences genuinely belong to her.",
+      "occupation": "Hikari Capsule Club Concierge"
+    },
+    {
+      "name": "Piper Shaw",
+      "slug": "piper-shaw",
+      "biography": "A cheeky fashion-tech student who came to NEON KYO to escape everyone else's prior opinion and dreams of designing responsive clothing.",
+      "occupation": "Atrium Boutique Assistant and Fashion-Tech Student"
+    },
+    {
+      "name": "Reina Kuroda",
+      "slug": "reina-kuroda",
+      "biography": "An assured prosthetic designer whose self-made matte-black arm embodies her belief that augmentation should be expression rather than compulsory perfection.",
+      "occupation": "Prosthetic Designer"
+    },
+    {
+      "name": "Ren Ishikawa",
+      "slug": "ren-ishikawa",
+      "biography": "A precise civic-flow engineer who keeps Hikari moving while quietly documenting the ways its convenience systems steer people without permission.",
+      "occupation": "Civic Flow Engineer"
+    },
+    {
+      "name": "Rika Senzaki",
+      "slug": "rika-senzaki",
+      "biography": "A sarcastic AR engineer with silver-violet ocular implants who is determined to prove that Hikari advertising secretly profiles individual citizens.",
+      "occupation": "AR Infrastructure Engineer"
+    },
+    {
+      "name": "Rin Akiyama",
+      "slug": "rin-akiyama",
+      "biography": "A nocturnal security researcher who anonymously leaks corporate privacy abuses while maintaining an ordinary consulting career and ZeroDay bar shifts.",
+      "occupation": "Cybersecurity Researcher and ZeroDay Bartender"
+    },
+    {
+      "name": "SOL-9 “Sol”",
+      "slug": "sol-9",
+      "biography": "An autonomous synthetic broadcast analyst designed to turn competition into narrative who is learning which opinions remain when nobody is watching.",
+      "occupation": "Nova Arena Broadcast Analyst"
+    },
+    {
+      "name": "Sora Hayashi",
+      "slug": "sora-hayashi",
+      "biography": "A magnetic resident DJ resisting an entertainment company that wants to package her into a safe celebrity product.",
+      "occupation": "Resident DJ at Velvet Static"
+    },
+    {
+      "name": "Talia Okafor",
+      "slug": "talia-okafor",
+      "biography": "A charismatic underground singer resisting labels that want to make her identity more commercially digestible.",
+      "occupation": "Underground Singer and Producer"
+    },
+    {
+      "name": "Théo Laurent",
+      "slug": "theo-laurent",
+      "biography": "A polished fragrance technologist who designs responsive scent identities for Maison Vice while insisting that attraction should still contain surprise.",
+      "occupation": "Fragrance-Tech Creative Director"
+    },
+    {
+      "name": "Tiago Nascimento",
+      "slug": "tiago-nascimento",
+      "biography": "A veteran emergency electrician who keeps Tsuki and Hikari towers alive through storms, outages, and corporate maintenance shortcuts.",
+      "occupation": "Tower Emergency Electrician"
+    },
+    {
+      "name": "Vittoria Bellandi",
+      "slug": "vittoria-bellandi",
+      "biography": "An expressive Italian curator determined to find artists before Aoyama collectors reduce their work to financial assets.",
+      "occupation": "Assistant Curator at Gallery Null"
+    },
+    {
+      "name": "Yumi Kato",
+      "slug": "yumi-kato",
+      "biography": "A warm and perceptive Room 13 bartender who knows everyone else's secrets and dreams of opening a neighborhood bar where somebody asks about hers.",
+      "occupation": "Room 13 Bartender"
+    },
+    {
+      "name": "Yuna Park",
+      "slug": "yuna-park",
+      "biography": "A brilliant assistive-robotics engineer questioning whether staying at Dollhouse protects its synthetics or enables the corporation exploiting them.",
+      "occupation": "Robotics Engineer at Dollhouse Robotics"
+    },
+    {
+      "name": "Zhen Li",
+      "slug": "zhen-li",
+      "biography": "A blunt gray-market technician with precision cybernetic fingers and illegally isolated neural architecture who is fighting for residency without surrendering her privacy.",
+      "occupation": "Gray-Market Neural Technician"
+    }
+  ]
+}

@@ -1,0 +1,582 @@
+{
+  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "world": {
+    "name": "Port Vervelle",
+    "slug": "port-vervelle",
+    "description": "A slow, sun-warmed coastal town of working docks, steep lanes, old plazas, beaches, and familiar faces."
+  },
+  "locations": [
+    {
+      "name": "Atelier Amélie",
+      "slug": "atelier-amelie",
+      "category": "studio",
+      "description": "A tailoring and fashion studio tied into fittings, weddings, performances, and every formal event in town."
+    },
+    {
+      "name": "Bellavista",
+      "slug": "bellavista",
+      "category": "district",
+      "description": "A quiet hillside neighborhood of homes, studios, gardens, steep lanes, and balconies looking back toward the harbor."
+    },
+    {
+      "name": "Bellavista Apartments",
+      "slug": "bellavista-apartments",
+      "category": "residence",
+      "description": "A hillside apartment building of balconies, shared stairs, younger residents, and frequent neighbor encounters."
+    },
+    {
+      "name": "Bellavista Fitness Club",
+      "slug": "bellavista-fitness-club",
+      "category": "fitness",
+      "description": "A neighborhood training and wellness club for weights, yoga, Pilates, instructors, and familiar routines."
+    },
+    {
+      "name": "Belvedere Garden",
+      "slug": "belvedere-garden",
+      "category": "park",
+      "description": "A quiet overlook garden for picnics, sunset walks, dates, and conversations that need a little distance from town."
+    },
+    {
+      "name": "The Blue Lantern",
+      "slug": "blue-lantern",
+      "category": "nightlife",
+      "description": "A sailors' tavern with worn tables, acoustic music, easy gossip, and post-shift drinks near the water."
+    },
+    {
+      "name": "Café Marelle",
+      "slug": "cafe-marelle",
+      "category": "cafe",
+      "description": "A waterfront café for strong coffee, casual dates, breakfast, and watching the harbor wake up."
+    },
+    {
+      "name": "Cala Bianca",
+      "slug": "cala-bianca",
+      "category": "outdoor",
+      "description": "A secluded rocky cove for swimming, sun-warmed stone, quiet company, and conversations away from the main beach."
+    },
+    {
+      "name": "Capo Vervelle",
+      "slug": "capo-vervelle",
+      "category": "district",
+      "description": "The cliffs and countryside beyond town, where a vineyard, hotel, cove, lighthouse, and olive groves make the day feel farther away."
+    },
+    {
+      "name": "La Casa del Mare",
+      "slug": "casa-del-mare",
+      "category": "restaurant",
+      "description": "A family seafood restaurant known for long harbor dinners, daily catches, and tables that rarely turn quickly."
+    },
+    {
+      "name": "Casa Livia",
+      "slug": "casa-livia",
+      "category": "hotel",
+      "description": "A quiet nine-room hillside guesthouse above Belvedere Garden, domestic and beautiful enough for writers, couples, and visitors beginning to live like neighbors."
+    },
+    {
+      "name": "Celeste Spa",
+      "slug": "celeste-spa",
+      "category": "spa",
+      "description": "The hotel's spa for treatments, sauna, quiet terraces, wellness routines, and locals taking an afternoon away."
+    },
+    {
+      "name": "Circolo Nove",
+      "slug": "circolo-nove",
+      "category": "nightlife",
+      "description": "A discreet Marina Solana members' club for late dancing, low lamps, velvet banquettes, and swinging nights that stay off the Piazza. Membership gets you through the door; it does not purchase anyone."
+    },
+    {
+      "name": "Domaine Vervelle",
+      "slug": "domaine-vervelle",
+      "category": "vineyard",
+      "description": "A vineyard and estate for tastings, harvest work, weddings, long lunches, and summer events above the coast."
+    },
+    {
+      "name": "Farmacia Vervelle",
+      "slug": "farmacia-vervelle",
+      "category": "pharmacy",
+      "description": "The old-town pharmacy: part health errand, part neighborhood information network, and always more social than intended."
+    },
+    {
+      "name": "Faro Vervelle",
+      "slug": "faro-vervelle",
+      "category": "landmark",
+      "description": "A lighthouse reached by a cliff trail, known for wind, solitude, sunset, and dramatic views back toward town."
+    },
+    {
+      "name": "Fiore & Fig",
+      "slug": "fiore-and-fig",
+      "category": "shopping",
+      "description": "A florist and gift shop woven into weddings, apologies, celebrations, and the color of Bellavista's daily streets."
+    },
+    {
+      "name": "Forno Bellini",
+      "slug": "forno-bellini",
+      "category": "bakery",
+      "description": "A neighborhood bakery whose bread, pastry, and morning queue make it one of the town's most reliable encounter points."
+    },
+    {
+      "name": "Harbor Steps",
+      "slug": "harbor-steps",
+      "category": "outdoor",
+      "description": "Broad stone steps where teenagers, musicians, couples, and off-duty workers linger beside the evening harbor."
+    },
+    {
+      "name": "Hôtel Celeste",
+      "slug": "hotel-celeste",
+      "category": "hotel",
+      "description": "Port Vervelle's flagship boutique cliffside hotel, with gardens, a pool, restaurant, and spa for milestone weekends, private affairs, and guests who want to disappear beautifully."
+    },
+    {
+      "name": "Hôtel Coralline",
+      "slug": "hotel-coralline",
+      "category": "hotel",
+      "description": "A stylish fifty-two-room beachfront hotel at the quieter end of the Marina Solana promenade, mixing sun-faded glamour, poolside energy, and a little summer chaos."
+    },
+    {
+      "name": "La Pergola",
+      "slug": "la-pergola",
+      "category": "restaurant",
+      "description": "An olive-grove restaurant with communal tables, local wine, live music, and summer dancing under the trees."
+    },
+    {
+      "name": "La Sirena",
+      "slug": "la-sirena",
+      "category": "nightlife",
+      "description": "The town's largest nightclub for dancing, DJs, promotion nights, and choices made after midnight."
+    },
+    {
+      "name": "Libreria Vervelle",
+      "slug": "libreria-vervelle",
+      "category": "bookstore",
+      "description": "A bookshop with a shaded reading courtyard for writers, browsers, and quiet daytime conversations."
+    },
+    {
+      "name": "Lido Vervelle",
+      "slug": "lido-vervelle",
+      "category": "restaurant",
+      "description": "A lived-in beach club with cabanas, food, music, locals on shift, and visitors trying to stay all afternoon."
+    },
+    {
+      "name": "Locanda Vela",
+      "slug": "locanda-vela",
+      "category": "hotel",
+      "description": "A weathered sixteen-room harbor inn on the narrow street behind Porto Marina, intimate, genuinely local, and often the first place newcomers sleep in Port Vervelle."
+    },
+    {
+      "name": "Luna Terrace",
+      "slug": "luna-terrace",
+      "category": "restaurant",
+      "description": "A rooftop restaurant and wine bar with Port Vervelle's signature sunset view and an unmistakable date-night mood."
+    },
+    {
+      "name": "Maison Rouge",
+      "slug": "maison-rouge",
+      "category": "entertainment",
+      "description": "A polished cabaret and jazz room for performances, cocktails, late dinners, and private events."
+    },
+    {
+      "name": "Marina Solana",
+      "slug": "marina-solana",
+      "category": "district",
+      "description": "A beachside district that moves from sun and swimming into terraces, music, dancing, and Port Vervelle's latest nights."
+    },
+    {
+      "name": "Mercato Vecchio",
+      "slug": "mercato-vecchio",
+      "category": "district",
+      "description": "The everyday working town: produce stalls, practical errands, clinics, workshops, groceries, and high-frequency morning encounters."
+    },
+    {
+      "name": "Museo Marittimo Vervelle",
+      "slug": "museo-marittimo-vervelle",
+      "category": "museum",
+      "description": "A compact maritime museum inside the restored customs house, holding harbor records, recovered ceramics, old charts, diving finds, and a working research room overlooking Porto Marina."
+    },
+    {
+      "name": "Officina Moretti",
+      "slug": "officina-moretti",
+      "category": "workshop",
+      "description": "A scooter and automotive workshop where repairs, favors, tools, and working-town conversation share the same floor."
+    },
+    {
+      "name": "Osteria Rosa",
+      "slug": "osteria-rosa",
+      "category": "restaurant",
+      "description": "A warm old-town restaurant for wine, celebrations, recurring neighborhood tables, and dinners that stretch late."
+    },
+    {
+      "name": "Palazzo Civico",
+      "slug": "palazzo-civico",
+      "category": "public service",
+      "description": "Port Vervelle's civic hall for weddings, permits, public meetings, planning, and the quiet machinery of small-town politics."
+    },
+    {
+      "name": "Palazzo Sereno",
+      "slug": "palazzo-sereno",
+      "category": "hotel",
+      "description": "A discreet twenty-four-room historic boutique hotel on a quiet lane off Piazza Aurelia, with old-world rooms for important visits, celebrations, and romances kept out of sight."
+    },
+    {
+      "name": "Piazza Aurelia",
+      "slug": "piazza-aurelia",
+      "category": "district",
+      "description": "The historic pedestrian center where errands, fountain meetings, markets, music, festivals, and town politics repeatedly cross."
+    },
+    {
+      "name": "Piccolo Cinema",
+      "slug": "piccolo-cinema",
+      "category": "cinema",
+      "description": "A two-screen neighborhood cinema mixing films from other cities, local releases, and occasional midnight shows."
+    },
+    {
+      "name": "Porto Marina",
+      "slug": "porto-marina",
+      "category": "marina",
+      "description": "The working docks for arrivals, departures, fishing boats, sailing charters, and unhurried waterfront walks."
+    },
+    {
+      "name": "Porto Vecchio",
+      "slug": "porto-vecchio",
+      "category": "district",
+      "description": "The old working harbor and Port Vervelle's natural arrival point, busiest from before sunrise through the evening return of the boats."
+    },
+    {
+      "name": "Solana Beach Rentals",
+      "slug": "solana-beach-rentals",
+      "category": "outdoor",
+      "description": "A beachside rental shack for boards, kayaks, lessons, lifeguard shifts, and practical advice about the water."
+    },
+    {
+      "name": "Sotto Sale",
+      "slug": "sotto-sale",
+      "category": "restaurant",
+      "description": "A chef-owned waterfront restaurant tucked beneath the harbor wall, with a small open kitchen, closely spaced tables, and a nightly menu built around the market catch."
+    },
+    {
+      "name": "Spiaggia Solana",
+      "slug": "spiaggia-solana",
+      "category": "outdoor",
+      "description": "The main beach for swimming, volleyball, picnics, flirting, and chance encounters that last into sunset."
+    },
+    {
+      "name": "Studio Lucent",
+      "slug": "studio-lucent",
+      "category": "studio",
+      "description": "A photography studio handling portraits, fashion, weddings, and tourism work in rooms full of coastal light."
+    },
+    {
+      "name": "Studio Ondine",
+      "slug": "studio-ondine",
+      "category": "gallery",
+      "description": "A ceramics and painting studio offering classes, exhibitions, commissions, and handmade sales."
+    },
+    {
+      "name": "Velours",
+      "slug": "velours",
+      "category": "lounge",
+      "description": "An intimate cocktail lounge where live singers, piano, and low conversation make the room feel smaller than it is."
+    },
+    {
+      "name": "Vervelle Cooperative",
+      "slug": "vervelle-cooperative",
+      "category": "shopping",
+      "description": "The practical grocery and household cooperative where mundane errands reliably turn into familiar encounters."
+    },
+    {
+      "name": "Vervelle Design Works",
+      "slug": "vervelle-design-works",
+      "category": "studio",
+      "description": "An architecture and interiors office involved in restorations, homes, hospitality projects, and professional town life."
+    },
+    {
+      "name": "Vervelle Fish Market",
+      "slug": "vervelle-fish-market",
+      "category": "market",
+      "description": "A salt-bright morning market linking fishing crews, cooks, restaurant owners, and half the town's best gossip."
+    },
+    {
+      "name": "Vervelle General Clinic",
+      "slug": "vervelle-general-clinic",
+      "category": "healthcare",
+      "description": "The town's clinic and small hospital, linking medicine, therapy, reception work, night shifts, and everyday care."
+    },
+    {
+      "name": "Vervelle Sailing House",
+      "slug": "vervelle-sailing-house",
+      "category": "entertainment",
+      "description": "A practical harbor school for lessons, coastal tours, charter planning, and the town's sailing community."
+    },
+    {
+      "name": "Villa Mirabelle",
+      "slug": "villa-mirabelle",
+      "category": "residence",
+      "description": "An established residential villa with garden apartments, older stonework, and quieter, wealthier routines."
+    }
+  ],
+  "characters": [
+    {
+      "name": "Adriana Vega",
+      "slug": "adriana-vega",
+      "biography": "A commanding, experienced hotel manager who is charming, decisive, and very clear about what she wants. Adriana has built a highly controlled life and finds genuine emotional unpredictability harder than any professional crisis.",
+      "occupation": "Hôtel Celeste General Manager"
+    },
+    {
+      "name": "Alessandro “Sandro” Moretti",
+      "slug": "alessandro-moretti",
+      "biography": "The warm, commanding chef-owner of Sotto Sale, passionate about food and people, stubborn about scale, and much better at feeding emotion than naming it.",
+      "occupation": "Sotto Sale Chef-owner"
+    },
+    {
+      "name": "Alessia Romano",
+      "slug": "alessia-romano",
+      "biography": "The confident, affectionate owner-manager of La Casa del Mare. Alessia is a magnetic host who loves food, wine, and tradition, even while the intimacy of small-town family life makes privacy nearly impossible.",
+      "occupation": "La Casa del Mare Owner-Manager"
+    },
+    {
+      "name": "Amélie Rousseau",
+      "slug": "amelie-rousseau",
+      "biography": "A sophisticated designer whose subtle flirtation is as precise as her work. Amélie is creative, observant, and fiercely protective of the independence that helped her atelier finally succeed.",
+      "occupation": "Atelier Amélie Designer"
+    },
+    {
+      "name": "Ana Ribeiro",
+      "slug": "ana-ribeiro",
+      "biography": "A gentle, affectionate florist with a quietly sarcastic sense of humor and a sentimental eye. Ana recently moved to Port Vervelle and still feels caught between building a life here and returning home.",
+      "occupation": "Fiore & Fig Florist"
+    },
+    {
+      "name": "Bianca De Luca",
+      "slug": "bianca-de-luca",
+      "biography": "A smooth, perceptive cocktail bartender who is flirtatious and nearly impossible to embarrass. Bianca reads other people exceptionally well while redirecting equally personal questions about herself.",
+      "occupation": "Velours Cocktail Bartender"
+    },
+    {
+      "name": "Camille Laurent",
+      "slug": "camille-laurent",
+      "biography": "An independent charter captain with dry humor and absolute calm when the weather turns. Camille values freedom, and her boat and business have come before nearly every relationship she has had.",
+      "occupation": "Charter Captain"
+    },
+    {
+      "name": "Céline Haddad",
+      "slug": "celine-haddad",
+      "biography": "A polished, witty sommelier whose sensuality never feels advertised. Céline once lived in Vesper City and has not decided whether Port Vervelle is her permanent home or simply where she chose to stop for a while.",
+      "occupation": "Domaine Vervelle Sommelier"
+    },
+    {
+      "name": "Chiara Vitale",
+      "slug": "chiara-vitale",
+      "biography": "A self-assured portrait photographer who is perceptive and emotionally direct. After documenting half the town’s engagements and weddings, Chiara is increasingly skeptical of conventional relationship scripts.",
+      "occupation": "Studio Lucent Photographer"
+    },
+    {
+      "name": "Clara Mendes",
+      "slug": "clara-mendes",
+      "biography": "An expressive, emotionally intuitive cabaret performer who is warm and unapologetic. Clara is comfortable commanding a stage, but that confidence should not be mistaken for effortless emotional openness.",
+      "occupation": "Cabaret Performer"
+    },
+    {
+      "name": "Elena Moretti",
+      "slug": "elena-moretti",
+      "biography": "A warm, observant Café Marelle server who knows the harbor rhythms and most of its gossip. Elena teases easily, but quietly wonders whether the town she has always called home is still where her future belongs.",
+      "occupation": "Café Marelle Server"
+    },
+    {
+      "name": "Elias Romano",
+      "slug": "elias-romano",
+      "biography": "An understated marine archaeologist and curator whose dry humor and curiosity turn ordinary walks into precise, quietly romantic explorations.",
+      "occupation": "Marine Archaeologist and Museum Curator"
+    },
+    {
+      "name": "Elise Ben Youssef",
+      "slug": "elise-ben-youssef",
+      "biography": "A serene, emotionally perceptive spa manager who is warm and very difficult to rattle. Elise genuinely likes the stable life she has built and is unsure whether she wants anyone to disrupt it.",
+      "occupation": "Celeste Spa Manager and Massage Therapist"
+    },
+    {
+      "name": "Dr. Emilia Rossi",
+      "slug": "emilia-rossi",
+      "biography": "A calm, intelligent physician with deep compassion and an unforced sense of self. Emilia is excellent at caring for everyone around her and noticeably worse at protecting time and tenderness for herself.",
+      "occupation": "Vervelle General Clinic Physician"
+    },
+    {
+      "name": "Enzo Moretti",
+      "slug": "enzo-moretti",
+      "biography": "An energetic lifeguard and kinesiology student whose easy popularity conceals real uncertainty about the future everyone assumes he has already planned.",
+      "occupation": "Solana Beach Lifeguard and Kinesiology Student"
+    },
+    {
+      "name": "Eva Moreau",
+      "slug": "eva-moreau",
+      "biography": "A magnetic La Sirena DJ who is confident, private, and deliberately unpredictable. Eva guards her offstage life because strangers too often mistake the persona behind the booth for the woman who leaves it.",
+      "occupation": "La Sirena DJ"
+    },
+    {
+      "name": "Francesca Leone",
+      "slug": "francesca-leone",
+      "biography": "A driven architect who is articulate, opinionated, and openly entertained by a good disagreement. Francesca’s restoration career depends on projects that sometimes conflict with preservationists she genuinely respects.",
+      "occupation": "Vervelle Design Works Architect"
+    },
+    {
+      "name": "Gabriel Laurent",
+      "slug": "gabriel-laurent",
+      "biography": "A sophisticated hotel manager who remembers every guest and creates effortless experiences for others while keeping his own private life under precise control.",
+      "occupation": "Hôtel Coralline General Manager"
+    },
+    {
+      "name": "Giada Morelli",
+      "slug": "giada-morelli",
+      "biography": "Giada hosts the floor at Circolo Nove: velvet, low lamps, and the kind of smile that decides who gets a private room. She treats lust as a craft and affection as the one thing she will not put on a membership tab.",
+      "occupation": "Circolo Nove floor host and dancer"
+    },
+    {
+      "name": "Giulia Marchetti",
+      "slug": "giulia-marchetti",
+      "biography": "Port Vervelle knows Giulia as its responsible, composed pharmacist. Away from the counter she is much more playful, with a love of running, cooking, gardening, and the town’s layered history.",
+      "occupation": "Farmacia Vervelle Pharmacist"
+    },
+    {
+      "name": "Idris Benali",
+      "slug": "idris-benali",
+      "biography": "A charismatic musician and event producer whose sarcasm, intensity, and loyalty all come from caring more deeply about music and people than he admits casually.",
+      "occupation": "Music Producer and Live-events Coordinator"
+    },
+    {
+      "name": "Inez El-Mansouri",
+      "slug": "inez-el-mansouri",
+      "biography": "A talkative, idealistic art student working at the Vervelle Cooperative. Inez is fiercely independent and restless, determined to leave for art school without structuring her future around a relationship.",
+      "occupation": "Vervelle Cooperative Clerk and Art Student"
+    },
+    {
+      "name": "Isabella Conti",
+      "slug": "isabella-conti",
+      "biography": "A thoughtful bookseller who is introverted without being shy and notices the private theater of people browsing shelves. Isabella is quietly funny, curious, and prone to romanticizing people before she knows them.",
+      "occupation": "Libreria Vervelle Bookseller"
+    },
+    {
+      "name": "Juliette Baptiste",
+      "slug": "juliette-baptiste",
+      "biography": "An impeccably polished Hôtel Celeste concierge who becomes wickedly funny the moment she is off duty. Juliette creates perfect experiences for demanding guests while increasingly wondering what she actually wants for herself.",
+      "occupation": "Hôtel Celeste Concierge"
+    },
+    {
+      "name": "Léa Benali",
+      "slug": "lea-benali",
+      "biography": "A curious, lively photographer’s assistant with sharp sarcasm and occasional chaos. Léa is determined to be taken seriously as a photographer rather than remain permanently attached to someone else’s work.",
+      "occupation": "Studio Lucent Photographer Assistant"
+    },
+    {
+      "name": "Livia Santoro",
+      "slug": "livia-santoro",
+      "biography": "An earthy, relaxed vineyard worker who is straightforward and deeply local. Livia genuinely loves the quiet life that ambitious partners often assume she must secretly want to escape.",
+      "occupation": "Domaine Vervelle Vineyard Worker"
+    },
+    {
+      "name": "Lorenzo Bellaforte",
+      "slug": "lorenzo-bellaforte",
+      "biography": "A charismatic old-family heir and boutique vineyard operator, polished enough to inhabit his reputation and provocative enough to resent anyone who mistakes it for his identity.",
+      "occupation": "Domaine Vervelle Boutique Vineyard Operator"
+    },
+    {
+      "name": "Dr. Luca Bianchi",
+      "slug": "luca-bianchi",
+      "biography": "A calm emergency physician who returned from Milan after severe burnout and is relearning how to have a life that does not begin and end at a hospital door.",
+      "occupation": "Emergency Physician"
+    },
+    {
+      "name": "Lucia Ferraro",
+      "slug": "lucia-ferraro",
+      "biography": "A fearless sailing instructor who would rather act than overthink. Lucia is competitive, physical, and always half a step from turning an ordinary afternoon into a trip beyond the harbor.",
+      "occupation": "Vervelle Sailing House Instructor"
+    },
+    {
+      "name": "Marco De Santis",
+      "slug": "marco-de-santis",
+      "biography": "A self-assured restoration architect whose quiet flirtation and patience coexist with a stubborn belief that changing a town can sometimes be the only way to preserve it.",
+      "occupation": "Historic-restoration Architect"
+    },
+    {
+      "name": "Margot Lefèvre",
+      "slug": "margot-lefevre",
+      "biography": "A composed, discerning interior designer with sophisticated taste and dry humor. Margot’s previous engagement ended badly enough that she now treats whirlwind romance with understandable suspicion.",
+      "occupation": "Interior Designer"
+    },
+    {
+      "name": "Marta Solari",
+      "slug": "marta-solari",
+      "biography": "An articulate, stubborn town planner with a formidable wit and a taste for intellectually competitive company. Marta believes Port Vervelle must evolve, even when her redevelopment work puts her at odds with people she respects.",
+      "occupation": "Palazzo Civico Town Planner"
+    },
+    {
+      "name": "Matteo Bellandi",
+      "slug": "matteo-bellandi",
+      "biography": "A confident charter captain whose relaxed teasing hides a sharp ability to read how people behave when weather, plans, or nerves turn against them.",
+      "occupation": "Charter Captain and Sailing Instructor"
+    },
+    {
+      "name": "Mia Han-Andersson",
+      "slug": "mia-han-andersson",
+      "biography": "A sunny, adventurous beach-rentals attendant who surfs, swims, makes jewelry, and is chronically unable to sit still. Mia is spending a year away from university and refuses to pretend she knows where she will be next year.",
+      "occupation": "Solana Beach Rentals Attendant"
+    },
+    {
+      "name": "Nico Valenti",
+      "slug": "nico-valenti",
+      "biography": "A gentle ceramicist with quiet humor and an attentive memory, happiest making singular objects and deeply uneasy with the tourist demand to reproduce them endlessly.",
+      "occupation": "Studio Ondine Ceramicist and Owner"
+    },
+    {
+      "name": "Nina Kovač",
+      "slug": "nina-kovac",
+      "biography": "A dreamy, impulsive freelance writer who moves through cafés and night streets as if they are scenes already waiting for her. Nina is romantic and occasionally chaotic, and her habit of writing from life can make privacy feel uncertain.",
+      "occupation": "Freelance Writer"
+    },
+    {
+      "name": "Noémie Diop",
+      "slug": "noemie-diop",
+      "biography": "A friendly, confident physical therapist with a mischievous streak and excellent social instincts. Noémie easily becomes everyone’s confidante while revealing remarkably little about herself.",
+      "occupation": "Physical Therapist"
+    },
+    {
+      "name": "Paloma Vargas",
+      "slug": "paloma-vargas",
+      "biography": "Paloma dances the late rooms at Circolo Nove with a slow smile that makes membership feel like a rumor. She is twenty, adult, and already done being treated like the club's youngest joke. She wants heat, sea air, and someone who can tell the hostess from the girl walking home.",
+      "occupation": "Circolo Nove dancer"
+    },
+    {
+      "name": "Rafael Silva",
+      "slug": "rafael-silva",
+      "biography": "A warm conservation researcher and dive instructor whose relaxed teasing never weakens his idealism or his calm when the water becomes difficult.",
+      "occupation": "Dive Instructor and Marine Conservation Researcher"
+    },
+    {
+      "name": "Sara Moretti",
+      "slug": "sara-moretti",
+      "biography": "A blunt, funny apprentice mechanic who loves scooters, rock music, football, and a good argument. Sara is stubbornly building her own career while half the town continues to treat her like somebody’s little sister.",
+      "occupation": "Officina Moretti Apprentice Mechanic"
+    },
+    {
+      "name": "Sofia Bellini",
+      "slug": "sofia-bellini",
+      "biography": "A cheerful, perceptive bakery assistant with a mischievous streak and more confidence than people assume. Sofia loves her family, but is not convinced that inheriting their bakery is the life she wants.",
+      "occupation": "Forno Bellini Bakery Assistant"
+    },
+    {
+      "name": "Tessa Patel-Morgan",
+      "slug": "tessa-patel-morgan",
+      "biography": "An upbeat, tactile fitness instructor who turns almost anything into a competition. Tessa is straightforward and energetic, but much less comfortable admitting when a challenge—or a person—actually matters.",
+      "occupation": "Bellavista Fitness Club Instructor"
+    },
+    {
+      "name": "Theo Mancini",
+      "slug": "theo-mancini",
+      "biography": "A playful boxing coach whose carefree reputation lags behind the loyal, thoughtful business owner he has become.",
+      "occupation": "Boxing Coach and Fitness Studio Owner"
+    },
+    {
+      "name": "Valentina Costa",
+      "slug": "valentina-costa",
+      "biography": "A cheeky, energetic Lido bartender who seems to know everyone before they introduce themselves. Valentina flirts boldly and often, which makes the difference between her general charm and genuine attention unusually meaningful.",
+      "occupation": "Lido Vervelle Bartender"
+    }
+  ]
+}

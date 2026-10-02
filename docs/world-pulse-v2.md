@@ -1,0 +1,13 @@
+# World Pulse 2.0 rollout
+
+World Pulse V2 uses global, immutable event occurrences. `together_world_pulse_templates` holds authored source material; a reserved occurrence snapshots public copy, facts, and ordered participant perspectives. Engagements and conversation links are owner/Life scoped. V1 tables and functions remain unchanged for rollback and for non-Pulse dependencies.
+
+The two additive migrations create service-only global tables and owner-readable personal tables, enforce unique UTC slots and a 720-hour exclusion per `(world_id, repeat_identity)`, and install a transactional world-level scheduler. A fixed 30-day budget has 15 six-event days, 10 seven-event days, and 5 eight-event days, consuming 200 stable catalog ranks. Each rank publishes at the same UTC slot every 30 days; disabling a template leaves a gap rather than shifting other ranks. Spare ranks beyond 199 may fill a damaged slot. Shortages are recorded as degraded; no old event is redated.
+
+`KIVELLE_WORLD_PULSE_V2_ENABLED=false` preserves the V1 feed. The SQL settings table starts with no enabled worlds. Enable V2 only after every published world's checked-in pack has 200 editorially reviewed templates, `pnpm world-pulse:validate` passes, the SQL seed is inspected and applied, the 60-day reservations are audited, and the Edge Functions/web/native clients have been validated. The `world-pulse:seed` command creates a reviewable SQL file; it does not write to a database. The import resolves canonical slugs at execution time, preserves repeat identities and scheduling ranks, and cannot edit occurrence snapshots.
+
+To roll back, set `KIVELLE_WORLD_PULSE_V2_ENABLED=false`, then disable the V2 world settings. Do not delete V2 tables or linked conversations. Existing chat transcripts remain available through the normal conversation paths. Future V2 reservations can remain stored and invisible; re-enabling requires a fresh catalog and schedule audit. V1 Home/Explore behavior returns with the flag off.
+
+The scheduler's service-role cron jobs reserve 60 days ahead daily and publish due slots every 15 minutes. The feed has a bounded two-day recovery path when no fresh events exist. Reads only expose published occurrences in the server's preceding 24 hours. Detail opens and new handoffs enforce the same window; existing linked chats continue with bounded seven-day explicit grounding and normal long-term transcript/memory behavior.
+
+Production release gate: all eight published-world packs and editorial reviews are required. The server flag and world settings must remain off while any pack, coverage audit, database integration test, or native manual check is incomplete. No migration or content seed has been applied to production as part of this implementation.

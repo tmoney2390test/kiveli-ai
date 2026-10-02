@@ -11,6 +11,7 @@ import type { CompanionVoicePreset } from '@together/domain/src/voice-presets';
 import type { ChatLanguagePreference } from '@together/domain/src/chat-language';
 import type { AccountGender } from '@together/domain/src/account-onboarding';
 import type { AroundTownItem, WorldPulseEvent } from '@together/domain/src/world-pulse';
+import type { WorldPulseV2Event } from '@together/domain/src/world-pulse-v2';
 import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInteractionProposal, CharacterPresenceSnapshot, CharacterProfileDetails, CharacterResetPreview, CharacterResetResult, Conversation, ConversationAttachment, CreatorDraft, CreatorIdentityConfig, CreatorLifeConfig, CreatorRoutineBlock, CreatorStep, ExploreCatalogSnapshot, GeneratedMedia, GroupDetail, InteractionCandidate, KivelleExperienceCapabilities, Location, MediaOffer, MemoryCenterCategory, MemoryCenterItem, MemoryCenterResponse, MemoryCenterSort, Message, MessageReaction, MultimodalPreferences, PlaceContext, SceneAction, SceneSession, ScheduleItem, Snapshot, SnapshotDelta, VideoDiagnostics, VideoResolution, VideoRouteOption, VoiceCallSession } from '../types';
 import type { RealtimeVoiceConfiguration } from './realtimeVoice';
 import { withIdempotentRetry } from './requestRetry';
@@ -102,7 +103,14 @@ export const prepareNewPersonalPlaceImage = (worldId:string) => invoke<{location
 export const archivePersonalPlace = (locationId:string) => invoke<{archived:boolean}>('together-place',{action:'archive',locationId});
 export const preparePersonalPlaceImage = (locationId:string) => invoke<{upload:{bucket:string;path:string;token:string}}> ('together-place',{action:'prepare_image',locationId});
 export const confirmPersonalPlaceImage = (input:{locationId:string;path:string;width:number;height:number}) => invoke<{place:Location}>('together-place',{action:'confirm_image',...input});
-export const loadWorldPulse = (worldId?:string) => invoke<{worldId:string|null;events:WorldPulseEvent[];items:AroundTownItem[];generatedAt:string}>(`together-world-pulse${worldId?`?worldId=${encodeURIComponent(worldId)}`:''}`,undefined,'GET');
+export type WorldPulseFeedResponse =
+  | {version?:1;worldId:string|null;events:WorldPulseEvent[];items:AroundTownItem[];generatedAt:string}
+  | {version:2;worldId:string;serverNow:string;generatedAt:string;events:WorldPulseV2Event[]};
+export const loadWorldPulse = (worldId?:string) => invoke<WorldPulseFeedResponse>(`together-world-pulse${worldId?`?worldId=${encodeURIComponent(worldId)}`:''}`,undefined,'GET');
+export const loadWorldPulseEvent = (eventId:string) => invoke<{version:2;serverNow:string;event:WorldPulseV2Event&{detailBody:string;userVisibleFacts:{id:string;text:string}[];groupMessage:string|null;directMessages:Record<string,string>;allowedActions:{directCharacterTemplateIds:string[];group:boolean;groupLocked:boolean}}}>(`together-world-pulse?eventId=${encodeURIComponent(eventId)}`,undefined,'GET');
+export const loadWorldPulseConversationLabel = (conversationId:string) => invoke<{version:2;serverNow:string;label:{eventId:string;title:string;occurredAt:string;fresh:boolean}|null}>(`together-world-pulse?conversationId=${encodeURIComponent(conversationId)}`,undefined,'GET');
+export const openDirectWorldPulse = (input:{occurrenceId:string;characterTemplateId:string;requestId:string}) => invoke<{conversation:Conversation;characterInstanceId:string;characterHandle:string;draft:string;occurrenceId:string}>('together-conversation',{action:'open_from_world_pulse',...input});
+export const openGroupWorldPulse = (input:{occurrenceId:string;requestId:string}) => invoke<GroupDetail&{draft:string}>('together-group',{action:'create_from_world_pulse',...input});
 export const bootstrap = (input: {ageConfirmed:true;onboardingChoice?:'companion'|'skip';displayName?:string;characterTemplateId?:string;worldId?:string;interests:string[];goals:Array<'Dating'|'Friendship'|'Stories'|'Social worlds'>}) => invoke<Snapshot>('together-bootstrap', {action:'complete_onboarding',...input,experienceTimezone:deviceTimezone()});
 export const setActiveCompanion = (characterInstanceId:string, source:'home_switcher'|'discover_profile'|'companion_manager'='home_switcher') => invoke<Snapshot>('together-companion',{action:'set_active',characterInstanceId,source});
 export const meetCompanion = (characterTemplateId:string, source:'onboarding'|'discover_profile'|'group_invite'='discover_profile') => withIdempotentRetry(()=>invoke<Snapshot>('together-companion',{action:'meet',characterTemplateId,source}),{attempts:2,delayMs:220});

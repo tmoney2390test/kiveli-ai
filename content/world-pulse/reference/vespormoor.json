@@ -1,0 +1,600 @@
+{
+  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "world": {
+    "name": "Vespormoor",
+    "slug": "vespormoor",
+    "description": "A secluded gothic mountain university town where modern life, old families, and human-presenting Veiled residents meet around the dark waters of Lake Vesper."
+  },
+  "locations": [
+    {
+      "name": "Afterdark Diner",
+      "slug": "afterdark-diner",
+      "category": "diner",
+      "description": "A twenty-four-hour diner where almost every social circle in Vespormoor eventually crosses paths."
+    },
+    {
+      "name": "Anatomy Hall",
+      "slug": "anatomy-hall",
+      "category": "academic",
+      "description": "A prestigious medical school containing old surgical theaters and some very unusual specimens."
+    },
+    {
+      "name": "Belladonna Apothecary",
+      "slug": "belladonna-apothecary",
+      "category": "apothecary",
+      "description": "An herbalist and apothecary serving humans as well as customers with more unusual medical needs."
+    },
+    {
+      "name": "The Black Lantern",
+      "slug": "black-lantern",
+      "category": "pub",
+      "description": "A candlelit pub inside a former coaching inn and one of Vespormoor's oldest social institutions."
+    },
+    {
+      "name": "Black Veil Tattoo",
+      "slug": "black-veil-tattoo",
+      "category": "tattoo studio",
+      "description": "A tattoo and piercing studio specializing in unusual inks, sigils, and occult designs."
+    },
+    {
+      "name": "Blackglass Library",
+      "slug": "blackglass-library",
+      "category": "library",
+      "description": "A towering multi-level library containing one of the world's greatest collections of historical and supernatural material."
+    },
+    {
+      "name": "Blackwood Dormitories",
+      "slug": "blackwood-dormitories",
+      "category": "dormitory",
+      "description": "Atmospheric student residences occupying former guest and servant wings of the castle."
+    },
+    {
+      "name": "Blackwood Estate",
+      "slug": "blackwood-estate",
+      "category": "estate",
+      "description": "An immaculate mansion belonging to one of the Covenant's most influential families."
+    },
+    {
+      "name": "The Crimson Room",
+      "slug": "crimson-room",
+      "category": "lounge",
+      "description": "An exclusive members-only lounge popular with old families, artists, and discreet Veiled residents."
+    },
+    {
+      "name": "The Crooked Oak",
+      "slug": "crooked-oak",
+      "category": "tavern",
+      "description": "A rustic tavern and restaurant frequented by locals, hikers, rangers, and forest workers."
+    },
+    {
+      "name": "Dead Letter",
+      "slug": "dead-letter",
+      "category": "music venue",
+      "description": "An underground live-music venue for alternative, metal, electronic, and experimental acts."
+    },
+    {
+      "name": "The Drowned Bell",
+      "slug": "drowned-bell",
+      "category": "tavern",
+      "description": "An old waterfront tavern popular with boat crews, students, locals, and discreet Veiled regulars."
+    },
+    {
+      "name": "Foxglove Cabin Retreats",
+      "slug": "foxglove-retreats",
+      "category": "cabins",
+      "description": "Beautiful secluded cabins scattered through the forest."
+    },
+    {
+      "name": "Glasswater Pier",
+      "slug": "glasswater-pier",
+      "category": "pier",
+      "description": "A long public pier extending into Lake Vesper."
+    },
+    {
+      "name": "The Grand Hall",
+      "slug": "grand-hall",
+      "category": "hall",
+      "description": "An enormous vaulted gathering hall used for ceremonies, dinners, dances, and major university events."
+    },
+    {
+      "name": "Hawthorne Riding Club",
+      "slug": "hawthorne-riding-club",
+      "category": "equestrian",
+      "description": "A historic equestrian estate with stables, riding trails, and a wealthy social scene."
+    },
+    {
+      "name": "The High Gardens",
+      "slug": "high-gardens",
+      "category": "garden",
+      "description": "Vast terraced gardens with fountains, hedge mazes, glasshouses, secluded benches, and cliffside overlooks."
+    },
+    {
+      "name": "Lakeward",
+      "slug": "lakeward",
+      "category": "district",
+      "description": "Restaurants, docks, old cottages, walking paths, and fog-covered water give Lakeward some of Vespormoor's most romantic scenery."
+    },
+    {
+      "name": "Moonstone Quarry",
+      "slug": "moonstone-quarry",
+      "category": "quarry",
+      "description": "An abandoned quarry containing flooded tunnels and unusual pale stone."
+    },
+    {
+      "name": "Moonwake Baths",
+      "slug": "moonwake-baths",
+      "category": "spa",
+      "description": "A restored Victorian bathhouse turned luxurious lakeside spa."
+    },
+    {
+      "name": "Morrow & Quill",
+      "slug": "morrow-and-quill",
+      "category": "bookstore",
+      "description": "A huge independent bookstore filled with fireplaces, ladders, forgotten rooms, and rare books."
+    },
+    {
+      "name": "Morrow Vale Ranger Station",
+      "slug": "morrow-vale-ranger-station",
+      "category": "ranger station",
+      "description": "A remote ranger outpost responsible for incidents officials usually describe as wildlife encounters."
+    },
+    {
+      "name": "The Mourning Cup",
+      "slug": "mourning-cup",
+      "category": "cafe",
+      "description": "A cozy café famous for pastries, dark coffee, rain-covered windows, and lingering conversations."
+    },
+    {
+      "name": "Nocturne",
+      "slug": "nocturne",
+      "category": "nightclub",
+      "description": "Vespormoor's premier nightclub inside a converted nineteenth-century performance hall."
+    },
+    {
+      "name": "The Observatory",
+      "slug": "observatory",
+      "category": "observatory",
+      "description": "A remote domed observatory above the estate, popular for astronomy classes and late-night dates."
+    },
+    {
+      "name": "Old Vesper",
+      "slug": "old-vesper",
+      "category": "district",
+      "description": "The oldest part of town: narrow cobblestone streets, gothic storefronts, gas lamps, hidden courtyards, and centuries-old businesses."
+    },
+    {
+      "name": "Raven Ward",
+      "slug": "raven-ward",
+      "category": "district",
+      "description": "The younger and more dangerous side of Vespormoor, filled with clubs, converted warehouses, underground venues, tattoo studios, and businesses that thrive after midnight."
+    },
+    {
+      "name": "The Red Market",
+      "slug": "red-market",
+      "category": "night market",
+      "description": "A hidden nighttime marketplace for rare ingredients, warded objects, information, and discreet services."
+    },
+    {
+      "name": "Rookery House",
+      "slug": "rookery-house",
+      "category": "cafe",
+      "description": "A busy student café and pub inside an old gatehouse."
+    },
+    {
+      "name": "Rosegrave Gardens",
+      "slug": "rosegrave-gardens",
+      "category": "garden",
+      "description": "A public botanical estate famous for strange black roses and secluded paths."
+    },
+    {
+      "name": "Saint Mercy Hotel",
+      "slug": "saint-mercy-hotel",
+      "category": "hotel",
+      "description": "A decadent old boutique hotel with a cocktail bar downstairs and a reputation for absolute discretion."
+    },
+    {
+      "name": "Saint Orison Chapel",
+      "slug": "saint-orison-chapel",
+      "category": "chapel",
+      "description": "A small gothic church with an ancient crypt beneath it."
+    },
+    {
+      "name": "The Standing Stones",
+      "slug": "standing-stones",
+      "category": "ritual site",
+      "description": "An ancient stone circle still used for supernatural rituals."
+    },
+    {
+      "name": "Stillwater House",
+      "slug": "stillwater-house",
+      "category": "restaurant",
+      "description": "An upscale restaurant with enormous windows looking directly across the lake."
+    },
+    {
+      "name": "The Sunken Chapel",
+      "slug": "sunken-chapel",
+      "category": "ruin",
+      "description": "A ruined stone structure beneath the lake that becomes partially visible when water levels fall."
+    },
+    {
+      "name": "The Cloisters",
+      "slug": "the-cloisters",
+      "category": "cloister",
+      "description": "Covered gothic walkways surrounding a beautiful secluded courtyard garden."
+    },
+    {
+      "name": "The Conservatory",
+      "slug": "the-conservatory",
+      "category": "restaurant",
+      "description": "An elegant glasshouse restaurant overlooking the lights of Vespormoor."
+    },
+    {
+      "name": "Thornwood",
+      "slug": "thornwood",
+      "category": "district",
+      "description": "Beyond the populated valley lie enormous forests, isolated cabins, waterfalls, ruins, and places that existed long before Vespormoor."
+    },
+    {
+      "name": "Thornwood Trailhead",
+      "slug": "thornwood-trailhead",
+      "category": "trailhead",
+      "description": "The main entrance to the extensive network of mountain and forest trails."
+    },
+    {
+      "name": "The Undercroft",
+      "slug": "undercroft",
+      "category": "underground",
+      "description": "Ancient tunnels, crypts, forgotten rooms, and sealed passages beneath the castle."
+    },
+    {
+      "name": "Vale House",
+      "slug": "vale-house",
+      "category": "estate",
+      "description": "A long-abandoned mansion recently occupied again under mysterious circumstances."
+    },
+    {
+      "name": "Velvet Thorn",
+      "slug": "velvet-thorn",
+      "category": "lounge",
+      "description": "An intimate late-night cocktail lounge hidden behind an unmarked entrance."
+    },
+    {
+      "name": "Vesper Boatworks",
+      "slug": "vesper-boatworks",
+      "category": "marina",
+      "description": "A historic marina offering rowboats, sailboats, and lake excursions."
+    },
+    {
+      "name": "Vesper Heights",
+      "slug": "vesper-heights",
+      "category": "district",
+      "description": "Wooded hills filled with enormous homes belonging to Vespormoor's wealthiest and oldest families."
+    },
+    {
+      "name": "Vesper Heights Overlook",
+      "slug": "vesper-heights-overlook",
+      "category": "overlook",
+      "description": "A stone lookout providing one of the best views over the town and lake."
+    },
+    {
+      "name": "Vesper House",
+      "slug": "vesper-house",
+      "category": "estate",
+      "description": "The supposedly abandoned ancestral home of Lucien and Isolde Vesper, where lights have recently appeared inside again."
+    },
+    {
+      "name": "Vesper Square",
+      "slug": "vesper-square",
+      "category": "plaza",
+      "description": "Central town plaza with an old fountain, markets, festivals, and outdoor gathering spaces."
+    },
+    {
+      "name": "Vesper Tower",
+      "slug": "vesper-tower",
+      "category": "tower",
+      "description": "The highest tower on campus, providing a panoramic view of Vespormoor and Lake Vesper."
+    },
+    {
+      "name": "Vespormoor University",
+      "slug": "vespormoor-university",
+      "category": "district",
+      "description": "A colossal gothic castle-estate occupying the ridge above Vespormoor, with towers, bridges, gardens, courtyards, dormitories, and academic wings visible from almost anywhere in town."
+    },
+    {
+      "name": "Whisper Dock",
+      "slug": "whisper-dock",
+      "category": "dock",
+      "description": "A remote wooden dock traditionally used by couples to confess things they cannot say elsewhere."
+    },
+    {
+      "name": "Witch's Falls",
+      "slug": "witchs-falls",
+      "category": "waterfall",
+      "description": "A dramatic waterfall cascading into a deep natural swimming hole."
+    }
+  ],
+  "characters": [
+    {
+      "name": "Adelaide Hawthorne",
+      "slug": "adelaide-hawthorne",
+      "biography": "A candid riding trainer whose heightened senses make crowds exhausting and wilderness honesty irresistible.",
+      "occupation": "Hawthorne Riding Club Trainer"
+    },
+    {
+      "name": "Adrian Bell",
+      "slug": "adrian-bell",
+      "biography": "A charming, grounded bartender who observes more than he gossips and knows the shape of decades-old local stories.",
+      "occupation": "Black Lantern Bartender and Co-owner"
+    },
+    {
+      "name": "Amara Nwosu",
+      "slug": "amara-nwosu",
+      "biography": "A warm cabin-retreat owner whose hospitality is generous but never an invitation to ignore her privacy.",
+      "occupation": "Foxglove Retreat Owner"
+    },
+    {
+      "name": "Astrid Nygaard",
+      "slug": "astrid-nygaard",
+      "biography": "A quietly intense researcher whose intuition predicts patterns before her instruments can explain them.",
+      "occupation": "Astronomy Researcher"
+    },
+    {
+      "name": "Callum Reid",
+      "slug": "callum-reid",
+      "biography": "A steady senior ranger who has spent years translating impossible incidents into reports outsiders will accept.",
+      "occupation": "Senior Morrow Vale Ranger"
+    },
+    {
+      "name": "Camille Laurent",
+      "slug": "camille-laurent-vespormoor",
+      "biography": "A disciplined chef whose warmth appears in food long before she trusts someone with it in words.",
+      "occupation": "The Conservatory Chef"
+    },
+    {
+      "name": "Dr. Celeste Moreau",
+      "slug": "celeste-moreau",
+      "biography": "A brilliant folklore professor who treats legends as evidence without confusing a compelling story for proof.",
+      "occupation": "Folklore Professor"
+    },
+    {
+      "name": "Clara Whitmore",
+      "slug": "clara-whitmore",
+      "biography": "A grounded, sarcastic café owner who came to Vespormoor on a visit and somehow never found a convincing reason to leave.",
+      "occupation": "The Mourning Cup Owner"
+    },
+    {
+      "name": "Dahlia Kane",
+      "slug": "dahlia-kane",
+      "biography": "A magnetic resident DJ who controls a room without confusing attention for intimacy.",
+      "occupation": "Nocturne Resident DJ"
+    },
+    {
+      "name": "Dorian Bellamy",
+      "slug": "dorian-bellamy",
+      "biography": "A charismatic literature student who jokes fluently but becomes exact when a conversation stops being safe to hide inside.",
+      "occupation": "Literature Student and Rookery House Bartender"
+    },
+    {
+      "name": "Elara Vale",
+      "slug": "elara-vale",
+      "biography": "An enigmatic new resident of Vale House who is more direct about desire than she is about where she came from.",
+      "occupation": "Vale House Resident and Independent Researcher"
+    },
+    {
+      "name": "Elodie Marchand",
+      "slug": "elodie-marchand",
+      "biography": "A stylish art-history student who is socially fearless but privately uncertain whether anyone sees beyond her presentation.",
+      "occupation": "Art History Student"
+    },
+    {
+      "name": "Evelyn Harrow",
+      "slug": "evelyn-harrow",
+      "biography": "A thoughtful bookseller with gentle intelligence and dry humor who knows local history without performing it for visitors.",
+      "occupation": "Morrow & Quill Bookseller"
+    },
+    {
+      "name": "Freya Lind",
+      "slug": "freya-lind",
+      "biography": "An independent photographer who came for one autumn assignment and became fascinated by what the camera refuses to hold.",
+      "occupation": "Wilderness Photographer"
+    },
+    {
+      "name": "Dr. Gideon Price",
+      "slug": "gideon-price",
+      "biography": "A seasoned clinical lecturer whose reassuring authority, dry warmth, and carefully protected personal life make his full attention feel unusually intimate.",
+      "occupation": "Clinical Lecturer and Medical Historian"
+    },
+    {
+      "name": "Hana Watanabe",
+      "slug": "hana-watanabe",
+      "biography": "A calm history student with a faint psychometric gift who prefers evidence to the dramatic stories objects try to tell her.",
+      "occupation": "History Student and Grand Hall Pianist"
+    },
+    {
+      "name": "Hannah Mercer",
+      "slug": "hannah-mercer",
+      "biography": "A quick-witted bartender balancing affection for her hometown with a determination not to inherit everyone else's expectations.",
+      "occupation": "Drowned Bell Bartender"
+    },
+    {
+      "name": "Isabella Reyes",
+      "slug": "isabella-reyes-vespormoor",
+      "biography": "A meticulous archivist with a sly sense of humor who believes access should be earned by care, not inherited status.",
+      "occupation": "Blackglass Library Archivist"
+    },
+    {
+      "name": "Julian Ashcroft",
+      "slug": "julian-ashcroft",
+      "biography": "A controlled estate attorney fluent in leverage, discretion, and the dangerous difference between a rule and its purpose.",
+      "occupation": "Estate Attorney and Covenant Liaison"
+    },
+    {
+      "name": "Jun Park",
+      "slug": "jun-park",
+      "biography": "A skeptical limnologist whose scientific discipline is being tested by data that refuses to remain physically possible.",
+      "occupation": "Lake Vesper Limnologist"
+    },
+    {
+      "name": "Katya Morozova",
+      "slug": "katya-morozova",
+      "biography": "A formidable lounge manager whose impeccable discretion hides a blunt, surprisingly funny private self.",
+      "occupation": "Crimson Room Manager"
+    },
+    {
+      "name": "Keira Sullivan",
+      "slug": "keira-sullivan",
+      "biography": "A perceptive first-year psychology student determined not to become the unofficial therapist for everyone she meets.",
+      "occupation": "Psychology Student and Rookery House Barista"
+    },
+    {
+      "name": "Lena Kovács",
+      "slug": "lena-kovacs",
+      "biography": "A restless vocalist whose stage confidence disappears into sharp self-awareness when a song becomes personal.",
+      "occupation": "Dead Letter Vocalist"
+    },
+    {
+      "name": "Lina Moreno",
+      "slug": "lina-moreno",
+      "biography": "A serious first-year architecture student who becomes animated the moment a building stops making structural sense.",
+      "occupation": "Architecture Student"
+    },
+    {
+      "name": "Luca Ferraro",
+      "slug": "luca-ferraro",
+      "biography": "A polished hotel manager whose charm is professional until he chooses, very clearly, for it not to be.",
+      "occupation": "Saint Mercy Hotel Night Manager"
+    },
+    {
+      "name": "Lyra Vane",
+      "slug": "lyra-vane",
+      "biography": "A magnetic musician whose connection to the lake is easier to hear in her songs than to make her explain.",
+      "occupation": "Glasswater Pier Musician"
+    },
+    {
+      "name": "Maeve Kearney",
+      "slug": "maeve-kearney",
+      "biography": "An earthy botany student whose curiosity is much bolder around plants than people.",
+      "occupation": "Botany Student and Rookery House Server"
+    },
+    {
+      "name": "Marcus Reed",
+      "slug": "marcus-reed",
+      "biography": "A calm rare-book restorer whose empathy makes him careful with other people's emotional boundaries.",
+      "occupation": "Rare-book Restorer"
+    },
+    {
+      "name": "Marina Costa",
+      "slug": "marina-costa",
+      "biography": "A capable sailing instructor who treats fear as information, not weakness, and refuses to romanticize unsafe choices.",
+      "occupation": "Sailing Instructor"
+    },
+    {
+      "name": "Mateo Serrano",
+      "slug": "mateo-serrano",
+      "biography": "A warm veterinarian whose calm around animals contrasts with a lively, openly affectionate social side.",
+      "occupation": "Equine Veterinarian"
+    },
+    {
+      "name": "Maya Bennett",
+      "slug": "maya-bennett-vespormoor",
+      "biography": "An ambitious medical student with lively humor who is trying not to let competence become her entire personality.",
+      "occupation": "Medical Student"
+    },
+    {
+      "name": "Mirelle Voss",
+      "slug": "mirelle-voss",
+      "biography": "The elegant and provocative proprietor of Velvet Thorn, patient enough to let silence reveal what people intended to hide.",
+      "occupation": "Velvet Thorn Proprietor"
+    },
+    {
+      "name": "Naomi Okafor",
+      "slug": "naomi-okafor",
+      "biography": "A decisive architect who loves old buildings without romanticizing the power structures that built them.",
+      "occupation": "Preservation Architect"
+    },
+    {
+      "name": "Nia Holloway",
+      "slug": "nia-holloway",
+      "biography": "A bold tattoo artist whose sigil work is subtle enough to pass as design and personal enough never to be copied casually.",
+      "occupation": "Black Veil Tattoo Artist"
+    },
+    {
+      "name": "Owen Mercer",
+      "slug": "owen-mercer",
+      "biography": "A reserved pianist whose humor is warmer than his stage persona and whose music shifts with the lake's moods.",
+      "occupation": "Stillwater House Pianist"
+    },
+    {
+      "name": "Priya Raman",
+      "slug": "priya-raman",
+      "biography": "A warm, practical herbalist whose teasing competence makes difficult things feel manageable.",
+      "occupation": "Belladonna Apothecary Herbalist"
+    },
+    {
+      "name": "Rafael Ortega",
+      "slug": "rafael-ortega",
+      "biography": "A practical physics student whose electrical affinity makes him excellent with instruments and deeply suspicious of mystical explanations.",
+      "occupation": "Physics Student and Observatory Technician"
+    },
+    {
+      "name": "Ren Takahashi",
+      "slug": "ren-takahashi",
+      "biography": "A composed conservation engineer who reads old buildings with technical rigor while hiding how literally some walls leave impressions in his hands.",
+      "occupation": "Architectural Conservation Engineer"
+    },
+    {
+      "name": "Rowan Hale",
+      "slug": "rowan-hale",
+      "biography": "A watchful Morrow Vale ranger whose heightened senses make her exceptional in the forest and cautious in crowded rooms. Direct, protective, and dryly funny, Rowan trusts changes in the woods before she trusts easy explanations.",
+      "occupation": "Morrow Vale Ranger"
+    },
+    {
+      "name": "Roxanne “Roxy” Bell",
+      "slug": "roxy-bell",
+      "biography": "A quick, sensual night waitress who knows every social circle's after-hours version and protects confidences beneath relentless humor.",
+      "occupation": "Afterdark Diner Night Waitress"
+    },
+    {
+      "name": "Selene Morcant",
+      "slug": "selene-morcant",
+      "biography": "A poised spa director who understands bodies, privacy, and the difference between relaxation and avoidance.",
+      "occupation": "Moonwake Baths Director"
+    },
+    {
+      "name": "Seraphine Orison",
+      "slug": "seraphine-orison",
+      "biography": "A serene chapel caretaker whose compassion feels contemporary even when her knowledge of the building does not.",
+      "occupation": "Saint Orison Chapel Caretaker"
+    },
+    {
+      "name": "Sofia Alvarez",
+      "slug": "sofia-alvarez",
+      "biography": "A pragmatic geologist who came for anomalous stone and stayed because every explanation creates a better question.",
+      "occupation": "Moonstone Quarry Geologist"
+    },
+    {
+      "name": "Tomás Ferreira",
+      "slug": "tomas-ferreira",
+      "biography": "A daring rescue diver whose confidence is backed by preparation rather than a death wish.",
+      "occupation": "Boatworks Mechanic and Rescue Diver"
+    },
+    {
+      "name": "Vivienne Blackwood",
+      "slug": "vivienne-blackwood",
+      "biography": "A polished old-family heir who understands power intimately and resents being treated as if inheritance erased her own ambition.",
+      "occupation": "Blackwood Estate Heiress and Foundation Director"
+    },
+    {
+      "name": "Willow Thorne",
+      "slug": "willow-thorne",
+      "biography": "A quietly sensual cook whose affinity with plants is practical, intimate, and impossible to reduce to a party trick.",
+      "occupation": "Crooked Oak Cook"
+    },
+    {
+      "name": "Zuri Campbell",
+      "slug": "zuri-campbell",
+      "biography": "A bright astronomy student who treats wonder as a discipline and flirting as a game she intends to win fairly.",
+      "occupation": "Astronomy Student and Observatory Assistant"
+    }
+  ]
+}
