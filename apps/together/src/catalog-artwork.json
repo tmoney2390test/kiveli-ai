@@ -7859,6 +7859,306 @@
       "bytes": 18016
     }
   },
+  "characters/gilded-coast/calista-fen.jpg": {
+    "sourceHash": "4a353345b1d16124be99229fe51f5fa0c14a5079b68635669e652bed5ac0a8dd",
+    "display": {
+      "file": "v1/f378378e70a1262e6d6b84533fa62d05803439c53fd368e3f9693921c6e27e5f.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 125208
+    },
+    "thumbnail": {
+      "file": "v1/a7e8e089bc6c28e567844607bba27583a9359ada8ae6052da32aca4c91f0af35.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 19536
+    }
+  },
+  "characters/gilded-coast/cormac-bray.jpg": {
+    "sourceHash": "306e9bf3507b948bbc65bf043ca34a300730506615b9c84c3bf260aef2d9bbe4",
+    "display": {
+      "file": "v1/ef19ebf7917ce27563f1cc07748965efd4302b9bba363b8c60440f94479d930f.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 168432
+    },
+    "thumbnail": {
+      "file": "v1/ff923c4639ab4866f95bf88e60ed161bce25b420c7d75c9efb5a76409ce5e843.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 14312
+    }
+  },
+  "characters/gilded-coast/dax-marin.jpg": {
+    "sourceHash": "cba2026586a8fa35be4d2ef6b85356a0c13dfd5348dbb2503c7afc93d824f261",
+    "display": {
+      "file": "v1/cffbc07fde369e6da12273eb69292fa205b735a9301b2687acd386e81387a2d9.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 159338
+    },
+    "thumbnail": {
+      "file": "v1/2c15cd15d0a4ff1e9299674df64a67103040baa21d6a54bbb9da46b595353cd3.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 16796
+    }
+  },
+  "characters/gilded-coast/gideon-holt.jpg": {
+    "sourceHash": "609e3a30901feac094f743f25d66b5eb8cfb7a6f0f4cc1af3cbd683039c9c1db",
+    "display": {
+      "file": "v1/c24b712a8537981014c24f2f7d373cfd7bc1e31f9775b9d7de30ebf37ae2fbc8.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 192836
+    },
+    "thumbnail": {
+      "file": "v1/87a137ef917f3dc7513231a1b5614edb52b02c8bb26d83b39fdb7299256688d8.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 17920
+    }
+  },
+  "characters/gilded-coast/harlan-vex.jpg": {
+    "sourceHash": "11c46d171815c50cc0f1bd6f8bbbaf5e1981f37308cb5651720a66e30919c6b2",
+    "display": {
+      "file": "v1/bbba46f1145383ce01233da5845549c6ca198f583a38c434d4da779f1df7b4c1.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 126628
+    },
+    "thumbnail": {
+      "file": "v1/fb4db64174d5fbf997c01075de72bff9fa6b83cf66ef1df7d09627bc3ad69071.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 16948
+    }
+  },
+  "characters/gilded-coast/helene-dusk.jpg": {
+    "sourceHash": "ef401c89a84c79a9da08410138b30f54758c2d00986881b8e68e7c3fac1bded7",
+    "display": {
+      "file": "v1/acda4e84515f005291f647d1f260c64cfb40af5f6273de4bbdff1d64c52b6130.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 167412
+    },
+    "thumbnail": {
+      "file": "v1/4bb6eec97193f6a8f448f54e8f5f5cd659ac9b71112195acaa26a04d1407c6aa.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 17082
+    }
+  },
+  "characters/gilded-coast/isolde-wren.jpg": {
+    "sourceHash": "30d2c8676c22a0185bd7c9e48931773117e46c4b54a51fd54a187840ae5d4fd1",
+    "display": {
+      "file": "v1/eed68c387601bed7e2ba149884d803663aea30df574636945956206e8741a7a6.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 109568
+    },
+    "thumbnail": {
+      "file": "v1/c2fbf6415730eab0783a96cffe6a949aff0091e46c557b6565d06bc0f69d9034.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 12650
+    }
+  },
+  "characters/gilded-coast/liora-quell.jpg": {
+    "sourceHash": "18a3ed6023c5e69ca302bd769abc127e25a596f4bdc76e102e36be2013c4ac45",
+    "display": {
+      "file": "v1/898e6a35dd17b0a5432dbc6f79c27b14e6ac0087f8c5d72e1ba6d88c0f5299ff.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 108146
+    },
+    "thumbnail": {
+      "file": "v1/5d198b02c6a9459a78ec8bc7277f8fb1b760a8f0bfae23a27bbe16155865ec2f.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 14104
+    }
+  },
+  "characters/gilded-coast/maren-hooke.jpg": {
+    "sourceHash": "c29a18927912e31c523d478ad1fc970050ca82bf934e391a6ba5e3a85db9261d",
+    "display": {
+      "file": "v1/cc2e748ce5adc405f6272268a8a985c7f5131638ecbd60d1e840695df0f61502.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 160608
+    },
+    "thumbnail": {
+      "file": "v1/ecc24587e68e7bc5fff4b7192df58d2fd4e468837d96ff64ff16dba02b179597.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 15988
+    }
+  },
+  "characters/gilded-coast/nyxa-marin.jpg": {
+    "sourceHash": "84c50a63bb443d95bd8b93751f7e16decce7b7bf346f0b11935e9d9b6a6a679c",
+    "display": {
+      "file": "v1/e7761bb16f169b247fa7e8f2f55e2a4a2be1b717d1e98a30dbbd89f7dc194581.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 146482
+    },
+    "thumbnail": {
+      "file": "v1/2e23ecc2fa159cb4134c3c597e01bbabc6b9d92fa5b4492bf3d2e2ba49d0fa63.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 16990
+    }
+  },
+  "characters/gilded-coast/odile-vane.jpg": {
+    "sourceHash": "1f39a230f23fbbec66b2065db548967dae94a31d552fc3e2662f63950feceae9",
+    "display": {
+      "file": "v1/1ebebe678d85df0e94b3394989df15fb54c180ad57e2eff2ca3ec7dd5d18a783.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 137464
+    },
+    "thumbnail": {
+      "file": "v1/cebeb972412683daf50ba0ecc891179358f94800c4b735c88b130324cd8e3249.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 18050
+    }
+  },
+  "characters/gilded-coast/osric-kane.jpg": {
+    "sourceHash": "9f099a83eb311338ec5c6c36f455ec175f8cc1acd412bcc05ceffe30fe73284e",
+    "display": {
+      "file": "v1/00a1289def9d7b7daa82e624d54cf50d11eca05feb9fb77a8245bea377ccdb2a.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 155870
+    },
+    "thumbnail": {
+      "file": "v1/0cf1ed63b1988b3010a0334e890aef55df226ac95ff66cef4a93bd34ed8b3994.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 17372
+    }
+  },
+  "characters/gilded-coast/petra-cinder.jpg": {
+    "sourceHash": "20af962e7473875273dc54c48ac0ecb5c5615a39f24ff5268c0c557571db1ebf",
+    "display": {
+      "file": "v1/89680dbd20b816f1c5d5680fb5a5a7fba2c49ad3d48b9718e160dfe85198fd50.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 148312
+    },
+    "thumbnail": {
+      "file": "v1/3fe74a7594ba525cc6abb8fd4527d137c353398835da4ac3b91f333cc157ad03.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 18256
+    }
+  },
+  "characters/gilded-coast/quinnie-salt.jpg": {
+    "sourceHash": "cf0c2b873fdebbf077a5d4ff8877521dd2f1834e4411c14bd95f6c7641711722",
+    "display": {
+      "file": "v1/7a9f880157e7ae490a4a0b90d6a6baee17278b2085f3fc74d4bc863ad3dd6d7b.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 154226
+    },
+    "thumbnail": {
+      "file": "v1/09abc220fd3053a0103d8879aadd793558f11eb29cd4959f167be666cb2fa945.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 19078
+    }
+  },
+  "characters/gilded-coast/roxana-brine.jpg": {
+    "sourceHash": "54ab6ae3e57a67c5441fec6b6c8d926268d10fb53a060a84db2206a0c6ecadd1",
+    "display": {
+      "file": "v1/e99e66949c11f5cfcf99191bbf1d552128da5e641ef487ce9a45dca6b4dfc1aa.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 158628
+    },
+    "thumbnail": {
+      "file": "v1/768ed8a09769e94ebf7c9e860c6c5465e90e9e6fdf06aae16438a0c435779681.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 18166
+    }
+  },
+  "characters/gilded-coast/rune-calder.jpg": {
+    "sourceHash": "c138b3abac089eed58110c8ced13cd97b5b5da96ac309be5c55920d913a59536",
+    "display": {
+      "file": "v1/3b6149f6c73179d3534f0da00a2e64887ef29757e76cb23c5aa308ba3ff18f93.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 182430
+    },
+    "thumbnail": {
+      "file": "v1/538cc771a8c8f7afd180d798379ff9fabd18a4efd8b72813a86225c8a0624ae7.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 19032
+    }
+  },
+  "characters/gilded-coast/sable-rourke.jpg": {
+    "sourceHash": "4e1d905c4311dfd233679955380d03b415c0ad95e3434e28c9b26ca6e71d2029",
+    "display": {
+      "file": "v1/745dd445ad81de56b114c578e79904e59b12af4667a4bfd283aa45e7d78f3116.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 182492
+    },
+    "thumbnail": {
+      "file": "v1/7ab775f07c8e0365237f7a2580781a13371250c29547be2b4e44b27ad13c5060.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 19794
+    }
+  },
+  "characters/gilded-coast/stellan-rook.jpg": {
+    "sourceHash": "f41a35f147004e3c263b17e6d931fd7e4fd6f673f609271485274172a40d74fe",
+    "display": {
+      "file": "v1/ae04b84882a0070ebda7230ad294b02a06668fdb38f53925836be645dc70166f.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 155292
+    },
+    "thumbnail": {
+      "file": "v1/c029c57b65b0e1d5a38201181f14de51f06b69433810725fed4ed84f569fa286.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 18688
+    }
+  },
+  "characters/gilded-coast/tessera-pike.jpg": {
+    "sourceHash": "be5e3c23fc785f01fa83646b4b4341179849b334760cb47d41802e5112a3a25c",
+    "display": {
+      "file": "v1/fa42c6cd57e4a6f85a3e9ff92e25146e5b626c4409d5ee6a87ec024d2d8d81f2.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 187450
+    },
+    "thumbnail": {
+      "file": "v1/26f70362631ae125b063a07b60fcbeefeac4e145af7ed3a324827f397c561acd.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 18542
+    }
+  },
+  "characters/gilded-coast/vesperine-crowe.jpg": {
+    "sourceHash": "75505079c39bd8ad7edcd626270c8b674698593b4825d12f7a094c96a2b647cb",
+    "display": {
+      "file": "v1/ac9d4b854217284123ec4cbee6c9aae4b7a1f509ee4d6aac25f6f04c100f03c3.webp",
+      "width": 832,
+      "height": 1248,
+      "bytes": 164654
+    },
+    "thumbnail": {
+      "file": "v1/4ac4e5583375806e7fdc21b968533b0b7553d72898626370344d84af03aab809.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 17422
+    }
+  },
   "characters/juniper-city/amara-okafor.jpg": {
     "sourceHash": "98ff7c130c85558780ebb3673777083fa76593190394a76128f2eb739002d27e",
     "display": {
