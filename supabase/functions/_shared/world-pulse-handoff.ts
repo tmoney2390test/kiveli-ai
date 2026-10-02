@@ -4,7 +4,7 @@ import { characterCanSpeak } from '../../../packages/together-domain/src/charact
 import { AppError } from './types.ts';
 import { resolveWorldAccess } from './together-place.ts';
 import { ensureCanonicalCompanionInstance } from './canonical-companion-meeting.ts';
-import { worldPulseV2EnabledForWorld } from './kivelle-world-pulse-v2.ts';
+import { applyWorldPulseEditorialCorrections, worldPulseV2EnabledForWorld } from './kivelle-world-pulse-v2.ts';
 import { getActiveConversation } from './together-conversation.ts';
 import { enforceActiveConversationLimit, resolveSubscriptionAccess } from './kivelle-subscription.ts';
 
@@ -17,7 +17,7 @@ export async function requireFreshWorldPulse(input: {
   const result = await db.from('together_world_pulse_occurrences').select('*')
     .eq('id', input.occurrenceId).eq('status', 'published').maybeSingle();
   if (result.error || !result.data) throw new AppError('NOT_FOUND', 'This World Pulse is unavailable.', 404);
-  const occurrence = result.data as Row;
+  const [occurrence = result.data as Row] = await applyWorldPulseEditorialCorrections(db, [result.data as Row]);
   if (!await worldPulseV2EnabledForWorld(db, String(occurrence.world_id)))
     throw new AppError('NOT_FOUND', 'This World Pulse is unavailable.', 404);
   if (!worldPulseIsDiscoverable(String(occurrence.occurred_at), (input.now ?? new Date()).toISOString())) {
@@ -30,7 +30,11 @@ export async function requireFreshWorldPulse(input: {
     .select('character_template_id,ordinal,role_label_snapshot,default_direct_message_snapshot')
     .eq('occurrence_id', occurrence.id).order('ordinal');
   if (participantResult.error) throw new AppError('INTERNAL_ERROR', 'Pulse participants could not be loaded.', 500, true);
-  const participants = (participantResult.data ?? []) as Row[];
+  const participants = ((participantResult.data ?? []) as Row[]).map((participant) => {
+    const copy = occurrence.editorial_participant_copy?.[String(participant.character_template_id)];
+    return copy ? { ...participant, role_label_snapshot: copy.roleLabel,
+      default_direct_message_snapshot: copy.defaultDirectMessage } : participant;
+  });
   if (participants.length < 1 || participants.length > 4) throw new AppError('CONFLICT', 'This World Pulse has an invalid cast.', 409);
   const ids = participants.map((item) => String(item.character_template_id));
   if (new Set(ids).size !== ids.length) throw new AppError('CONFLICT', 'This World Pulse has an invalid cast.', 409);

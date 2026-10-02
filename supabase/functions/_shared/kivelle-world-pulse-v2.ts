@@ -33,12 +33,28 @@ export async function loadWorldPulseV2ConversationLabel(input: { db: SupabaseCli
   const occurrence = await input.db.from('together_world_pulse_occurrences').select('id,title_snapshot,occurred_at,status')
     .eq('id', link.data.occurrence_id).maybeSingle();
   if (occurrence.error || !occurrence.data) return null;
-  return { eventId: String(occurrence.data.id), title: String(occurrence.data.title_snapshot),
+  const [display = occurrence.data] = await applyWorldPulseEditorialCorrections(input.db, [occurrence.data]);
+  return { eventId: String(occurrence.data.id), title: String(display.title_snapshot),
     occurredAt: String(occurrence.data.occurred_at),
     fresh: occurrence.data.status === 'published' && worldPulseIsDiscoverable(String(occurrence.data.occurred_at), new Date().toISOString()) };
 }
 
 type Row = Record<string, any>;
+export async function applyWorldPulseEditorialCorrections(db: SupabaseClient, rows: Row[]): Promise<Row[]> {
+  if (!rows.length) return rows;
+  const result = await db.from('together_world_pulse_editorial_corrections')
+    .select('occurrence_id,title,feed_summary,detail_body,group_message,facts,participant_copy')
+    .in('occurrence_id', rows.map((row) => String(row.id)));
+  if (result.error) throw new AppError('INTERNAL_ERROR', 'World Pulse corrections could not be loaded.', 500, true);
+  const byId = new Map((result.data ?? []).map((item) => [String(item.occurrence_id), item as Row]));
+  return rows.map((row) => {
+    const correction = byId.get(String(row.id));
+    if (!correction) return row;
+    return { ...row, title_snapshot: correction.title, feed_summary_snapshot: correction.feed_summary,
+      detail_body_snapshot: correction.detail_body, group_message_snapshot: correction.group_message,
+      facts_snapshot: correction.facts, editorial_participant_copy: correction.participant_copy };
+  });
+}
 const required = <T>(data: T | null, error: { message: string } | null, message: string): T => {
   if (error || data === null) throw new AppError('INTERNAL_ERROR', message, 500, true);
   return data;
@@ -80,7 +96,8 @@ export async function loadWorldPulseV2(input: {
       }
     }
   }
-  const fresh = rows.filter((row) => worldPulseIsDiscoverable(String(row.occurred_at), serverNow));
+  const fresh = await applyWorldPulseEditorialCorrections(input.db,
+    rows.filter((row) => worldPulseIsDiscoverable(String(row.occurred_at), serverNow)));
   console.info(JSON.stringify({ metric: 'world_pulse_v2_feed', worldId: input.worldId, occurrenceCount: fresh.length }));
   return { version: 2, worldId: input.worldId, serverNow, generatedAt: serverNow,
     events: await projectEvents(input.db, fresh, input.userId, input.continuityId) };
@@ -94,8 +111,9 @@ export async function loadWorldPulseV2Detail(input: {
     .select('id,world_id,template_id,title_snapshot,feed_summary_snapshot,detail_body_snapshot,group_message_snapshot,event_type_snapshot,occurred_at,ends_at,significance_snapshot,location_id,facts_snapshot')
     .eq('id', input.occurrenceId).eq('status', 'published').maybeSingle();
   if (result.error) throw new AppError('INTERNAL_ERROR', 'World Pulse could not be loaded.', 500, true);
-  const row = result.data as Row | null;
-  if (!row) throw new AppError('NOT_FOUND', 'This World Pulse is unavailable.', 404);
+  const original = result.data as Row | null;
+  if (!original) throw new AppError('NOT_FOUND', 'This World Pulse is unavailable.', 404);
+  const [row = original] = await applyWorldPulseEditorialCorrections(input.db, [original]);
   if (!worldPulseIsDiscoverable(String(row.occurred_at), serverNow)) {
     console.info(JSON.stringify({ metric: 'world_pulse_v2_expired_detail', occurrenceId: input.occurrenceId }));
     throw new AppError('WORLD_PULSE_EXPIRED', 'This World Pulse has passed.', 410);
@@ -131,7 +149,9 @@ export async function loadWorldPulseV2Detail(input: {
     ...event,
     detailBody: String(row.detail_body_snapshot), userVisibleFacts,
     groupMessage: typeof row.group_message_snapshot === 'string' ? row.group_message_snapshot : null,
-    directMessages: Object.fromEntries(participants.map((participant) => [String(participant.character_template_id), String(participant.default_direct_message_snapshot)])),
+    directMessages: Object.fromEntries(participants.map((participant) => [String(participant.character_template_id),
+      String(row.editorial_participant_copy?.[String(participant.character_template_id)]?.defaultDirectMessage
+        ?? participant.default_direct_message_snapshot)])),
     allowedActions: { directCharacterTemplateIds: event.participants.filter((item) => item.available).map((item) => item.characterTemplateId),
       group: groupAvailable && groupEntitled, groupLocked: groupAvailable && !groupEntitled },
   } };
@@ -171,7 +191,8 @@ async function projectEvents(db: SupabaseClient, rows: Row[], userId: string, co
         const instance = instanceByTemplate.get(String(character.id));
         return [{ characterTemplateId: String(character.id), characterInstanceId: instance ? String(instance.id) : null,
           slug: String(character.slug), publicHandle: character.public_handle ? String(character.public_handle) : null,
-          name: String(character.name), roleLabel: String(item.role_label_snapshot), primary: item.primary_participant === true,
+          name: String(character.name), roleLabel: String(row.editorial_participant_copy?.[String(character.id)]?.roleLabel
+            ?? item.role_label_snapshot), primary: item.primary_participant === true,
           ordinal: Number(item.ordinal), available: !instance || characterCanSpeak(instance.life_state) }];
       });
     if (!ordered.length) return [];

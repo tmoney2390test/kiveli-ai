@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { worldPulseV2Enabled } from './kivelle-world-pulse-v2.ts';
+import { applyWorldPulseEditorialCorrections, worldPulseV2Enabled } from './kivelle-world-pulse-v2.ts';
 import { knownWorldPulseFacts } from '../../../packages/together-domain/src/world-pulse-v2.ts';
 
 export type LinkedWorldPulseSpeakerContext = {
@@ -39,14 +39,17 @@ export async function loadLinkedWorldPulseForSpeaker(input: {
   ]);
   const occurrence = occurrenceResult.data, participant = participantResult.data;
   if (occurrenceResult.error || participantResult.error || !occurrence || !participant) return null;
+  const [display = occurrence as Record<string, any>] = await applyWorldPulseEditorialCorrections(input.db, [occurrence]);
+  const participantCopy = display.editorial_participant_copy?.[input.characterTemplateId];
   const locationResult = await input.db.from('together_locations').select('name').eq('id', occurrence.location_id).maybeSingle();
   const userSaw = Array.isArray(link.context_snapshot?.userVisibleFacts)
     ? link.context_snapshot.userVisibleFacts.map((fact: Record<string, unknown>) => ({ id: String(fact.id ?? ''), text: String(fact.text ?? '') })).filter((fact: { id: string; text: string }) => fact.id && fact.text)
     : [];
   return {
-    eventId: String(occurrence.id), title: String(occurrence.title_snapshot),
+    eventId: String(occurrence.id), title: String(display.title_snapshot),
     occurredAt: String(occurrence.occurred_at), locationName: String(locationResult.data?.name ?? 'the event location'),
-    roleLabel: String(participant.role_label_snapshot), perspective: String(participant.perspective_snapshot),
-    knownFacts: knownWorldPulseFacts(occurrence.facts_snapshot, input.characterTemplateId), userSaw,
+    roleLabel: String(participantCopy?.roleLabel ?? participant.role_label_snapshot),
+    perspective: String(participantCopy?.perspective ?? participant.perspective_snapshot),
+    knownFacts: knownWorldPulseFacts(display.facts_snapshot, input.characterTemplateId), userSaw,
   };
 }
