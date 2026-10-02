@@ -66,7 +66,7 @@ export async function loadWorldPulseV2(input: {
   const now = input.now ?? new Date(), serverNow = now.toISOString();
   const cutoff = new Date(now.getTime() - WORLD_PULSE_DISCOVERY_TTL_HOURS * 3_600_000).toISOString();
   const recent = () => input.db.from('together_world_pulse_occurrences')
-    .select('id,world_id,template_id,title_snapshot,feed_summary_snapshot,event_type_snapshot,occurred_at,ends_at,significance_snapshot,location_id')
+    .select('id,world_id,template_id,title_snapshot,feed_summary_snapshot,event_type_snapshot,occurred_at,ends_at,significance_snapshot,location_id,metadata')
     .eq('world_id', input.worldId).eq('status', 'published')
     .gte('occurred_at', cutoff).lte('occurred_at', serverNow)
     .order('occurred_at', { ascending: false }).limit(32);
@@ -111,7 +111,7 @@ export async function loadWorldPulseV2Detail(input: {
 }): Promise<{ version: 2; serverNow: string; event: WorldPulseV2Event & { detailBody: string; userVisibleFacts: { id: string; text: string }[]; groupMessage: string | null; directMessages: Record<string, string>; allowedActions: { directCharacterTemplateIds: string[]; group: boolean; groupLocked: boolean } } }> {
   const serverNow = (input.now ?? new Date()).toISOString();
   const result = await input.db.from('together_world_pulse_occurrences')
-    .select('id,world_id,template_id,title_snapshot,feed_summary_snapshot,detail_body_snapshot,group_message_snapshot,event_type_snapshot,occurred_at,ends_at,significance_snapshot,location_id,facts_snapshot')
+    .select('id,world_id,template_id,title_snapshot,feed_summary_snapshot,detail_body_snapshot,group_message_snapshot,event_type_snapshot,occurred_at,ends_at,significance_snapshot,location_id,facts_snapshot,metadata')
     .eq('id', input.occurrenceId).eq('status', 'published').maybeSingle();
   if (result.error) throw new AppError('INTERNAL_ERROR', 'World Pulse could not be loaded.', 500, true);
   const original = result.data as Row | null;
@@ -202,6 +202,7 @@ async function projectEvents(db: SupabaseClient, rows: Row[], userId: string, co
     return [{ id: String(row.id), worldId: String(row.world_id), templateId: String(row.template_id),
       title: String(row.title_snapshot), feedSummary: String(row.feed_summary_snapshot), eventType: String(row.event_type_snapshot),
       occurredAt: String(row.occurred_at), endsAt: String(row.ends_at), significance: Number(row.significance_snapshot),
+      eventTier: row.metadata?.pulseTier === 'major' ? 'major' : 'routine',
       location: { id: String(location.id), slug: String(location.slug), name: String(location.name) }, participants: ordered }];
   });
 }

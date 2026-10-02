@@ -6,6 +6,22 @@ export const WORLD_PULSE_TEMPLATES_PER_WORLD = 200;
 export const WORLD_PULSE_REPEAT_COOLDOWN_HOURS = 30 * 24;
 export const WORLD_PULSE_DISCOVERY_TTL_HOURS = 24;
 export const WORLD_PULSE_CONTEXT_HOURS = 7 * 24;
+export const WORLD_PULSE_MAJOR_COOLDOWN_HOURS = 60 * 24;
+export const WORLD_PULSE_MAJOR_CYCLE_DAYS = 70;
+export const WORLD_PULSE_MAJOR_DAY_OFFSETS = [0, 4, 7, 14, 18, 21, 28, 32, 35, 42, 46, 49, 56, 60, 63] as const;
+export const WORLD_PULSE_MAJOR_SLOT_MINUTES = 18 * 60 + 30;
+const MAJOR_EPOCH_MS = Date.parse('2026-10-05T00:00:00.000Z');
+
+/** One or two colony-wide incidents per UTC week, never on adjacent days. */
+export function worldPulseMajorSlot(date: string): { schedulingRank: number; occurredAt: string } | null {
+  const timestamp = Date.parse(`${date}T00:00:00.000Z`);
+  if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== date) throw new Error(`Invalid UTC date: ${date}`);
+  const day = Math.round((timestamp - MAJOR_EPOCH_MS) / 86_400_000);
+  if (day < 0) return null;
+  const index = WORLD_PULSE_MAJOR_DAY_OFFSETS.indexOf((day % WORLD_PULSE_MAJOR_CYCLE_DAYS) as typeof WORLD_PULSE_MAJOR_DAY_OFFSETS[number]);
+  return index < 0 ? null : { schedulingRank: 200 + index,
+    occurredAt: new Date(timestamp + WORLD_PULSE_MAJOR_SLOT_MINUTES * 60_000).toISOString() };
+}
 
 const DAY_MS = 86_400_000;
 const COOLDOWN_MS = WORLD_PULSE_REPEAT_COOLDOWN_HOURS * 3_600_000;
@@ -190,6 +206,7 @@ export type WorldPulseV2Event = {
   occurredAt: string;
   endsAt: string;
   significance: number;
+  eventTier?: 'routine' | 'major';
   location: { id: string; slug: string; name: string };
   participants: WorldPulseV2Participant[];
 };

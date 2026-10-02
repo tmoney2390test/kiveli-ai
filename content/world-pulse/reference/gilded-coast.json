@@ -1,0 +1,516 @@
+{
+  "source": "Staged canonical Gilded Coast content pack, 2026-10-02",
+  "world": {
+    "name": "The Gilded Coast",
+    "slug": "gilded-coast",
+    "description": "An age-of-sail coast of bright harbors, working shipyards, dangerous privateers, intimate salons, and islands close enough to visit but far enough to keep their own rules."
+  },
+  "locations": [
+    {
+      "name": "Admiralty Quay",
+      "slug": "admiralty-quay",
+      "category": "district",
+      "description": "The working arrival edge of Tidemark, where law, labor, and departures share a narrow waterfront."
+    },
+    {
+      "name": "Arrival Steps",
+      "slug": "arrival-steps",
+      "category": "harbor",
+      "description": "Passengers step from ferries into a crowded public landing where each arrival is announced by bell and chalk board."
+    },
+    {
+      "name": "Customs House",
+      "slug": "customs-house",
+      "category": "civic",
+      "description": "A tiled customs hall where manifests, licenses, and cargo seals determine who may unload."
+    },
+    {
+      "name": "The Brass Compass",
+      "slug": "brass-compass",
+      "category": "tavern",
+      "description": "A sailors’ tavern that serves hot breakfast before the first ferry and keeps a quiet back table for hard conversations."
+    },
+    {
+      "name": "Ferry Hall",
+      "slug": "ferry-hall",
+      "category": "transit",
+      "description": "A roofed waiting room for cay ferries, posted sailings, weather delays, and people who missed the last boat."
+    },
+    {
+      "name": "Sailors’ Exchange",
+      "slug": "sailors-exchange",
+      "category": "market",
+      "description": "Crews trade work notices, spare gear, and stories beneath an awning that smells of tar and coffee."
+    },
+    {
+      "name": "Harbor Court",
+      "slug": "harbor-court",
+      "category": "civic",
+      "description": "A small open hearing room for berth disputes, salvage claims, and complaints against captains."
+    },
+    {
+      "name": "Gilt Row",
+      "slug": "gilt-row",
+      "category": "district",
+      "description": "Terraces, lenders, jewellers, and salons look over the same harbor that supplies their wealth."
+    },
+    {
+      "name": "Pearl Salon",
+      "slug": "pearl-salon",
+      "category": "salon",
+      "description": "An intimate music and debate room whose invitation list crosses class lines more often than its patrons admit."
+    },
+    {
+      "name": "Salt Ledger Bank",
+      "slug": "salt-ledger-bank",
+      "category": "bank",
+      "description": "A lender’s elegant public room where ship finance becomes personal at the repayment desk."
+    },
+    {
+      "name": "Gilt Auction Rooms",
+      "slug": "gilt-auction",
+      "category": "auction",
+      "description": "Furniture, cargo lots, maps, and inherited valuables change hands before a crowd that knows their stories."
+    },
+    {
+      "name": "Glass Garden",
+      "slug": "glass-garden",
+      "category": "garden",
+      "description": "A walled conservatory of shade plants and small tables above the noisy port."
+    },
+    {
+      "name": "Velvet Balcony",
+      "slug": "velvet-balcony",
+      "category": "theatre",
+      "description": "A balcony theatre where performers can be seen from the street before patrons hear them."
+    },
+    {
+      "name": "Montrose Jewels",
+      "slug": "montrose-jewels",
+      "category": "workshop",
+      "description": "A jeweller’s shop known for turning damaged sea finds into settings with visible repair seams."
+    },
+    {
+      "name": "The Ropewalk",
+      "slug": "ropewalk",
+      "category": "district",
+      "description": "The shipbuilding district is a place of skill, shared meals, labor politics, and constant repair."
+    },
+    {
+      "name": "Shipwright Yard",
+      "slug": "shipwright-yard",
+      "category": "shipyard",
+      "description": "A busy open yard where hulls are built and arguments about safety travel faster than nails."
+    },
+    {
+      "name": "Sail Loft",
+      "slug": "sail-loft",
+      "category": "workshop",
+      "description": "A high-ceilinged loft where canvas is cut, patched, and stitched under daylight."
+    },
+    {
+      "name": "Ropewalk Kitchen",
+      "slug": "ropewalk-kitchen",
+      "category": "community kitchen",
+      "description": "Workers and neighbors share hot meals at a long table after shifts that do not end together."
+    },
+    {
+      "name": "Drydock Baths",
+      "slug": "drydock-baths",
+      "category": "bathhouse",
+      "description": "A modest bathhouse with separate quiet and social rooms for crews returning from work."
+    },
+    {
+      "name": "Rivet School",
+      "slug": "rivet-school",
+      "category": "training",
+      "description": "A working apprenticeship hall where young adults learn measurements, knots, and repairs from working crews."
+    },
+    {
+      "name": "Lantern Foundry",
+      "slug": "lantern-foundry",
+      "category": "foundry",
+      "description": "A small brass and glass workshop that supplies signal lamps and household lights."
+    },
+    {
+      "name": "Lantern Market",
+      "slug": "lantern-market",
+      "category": "district",
+      "description": "The crowded evening heart of Tidemark, where food, performance, pleasure, and neighborhood business overlap."
+    },
+    {
+      "name": "Night Market",
+      "slug": "night-market",
+      "category": "market",
+      "description": "Stalls sell food, cloth, charts, and gossip after the day crews finish work."
+    },
+    {
+      "name": "Honeyglass Theatre",
+      "slug": "honeyglass-theatre",
+      "category": "theatre",
+      "description": "A small performance house where musicians, dancers, and storytellers work for an audience close enough to answer back."
+    },
+    {
+      "name": "House of Hours",
+      "slug": "house-of-hours",
+      "category": "adult companionship house",
+      "description": "A worker-run adult companionship house with a public tea room and private rooms governed by clear individual boundaries."
+    },
+    {
+      "name": "Mariner’s Table",
+      "slug": "mariners-table",
+      "category": "restaurant",
+      "description": "A lively kitchen where fishers, captains, and market workers all want the last bowl of stew."
+    },
+    {
+      "name": "Blue Lantern Inn",
+      "slug": "blue-lantern-inn",
+      "category": "inn",
+      "description": "An inn with plain rooms, good locks, and a front desk used to welcoming people who do not want questions."
+    },
+    {
+      "name": "Spice Courtyard",
+      "slug": "spice-courtyard",
+      "category": "courtyard",
+      "description": "A public courtyard where street food, chess, and small music sets share the evening shade."
+    },
+    {
+      "name": "Breakwater Point",
+      "slug": "breakwater-point",
+      "category": "district",
+      "description": "Storm watchers, healers, and guards work where the harbor meets open water."
+    },
+    {
+      "name": "Lightkeep",
+      "slug": "lightkeep",
+      "category": "lighthouse",
+      "description": "The lighthouse keeper’s work rooms and public viewing stair overlook the dangerous outer approach."
+    },
+    {
+      "name": "Storm Clinic",
+      "slug": "storm-clinic",
+      "category": "clinic",
+      "description": "A small coastal clinic where injuries, seasickness, and lost sleep arrive with the tide."
+    },
+    {
+      "name": "Battery Yard",
+      "slug": "battery-yard",
+      "category": "fort",
+      "description": "A working fort yard used for drills, repairs, and occasional public ceremonies."
+    },
+    {
+      "name": "Tide Observatory",
+      "slug": "tide-observatory",
+      "category": "observatory",
+      "description": "A weather and tide station where handwritten records matter more than confident predictions."
+    },
+    {
+      "name": "Breakwater Steps",
+      "slug": "breakwater-steps",
+      "category": "waterfront",
+      "description": "Wide public steps where residents watch departures or sit with the noise of waves."
+    },
+    {
+      "name": "Signal House",
+      "slug": "signal-house",
+      "category": "communications",
+      "description": "The flag room sends warnings and harbor permissions across a coastline with no instant messages."
+    },
+    {
+      "name": "The Outer Cays",
+      "slug": "outer-cays",
+      "category": "district",
+      "description": "Nearby islands and reefs depend on Tidemark but keep their own schedules, councils, and loyalties."
+    },
+    {
+      "name": "Reef Landing",
+      "slug": "reef-landing",
+      "category": "harbor",
+      "description": "A small ferry pier where island residents unload fish and visitors learn that the last return is tide-dependent."
+    },
+    {
+      "name": "Coconut Beach",
+      "slug": "coconut-beach",
+      "category": "beach",
+      "description": "A sheltered public beach with shade, shallow water, and enough room for quiet company."
+    },
+    {
+      "name": "Tidepool Cove",
+      "slug": "tidepool-cove",
+      "category": "nature",
+      "description": "A low rocky shore where children and researchers watch the water withdraw and return."
+    },
+    {
+      "name": "Windward Village",
+      "slug": "windward-village",
+      "category": "village",
+      "description": "A fishing village with a school, net sheds, shared kitchen, and a council that does not speak with one voice."
+    },
+    {
+      "name": "Blackfin Anchorage",
+      "slug": "blackfin-anchorage",
+      "category": "anchorage",
+      "description": "A sheltered cove used by independent captains whose repair work is legal even when their last voyage is disputed."
+    },
+    {
+      "name": "Sable Reef",
+      "slug": "sable-reef",
+      "category": "reef",
+      "description": "A shallow reef with a marked safe channel and a disputed boundary between fishing and salvage."
+    }
+  ],
+  "characters": [
+    {
+      "name": "Captain Elara Voss",
+      "slug": "elara-voss",
+      "age": 39,
+      "occupation": "privateer captain",
+      "biography": "Elara won her charter by taking a raider alive, then lost three crew in a later fight she chose to press. She pays the survivors’ families and refuses to let that settle what happened."
+    },
+    {
+      "name": "Tomas Renn",
+      "slug": "tomas-renn",
+      "age": 42,
+      "occupation": "harbor marshal",
+      "biography": "Tomas stopped a quay riot without firing a shot, then signed an arrest order he now doubts. He keeps the harbor safe while privately questioning whom its rules protect."
+    },
+    {
+      "name": "Anika Saye",
+      "slug": "anika-saye",
+      "age": 31,
+      "occupation": "customs auditor",
+      "biography": "Anika rose through the customs office by noticing what others called harmless exceptions. She has learned that a perfect record can conceal a cruel decision."
+    },
+    {
+      "name": "Rafiq Nadir",
+      "slug": "rafiq-nadir",
+      "age": 44,
+      "occupation": "ferry pilot",
+      "biography": "Rafiq learned the channels from his mother and kept the cay ferry running through two contested seasons. He smiles easily until someone treats island passengers as spare cargo."
+    },
+    {
+      "name": "Mira Cael",
+      "slug": "mira-cael",
+      "age": 27,
+      "occupation": "signal officer",
+      "biography": "Mira learned flag codes while working night watches. Her accuracy made her useful to captains who rarely asked whether she wanted their secrets."
+    },
+    {
+      "name": "Nico Solari",
+      "slug": "nico-solari",
+      "age": 25,
+      "occupation": "dock runner",
+      "biography": "Nico carries messages and small parcels between offices that mistrust one another. He is good at being liked and tired of being trusted only with errands."
+    },
+    {
+      "name": "Seraphine Vale",
+      "slug": "seraphine-vale",
+      "age": 36,
+      "occupation": "shipping heiress",
+      "biography": "Seraphine inherited ships and debts together. She funds rescue work that her critics call a cheap way to keep control of captains."
+    },
+    {
+      "name": "Julian Mercer",
+      "slug": "julian-mercer",
+      "age": 34,
+      "occupation": "merchant banker",
+      "biography": "Julian can calculate risk better than he can explain why he keeps making exceptions for familiar families. A generous loan once cost him a colleague’s trust."
+    },
+    {
+      "name": "Sabine Quill",
+      "slug": "sabine-quill",
+      "age": 41,
+      "occupation": "salon owner and former courtesan",
+      "biography": "Sabine earned her first property through companionship work and now runs a salon that pays performers by name. She resents being called an exception to a trade that supported her."
+    },
+    {
+      "name": "Lucien Damar",
+      "slug": "lucien-damar",
+      "age": 29,
+      "occupation": "violinist and composer",
+      "biography": "Lucien performs for nobles and dockworkers, but the tune everyone requests was built with a singer who never received credit. He wants the truth on the next program."
+    },
+    {
+      "name": "Iria Montrose",
+      "slug": "iria-montrose",
+      "age": 32,
+      "occupation": "jeweller",
+      "biography": "Iria repairs heirlooms without hiding the seam. A wealthy client once accused her of devaluing a piece by telling its owner what the stone had survived."
+    },
+    {
+      "name": "Hugo Fen",
+      "slug": "hugo-fen",
+      "age": 47,
+      "occupation": "household manager",
+      "biography": "Hugo has kept a wealthy household working through funerals, births, and a failed harvest. His own family sees him most often when another family is away."
+    },
+    {
+      "name": "Bruna Kest",
+      "slug": "bruna-kest",
+      "age": 38,
+      "occupation": "master shipwright",
+      "biography": "Bruna rebuilt ferries after the great storm and knows exactly which timber substitutions saved time. She has spent years correcting other people’s plans and wants an understudy she can trust."
+    },
+    {
+      "name": "Mateo Salt",
+      "slug": "mateo-salt",
+      "age": 30,
+      "occupation": "sailmaker",
+      "biography": "Mateo inherited a pattern book from his father and an unpaid invoice from the same voyage. He is inventive with cloth and evasive with lenders."
+    },
+    {
+      "name": "Yara Nouri",
+      "slug": "yara-nouri",
+      "age": 26,
+      "occupation": "rigging apprentice",
+      "biography": "Yara learned knots on her family’s fishing boat and joined the formal school to earn work beyond the cays. She wants credit as a rigger, not praise for being brave."
+    },
+    {
+      "name": "Dorian Pike",
+      "slug": "dorian-pike",
+      "age": 44,
+      "occupation": "ship carpenter and former pirate",
+      "biography": "Dorian fought under a pirate flag and struck a boarding officer he still believes was unarmed. He has built safer ships for years but has never given the officer’s family his account."
+    },
+    {
+      "name": "Levi Ash",
+      "slug": "levi-ash",
+      "age": 28,
+      "occupation": "ropemaker",
+      "biography": "Levi makes rope that ships depend on but sees his name disappear behind a yard stamp. He jokes while negotiating and later regrets how much he gives away."
+    },
+    {
+      "name": "Celia Mar",
+      "slug": "celia-mar",
+      "age": 33,
+      "occupation": "dockworkers’ organizer",
+      "biography": "Celia organized meal and wage ledgers during a storm season. She can speak for a crowd and sometimes forgets to ask whether its quietest members agree."
+    },
+    {
+      "name": "Inez Sol",
+      "slug": "inez-sol",
+      "age": 29,
+      "occupation": "sex worker and dancer",
+      "biography": "Inez works at the House of Hours and performs onstage by choice. A patron who admired her dancing now assumes he owns the story of her career."
+    },
+    {
+      "name": "Cassia Bloom",
+      "slug": "cassia-bloom",
+      "age": 36,
+      "occupation": "tavern proprietor",
+      "biography": "Cassia runs the Blue Lantern Inn with excellent locks and careful staff handovers. Her discretion has helped guests and hidden one debt she should have disclosed."
+    },
+    {
+      "name": "Luca Vane",
+      "slug": "luca-vane",
+      "age": 32,
+      "occupation": "independent sex worker and singer",
+      "biography": "Luca chooses clients and singing engagements separately. He resents patrons who treat payment as a right to his private history and friends who assume the work prevents real ambition."
+    },
+    {
+      "name": "Fen Moreno",
+      "slug": "fen-moreno",
+      "age": 24,
+      "occupation": "musician and stagehand",
+      "biography": "Fen can mend a stage in the morning and make it sound alive at night. They want credit for arranging music that audiences attribute to the headliner."
+    },
+    {
+      "name": "Javier Ro",
+      "slug": "javier-ro",
+      "age": 40,
+      "occupation": "cook",
+      "biography": "Javier fed crews on credit during a lean season and still keeps the ledger, though he dislikes what it implies. He knows food is comfort and also a business with wages."
+    },
+    {
+      "name": "Maia Bel",
+      "slug": "maia-bel",
+      "age": 28,
+      "occupation": "knife-thrower and performer",
+      "biography": "Maia’s act depends on trust and precise rehearsal. A patron wants a more dangerous trick because he mistakes real risk for excitement."
+    },
+    {
+      "name": "Dr. Amara Kade",
+      "slug": "amara-kade",
+      "age": 35,
+      "occupation": "coastal physician",
+      "biography": "Amara treats injuries without asking a flag’s color first. A pirate she saved once returned with a crew harmed by the same conflict; neutrality now feels less simple."
+    },
+    {
+      "name": "Bastien Crow",
+      "slug": "bastien-crow",
+      "age": 37,
+      "occupation": "coastguard commander",
+      "biography": "Bastien led a boarding that killed two raiders and saved a captured crew. He will defend the decision in public but knows the casualty report names people, not symbols."
+    },
+    {
+      "name": "Talia Wren",
+      "slug": "talia-wren",
+      "age": 33,
+      "occupation": "lighthouse keeper",
+      "biography": "Talia kept the light through a storm while the town called her heroic; she was mostly frightened and well trained. She wants colleagues credited for work done out of view."
+    },
+    {
+      "name": "Oren Gale",
+      "slug": "oren-gale",
+      "age": 50,
+      "occupation": "storm forecaster",
+      "biography": "Oren’s storm warnings are respected because he records his misses. He once delayed an alarm to confirm a reading and has never stopped calculating the cost."
+    },
+    {
+      "name": "Nera Tide",
+      "slug": "nera-tide",
+      "age": 26,
+      "occupation": "salvage diver",
+      "biography": "Nera has recovered cargo and bodies from the same wreck. She wants salvage work to pay fairly without turning every found object into someone else’s prize."
+    },
+    {
+      "name": "Sami Haddad",
+      "slug": "sami-haddad",
+      "age": 29,
+      "occupation": "fort quartermaster",
+      "biography": "Sami can find a missing powder keg faster than most officers can name a guard shift. He dislikes how often the safest choice is hidden behind a tidy inventory."
+    },
+    {
+      "name": "Captain Mara Blackfin",
+      "slug": "mara-blackfin",
+      "age": 43,
+      "occupation": "free captain and pirate",
+      "biography": "Mara took an Admiralty patrol cutter in Year 91; people died and the stories still disagree about who fired first. She protects cay families fiercely and refuses to be called innocent."
+    },
+    {
+      "name": "Idris Vale",
+      "slug": "idris-vale",
+      "age": 32,
+      "occupation": "smuggler and boat owner",
+      "biography": "Idris moves goods across taxes he considers predatory. His cousin Seraphine financed his first boat and now expects a ledger he cannot provide without exposing friends."
+    },
+    {
+      "name": "Sora Bay",
+      "slug": "sora-bay",
+      "age": 30,
+      "occupation": "fisher and village councilor",
+      "biography": "Sora fishes before council meetings and knows exactly how city timetables erase island work. She can compromise on price but not on who gets to speak for her neighbors."
+    },
+    {
+      "name": "Keon Flint",
+      "slug": "keon-flint",
+      "age": 35,
+      "occupation": "reef pilot",
+      "biography": "Keon has guided ships through channels that change after every storm. He loves the skill and resents captains who treat his knowledge as a temporary expense."
+    },
+    {
+      "name": "Nadia Storm",
+      "slug": "nadia-storm",
+      "age": 27,
+      "occupation": "navigation apprentice",
+      "biography": "Nadia left a comfortable city apprenticeship to learn live reefs. She wants independent certification and hates that a single mistake is remembered longer than her good routes."
+    },
+    {
+      "name": "Elias Reed",
+      "slug": "elias-reed",
+      "age": 46,
+      "occupation": "island schoolmaster",
+      "biography": "Elias teaches charts, letters, and tide sense to island families. His former students now argue with him in council, which is exactly what he hoped would happen."
+    }
+  ]
+}

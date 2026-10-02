@@ -22,10 +22,9 @@ export function WorldPulseV2Section({ worldName, events, onOpen, onViewAll }: {
       <Pressable accessibilityRole="button" accessibilityLabel="View all World Pulse events" onPress={onViewAll} hitSlop={8}><Text style={styles.all}>View all →</Text></Pressable></View>
     {!events.length?<View style={styles.loadError}><Text style={styles.loadErrorText}>Nothing new in the last 24 hours. Check back soon.</Text></View>
       :<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} accessibilityLabel={`World Pulse in ${worldName}`}>
-      {events.slice(0, 5).map((event) => <Pressable key={event.id} accessibilityRole="button" accessibilityLabel={`${event.title}, ${event.location.name}`} onPress={() => onOpen(event)} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
-        <View style={styles.cardTop}><Text style={styles.status}>RECENT</Text><View style={styles.cardTime}><Clock3 size={13} color="#BFA9BE" /><Text style={styles.timeText}>{relativePulseTime(event.occurredAt)}</Text></View></View>
-        <Text numberOfLines={2} style={styles.cardTitle}>{event.title}</Text>
-        <Text numberOfLines={3} style={styles.summary}>{event.feedSummary}</Text>
+      {[...events].sort((a, b) => Number(b.eventTier === 'major') - Number(a.eventTier === 'major') || Date.parse(b.occurredAt) - Date.parse(a.occurredAt)).slice(0, 5).map((event) => <Pressable key={event.id} accessibilityRole="button" accessibilityLabel={`${event.feedSummary}, ${event.location.name}`} onPress={() => onOpen(event)} style={({ pressed }) => [styles.card, event.eventTier === 'major' && styles.majorCard, pressed && styles.pressed]}>
+        <View style={styles.cardTop}><Text style={[styles.status, event.eventTier === 'major' && styles.majorStatus]}>{event.eventTier === 'major' ? 'MAJOR EVENT' : 'RECENT'}</Text><View style={styles.cardTime}><Clock3 size={13} color="#BFA9BE" /><Text style={styles.timeText}>{relativePulseTime(event.occurredAt)}</Text></View></View>
+        <Text numberOfLines={4} style={styles.summary}>{event.feedSummary}</Text>
         <View style={styles.location}><MapPin size={13} color="#E79AC0" /><Text numberOfLines={1} style={styles.locationText}>{event.location.name}</Text></View>
         <View style={styles.peopleRow}><View style={styles.avatars}>{event.participants.map((person) => <CharacterAvatar key={person.characterTemplateId} slug={person.slug} name={person.name} size={23}/>)}</View><Text numberOfLines={1} style={styles.people}>{event.participants.map((person) => person.name).join(' · ')}</Text></View>
       </Pressable>)}
@@ -39,7 +38,6 @@ export function WorldPulseV2Skeleton({ worldName }: { worldName: string }) {
     <ScrollView horizontal scrollEnabled={false} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
       {[0, 1].map((item) => <View key={item} style={[styles.card, styles.skeletonCard]}>
         <View style={[styles.skeletonLine, styles.skeletonKicker]} />
-        <View style={[styles.skeletonLine, styles.skeletonTitle]} />
         <View style={[styles.skeletonLine, styles.skeletonBody]} />
         <View style={[styles.skeletonLine, styles.skeletonBodyShort]} />
         <View style={[styles.skeletonLine, styles.skeletonPlace]} />
@@ -64,13 +62,14 @@ const styles = StyleSheet.create({
   all: { color: '#E8A5D0', fontSize: 12, fontWeight: '800', paddingBottom: 5 },
   rail: { gap: 12, paddingRight: 8 },
   card: { width: 284, minHeight: 190, padding: 17, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(203,105,158,.17)', backgroundColor: 'rgba(26,18,29,.76)', gap: 8 },
+  majorCard: { borderWidth: 2, borderColor: '#DD5C69', backgroundColor: 'rgba(56,23,35,.84)' },
   pressed: { opacity: .82, transform: [{ scale: .992 }] },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTime: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   timeText: { color: '#BFA9BE', fontSize: 10 },
   status: { color: '#72D7C2', fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
-  cardTitle: { color: colors.text, fontFamily: typography.display, fontSize: 20, lineHeight: 24 },
-  summary: { color: '#BEB4C0', fontSize: 12, lineHeight: 17, flex: 1 },
+  majorStatus: { color: '#FF9FA9' },
+  summary: { color: colors.text, fontSize: 15, lineHeight: 21, flex: 1 },
   location: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   locationText: { color: '#E8C6D8', fontSize: 11, fontWeight: '800', flex: 1 },
   peopleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
@@ -79,7 +78,6 @@ const styles = StyleSheet.create({
   skeletonCard: { height: 190, overflow: 'hidden', backgroundColor: 'rgba(35,25,38,.64)' },
   skeletonLine: { height: 10, borderRadius: 7, backgroundColor: 'rgba(222,173,207,.13)' },
   skeletonKicker: { width: 63, height: 8, marginBottom: 5 },
-  skeletonTitle: { width: '76%', height: 18, marginBottom: 3 },
   skeletonBody: { width: '94%' },
   skeletonBodyShort: { width: '69%' },
   skeletonPlace: { width: '46%', marginTop: 'auto' },

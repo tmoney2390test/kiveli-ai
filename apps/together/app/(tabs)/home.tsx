@@ -11,6 +11,7 @@ import { HomeHeader } from '../../src/components/home/HomeHeader';
 import { HomeWorldDiscoveryHero } from '../../src/components/home/HomeWorldDiscoveryHero';
 import { AroundTownSection } from '../../src/components/home/AroundTownSection';
 import { WorldPulseV2LoadError, WorldPulseV2Section, WorldPulseV2Skeleton } from '../../src/components/home/WorldPulseV2Section';
+import { WorldPulseEventModal } from '../../src/components/WorldPulseEventModal';
 import { colors, spacing, typography } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { loadExploreCatalog, markProactiveOpened, setCharacterFavorite, simulate } from '../../src/lib/api';
@@ -44,6 +45,7 @@ export default function Home() {
   const lastRecommendationLoadHeight=useRef(0);
   const recommendationRevealTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const [recommendationsRevealing,setRecommendationsRevealing]=useState(false);
+  const [selectedPulseEventId,setSelectedPulseEventId]=useState<string|null>(null);
   useEffect(()=>{
     if(recommendationRevealTimer.current)clearTimeout(recommendationRevealTimer.current);
     recommendationRevealTimer.current=null;
@@ -174,12 +176,13 @@ export default function Home() {
     {secondaryWorkReady?<>
       {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Pressable accessibilityRole="button" accessibilityLabel="View all recently shared moments" hitSlop={6} onPress={() => router.push('/(tabs)/moments')} style={({pressed})=>[styles.sectionActionButton,pressed&&styles.sectionActionPressed]}><Text style={styles.sectionAction}>View all →</Text></Pressable></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
       {pulseWorld&&worldPulse?.worldId===pulseWorld.id?(worldPulse.version===2
-        ?<WorldPulseV2Section worldName={pulseWorld.name} events={worldPulse.events} onOpen={(event)=>router.push(`/world-pulse/${event.id}` as never)} onViewAll={()=>router.push(`/world-pulse?world=${pulseWorld.slug}` as never)}/>
+        ?<WorldPulseV2Section worldName={pulseWorld.name} events={worldPulse.events} onOpen={(event)=>setSelectedPulseEventId(event.id)} onViewAll={()=>router.push(`/world-pulse?world=${pulseWorld.slug}` as never)}/>
         :<AroundTownSection worldName={pulseWorld.name} items={worldPulse.items.slice(0,5)} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${pulseWorld.slug}`);router.push(`/(tabs)/explore?world=${pulseWorld.slug}`);}}/>)
         :pulseWorld&&pulseScope&&worldPulsePending?<WorldPulseV2Skeleton worldName={pulseWorld.name}/>
         :pulseWorld&&pulseScope&&worldPulseError?<WorldPulseV2LoadError onRetry={()=>void refetchWorldPulse()}/>:null}
       {selectedWorld ? <FeaturedCompanionsSection initialCount={recommendationBatchSize} totalCount={featuredCompanions.length} revealing={recommendationsRevealing} onRevealMore={()=>revealMoreRecommendations(featuredCompanions.length)} companions={featuredCompanions.slice(0,visibleRecommendationCount)} world={selectedWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onExplore={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/explore?world=${selectedWorld.slug}`); }} onToggleFavorite={toggleFavorite} /> : null}
     </>:<HomeSecondaryLoading/>}
+    <WorldPulseEventModal eventId={selectedPulseEventId} onClose={()=>setSelectedPulseEventId(null)} onNavigate={(href)=>{setSelectedPulseEventId(null);router.push(href);}}/>
   </Screen>;
 }
 

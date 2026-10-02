@@ -2,6 +2,7 @@ import { catalogArtwork } from './catalogArtwork';
 import type { ImageSource } from 'expo-image';
 import { worldHeroAssets } from './world-assets';
 import { mappedLocationAsset } from './location-assets';
+import { gildedCoastCharacterAssets } from './character-assets/gilded-coast';
 
 export const characterAssets:Record<string,ImageSource>={
   maya:catalogArtwork('maya-portrait.jpg'),
@@ -375,6 +376,7 @@ export const characterAssets:Record<string,ImageSource>={
   'silas-quade':catalogArtwork('characters/calders-run/silas-quade.jpg'),
   'bess-kincaid':catalogArtwork('characters/calders-run/bess-kincaid.jpg'),
   'sabine-roche':catalogArtwork('characters/calders-run/sabine-roche.jpg'),
+  ...gildedCoastCharacterAssets,
 };
 export const cityLifeAsset=catalogArtwork('locations/juniper-city/juniper-city.jpg');
 export const appIconAsset=require('../assets/startup/app-icon.webp');

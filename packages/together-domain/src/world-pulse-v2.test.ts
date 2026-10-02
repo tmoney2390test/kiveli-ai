@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   planWorldPulseHorizon, worldPulseDailyBudget, worldPulseThirtyDayAllocationFits, worldPulseIsDiscoverable, worldPulsePortraitCellWidth, worldPulseV2LegacyItems, knownWorldPulseFacts,
-  worldPulseRepeatEligible, WORLD_PULSE_REPEAT_COOLDOWN_HOURS,
+  worldPulseRepeatEligible, WORLD_PULSE_REPEAT_COOLDOWN_HOURS, worldPulseMajorSlot,
   type PulseTemplateForSchedule,
 } from './world-pulse-v2';
 
@@ -31,6 +31,18 @@ describe('pre-V2 native compatibility', () => {
 });
 
 describe('global World Pulse rotation', () => {
+  it('places fifteen major incidents across ten weeks with three-day gaps and seventy-day repeats', () => {
+    const slots = Array.from({ length: 140 }, (_, day) => worldPulseMajorSlot(new Date(Date.parse('2026-10-05T00:00:00Z') + day * 86_400_000).toISOString().slice(0, 10)))
+      .filter((slot): slot is NonNullable<typeof slot> => slot !== null);
+    expect(slots).toHaveLength(30);
+    expect(new Set(slots.slice(0, 15).map((slot) => slot.schedulingRank)).size).toBe(15);
+    expect(slots.slice(0, 15).map((slot, index) => (Date.parse(slot.occurredAt) - Date.parse(slots[index + 15]!.occurredAt)) / 3_600_000))
+      .toEqual(Array(15).fill(-70 * 24));
+    for (let index = 1; index < slots.length; index++) {
+      expect(Date.parse(slots[index]!.occurredAt) - Date.parse(slots[index - 1]!.occurredAt)).toBeGreaterThanOrEqual(3 * 86_400_000);
+    }
+    expect(worldPulseMajorSlot('2026-10-04')).toBeNull();
+  });
   it('uses 200 slots in a varied 30-day cycle', () => {
     const budgets = Array.from({ length: 30 }, (_, day) => worldPulseDailyBudget(day));
     expect(budgets.reduce((sum, count) => sum + count, 0)).toBe(200);

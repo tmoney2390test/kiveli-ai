@@ -19,6 +19,7 @@ import { temporalContinuitySummary, type WorldPulseContextEvent } from '../../..
 import { resolveRelevantWorldPulse } from './kivelle-world-pulse.ts';
 import { worldPulseV2EnabledForWorld } from './kivelle-world-pulse-v2.ts';
 import { loadLinkedWorldPulseForSpeaker, type LinkedWorldPulseSpeakerContext } from './world-pulse-speaker-context.ts';
+import { loadRecentMajorWorldIncidents, type MajorWorldIncidentContext } from './world-pulse-major-context.ts';
 import { naturalizeCharacterActivity, naturalizeCharacterEventSummary, naturalizeCharacterEventTitle } from '../../../packages/together-domain/src/character-language.ts';
 import type { ChatGenerationPreferences } from '../../../packages/together-domain/src/chat-generation.ts';
 
@@ -62,6 +63,7 @@ export type KivelleConversationContext = {
   social: Array<{ id:string; characterTemplateId:string; name:string; slug:string; relationship:string; history:string|null; affinity:number; trust:number; direction:'outgoing'|'incoming'; privateTension:string|null; knowledgeScope:string; userHasMet:boolean }>;
   knownLifeEvents: Array<{ id:string; title:string; summary:string; startsAt:string }>;
   worldPulse:WorldPulseContextEvent[];
+  majorWorldIncidents:MajorWorldIncidentContext[];
   linkedWorldPulse:LinkedWorldPulseSpeakerContext|null;
   temporalContinuity:{elapsedHours:number|null;events:Array<{title:string;summary:string;startsAt:string}>};
   location: Row|null;
@@ -165,9 +167,13 @@ export async function buildKivelleConversationContext(input: {
   const referencedPlaces=(await Promise.all(referencedLocationRows.map((item:Row)=>resolvePlaceContext({db,locationId:String(item.id),now,userId,characterInstanceId:String(instance.id)}).catch(()=>null)))).filter((item):item is PlaceContext=>Boolean(item));
   const pulseV2ForCurrentWorld = place?.world.id
     ? await worldPulseV2EnabledForWorld(db, String(place.world.id)) : false;
-  const [placePerspectives,worldPulse]=await Promise.all([
+  const [placePerspectives,worldPulse,majorWorldIncidents]=await Promise.all([
     loadPlacePerspectives({db,userId,characterInstanceId:String(instance.id),characterVersionId:String(instance.character_version_id),places:[place,...referencedPlaces].filter((item):item is PlaceContext=>Boolean(item))}),
     place?.world.id&&!pulseV2ForCurrentWorld?resolveRelevantWorldPulse({db,userId,continuityId:String(instance.continuity_id),worldId:String(place.world.id),userMessage,currentLocationId:locationId,districtLocationId:place.district?.id??null,characterInstanceId:String(instance.id),characterIsLocal:true,now,maximumResults:historyIntent||planningIntent?3:2}).catch(()=>[]):[],
+    loadRecentMajorWorldIncidents({db,characterVersionId:String(instance.character_version_id),characterTemplateId:String(instance.character_template_id),now}).catch(()=>{
+      console.warn(JSON.stringify({metric:'major_pulse_context_read_failed',stage:'editorial'}));
+      return [];
+    }),
   ]);
   const visibleLifeEvents=(events.data??[]).filter((item:Row)=>item.user_should_know!==false&&!isConvertedArcEvent(item)).map((item:Row)=>({id:String(item.id),title:naturalizeCharacterEventTitle(item.title,item.event_type),summary:naturalizeCharacterEventSummary(item.narrative_summary),startsAt:String(item.starts_at),significance:Number(item.significance??.5)}));
   const temporalContinuity=temporalContinuitySummary({lastMessageAt:conversation.last_message_at??conversation.updated_at,now,events:[...visibleLifeEvents,...worldPulse.map(item=>({title:item.title,summary:item.summary,startsAt:item.startsAt,significance:item.significance}))]});
@@ -270,6 +276,7 @@ export async function buildKivelleConversationContext(input: {
   const linkedWorldPulse = await loadLinkedWorldPulseForSpeaker({ db, userId,
     continuityId: String(instance.continuity_id), conversationId: String(conversation.id),
     characterTemplateId: String(instance.character_template_id), userMessage, now });
+  const backgroundMajorIncidents = majorWorldIncidents.filter((item) => item.id !== linkedWorldPulse?.eventId);
   return {
     contentAccess:{authorizedWebAdult:input.authorizedWebAdult===true,authorizedPrivateAdultText:input.authorizedPrivateAdultText===true,clientSurface:input.clientSurface??(input.authorizedWebAdult?'web':'native_or_unknown')},
     personalizationEnabled,
@@ -288,12 +295,12 @@ export async function buildKivelleConversationContext(input: {
     userPatterns:personalizationEnabled?(patterns.data??[]).map((item:Row)=>({id:String(item.id),patternKey:String(item.pattern_key),category:String(item.category),summary:String(item.summary),confidence:Number(item.confidence??0)})):[],
     recentEpisodes:personalizationEnabled?(episodes.data??[]).map((item:Row)=>({id:String(item.id),title:String(item.title),summary:String(item.summary),significance:Number(item.significance??0),locationId:item.location_id??null,endedAt:String(item.ended_at)})):[],
     openThreads:personalizationEnabled&&memoryPreferences.open_thread!==false?(threads.data??[]).map((thread:Row)=>threadContext(thread)):[], social,
-    knownLifeEvents:visibleLifeEvents.map(({id,title,summary,startsAt})=>({id,title,summary,startsAt})).slice(0,6),worldPulse,linkedWorldPulse,temporalContinuity,
+    knownLifeEvents:visibleLifeEvents.map(({id,title,summary,startsAt})=>({id,title,summary,startsAt})).slice(0,6),worldPulse,majorWorldIncidents:backgroundMajorIncidents,linkedWorldPulse,temporalContinuity,
     location:currentLocation,place,referencedPlaces,placePerspectives,userAttachments,sceneParticipants,worldFacts:[],dialogueOpportunities:[],sceneInteractionBeats:[],
     recentMedia:personalizationEnabled?(media.data??[]).map((item:Row)=>({id:String(item.id),summary:String(item.metadata?.sceneSummary??'A recent shared photo.'),createdAt:String(item.created_at),locationId:item.location_id})):[],
     sharedHistory:history,conversationEpisodes, conversationSummary:input.authorizedPrivateAdultText?String((conversation.canonical_context as Row|undefined)?.summary??conversation.summary??''):String((conversation.safe_context as Row|undefined)?.summary??''), conversationSummaryUpdatedAt:conversation.summary_through??conversation.updated_at??undefined, conversationFocus:resolveConversationFocus(conversation.metadata?.focus as Row|null,plansView,now),
     recent:(messages.data??[]).filter((item:Row)=>item.provider_metadata?.uiHidden!==true).reverse().map(attributedRecentTurn), userMessage, queryIntent:resolvedIntent,
-    debug:{sources:['persona','continuity','life-engine','schedule','shared-plans','dates','stories','memory','open-threads','social-graph','location','history','conversation-episodes','world-pulse'],limits:{memories:memoryRows.length,threads:memoryPreferences.open_thread===false?0:(threads.data??[]).length,recentMessages:(messages.data??[]).length,history:history.length,conversationEpisodes:conversationEpisodes.length,worldPulse:worldPulse.length,temporalContinuity:temporalContinuity.events.length}},
+    debug:{sources:['persona','continuity','life-engine','schedule','shared-plans','dates','stories','memory','open-threads','social-graph','location','history','conversation-episodes','world-pulse'],limits:{memories:memoryRows.length,threads:memoryPreferences.open_thread===false?0:(threads.data??[]).length,recentMessages:(messages.data??[]).length,history:history.length,conversationEpisodes:conversationEpisodes.length,worldPulse:worldPulse.length,majorWorldIncidents:backgroundMajorIncidents.length,temporalContinuity:temporalContinuity.events.length}},
   };
 }
 

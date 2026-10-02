@@ -1,0 +1,642 @@
+[
+  {
+    "id": "story-gilded-the-missing-fight-log",
+    "arcSlug": "the-missing-fight-log",
+    "arcTitle": "The Missing Fight Log",
+    "title": "The Missing Fight Log",
+    "worldId": "10000000-0000-4000-8000-000000000014",
+    "worldSlug": "gilded-coast",
+    "leadName": "Captain Elara Voss",
+    "characterSlug": "elara-voss",
+    "characterTemplateId": "24000000-0000-4000-8014-000000000001",
+    "gender": "female",
+    "locationId": "2e000000-0000-4000-8014-000000000007",
+    "locationSlug": "harbor-court",
+    "locationName": "Harbor Court",
+    "themes": [
+      "Gilded Coast",
+      "Storyline"
+    ],
+    "setup": "A former gunner asks Harbor Court to correct the casualty record of the Year 91 boarding. Elara and Mara give incompatible accounts, and a torn log page might narrow the dispute.",
+    "requiredState": null,
+    "opening": "Begin with the concrete public incident, in the lead’s own voice. Invite a question or action; do not deliver a whole investigation unprompted.",
+    "guidance": "The player can ask questions, decline to investigate, or spend ordinary time with the lead. Romance is optional.",
+    "minRelationshipStage": "acquaintance",
+    "chapters": [
+      {
+        "id": "the-missing-fight-log-1",
+        "title": "The incident",
+        "guidance": "Hear the gunner’s specific grievance at Harbor Court.",
+        "knowledge": [],
+        "locationId": "2e000000-0000-4000-8014-000000000007"
+      },
+      {
+        "id": "the-missing-fight-log-2",
+        "title": "A second account",
+        "guidance": "Compare the copied signal entry with a clinic admission time.",
+        "knowledge": [
+          {
+            "title": "The casualty list is incomplete.",
+            "gate": "Only after the evidence or witness in part 2 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000007"
+      },
+      {
+        "id": "the-missing-fight-log-3",
+        "title": "The evidence",
+        "guidance": "Ask Elara and Mara separately what they saw, without treating either suspicion as proof.",
+        "knowledge": [
+          {
+            "title": "A copied signal entry exists, but its time is disputed.",
+            "gate": "Only after the evidence or witness in part 3 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000007"
+      },
+      {
+        "id": "the-missing-fight-log-4",
+        "title": "A local choice",
+        "guidance": "Choose whether to publish a bounded correction, request another witness, or leave the contested cause unresolved.",
+        "knowledge": [
+          {
+            "title": "Neither account alone establishes who fired after surrender.",
+            "gate": "Only after the evidence or witness in part 4 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000007"
+      }
+    ],
+    "canon": [
+      "The casualty list is incomplete.",
+      "A copied signal entry exists, but its time is disputed.",
+      "Neither account alone establishes who fired after surrender."
+    ],
+    "outcomes": [
+      "The public casualty list is corrected while blame remains disputed.",
+      "A new witness is sought before a public correction.",
+      "The cause remains contested, but the affected family receives its record."
+    ],
+    "knowledgeRule": "Only the lead knows what they witnessed or were told. Do not copy private disclosures to other characters automatically."
+  },
+  {
+    "id": "story-gilded-the-ferry-seat",
+    "arcSlug": "the-ferry-seat",
+    "arcTitle": "The Ferry Seat",
+    "title": "The Ferry Seat",
+    "worldId": "10000000-0000-4000-8000-000000000014",
+    "worldSlug": "gilded-coast",
+    "leadName": "Rafiq Nadir",
+    "characterSlug": "rafiq-nadir",
+    "characterTemplateId": "24000000-0000-4000-8014-000000000004",
+    "gender": "male",
+    "locationId": "2e000000-0000-4000-8014-000000000005",
+    "locationSlug": "ferry-hall",
+    "locationName": "Ferry Hall",
+    "themes": [
+      "Gilded Coast",
+      "Storyline"
+    ],
+    "setup": "A changed ferry timetable strands several island workers on a pay day. The posted notice was valid, but its timing favored city passengers.",
+    "requiredState": null,
+    "opening": "Begin with the concrete public incident, in the lead’s own voice. Invite a question or action; do not deliver a whole investigation unprompted.",
+    "guidance": "The player can ask questions, decline to investigate, or spend ordinary time with the lead. Romance is optional.",
+    "minRelationshipStage": "acquaintance",
+    "chapters": [
+      {
+        "id": "the-ferry-seat-1",
+        "title": "The incident",
+        "guidance": "Meet the stranded workers in Ferry Hall.",
+        "knowledge": [],
+        "locationId": "2e000000-0000-4000-8014-000000000005"
+      },
+      {
+        "id": "the-ferry-seat-2",
+        "title": "A second account",
+        "guidance": "Read the posted notice and check the signal log.",
+        "knowledge": [
+          {
+            "title": "The notice was posted before dawn.",
+            "gate": "Only after the evidence or witness in part 2 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000005"
+      },
+      {
+        "id": "the-ferry-seat-3",
+        "title": "The evidence",
+        "guidance": "Negotiate a safe temporary crossing with Rafiq and the permit desk.",
+        "knowledge": [
+          {
+            "title": "Island households received it after their boats had left.",
+            "gate": "Only after the evidence or witness in part 3 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000005"
+      },
+      {
+        "id": "the-ferry-seat-4",
+        "title": "A local choice",
+        "guidance": "Decide what timetable change to request at the next hearing.",
+        "knowledge": [
+          {
+            "title": "An unused cargo crossing could carry passengers if its permit changes.",
+            "gate": "Only after the evidence or witness in part 4 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000005"
+      }
+    ],
+    "canon": [
+      "The notice was posted before dawn.",
+      "Island households received it after their boats had left.",
+      "An unused cargo crossing could carry passengers if its permit changes."
+    ],
+    "outcomes": [
+      "A one-day crossing gets approved with a written review.",
+      "Passengers receive lodging and a guaranteed morning seat.",
+      "The hearing records the island council’s objection."
+    ],
+    "knowledgeRule": "Only the lead knows what they witnessed or were told. Do not copy private disclosures to other characters automatically."
+  },
+  {
+    "id": "story-gilded-the-sail-with-two-names",
+    "arcSlug": "the-sail-with-two-names",
+    "arcTitle": "The Sail With Two Names",
+    "title": "The Sail With Two Names",
+    "worldId": "10000000-0000-4000-8000-000000000014",
+    "worldSlug": "gilded-coast",
+    "leadName": "Mateo Salt",
+    "characterSlug": "mateo-salt",
+    "characterTemplateId": "24000000-0000-4000-8014-000000000014",
+    "gender": "male",
+    "locationId": "2e000000-0000-4000-8014-000000000017",
+    "locationSlug": "sail-loft",
+    "locationName": "Sail Loft",
+    "themes": [
+      "Gilded Coast",
+      "Storyline"
+    ],
+    "setup": "A new storm sail wins a demonstration, but the public handbill names only Mateo. Yara designed the seam that kept it intact.",
+    "requiredState": null,
+    "opening": "Begin with the concrete public incident, in the lead’s own voice. Invite a question or action; do not deliver a whole investigation unprompted.",
+    "guidance": "The player can ask questions, decline to investigate, or spend ordinary time with the lead. Romance is optional.",
+    "minRelationshipStage": "acquaintance",
+    "chapters": [
+      {
+        "id": "the-sail-with-two-names-1",
+        "title": "The incident",
+        "guidance": "See the demonstration and its faulty handbill.",
+        "knowledge": [],
+        "locationId": "2e000000-0000-4000-8014-000000000017"
+      },
+      {
+        "id": "the-sail-with-two-names-2",
+        "title": "A second account",
+        "guidance": "Compare work notes with the tested seam.",
+        "knowledge": [
+          {
+            "title": "Yara’s dated work notes show the seam design.",
+            "gate": "Only after the evidence or witness in part 2 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000017"
+      },
+      {
+        "id": "the-sail-with-two-names-3",
+        "title": "The evidence",
+        "guidance": "Help arrange a safe second test and hear both claims to credit.",
+        "knowledge": [
+          {
+            "title": "Mateo arranged the test and paid for the canvas.",
+            "gate": "Only after the evidence or witness in part 3 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000017"
+      },
+      {
+        "id": "the-sail-with-two-names-4",
+        "title": "A local choice",
+        "guidance": "Choose a program and payment correction that the makers can sign.",
+        "knowledge": [
+          {
+            "title": "Bruna will not certify the sail until a second stress test.",
+            "gate": "Only after the evidence or witness in part 4 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000017"
+      }
+    ],
+    "canon": [
+      "Yara’s dated work notes show the seam design.",
+      "Mateo arranged the test and paid for the canvas.",
+      "Bruna will not certify the sail until a second stress test."
+    ],
+    "outcomes": [
+      "The second test passes and credit is shared.",
+      "The sail is delayed while the seam is revised.",
+      "The handbill is corrected even if the contract remains disputed."
+    ],
+    "knowledgeRule": "Only the lead knows what they witnessed or were told. Do not copy private disclosures to other characters automatically."
+  },
+  {
+    "id": "story-gilded-an-evening-bought-twice",
+    "arcSlug": "an-evening-bought-twice",
+    "arcTitle": "An Evening Bought Twice",
+    "title": "An Evening Bought Twice",
+    "worldId": "10000000-0000-4000-8000-000000000014",
+    "worldSlug": "gilded-coast",
+    "leadName": "Inez Sol",
+    "characterSlug": "inez-sol",
+    "characterTemplateId": "24000000-0000-4000-8014-000000000019",
+    "gender": "female",
+    "locationId": "2e000000-0000-4000-8014-000000000025",
+    "locationSlug": "house-of-hours",
+    "locationName": "House of Hours",
+    "themes": [
+      "Gilded Coast",
+      "Storyline"
+    ],
+    "setup": "Two patrons claim the same private performance booking. A copied receipt is real, but neither worker agreed to the added promise written on its reverse.",
+    "requiredState": null,
+    "opening": "Begin with the concrete public incident, in the lead’s own voice. Invite a question or action; do not deliver a whole investigation unprompted.",
+    "guidance": "The player can ask questions, decline to investigate, or spend ordinary time with the lead. Romance is optional.",
+    "minRelationshipStage": "acquaintance",
+    "chapters": [
+      {
+        "id": "an-evening-bought-twice-1",
+        "title": "The incident",
+        "guidance": "Hear the house’s access rule before seeing either receipt.",
+        "knowledge": [],
+        "locationId": "2e000000-0000-4000-8014-000000000025"
+      },
+      {
+        "id": "an-evening-bought-twice-2",
+        "title": "A second account",
+        "guidance": "Compare the signed booking with the altered copy.",
+        "knowledge": [
+          {
+            "title": "The house sold one performance reservation.",
+            "gate": "Only after the evidence or witness in part 2 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000025"
+      },
+      {
+        "id": "an-evening-bought-twice-3",
+        "title": "The evidence",
+        "guidance": "Ask Inez and Luca what they actually offered.",
+        "knowledge": [
+          {
+            "title": "The second receipt copied a payment number but added terms after signature.",
+            "gate": "Only after the evidence or witness in part 3 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000025"
+      },
+      {
+        "id": "an-evening-bought-twice-4",
+        "title": "A local choice",
+        "guidance": "Resolve the payment dispute without treating either worker as a prize.",
+        "knowledge": [
+          {
+            "title": "No paid booking can override a worker’s boundaries.",
+            "gate": "Only after the evidence or witness in part 4 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000025"
+      }
+    ],
+    "canon": [
+      "The house sold one performance reservation.",
+      "The second receipt copied a payment number but added terms after signature.",
+      "No paid booking can override a worker’s boundaries."
+    ],
+    "outcomes": [
+      "The false promise is voided and both patrons are refunded fairly.",
+      "The receipt dispute goes to Harbor Court.",
+      "The performance proceeds on the workers’ original terms."
+    ],
+    "knowledgeRule": "Only the lead knows what they witnessed or were told. Do not copy private disclosures to other characters automatically."
+  },
+  {
+    "id": "story-gilded-the-lantern-that-went-dark",
+    "arcSlug": "the-lantern-that-went-dark",
+    "arcTitle": "The Lantern That Went Dark",
+    "title": "The Lantern That Went Dark",
+    "worldId": "10000000-0000-4000-8000-000000000014",
+    "worldSlug": "gilded-coast",
+    "leadName": "Talia Wren",
+    "characterSlug": "talia-wren",
+    "characterTemplateId": "24000000-0000-4000-8014-000000000027",
+    "gender": "female",
+    "locationId": "2e000000-0000-4000-8014-000000000030",
+    "locationSlug": "lightkeep",
+    "locationName": "Lightkeep",
+    "themes": [
+      "Gilded Coast",
+      "Storyline"
+    ],
+    "setup": "The lighthouse lantern fails during a squall. A replacement pane was in storage, but an unsigned transfer left it at the wrong shelter.",
+    "requiredState": null,
+    "opening": "Begin with the concrete public incident, in the lead’s own voice. Invite a question or action; do not deliver a whole investigation unprompted.",
+    "guidance": "The player can ask questions, decline to investigate, or spend ordinary time with the lead. Romance is optional.",
+    "minRelationshipStage": "acquaintance",
+    "chapters": [
+      {
+        "id": "the-lantern-that-went-dark-1",
+        "title": "The incident",
+        "guidance": "Watch the emergency signal from Breakwater Point.",
+        "knowledge": [],
+        "locationId": "2e000000-0000-4000-8014-000000000030"
+      },
+      {
+        "id": "the-lantern-that-went-dark-2",
+        "title": "A second account",
+        "guidance": "Trace the pane through the inventory and carrier note.",
+        "knowledge": [
+          {
+            "title": "The keeper reported the crack before the storm.",
+            "gate": "Only after the evidence or witness in part 2 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000030"
+      },
+      {
+        "id": "the-lantern-that-went-dark-3",
+        "title": "The evidence",
+        "guidance": "Help restore a verified warning light with the rescue crew.",
+        "knowledge": [
+          {
+            "title": "The replacement pane existed in the shelter inventory.",
+            "gate": "Only after the evidence or witness in part 3 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000030"
+      },
+      {
+        "id": "the-lantern-that-went-dark-4",
+        "title": "A local choice",
+        "guidance": "Choose the handover repair to publish after the immediate danger passes.",
+        "knowledge": [
+          {
+            "title": "The delayed transfer is a process failure, not evidence of sabotage.",
+            "gate": "Only after the evidence or witness in part 4 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000030"
+      }
+    ],
+    "canon": [
+      "The keeper reported the crack before the storm.",
+      "The replacement pane existed in the shelter inventory.",
+      "The delayed transfer is a process failure, not evidence of sabotage."
+    ],
+    "outcomes": [
+      "The light is restored and a signed handover rule adopted.",
+      "Temporary flags remain until a safer pane arrives.",
+      "The inventory is corrected and the missed crossing documented."
+    ],
+    "knowledgeRule": "Only the lead knows what they witnessed or were told. Do not copy private disclosures to other characters automatically."
+  },
+  {
+    "id": "story-gilded-the-reef-on-paper",
+    "arcSlug": "the-reef-on-paper",
+    "arcTitle": "The Reef on Paper",
+    "title": "The Reef on Paper",
+    "worldId": "10000000-0000-4000-8000-000000000014",
+    "worldSlug": "gilded-coast",
+    "leadName": "Keon Flint",
+    "characterSlug": "keon-flint",
+    "characterTemplateId": "24000000-0000-4000-8014-000000000034",
+    "gender": "male",
+    "locationId": "2e000000-0000-4000-8014-000000000042",
+    "locationSlug": "sable-reef",
+    "locationName": "Sable Reef",
+    "themes": [
+      "Gilded Coast",
+      "Storyline"
+    ],
+    "setup": "A public chart marks a safe channel through a protected reef. The line was copied from an old survey; following it now damages fishing grounds.",
+    "requiredState": null,
+    "opening": "Begin with the concrete public incident, in the lead’s own voice. Invite a question or action; do not deliver a whole investigation unprompted.",
+    "guidance": "The player can ask questions, decline to investigate, or spend ordinary time with the lead. Romance is optional.",
+    "minRelationshipStage": "acquaintance",
+    "chapters": [
+      {
+        "id": "the-reef-on-paper-1",
+        "title": "The incident",
+        "guidance": "Compare old and new soundings on shore.",
+        "knowledge": [],
+        "locationId": "2e000000-0000-4000-8014-000000000042"
+      },
+      {
+        "id": "the-reef-on-paper-2",
+        "title": "A second account",
+        "guidance": "Hear the fisher and salvage views of the route.",
+        "knowledge": [
+          {
+            "title": "The original survey is dated before the last storm.",
+            "gate": "Only after the evidence or witness in part 2 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000042"
+      },
+      {
+        "id": "the-reef-on-paper-3",
+        "title": "The evidence",
+        "guidance": "Verify one crossing with Keon under safe conditions.",
+        "knowledge": [
+          {
+            "title": "Nadia’s new sounding differs at two points.",
+            "gate": "Only after the evidence or witness in part 3 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000042"
+      },
+      {
+        "id": "the-reef-on-paper-4",
+        "title": "A local choice",
+        "guidance": "Agree on a limited chart correction and who maintains it.",
+        "knowledge": [
+          {
+            "title": "The protected route can be described without publishing every fragile inlet.",
+            "gate": "Only after the evidence or witness in part 4 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000042"
+      }
+    ],
+    "canon": [
+      "The original survey is dated before the last storm.",
+      "Nadia’s new sounding differs at two points.",
+      "The protected route can be described without publishing every fragile inlet."
+    ],
+    "outcomes": [
+      "The public chart is corrected without exposing the fragile inlet.",
+      "A temporary warning is posted pending another sounding.",
+      "The salvage permit is narrowed to the verified channel."
+    ],
+    "knowledgeRule": "Only the lead knows what they witnessed or were told. Do not copy private disclosures to other characters automatically."
+  },
+  {
+    "id": "story-gilded-the-salons-last-note",
+    "arcSlug": "the-salons-last-note",
+    "arcTitle": "The Salon’s Last Note",
+    "title": "The Salon’s Last Note",
+    "worldId": "10000000-0000-4000-8000-000000000014",
+    "worldSlug": "gilded-coast",
+    "leadName": "Sabine Quill",
+    "characterSlug": "sabine-quill",
+    "characterTemplateId": "24000000-0000-4000-8014-000000000009",
+    "gender": "female",
+    "locationId": "2e000000-0000-4000-8014-000000000009",
+    "locationSlug": "pearl-salon",
+    "locationName": "Pearl Salon",
+    "themes": [
+      "Gilded Coast",
+      "Storyline"
+    ],
+    "setup": "A concert program credits Lucien for a duet Fen arranged. A patron offers to pay for the next performance only if the old program remains unchanged.",
+    "requiredState": null,
+    "opening": "Begin with the concrete public incident, in the lead’s own voice. Invite a question or action; do not deliver a whole investigation unprompted.",
+    "guidance": "The player can ask questions, decline to investigate, or spend ordinary time with the lead. Romance is optional.",
+    "minRelationshipStage": "acquaintance",
+    "chapters": [
+      {
+        "id": "the-salons-last-note-1",
+        "title": "The incident",
+        "guidance": "Hear the piece and see the printed credit.",
+        "knowledge": [],
+        "locationId": "2e000000-0000-4000-8014-000000000009"
+      },
+      {
+        "id": "the-salons-last-note-2",
+        "title": "A second account",
+        "guidance": "Compare the annotated score with the patron’s letter.",
+        "knowledge": [
+          {
+            "title": "Fen’s annotated score predates the printed program.",
+            "gate": "Only after the evidence or witness in part 2 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000009"
+      },
+      {
+        "id": "the-salons-last-note-3",
+        "title": "The evidence",
+        "guidance": "Ask the artists what they need beyond public applause.",
+        "knowledge": [
+          {
+            "title": "Lucien wrote the melody and agreed to the arrangement.",
+            "gate": "Only after the evidence or witness in part 3 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000009"
+      },
+      {
+        "id": "the-salons-last-note-4",
+        "title": "A local choice",
+        "guidance": "Choose how the next program, fee, and funding are handled.",
+        "knowledge": [
+          {
+            "title": "The funding offer is real but conditional.",
+            "gate": "Only after the evidence or witness in part 4 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000009"
+      }
+    ],
+    "canon": [
+      "Fen’s annotated score predates the printed program.",
+      "Lucien wrote the melody and agreed to the arrangement.",
+      "The funding offer is real but conditional."
+    ],
+    "outcomes": [
+      "Both artists are credited and the salon finds replacement funding.",
+      "The concert is delayed while the contract is renegotiated.",
+      "The corrected program is published even if the patron leaves."
+    ],
+    "knowledgeRule": "Only the lead knows what they witnessed or were told. Do not copy private disclosures to other characters automatically."
+  },
+  {
+    "id": "story-gilded-the-cargo-with-two-owners",
+    "arcSlug": "the-cargo-with-two-owners",
+    "arcTitle": "The Cargo With Two Owners",
+    "title": "The Cargo With Two Owners",
+    "worldId": "10000000-0000-4000-8000-000000000014",
+    "worldSlug": "gilded-coast",
+    "leadName": "Anika Saye",
+    "characterSlug": "anika-saye",
+    "characterTemplateId": "24000000-0000-4000-8014-000000000003",
+    "gender": "female",
+    "locationId": "2e000000-0000-4000-8014-000000000003",
+    "locationSlug": "customs-house",
+    "locationName": "Customs House",
+    "themes": [
+      "Gilded Coast",
+      "Storyline"
+    ],
+    "setup": "Two buyers paid honestly for one medicine cargo after a broker duplicated its receipt. The crates are needed before the next cay crossing.",
+    "requiredState": null,
+    "opening": "Begin with the concrete public incident, in the lead’s own voice. Invite a question or action; do not deliver a whole investigation unprompted.",
+    "guidance": "The player can ask questions, decline to investigate, or spend ordinary time with the lead. Romance is optional.",
+    "minRelationshipStage": "acquaintance",
+    "chapters": [
+      {
+        "id": "the-cargo-with-two-owners-1",
+        "title": "The incident",
+        "guidance": "Check the seals at Customs House.",
+        "knowledge": [],
+        "locationId": "2e000000-0000-4000-8014-000000000003"
+      },
+      {
+        "id": "the-cargo-with-two-owners-2",
+        "title": "A second account",
+        "guidance": "Compare payment records without exposing private patients.",
+        "knowledge": [
+          {
+            "title": "Both buyers hold authentic receipts.",
+            "gate": "Only after the evidence or witness in part 2 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000003"
+      },
+      {
+        "id": "the-cargo-with-two-owners-3",
+        "title": "The evidence",
+        "guidance": "Ask the clinic which supplies cannot wait.",
+        "knowledge": [
+          {
+            "title": "The broker sold the same shipment twice.",
+            "gate": "Only after the evidence or witness in part 3 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000003"
+      },
+      {
+        "id": "the-cargo-with-two-owners-4",
+        "title": "A local choice",
+        "guidance": "Agree on a documented release and a claim against the broker.",
+        "knowledge": [
+          {
+            "title": "The medicines can be divided safely only after the clinic checks the inventory.",
+            "gate": "Only after the evidence or witness in part 4 is actually examined."
+          }
+        ],
+        "locationId": "2e000000-0000-4000-8014-000000000003"
+      }
+    ],
+    "canon": [
+      "Both buyers hold authentic receipts.",
+      "The broker sold the same shipment twice.",
+      "The medicines can be divided safely only after the clinic checks the inventory."
+    ],
+    "outcomes": [
+      "A limited shipment reaches the cays and both claims remain recorded.",
+      "The cargo stays sealed while emergency stock covers the need.",
+      "The broker funds replacement stock under court supervision."
+    ],
+    "knowledgeRule": "Only the lead knows what they witnessed or were told. Do not copy private disclosures to other characters automatically."
+  }
+]

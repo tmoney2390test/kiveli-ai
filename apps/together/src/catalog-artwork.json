@@ -7259,6 +7259,546 @@
       "bytes": 18016
     }
   },
+  "characters/gilded-coast/amara-kade.jpg": {
+    "sourceHash": "061fade9b3a92d8c3218909e3a66351f10f62b64d3ecd02b6a1e92a8c6cc73b5",
+    "display": {
+      "file": "v1/19852f11583ebf3586a7ff5642537d3f06cafaa19b69bc8911776dce67d93b88.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 162664
+    },
+    "thumbnail": {
+      "file": "v1/470f81bd1c8c9a9e16109f7f92d645bbabe61ae8256eaadef647b28939ebfe12.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 21522
+    }
+  },
+  "characters/gilded-coast/anika-saye.jpg": {
+    "sourceHash": "395df410ce95f5d72fed31df10fa5c455d7aa0efffa72c751a218f3a938a7dbf",
+    "display": {
+      "file": "v1/08e121f4c17680614fefa62e123b2afa20b64ae83ab9eea9fc87de7e6e220f03.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 161296
+    },
+    "thumbnail": {
+      "file": "v1/8d23b711a6b53e6159b068a57553bffb65bd60f535d39498d8d00af33d5915eb.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 19500
+    }
+  },
+  "characters/gilded-coast/bastien-crow.jpg": {
+    "sourceHash": "16dd7e617a59e851de5e6872f6fc3fa7910e567fbe9d85d21841807c2674a95e",
+    "display": {
+      "file": "v1/874daf684343386f2f0a0a0fa032eb66988c48addd93e77239d1cd797567a012.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 150604
+    },
+    "thumbnail": {
+      "file": "v1/76dcd59a1f2f87b515541cc6a8c338fcfcdcf0daa2195ceeb3dcd126f3890c0b.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 17138
+    }
+  },
+  "characters/gilded-coast/bruna-kest.jpg": {
+    "sourceHash": "2a27914891642268d589e9571537087f10131f2ee452c679aff050614b3320d2",
+    "display": {
+      "file": "v1/c4958a93feb9b6ca24860287e40ad50099e9a3eb3023b27499b07e18e8592e87.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 235272
+    },
+    "thumbnail": {
+      "file": "v1/5e3b23eb8dbc3bcb3525bbbbcc702144eb06626ee03710903ad6f17fe5ab1cea.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 24138
+    }
+  },
+  "characters/gilded-coast/cassia-bloom.jpg": {
+    "sourceHash": "8e8797f0accd9a53525c7a1926ff3db82b4d5e74be022a0759e785fa1a13d344",
+    "display": {
+      "file": "v1/db94a40fda07514ac4da970c97634c2b824c91c28221c2c258647f56757f2c44.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 197642
+    },
+    "thumbnail": {
+      "file": "v1/3cd4a05e7077b031d9aa4e5648dbaf4c22e292fd3c97a94632d6ffd9692e9efd.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 20368
+    }
+  },
+  "characters/gilded-coast/celia-mar.jpg": {
+    "sourceHash": "28615e8768cfe6637a348f22ee8c66c77e0abed8dfdd203df09bf09cc793e1d4",
+    "display": {
+      "file": "v1/aae4c5607a978105105e786089de8369bf0671f1960b10a369533775748dfb7b.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 185376
+    },
+    "thumbnail": {
+      "file": "v1/6c897cb86cf044970d45eb944fbd1b8e8d327a82f312805cbd5808d071e8e462.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 21216
+    }
+  },
+  "characters/gilded-coast/dorian-pike.jpg": {
+    "sourceHash": "4c4fba54f74c2d2c271bd70f7c9e8bd300057e59590528641f6497a60444bffe",
+    "display": {
+      "file": "v1/ea36bc4ec3fd7d8a596d274ed8466d191f186b0197088c21012fb56ff73ef77b.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 231866
+    },
+    "thumbnail": {
+      "file": "v1/53714f950fa361f653fd514d0afc884c3eeec58a16f1b1236a2dae5c0c593fe4.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 23048
+    }
+  },
+  "characters/gilded-coast/elara-voss.jpg": {
+    "sourceHash": "c4a29edb7c96c15d82c4e57c9c033a4f0a36b8fdc631cbeb1fe9ffd1afc3ab08",
+    "display": {
+      "file": "v1/f1e20b31eb70be4d03637830a6f687ee7181ffdbafa4327d843104fc8244c573.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 239474
+    },
+    "thumbnail": {
+      "file": "v1/3d62f7d2f46b3e622b3557bbaaf319b4545717296ebbe8266a53a9da0aafc841.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 23908
+    }
+  },
+  "characters/gilded-coast/elias-reed.jpg": {
+    "sourceHash": "3a90ad05c45ab1a30322d142e8885ae9bc08025c82b130f575208ebf5337f2f9",
+    "display": {
+      "file": "v1/68e494aba7bc5985d7dab6d77fe5aa3966551b789df5d9a76f48714619b5fd47.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 237850
+    },
+    "thumbnail": {
+      "file": "v1/e603cded8220c7cd7da89ef4f6b95846bfabf9c39a7cf84fd622f9bbb892c6c4.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 18696
+    }
+  },
+  "characters/gilded-coast/fen-moreno.jpg": {
+    "sourceHash": "d272ffe9a4493b95ab925462775b7e6adbba33f2103921fd33f66e5de511ddc0",
+    "display": {
+      "file": "v1/fbe06287fc56f29afa4f3cc75bdd6dfd4a501c31164da01e45db3a537f7e72d0.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 178108
+    },
+    "thumbnail": {
+      "file": "v1/ce0298eb1d0ff1abbc605e869e718626d81178864868e49d697573a3d8ffdba6.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 18796
+    }
+  },
+  "characters/gilded-coast/hugo-fen.jpg": {
+    "sourceHash": "e650eaee086f61eed572fab4e664bd190f5b4331135395f286c9105419d5f109",
+    "display": {
+      "file": "v1/51500deb40144826d8055270e3b8de18ab8f69de133b39d36c59a4c120ce458f.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 186448
+    },
+    "thumbnail": {
+      "file": "v1/28e9519df241509a3c30556f2fab9127d468307c5df3f511b71dfb74673d45bf.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 18956
+    }
+  },
+  "characters/gilded-coast/idris-vale.jpg": {
+    "sourceHash": "b0d418fda3256c4ab3877a73b83bba8601abcce053a02f494aad744ec1d8ea29",
+    "display": {
+      "file": "v1/2aece11b7696fa17751d5526b5f1b78f0fde97a768833f3c3d0efe1143b53507.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 223428
+    },
+    "thumbnail": {
+      "file": "v1/913f2437c637c8a9bc2d5b1d0f5f25a8a3c3fb9455b8f218464650c05ffcb9f0.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 21326
+    }
+  },
+  "characters/gilded-coast/inez-sol.jpg": {
+    "sourceHash": "17a7ae842fff964584ec5a27145b49032e75375261a145928555f9a807a23ac4",
+    "display": {
+      "file": "v1/920b0de9e979bfe1e4d5d149279f5201c43a7119089f2897ea182b9b89c28d18.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 256256
+    },
+    "thumbnail": {
+      "file": "v1/e1a7af33dc1353a23509fa4fd9e3fd7255727db6cddc4fefdb5044c8fc805da4.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 25888
+    }
+  },
+  "characters/gilded-coast/iria-montrose.jpg": {
+    "sourceHash": "a61efbbdac1367d1957302f2fedf6c431553274ce24598e37c4fadb9c0a096bf",
+    "display": {
+      "file": "v1/eb1e9fe3c7f299e08e8cbe79868a69ae3c03c151da3598766d42ff7b59aa7805.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 228764
+    },
+    "thumbnail": {
+      "file": "v1/530625bfea086bd3cc9e61806ebf78caebacfc3e1a6acb96b003b683b6bd4db4.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 24166
+    }
+  },
+  "characters/gilded-coast/javier-ro.jpg": {
+    "sourceHash": "0f0b794b72462a3908e14fd541c3c444ca25540b370c9922f7102525dae8cf1f",
+    "display": {
+      "file": "v1/9a3050ff4f9dfab105c349900d24cad85721654f06fec25d1e9ecbb9f282fbb7.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 197256
+    },
+    "thumbnail": {
+      "file": "v1/81251528614949bbca7fc4278c1774731f2069a6a416f08b30e54e292d2749ec.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 22274
+    }
+  },
+  "characters/gilded-coast/julian-mercer.jpg": {
+    "sourceHash": "3d4a8adff15873cf1a12c880d31a140304a6dd586abb496995b4ed138ce14993",
+    "display": {
+      "file": "v1/77c5552e620d063d7ef6b6764f28c940eebd462c3b71576c6f166ed164b5e7da.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 185908
+    },
+    "thumbnail": {
+      "file": "v1/069868dcffb38833970f46ddc41c045dc1f3a85714b053368dc24ec069a04647.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 21466
+    }
+  },
+  "characters/gilded-coast/keon-flint.jpg": {
+    "sourceHash": "405a7d14313bee6f4bfe85670e000f96b2588fa48b6c68551384c0b7201f078c",
+    "display": {
+      "file": "v1/f2482354d41f202afac7360933110858e3ca3eedc4152aa6c612e4ee8ab48923.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 156110
+    },
+    "thumbnail": {
+      "file": "v1/d1b6be63a89ccf9dac9790cf2f36c68735595f6484247adc505c6e11e83aadd4.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 17414
+    }
+  },
+  "characters/gilded-coast/levi-ash.jpg": {
+    "sourceHash": "eb0348444b83add4f0bc034b98b45adbea45c32b256ccb7b196d66e36ead868e",
+    "display": {
+      "file": "v1/1044b8b19d4f6d1c1f88ae932af0470c6e59b62553fa2ee8ef0deba25f146e46.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 186708
+    },
+    "thumbnail": {
+      "file": "v1/dcbff41c6f9041e215ce37aacd6718bb9fbe05b34205a3f24af58364d9f0033d.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 22260
+    }
+  },
+  "characters/gilded-coast/luca-vane.jpg": {
+    "sourceHash": "27e99d40702d3ea71e706f4a5fdaa489e179fa7bbe3101c53b1bbfe6e38d0bfe",
+    "display": {
+      "file": "v1/a0ccce54d56b33bfefbd7334c42f7679e92e2e64d82f438109fba18b84cd805c.webp",
+      "width": 1312,
+      "height": 1199,
+      "bytes": 182270
+    },
+    "thumbnail": {
+      "file": "v1/b31a10059b7f5a10da2d8efa2532b7fcbeb90da65404d44532d7424119627b7e.webp",
+      "width": 384,
+      "height": 351,
+      "bytes": 24120
+    }
+  },
+  "characters/gilded-coast/lucien-damar.jpg": {
+    "sourceHash": "0db1aaa8ebb0f682e323bcd16c7cff3da89777078fd9102812614b95b4647092",
+    "display": {
+      "file": "v1/9501c80b6cb5386eeb7bde9e35b844717998ab5637c22c9c5f5762b5d7cc12bb.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 245668
+    },
+    "thumbnail": {
+      "file": "v1/77434dbefa4988a47c781d5cc01474ed54995d45b8ab65d4bd95c59893e9fb1e.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 24150
+    }
+  },
+  "characters/gilded-coast/maia-bel.jpg": {
+    "sourceHash": "d30f7396c9aea35012dee17c6387e27b2bddd482157403f58765d6592caa2df5",
+    "display": {
+      "file": "v1/ced83a4f65e8991aad73b6bad86e68f0b0d5edccdf25d78676cc5279a271586b.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 197528
+    },
+    "thumbnail": {
+      "file": "v1/3bd7c968a1ca6d894c2e08127dad43a2ace8d6e9ca5e38d096756dea336792ac.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 22256
+    }
+  },
+  "characters/gilded-coast/mara-blackfin.jpg": {
+    "sourceHash": "378a531e2b8c98865bdd46021786d7b1fa70c4f8547054aefb38683928d17c22",
+    "display": {
+      "file": "v1/0de86074429f90f766da23a05c3608e12ce5109a01276d5a1cd575c880bb6bf4.webp",
+      "width": 1370,
+      "height": 1148,
+      "bytes": 210260
+    },
+    "thumbnail": {
+      "file": "v1/251b52dd82f10a0c71a19b8078a72c9cdc0ca3bf639d49e0ec5e9ddb6659dc97.webp",
+      "width": 384,
+      "height": 322,
+      "bytes": 26408
+    }
+  },
+  "characters/gilded-coast/mateo-salt.jpg": {
+    "sourceHash": "89b64cbee4bcc81a7213771190b7af62701010d7a7147a7ba3d81730f2592da5",
+    "display": {
+      "file": "v1/4417ffa6fc9c9db786a93b3a5c27ce41c9a1930a018b26b133f5962dafd2cfa1.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 243392
+    },
+    "thumbnail": {
+      "file": "v1/0a220dda555c7194aa172a4d4b651337569fb6270d17b42bf6bc47d517e7f2dc.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 25374
+    }
+  },
+  "characters/gilded-coast/mira-cael.jpg": {
+    "sourceHash": "d405fa1a0ddb73239547871d2974358e010cca1dae6ba56ba36c340faf1f4e3c",
+    "display": {
+      "file": "v1/bfbbd4f238831eaa3d9d5c2e54c042da95a2fe4c9a9d80c2a61776b7675fe6c0.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 219048
+    },
+    "thumbnail": {
+      "file": "v1/3c312afcd9a598beb99c01c5bcfd0e74c4fa12bbc06fd5b3addd98ff5cb630b3.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 22424
+    }
+  },
+  "characters/gilded-coast/nadia-storm.jpg": {
+    "sourceHash": "07954e05c005446fceecf25f1707416a5ab4c98ea76bd03361df3597ad562bd8",
+    "display": {
+      "file": "v1/2215fe7c8b327d11600c88289f04489480524cb328b0605fb357f8c343e34fbc.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 169808
+    },
+    "thumbnail": {
+      "file": "v1/d618a85da8569b7cc8c7aabf8277e87ab9ae0db3327ffd9b9ace9dc17a05208c.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 16824
+    }
+  },
+  "characters/gilded-coast/nera-tide.jpg": {
+    "sourceHash": "c2fe4b52b230c31cc3a24d7be5fa4c63d59e9e7792d298d36775d6355703a3b6",
+    "display": {
+      "file": "v1/1d55d145227a721aef06d7468effbc9bb4722b9f70f121224974594458043960.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 244162
+    },
+    "thumbnail": {
+      "file": "v1/d7c4c07f9716ad856f8f837e4446fc6782439d98cc40bff643fd86508e7af1cd.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 24886
+    }
+  },
+  "characters/gilded-coast/nico-solari.jpg": {
+    "sourceHash": "a5ea60fa7faa511eacb8a30fdbc5ca502872fa56928feb72925927aae16df086",
+    "display": {
+      "file": "v1/6ca8b4728577e91bdf855c1d0347fafc4c3567899f0789a8cc2e8117066175b7.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 243326
+    },
+    "thumbnail": {
+      "file": "v1/f53feda0f2ea48bfe3a0cec8948e9809bc8210d197ac41bb61abcf060124accb.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 24286
+    }
+  },
+  "characters/gilded-coast/oren-gale.jpg": {
+    "sourceHash": "45282ee5f64679a8d07996f3de9cbfccf7c5bee3117b43c9c5de60245634274e",
+    "display": {
+      "file": "v1/e91089de37775667150cd881b3b2f8d367585bd71733b8a5de788288221de14e.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 203882
+    },
+    "thumbnail": {
+      "file": "v1/6d2d9f263821f738c74e0cf089e2854da639a083eb3c9c6b71af383ae0fd2624.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 21878
+    }
+  },
+  "characters/gilded-coast/rafiq-nadir.jpg": {
+    "sourceHash": "e2161fdaa06b4219f3b0f1a9f1b7b9b3b772d6d6a94a0a2521d0474606246b8c",
+    "display": {
+      "file": "v1/1dda98c74d780ab8950c31835e4d45315a3856a8d01fdd4f41ee9424d117165f.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 236298
+    },
+    "thumbnail": {
+      "file": "v1/ee4ec5f750aa11c8bd9909e2ad0812298560eaa4293534a0f82c44682f63b56d.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 24102
+    }
+  },
+  "characters/gilded-coast/sabine-quill.jpg": {
+    "sourceHash": "157323362aae86736f4181b1bc0e99e340b9c07ccdf19aad4bae030dbd1ecc86",
+    "display": {
+      "file": "v1/804fb3a324682bff797dd34494ba9e670fc56133ddd5e58161f6b22bb3c19938.webp",
+      "width": 1145,
+      "height": 1374,
+      "bytes": 200618
+    },
+    "thumbnail": {
+      "file": "v1/39f4609b99ca1774d5ac2d1a8293db7a80e1d8b8055c58bbf0c09ced5100c605.webp",
+      "width": 320,
+      "height": 384,
+      "bytes": 25492
+    }
+  },
+  "characters/gilded-coast/sami-haddad.jpg": {
+    "sourceHash": "155232443234bf996e378bd0e1cacd22504532a14e56e16ca8f9ac88a3f0cc60",
+    "display": {
+      "file": "v1/4a886e1696ddaa775d047319498fc13032ed225ac85bf165f15c8a4086b676a5.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 181200
+    },
+    "thumbnail": {
+      "file": "v1/a974fe1d36230ca1aad0794cb7b8ea23b79665fd97cfe9579ba1620c41f73e28.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 20338
+    }
+  },
+  "characters/gilded-coast/seraphine-vale.jpg": {
+    "sourceHash": "02b5062f4dd437e6ac41b9273b6da063b7e9b75a106c73cff359ebe604bc95dc",
+    "display": {
+      "file": "v1/83d4033a61831c158c2b77fa9efb1717253a60dd10b98aa0194f31b0477980b4.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 233952
+    },
+    "thumbnail": {
+      "file": "v1/d5668a64f007ec263ecaee50fb33994662f281099638375ba553519d7f9860f5.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 24362
+    }
+  },
+  "characters/gilded-coast/sora-bay.jpg": {
+    "sourceHash": "b977e365130c049e76c6c3ec2eb6d40fb5433f9c46f41512308ef84ad73a8249",
+    "display": {
+      "file": "v1/873d70cba9a2e62528006ff17a8d864cc469f9e904913ebc32b28c6cf39e45ed.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 180656
+    },
+    "thumbnail": {
+      "file": "v1/a286414280dde2f373a731a3670b49e22a37291d74eff3940930798033ab4e09.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 18466
+    }
+  },
+  "characters/gilded-coast/talia-wren.jpg": {
+    "sourceHash": "1e052c7848242739643145e151a281838894cd3404754c82f66765299e7ef4d6",
+    "display": {
+      "file": "v1/023517edfc94aba828b07c45f065ecada7f2607a5af6578c04ac379c5ee27532.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 229668
+    },
+    "thumbnail": {
+      "file": "v1/5fe90fc98f734a7500021df9cce7791eb08efd27734088291d258c13511ab65f.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 21560
+    }
+  },
+  "characters/gilded-coast/tomas-renn.jpg": {
+    "sourceHash": "8f3b0127c27b2a0293887606df5d2f9d555a18277f665f935277f091b1c5f005",
+    "display": {
+      "file": "v1/333ba97e1ab1b31cf77039941fde1b2d02f97e7fa7291871b4c326520fa8b853.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 218118
+    },
+    "thumbnail": {
+      "file": "v1/48a60ace5fba1e52647d6e9680db71ccae415821cc9aac6d0c13f98d0f39d737.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 22936
+    }
+  },
+  "characters/gilded-coast/yara-nouri.jpg": {
+    "sourceHash": "72c8238b020d2c020844527224f51dcb7a33d13b1ba4dd1e33bbab8422810fb3",
+    "display": {
+      "file": "v1/d73c1dee4953736b9b0a097b7bed71fc953abdb90bc1099d6bc8d510c1740719.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 224128
+    },
+    "thumbnail": {
+      "file": "v1/c7f1d514f1f6865a4ea83ed0b18668e05662ffca3d224c2f296df53da7dbfae7.webp",
+      "width": 256,
+      "height": 384,
+      "bytes": 23586
+    }
+  },
   "characters/juniper-city/amara-okafor.jpg": {
     "sourceHash": "98ff7c130c85558780ebb3673777083fa76593190394a76128f2eb739002d27e",
     "display": {
@@ -12944,6 +13484,141 @@
       "bytes": 11002
     }
   },
+  "locations/gilded-coast/admiralty-quay.jpg": {
+    "sourceHash": "262aa4189d6c6bd29a87c5084889896d31ab5233fa90a7f52c8deb10544fd9b2",
+    "display": {
+      "file": "v1/a628fb3606ae168e370ea2bae110fef38d86a7fe41822906e7f5a6bf335dd81a.webp",
+      "width": 1672,
+      "height": 941,
+      "bytes": 465372
+    },
+    "thumbnail": {
+      "file": "v1/5eb1df5e920de58e897c3d9e202507d8c543868bf4f780ce9bec8fa606b82276.webp",
+      "width": 384,
+      "height": 216,
+      "bytes": 30076
+    }
+  },
+  "locations/gilded-coast/breakwater-point.jpg": {
+    "sourceHash": "3d939095dec15959babc0213c4e7d45186a20b025c6146902af4527a4412263d",
+    "display": {
+      "file": "v1/bfe09803818c3cd882ec22fc31a6744aff1136c328c80a703ce8e8dbc7822cdf.webp",
+      "width": 1672,
+      "height": 941,
+      "bytes": 385846
+    },
+    "thumbnail": {
+      "file": "v1/f7371643464bb4fb3fbcd753d11c1a54f1f85d20a5ef7c3a43b14d72b1b22f05.webp",
+      "width": 384,
+      "height": 216,
+      "bytes": 25056
+    }
+  },
+  "locations/gilded-coast/gilt-row.jpg": {
+    "sourceHash": "ef02b55b540b441a40969cb10b4f424357de5276677f4427cae04dfc1bbd6043",
+    "display": {
+      "file": "v1/f119a90c7ae20c9d337edc395d6277d6219961a0e09dbdd9e74c3927c00b76d5.webp",
+      "width": 1672,
+      "height": 941,
+      "bytes": 400764
+    },
+    "thumbnail": {
+      "file": "v1/ae98341309805b931b259e25046710d21d3a6aab72b869d91ee02d34dd3fdb86.webp",
+      "width": 384,
+      "height": 216,
+      "bytes": 28732
+    }
+  },
+  "locations/gilded-coast/honeyglass-theatre.jpg": {
+    "sourceHash": "9ed770a35d68522cfcd8e84bd2f795444bbf95a15b6ec4a8a5829832cd534748",
+    "display": {
+      "file": "v1/3d6f7b30c9c4b6e97b755b95e26f8984514d0c8462cb58e09bb0e2eccd0c60f0.webp",
+      "width": 1672,
+      "height": 941,
+      "bytes": 292276
+    },
+    "thumbnail": {
+      "file": "v1/002447fc974d1aca80f5d662816a846671e54091db0989a87a6340773328a41a.webp",
+      "width": 384,
+      "height": 216,
+      "bytes": 21218
+    }
+  },
+  "locations/gilded-coast/house-of-hours.jpg": {
+    "sourceHash": "c0a26abf796e912b16ea2b126cd07850b238cfbc4e115ae631e3567b77cea3c4",
+    "display": {
+      "file": "v1/d01c3b549b5edb8a723d54d053ba9ca8a0c95ad233184423cee327ec35bfd6cb.webp",
+      "width": 1672,
+      "height": 941,
+      "bytes": 227496
+    },
+    "thumbnail": {
+      "file": "v1/beb4a303311ec661bde85855e27e33070deee4e66c125d6fb9781495a4186a58.webp",
+      "width": 384,
+      "height": 216,
+      "bytes": 17506
+    }
+  },
+  "locations/gilded-coast/lantern-market.jpg": {
+    "sourceHash": "3d7b5d3c448c95d177855c2270d55ffbfd5c5138a6bcd4786c5183b62c636939",
+    "display": {
+      "file": "v1/248a101d53608decae85c10002a873286fc9599877b908ed6de78a05c8435d5a.webp",
+      "width": 1672,
+      "height": 941,
+      "bytes": 414944
+    },
+    "thumbnail": {
+      "file": "v1/321074d0bce795084768c7310ddad3b1fab705ac6b758b4485e1053a253adaba.webp",
+      "width": 384,
+      "height": 216,
+      "bytes": 27322
+    }
+  },
+  "locations/gilded-coast/outer-cays.jpg": {
+    "sourceHash": "22e5d95e74a4ee836746efaf5439aace76fea5b9bbf46b33a13aa01c33e450ee",
+    "display": {
+      "file": "v1/0b8c52db23790df32bb910b052c85230f20158c43739022aeea0086d315f9bc7.webp",
+      "width": 1672,
+      "height": 941,
+      "bytes": 473536
+    },
+    "thumbnail": {
+      "file": "v1/79e84a3cb21543dd606fa14ca5552bfefb6998e0b366b814e9bdf62afee5580c.webp",
+      "width": 384,
+      "height": 216,
+      "bytes": 29646
+    }
+  },
+  "locations/gilded-coast/ropewalk.jpg": {
+    "sourceHash": "65ee9d7c21880b408acd21bb43d2843ebd8823369046014521325328be696808",
+    "display": {
+      "file": "v1/2ef610cb8c5802fcbd5e09c285d6c4a50b22948d3ef98281b2af4b3c5a1b5661.webp",
+      "width": 1672,
+      "height": 941,
+      "bytes": 394324
+    },
+    "thumbnail": {
+      "file": "v1/7fd076be642cbda26e850a2b14dfd9a00361acaef44c61d9d98ba302ac1d1f16.webp",
+      "width": 384,
+      "height": 216,
+      "bytes": 27582
+    }
+  },
+  "locations/gilded-coast/storm-clinic.jpg": {
+    "sourceHash": "9c6e27092e8ee27309d2fecc30ed6219352b40180eb9e66df9e9c46237ccaaf7",
+    "display": {
+      "file": "v1/979242447dcc0175ed2acd614f13e2c3f13a1c8be643bc0aa5701557f076801d.webp",
+      "width": 1672,
+      "height": 941,
+      "bytes": 257756
+    },
+    "thumbnail": {
+      "file": "v1/39c9d532a1f4cae740de35358259320c724e283ff648fd0a594a196200b6475c.webp",
+      "width": 384,
+      "height": 216,
+      "bytes": 19048
+    }
+  },
   "locations/juniper-city/alder-district.jpg": {
     "sourceHash": "fd28906936a6b320dc2437060b6428aff5c37d9149701216fc2c7a984efa552e",
     "display": {
@@ -17322,6 +17997,21 @@
       "width": 384,
       "height": 216,
       "bytes": 12562
+    }
+  },
+  "worlds/gilded-coast/gilded-coast-hero.jpg": {
+    "sourceHash": "64f2b8d83977e539ce89613f3f6f4bcc3e5a7ab9c9a49d4e3597211106e1ef4e",
+    "display": {
+      "file": "v1/f47f29d93e2a65bd779892eb3e3af6dcdd3ca0be5e1bde268f2f7b003533a042.webp",
+      "width": 1672,
+      "height": 941,
+      "bytes": 394754
+    },
+    "thumbnail": {
+      "file": "v1/dcc1ae9019a6311f7b6b34e88f97938135c10973fc215593ef5e94371a8af759.webp",
+      "width": 384,
+      "height": 216,
+      "bytes": 28456
     }
   },
   "worlds/neon-kyo/neon-kyo-hero.jpg": {

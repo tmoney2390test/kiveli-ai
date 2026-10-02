@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { planWorldPulseHorizon, WORLD_PULSE_TEMPLATES_PER_WORLD } from '../packages/together-domain/src/world-pulse-v2.ts';
 
 const root = path.resolve('content/world-pulse');
@@ -29,6 +30,18 @@ if (!worldFiles.length) throw new Error(`Unknown published world: ${requestedWor
 for (const worldFile of worldFiles) {
   const reference = load(path.join(references, worldFile));
   const world = reference.world.slug;
+  if (fs.existsSync(path.join(root, `${world}-source.mjs`)) && !['eos-meridian', 'juniper-city'].includes(world)) {
+    const sourceCheck = spawnSync(process.execPath, [path.resolve('scripts/build-resident-world-pulse.mjs'), world, '--check'], {
+      cwd: path.resolve('.'), encoding: 'utf8', maxBuffer: 200_000,
+    });
+    if (sourceCheck.status !== 0) errors.push(`${world}: authored source and checked-in JSON differ: ${sourceCheck.stderr?.trim() || sourceCheck.stdout?.trim()}`);
+  }
+  if (world === 'juniper-city') {
+    const sourceCheck = spawnSync(process.execPath, [path.resolve('scripts/build-juniper-world-pulse.mjs'), '--check'], {
+      cwd: path.resolve('.'), encoding: 'utf8', maxBuffer: 200_000,
+    });
+    if (sourceCheck.status !== 0) errors.push(`${world}: authored source and checked-in JSON differ: ${sourceCheck.stderr?.trim() || sourceCheck.stdout?.trim()}`);
+  }
   const file = path.join(root, `${world}.json`);
   const events = fs.existsSync(file) ? load(file).events : [];
   if (!fs.existsSync(file)) errors.push(`${world}: missing authored content pack`);

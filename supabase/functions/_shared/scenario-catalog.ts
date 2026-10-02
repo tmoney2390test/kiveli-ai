@@ -1,8 +1,9 @@
 import originals from '../../../content/scenarios/runtime-catalog.json' with {type:'json'};
 import storylines from '../../../content/scenarios/storyline-catalog.json' with {type:'json'};
-export const scenarioCatalog = [...originals.filter(s=>!storylines.some(t=>t.id===s.id)), ...storylines];
-export const storylineCatalog = storylines;
-export function storylineFor(id:string){return storylines.find(s=>s.id===id);}
+import gildedStorylines from '../../../content/gilded-coast/scenario-catalog.json' with {type:'json'};
+export const storylineCatalog = [...storylines,...gildedStorylines];
+export const scenarioCatalog = [...originals.filter(s=>!storylineCatalog.some(t=>t.id===s.id)), ...storylineCatalog];
+export function storylineFor(id:string){return storylineCatalog.find(s=>s.id===id);}
 export function scenarioSessionView(session:Record<string,any>){
  const story=storylineFor(String(session['scenario_id'])),index=Number(session['story_progress']?.chapterIndex??0);
  return {...session,chapter:story?{index,title:story.chapters[index]?.title??story.chapters[0]!.title,count:story.chapters.length,arcTitle:story.arcTitle}:null};

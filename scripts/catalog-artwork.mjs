@@ -16,7 +16,7 @@ export function allowedCatalogPath(path) {
 export async function registryFiles() {
   const src = resolve(root, 'apps/together/src');
   return [resolve(src, 'assets.ts'), resolve(src, 'character-profile-assets.ts'),
-    ...(await Promise.all(['location-assets', 'world-assets'].map(async dir =>
+    ...(await Promise.all(['character-assets', 'location-assets', 'world-assets'].map(async dir =>
       (await readdir(resolve(src, dir))).filter(name => name.endsWith('.ts') && !name.includes('.test.')).map(name => resolve(src, dir, name))))).flat()];
 }
 export async function referencedPaths() {
