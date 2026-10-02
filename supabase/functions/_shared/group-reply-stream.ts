@@ -30,3 +30,24 @@ export async function collectApprovedReply(input: {
   await flush(true);
   return { text, metadata, approved };
 }
+
+/** A rejected streamed draft is never committed. One fresh, non-streamed draft
+ * may replace it only after the entire replacement passes the same checks. */
+export async function recoverRejectedGroupReply(input: {
+  reply: DialogueGenerationResult;
+  approved: boolean;
+  canRetry: boolean;
+  generate: () => Promise<DialogueGenerationResult>;
+  approve: (text: string) => Promise<boolean>;
+}): Promise<{ reply: DialogueGenerationResult; approved: boolean; attempted: boolean }> {
+  if (input.approved || !input.canRetry) return { reply: input.reply, approved: input.approved, attempted: false };
+  try {
+    const reply = await input.generate();
+    if (reply.text.trim() && await input.approve(reply.text)) {
+      return { reply, approved: true, attempted: true };
+    }
+  } catch {
+    // A failed repair stays rejected; the caller uses its safe fallback.
+  }
+  return { reply: input.reply, approved: false, attempted: true };
+}

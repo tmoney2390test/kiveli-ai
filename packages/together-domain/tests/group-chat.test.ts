@@ -251,8 +251,8 @@ describe("group director", () => {
     })).toMatchObject({ intent: "respond_to_character", addresseeInstanceIds: [two[1]!.characterInstanceId] });
   });
   it("uses aggregate reply, provider-operation, and visible-output budgets",()=>{
-    expect(groupTurnBudget(false)).toEqual({maxReplies:3,maxVisibleOutputCharacters:6000,maxProviderOperations:10});
-    expect(groupTurnBudget(true)).toEqual({maxReplies:5,maxVisibleOutputCharacters:10000,maxProviderOperations:16});
+    expect(groupTurnBudget(false)).toEqual({maxReplies:3,maxVisibleOutputCharacters:6000,maxProviderOperations:12});
+    expect(groupTurnBudget(true)).toEqual({maxReplies:5,maxVisibleOutputCharacters:10000,maxProviderOperations:18});
     expect(fitGroupVisibleOutput("One sentence. A much longer second sentence.",15)).toBe("One sentence.");
     const many=planGroupTurn({message:"Everyone answer.",candidates,letThemTalk:true,broadGroupRequest:true});
     expect(many.actions.filter((action)=>action.type==="message").length).toBeLessThanOrEqual(5);

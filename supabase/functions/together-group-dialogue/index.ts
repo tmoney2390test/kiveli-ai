@@ -1,5 +1,5 @@
 import { chatSpeedEnabled, ChatTimings } from '../_shared/kivelle-chat-latency.ts';
-import { collectApprovedReply } from '../_shared/group-reply-stream.ts';
+import { collectApprovedReply, recoverRejectedGroupReply } from '../_shared/group-reply-stream.ts';
 import { stageContextAuthorization } from '../_shared/kivelle-context-authorization.ts';
 import { z } from "zod";
 import {
@@ -1018,28 +1018,47 @@ function groupStream(input: any): Response {
                 },
               })
             : await dialogue.generate(context, options);
-          generationProfiles.push({speakerRole:generated.metadata.speakerRole??(replyCount===0?'primary':'secondary'),requestedReasoning:generated.metadata.requestedReasoning??'auto',effectiveReasoning:generated.metadata.effectiveReasoning??'none',chatDynamism:generated.metadata.chatDynamism??50,reasoningReasonCodes:generated.metadata.reasoningReasonCodes??[],profileVersion:generated.metadata.chatGenerationProfileVersion??generated.metadata.generationProfileVersion??'legacy'});
           if (!generated.text.trim()) break;
           const outputSafety = 'approved' in generated
             ? {allowed:generated.approved}
             : (providerOperations+=1,providerOperations>aggregateBudget.maxProviderOperations
               ?{allowed:false}
               :await moderation.check(generated.text,{...usageScope,metadata:{direction:'output',groupChat:true}}));
-          const rawText = outputSafety.allowed && !containsSecretLikeValue(generated.text) && (route.explicit||!hasExplicitSexualOutputLanguage(generated.text))
-            ? generated.text
+          const initialApproved=outputSafety.allowed===true&&!containsSecretLikeValue(generated.text)&&(route.explicit||!hasExplicitSexualOutputLanguage(generated.text));
+          const recovered=await recoverRejectedGroupReply({
+            reply:generated,
+            approved:initialApproved,
+            canRetry:route.explicit&&providerOperations+2<=aggregateBudget.maxProviderOperations,
+            generate:async()=>{
+              providerOperations+=1;
+              const repairContext={...context,dialogueRouting:{...context.dialogueRouting,responseRepair:'group_output_safety'}};
+              return dialogue.generate(repairContext,{...options,operation:'group_dialogue_safety_repair'});
+            },
+            approve:async(text)=>{
+              providerOperations+=1;
+              if(providerOperations>aggregateBudget.maxProviderOperations||containsSecretLikeValue(text))return false;
+              return (await moderation.check(text,{...usageScope,metadata:{direction:'output_repair',groupChat:true}})).allowed;
+            },
+          });
+          const finalReply=recovered.reply;
+          generationProfiles.push({speakerRole:finalReply.metadata.speakerRole??(replyCount===0?'primary':'secondary'),requestedReasoning:finalReply.metadata.requestedReasoning??'auto',effectiveReasoning:finalReply.metadata.effectiveReasoning??'none',chatDynamism:finalReply.metadata.chatDynamism??50,reasoningReasonCodes:finalReply.metadata.reasoningReasonCodes??[],profileVersion:finalReply.metadata.chatGenerationProfileVersion??finalReply.metadata.generationProfileVersion??'legacy'});
+          const rawText = recovered.approved
+            ? finalReply.text
             : chatLanguageChangeSubject(context.chatLanguage,canonicalUserText);
           const text=fitGroupVisibleOutput(rawText,aggregateBudget.maxVisibleOutputCharacters-visibleOutputCharacters);
           if(!text)break;
           visibleOutputCharacters+=text.length;
           const committed = await commitMessage(input, action, text, {
-            ...generated.metadata,
+            ...finalReply.metadata,
+            safetyRepairAttempted:recovered.attempted,
+            safetyRepairSucceeded:recovered.attempted&&recovered.approved,
             speakerName,
             speakerSlug: template.slug,
             directorReasonCodes: action.reasonCodes,
             groupEnergy: input.settings.energy,
             chatLanguage:normalizeChatLanguage(context.chatLanguage),
-            ...(outputSafety.allowed&&route.explicit?adultMessagePolicy():safeMessagePolicy(outputSafety.allowed&&route.resolvedMode!=='standard'?'suggestive':'safe')),
-            ...privateDialoguePolicyMetadata({policy:liveDialoguePolicy,access:input.adultAccess,conversationMode:'group',safetyDisposition:outputSafety.allowed?'allowed':'redirected',providerRoute:route.provider}),
+            ...(recovered.approved&&route.explicit?adultMessagePolicy():safeMessagePolicy(recovered.approved&&route.resolvedMode!=='standard'?'suggestive':'safe')),
+            ...privateDialoguePolicyMetadata({policy:liveDialoguePolicy,access:input.adultAccess,conversationMode:'group',safetyDisposition:recovered.approved?'allowed':'redirected',providerRoute:route.provider}),
           });
           const saved=committed?.message;
           if (!saved) {
