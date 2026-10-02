@@ -1,4 +1,5 @@
 import { streamWavespeedDialogue } from './kivelle-wavespeed-dialogue.ts';
+import { WaveSpeedAccessError } from './kivelle-test-chat-completions.ts';
 import { streamVeniceDialogue } from './kivelle-venice-dialogue.ts';
 import type { ChatDialogueExperiment } from '../../../packages/together-domain/src/chat-model-test.ts';
 import {requireScopedAiConsent} from './kivelle-ai-consent.ts';
@@ -305,6 +306,31 @@ export function dialogueProviderName(): "openai" | "gemini" | "deterministic" {
   return "deterministic";
 }
 
+function waveSpeedAccessFallbackOptions(options: DialogueRunOptions, error: unknown): DialogueRunOptions | null {
+  if (!(error instanceof WaveSpeedAccessError) || options.strictRoute || options.signal?.aborted ||
+    options.route.experiment || !options.route.explicit || !options.route.adultEligible ||
+    options.route.hardBlocked || !xaiKey()) return null;
+  return {
+    ...options,
+    generationProfile: undefined,
+    visibleOutputTruncated: undefined,
+    route: { ...options.route, provider: 'xai', adultModel: undefined, reason: 'provider_fallback' },
+    operation: `${options.operation ?? 'dialogue'}_provider_fallback`,
+  };
+}
+
+function waveSpeedAccessFallbackContext(context: DialogueContext): DialogueContext {
+  // A paid memory quote was priced for the primary model. Keep the backup at
+  // included context so provider failover never invalidates that quote.
+  const recentTurnBudget = context.subscription?.capabilities?.recentTurnBudget ?? 10;
+  return {
+    ...context,
+    contextInputCeiling: undefined,
+    recent: (context.recent ?? []).slice(-recentTurnBudget),
+    dialogueRouting: { ...context.dialogueRouting, provider: 'xai', reason: 'provider_fallback' },
+  };
+}
+
 export class ConfiguredDialogueProvider implements DialogueProvider {
   async generate(
     context: DialogueContext,
@@ -312,10 +338,17 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
   ): Promise<DialogueGenerationResult> {
     await requireScopedAiConsent(options.usageScope);
     if (options.route.provider === 'wavespeed') {
-      let text = ''; let metadata: DialogueRunMetadata | undefined;
-      for await (const event of streamWavespeedDialogue(context, options)) { if (event.type === 'token') text += event.token; else metadata = event.metadata; }
-      if (!metadata) throw new AppError('PROVIDER_UNAVAILABLE', 'WaveSpeed did not complete the reply.', 503, true);
-      return { text, metadata };
+      try {
+        let text = ''; let metadata: DialogueRunMetadata | undefined;
+        for await (const event of streamWavespeedDialogue(context, options)) { if (event.type === 'token') text += event.token; else metadata = event.metadata; }
+        if (!metadata) throw new AppError('PROVIDER_UNAVAILABLE', 'WaveSpeed did not complete the reply.', 503, true);
+        return { text, metadata };
+      } catch (error) {
+        const fallback = waveSpeedAccessFallbackOptions(options, error);
+        if (!fallback) throw error;
+        const result = await this.generate(waveSpeedAccessFallbackContext(context), fallback);
+        return { ...result, metadata: { ...result.metadata, fallback: true, contextCharge: contextChargeForUsage(fallback.contextPayment, null, true) } };
+      }
     }
     if (options.route.provider === 'venice') {
       let text = ''; let metadata: DialogueRunMetadata | undefined;
@@ -482,7 +515,22 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
     options: DialogueRunOptions,
   ): AsyncIterable<DialogueStreamEvent> {
     await requireScopedAiConsent(options.usageScope);
-    if (options.route.provider === 'wavespeed') { yield* streamWavespeedDialogue(context, options); return; }
+    if (options.route.provider === 'wavespeed') {
+      let emitted = false;
+      try {
+        for await (const event of streamWavespeedDialogue(context, options)) {
+          if (event.type === 'token') emitted = true;
+          yield event;
+        }
+      } catch (error) {
+        const fallback = emitted ? null : waveSpeedAccessFallbackOptions(options, error);
+        if (!fallback) throw error;
+        for await (const event of this.stream(waveSpeedAccessFallbackContext(context), fallback)) {
+          yield event.type === 'complete' ? { ...event, metadata: { ...event.metadata, fallback: true, contextCharge: contextChargeForUsage(fallback.contextPayment, null, true) } } : event;
+        }
+      }
+      return;
+    }
     if (options.route.provider === 'venice') { yield* streamVeniceDialogue(context, options); return; }
     if (
       options.route.provider === "openai" || options.route.provider === "xai"

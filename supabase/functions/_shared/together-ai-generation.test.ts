@@ -33,6 +33,54 @@ Deno.test('completed streamed replies retain the full answer beyond the writing 
   }
 });
 
+Deno.test('an adult WaveSpeed access failure keeps the authorized reply alive through xAI',async()=>{
+  const names=['WAVESPEED_API_KEY','XAI_API_KEY','KIVELLE_XAI_ENABLED','KIVELLE_XAI_EXPLICIT_ENABLED','KIVELLE_PRIVATE_ADULT_TEXT_MODE'];
+  const saved=names.map(name=>Deno.env.get(name)),originalFetch=globalThis.fetch;
+  const requests:string[]=[];
+  try{
+    for(const name of names)Deno.env.set(name,name.endsWith('_KEY')?'unit-test-only':name.endsWith('_MODE')?'on':'true');
+    globalThis.fetch=((url,init)=>{
+      requests.push(String(url));
+      if(String(url).includes('wavespeed.ai'))return Promise.resolve(new Response('access denied',{status:403}));
+      if(String(url).includes('api.x.ai')){
+        const streaming=(JSON.parse(String(init?.body)) as {stream?:boolean}).stream===true;
+        return Promise.resolve(streaming?new Response([
+          {type:'response.output_text.delta',delta:'I am here.'},
+          {type:'response.completed',response:{usage:{input_tokens:100,output_tokens:12}}},
+        ].map(event=>`data: ${JSON.stringify(event)}\n\n`).join(''),{headers:{'Content-Type':'text/event-stream'}})
+          :new Response(JSON.stringify({output_text:'I am here.',usage:{input_tokens:100,output_tokens:12}}),{headers:{'Content-Type':'application/json'}}));
+      }
+      throw new Error(`Unexpected provider ${url}`);
+    }) as typeof fetch;
+    const context={character:{name:'Sora',age:23},userMessage:'Stay with me.',recent:[],relationship:{},memories:[],subscription:{tier:'kivelle_max'}} as never;
+    const route={provider:'wavespeed',adultModel:'deepseek/deepseek-v4-pro',requestedMode:'explicit',resolvedMode:'explicit',reason:'adult_explicit',classification:'explicit_adult',explicit:true,adultEligible:true,hardBlocked:false} as never;
+    let output='',complete:Record<string,unknown>|null=null;
+    for await(const event of new ConfiguredDialogueProvider().stream(context,{route} as never)){
+      if(event.type==='token')output+=event.token;
+      else complete=event.metadata as unknown as Record<string,unknown>;
+    }
+    assertEquals(output,'I am here.');
+    assertEquals(complete?.provider,'xai');
+    assertEquals(complete?.fallback,true);
+    assertEquals(complete?.contextCharge,undefined);
+    assertEquals(requests.length,2);
+    assertEquals(requests[0]?.includes('wavespeed.ai'),true);
+    assertEquals(requests[1]?.includes('api.x.ai'),true);
+    const generated=await new ConfiguredDialogueProvider().generate(context,{route} as never);
+    assertEquals(generated.text,'I am here.');
+    assertEquals(generated.metadata.provider,'xai');
+    assertEquals(generated.metadata.fallback,true);
+    assertEquals(requests.length,4);
+    await assertRejects(async()=>{
+      for await(const _event of new ConfiguredDialogueProvider().stream(context,{route,strictRoute:true} as never)){void _event;}
+    });
+    assertEquals(requests.length,5);
+  }finally{
+    globalThis.fetch=originalFetch;
+    names.forEach((name,index)=>saved[index]===undefined?Deno.env.delete(name):Deno.env.set(name,saved[index]!));
+  }
+});
+
 Deno.test('temperature compatibility retry removes only temperature and runs once',async()=>{
   const bodies:Record<string,unknown>[]=[];
   const fetchImpl=(async(_input:RequestInfo|URL,init?:RequestInit)=>{

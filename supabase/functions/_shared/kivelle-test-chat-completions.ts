@@ -24,6 +24,12 @@ export type ChatCompletionAdapter = {
   requireReturnedModel?: boolean;
 };
 
+/** WaveSpeed documents 403 as an account/key access failure. Keep it distinct
+ * from a content decision so a previously authorized chat can use its backup. */
+export class WaveSpeedAccessError extends AppError {
+  constructor() { super('PROVIDER_UNAVAILABLE', 'The primary chat provider is temporarily unavailable.', 503, true); }
+}
+
 export async function* streamTestChatCompletion(context: DialogueContext, options: DialogueRunOptions, adapter: ChatCompletionAdapter): AsyncGenerator<DialogueStreamEvent> {
   const experiment = options.route.experiment;
   const production = adapter.provider === 'wavespeed' && options.route.adultModel === 'deepseek/deepseek-v4-pro' && !experiment && options.route.explicit && options.route.adultEligible && !options.route.hardBlocked;
@@ -85,6 +91,7 @@ export async function* streamTestChatCompletion(context: DialogueContext, option
   } catch (error) {
     errorCode ??= options.signal?.aborted ? 'CANCELLED' : error instanceof Error && error.message.startsWith(`${prefix}_`) ? error.message : controller.signal.aborted ? `${prefix}_REQUEST_TIMEOUT` : `${prefix}_STREAM_INTERRUPTED`;
     if (options.signal?.aborted) throw error;
+    if (production && response?.status === 403) throw new WaveSpeedAccessError();
     throw new AppError(response?.status === 429 ? 'RATE_LIMITED' : 'PROVIDER_UNAVAILABLE', production ? 'The reply could not finish. Please retry.' : `${adapter.label} could not finish this reply. Retry, or turn Chat model test off in Chat Settings → AI.`, response?.status === 429 ? 429 : 503, true);
   } finally {
     clearTimeout(deadline);

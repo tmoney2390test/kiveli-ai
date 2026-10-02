@@ -352,6 +352,8 @@ Deno.serve(async (request) => {
           ...(input.letThemTalk?{uiHidden:true,messageAction:'let_them_talk'}:{}),
           mentions: input.mentionedCharacterInstanceIds,
           replyToMessageId: input.replyToMessageId ?? null,
+          manualSpeakerInstanceId: input.manualSpeakerInstanceId ?? null,
+          broadGroupRequest: input.broadGroupRequest,
           requestFingerprint,
           requestAttachmentIds: [...input.attachmentIds].sort(),
           adultRouting: groupRoutingEvidence,
