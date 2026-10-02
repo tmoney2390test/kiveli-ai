@@ -7,7 +7,18 @@ import { characterCanSpeak } from '../../../packages/together-domain/src/charact
 import { resolveSubscriptionState } from './kivelle-subscription.ts';
 
 export function worldPulseV2Enabled(): boolean {
-  return Deno.env.get('KIVELLE_WORLD_PULSE_V2_ENABLED')?.toLowerCase() === 'true';
+  // The per-world service-only settings row is the authoritative rollout
+  // switch. An explicit environment false remains an emergency global stop;
+  // absence of the optional secret must not consume another project secret.
+  return Deno.env.get('KIVELLE_WORLD_PULSE_V2_ENABLED')?.toLowerCase() !== 'false';
+}
+
+export async function worldPulseV2EnabledForWorld(db: SupabaseClient, worldId: string): Promise<boolean> {
+  if (!worldPulseV2Enabled()) return false;
+  const setting = await db.from('together_world_pulse_settings').select('enabled')
+    .eq('world_id', worldId).maybeSingle();
+  if (setting.error) throw new AppError('INTERNAL_ERROR', 'World Pulse settings could not be loaded.', 500, true);
+  return setting.data?.enabled === true;
 }
 
 export async function loadWorldPulseV2ConversationLabel(input: { db: SupabaseClient; userId: string; continuityId: string; conversationId: string }): Promise<{ eventId: string; title: string; occurredAt: string; fresh: boolean } | null> {
@@ -89,6 +100,8 @@ export async function loadWorldPulseV2Detail(input: {
     console.info(JSON.stringify({ metric: 'world_pulse_v2_expired_detail', occurrenceId: input.occurrenceId }));
     throw new AppError('WORLD_PULSE_EXPIRED', 'This World Pulse has passed.', 410);
   }
+  if (!await worldPulseV2EnabledForWorld(input.db, String(row.world_id)))
+    throw new AppError('NOT_FOUND', 'This World Pulse is unavailable.', 404);
   const worldResult = await input.db.from('together_worlds').select('id,published,metadata').eq('id', row.world_id).maybeSingle();
   if (worldResult.error || !worldResult.data || !isWorldCatalogVisible(worldResult.data)) throw new AppError('NOT_FOUND', 'This World Pulse is unavailable.', 404);
   const access = await resolveWorldAccess({ db: input.db, userId: input.userId, worldId: String(row.world_id) });

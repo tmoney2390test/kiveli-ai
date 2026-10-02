@@ -4,7 +4,7 @@ import { json, serve } from '../_shared/http.ts';
 import { activeContinuity } from '../_shared/together-continuity.ts';
 import { loadAroundTown } from '../_shared/kivelle-world-pulse.ts';
 import { isWorldCatalogVisible } from '../../../packages/together-domain/src/world-access.ts';
-import { loadWorldPulseV2, loadWorldPulseV2Detail, loadWorldPulseV2ConversationLabel, worldPulseV2Enabled } from '../_shared/kivelle-world-pulse-v2.ts';
+import { loadWorldPulseV2, loadWorldPulseV2Detail, loadWorldPulseV2ConversationLabel, worldPulseV2Enabled, worldPulseV2EnabledForWorld } from '../_shared/kivelle-world-pulse-v2.ts';
 
 const querySchema=z.object({worldId:z.string().uuid().optional(),eventId:z.string().uuid().optional(),conversationId:z.string().uuid().optional()});
 
@@ -31,7 +31,7 @@ serve(async(request,correlationId)=>{
   if(!worldId&&continuity.active_companion_instance_id){const{data:instance}=await db.from('together_character_instances').select('current_location_id,together_locations(world_id)').eq('id',continuity.active_companion_instance_id).eq('user_id',user.id).maybeSingle();const location=Array.isArray(instance?.together_locations)?instance.together_locations[0]:instance?.together_locations;worldId=location?.world_id?String(location.world_id):undefined;}
   if(worldId&&(!parsed.worldId||worldId!==parsed.worldId||!requestedWorld?.data||!isWorldCatalogVisible(requestedWorld.data))){const{data:world}=await db.from('together_worlds').select('published,metadata').eq('id',worldId).maybeSingle();if(!world||!isWorldCatalogVisible(world))worldId=undefined;}
   if(!worldId)return json({data:{worldId:null,events:[],items:[],generatedAt:new Date().toISOString()},correlationId},200,correlationId);
-  if(worldPulseV2Enabled()){
+  if(await worldPulseV2EnabledForWorld(db,worldId)){
     const pulse=await loadWorldPulseV2({db,worldId,userId:user.id,continuityId:String(continuity.id)});
     return json({data:pulse,correlationId},200,correlationId);
   }

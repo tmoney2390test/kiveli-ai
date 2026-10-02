@@ -4,6 +4,11 @@ import { planWorldPulseHorizon, WORLD_PULSE_TEMPLATES_PER_WORLD } from '../packa
 
 const root = path.resolve('content/world-pulse');
 const references = path.join(root, 'reference');
+const worldFlag = process.argv.indexOf('--world');
+const requestedWorld = worldFlag >= 0 ? process.argv[worldFlag + 1] : null;
+if (worldFlag >= 0 && (!requestedWorld || requestedWorld.startsWith('--'))) {
+  throw new Error('--world requires a canonical world slug');
+}
 const normal = (value) => String(value ?? '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const terms = (value) => new Set(normal(value).split(' ').filter((word) => word.length > 3));
 const similarity = (left, right) => {
@@ -18,7 +23,9 @@ const requireText = (value, min, label) => {
 };
 
 if (!fs.existsSync(references)) throw new Error('Missing canonical World Pulse reference directory');
-const worldFiles = fs.readdirSync(references).filter((name) => name.endsWith('.json')).sort();
+const worldFiles = fs.readdirSync(references).filter((name) => name.endsWith('.json')
+  && (!requestedWorld || name === `${requestedWorld}.json`)).sort();
+if (!worldFiles.length) throw new Error(`Unknown published world: ${requestedWorld}`);
 for (const worldFile of worldFiles) {
   const reference = load(path.join(references, worldFile));
   const world = reference.world.slug;
@@ -28,6 +35,9 @@ for (const worldFile of worldFiles) {
   if (events.length !== WORLD_PULSE_TEMPLATES_PER_WORLD) errors.push(`${world}: ${events.length}/${WORLD_PULSE_TEMPLATES_PER_WORLD} templates`);
   const residents = new Map(reference.characters.map((item) => [item.slug, item]));
   const places = new Map(reference.locations.map((item) => [item.slug, item]));
+  for (const place of reference.locations) {
+    if (place.slug.startsWith('personal-')) errors.push(`${world}: private place leaked into canonical reference: ${place.slug}`);
+  }
   const counts = new Map([...residents].map(([slug]) => [slug, { appearances: 0, leads: 0, eventTypes: new Set(), locations: new Set(), counterparts: new Set() }]));
   const seenSlug = new Set(), seenRepeat = new Set(), seenText = new Map();
   const seenRank = new Set();
@@ -43,7 +53,7 @@ for (const worldFile of worldFiles) {
     if (!Number.isInteger(event.contentVersion) || event.contentVersion < 1) errors.push(`${label}: invalid contentVersion`);
     for (const [field, minimum] of [['title', 12], ['feedSummary', 40], ['detailBody', 100], ['eventType', 3]]) requireText(event[field], minimum, `${label}.${field}`);
     if (/\b(?:todo|placeholder|lorem ipsum|unexpected encounter|strange discovery)\b/i.test(`${event.title} ${event.detailBody}`)) errors.push(`${label}: placeholder or generic hook`);
-    if (!places.has(event.locationSlug)) errors.push(`${label}: unknown location ${event.locationSlug}`);
+    if (!places.has(event.locationSlug) || event.locationSlug?.startsWith('personal-')) errors.push(`${label}: unknown or private location ${event.locationSlug}`);
     if (!Number.isFinite(event.significance) || event.significance < 0 || event.significance > 1) errors.push(`${label}: invalid significance`);
     if (event.contentRating !== 'standard') errors.push(`${label}: public Pulse must be standard-rated`);
     if (!Number.isInteger(event.cooldownDays) || event.cooldownDays < 30) errors.push(`${label}: cooldown below 30 days`);

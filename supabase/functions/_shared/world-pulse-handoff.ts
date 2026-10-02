@@ -4,6 +4,7 @@ import { characterCanSpeak } from '../../../packages/together-domain/src/charact
 import { AppError } from './types.ts';
 import { resolveWorldAccess } from './together-place.ts';
 import { ensureCanonicalCompanionInstance } from './canonical-companion-meeting.ts';
+import { worldPulseV2EnabledForWorld } from './kivelle-world-pulse-v2.ts';
 import { getActiveConversation } from './together-conversation.ts';
 import { enforceActiveConversationLimit, resolveSubscriptionAccess } from './kivelle-subscription.ts';
 
@@ -17,6 +18,8 @@ export async function requireFreshWorldPulse(input: {
     .eq('id', input.occurrenceId).eq('status', 'published').maybeSingle();
   if (result.error || !result.data) throw new AppError('NOT_FOUND', 'This World Pulse is unavailable.', 404);
   const occurrence = result.data as Row;
+  if (!await worldPulseV2EnabledForWorld(db, String(occurrence.world_id)))
+    throw new AppError('NOT_FOUND', 'This World Pulse is unavailable.', 404);
   if (!worldPulseIsDiscoverable(String(occurrence.occurred_at), (input.now ?? new Date()).toISOString())) {
     console.info(JSON.stringify({ metric: 'world_pulse_v2_expired_handoff', occurrenceId: input.occurrenceId }));
     throw new AppError('WORLD_PULSE_EXPIRED', 'This World Pulse has passed.', 410);

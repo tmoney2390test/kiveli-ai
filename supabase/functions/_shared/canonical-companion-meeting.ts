@@ -75,6 +75,7 @@ export async function ensureCanonicalCompanionInstance(input: {
     if (updated.error || !updated.data) throw new AppError('INTERNAL_ERROR', 'Companion could not be prepared.', 500, true);
     instance = updated.data;
   }
+  if (!instance) throw new AppError('INTERNAL_ERROR', 'Companion could not be prepared.', 500, true);
   const { error: relationshipError } = await db.from('together_relationship_states')
     .upsert({ character_instance_id: instance.id, user_id: userId }, { onConflict: 'character_instance_id', ignoreDuplicates: true });
   if (relationshipError) throw new AppError('INTERNAL_ERROR', 'Companion relationship could not be prepared.', 500, true);

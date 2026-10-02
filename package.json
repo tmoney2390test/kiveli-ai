@@ -41,6 +41,7 @@
     "media:normalize-video-faststart": "node --experimental-strip-types scripts/normalize-kivelli-video-faststart.ts",
     "stories:validate": "node --experimental-strip-types scripts/validate-kivelli-stories.mjs",
     "world-pulse:validate": "node --experimental-strip-types scripts/world-pulse-validate.mjs",
+    "world-pulse:build:eos": "node scripts/build-eos-world-pulse.mjs",
     "world-pulse:seed": "node scripts/world-pulse-seed.mjs",
     "scenarios:build": "node scripts/build-storyline-scenarios.mjs",
     "scenarios:test": "node --test scripts/storyline-scenarios.test.mjs scripts/storyline-scenarios-db.test.mjs scripts/storyline-art.test.mjs",

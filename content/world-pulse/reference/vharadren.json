@@ -205,18 +205,6 @@
       "description": "A fortified ruin on the old crown road used by scouts, smugglers, rebel couriers, and travelers unwilling to enter any claimant’s territory."
     },
     {
-      "name": "Artwork display check",
-      "slug": "personal-25d34e65-4d7e-44d8-a3eb-fc306a1e9eea",
-      "category": "home",
-      "description": "Temporary private place for verifying uploaded artwork across the app."
-    },
-    {
-      "name": "Place hours QA 2026-09-29",
-      "slug": "personal-c7cda9ef-8ec7-44d6-a0cf-ca864a2a56ea",
-      "category": "home",
-      "description": "Temporary test place for validating saved opening hours."
-    },
-    {
       "name": "Pyrehold Castle",
       "slug": "pyrehold-castle",
       "category": "castle",

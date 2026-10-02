@@ -148,7 +148,9 @@ serve(async (request, correlationId) => {
         correlationId,
       );
     }
-    if (!pulse) await enforceActiveConversationLimit(db,user.id,subscription.capabilities);
+    // Check before meeting any as-yet-unmet Pulse residents. The database
+    // trigger remains the final concurrency guard for the conversation limit.
+    await enforceActiveConversationLimit(db,user.id,subscription.capabilities);
     let ids: string[],
       addedBy: "user" | "shared_scene" = "user",
       sceneId: string | undefined;

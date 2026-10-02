@@ -17,7 +17,7 @@ import { filterMemoriesForPreferences } from './kivelle-memory-access.ts';
 import { resolveRelevantConversationEpisodes, type RelevantConversationEpisode } from './kivelle-conversation-episodes.ts';
 import { temporalContinuitySummary, type WorldPulseContextEvent } from '../../../packages/together-domain/src/world-pulse.ts';
 import { resolveRelevantWorldPulse } from './kivelle-world-pulse.ts';
-import { worldPulseV2Enabled } from './kivelle-world-pulse-v2.ts';
+import { worldPulseV2EnabledForWorld } from './kivelle-world-pulse-v2.ts';
 import { loadLinkedWorldPulseForSpeaker, type LinkedWorldPulseSpeakerContext } from './world-pulse-speaker-context.ts';
 import { naturalizeCharacterActivity, naturalizeCharacterEventSummary, naturalizeCharacterEventTitle } from '../../../packages/together-domain/src/character-language.ts';
 import type { ChatGenerationPreferences } from '../../../packages/together-domain/src/chat-generation.ts';
@@ -163,9 +163,11 @@ export async function buildKivelleConversationContext(input: {
   const mentionText=normalizePlaceText(userMessage);
   const referencedLocationRows=(locations.data??[]).filter((item:Row)=>String(item.id)!==locationId&&placeMentioned(mentionText,String(item.name??''),String(item.slug??''))).sort((left:Row,right:Row)=>Number(String(right.world_id)===place?.world.id)-Number(String(left.world_id)===place?.world.id)).slice(0,2);
   const referencedPlaces=(await Promise.all(referencedLocationRows.map((item:Row)=>resolvePlaceContext({db,locationId:String(item.id),now,userId,characterInstanceId:String(instance.id)}).catch(()=>null)))).filter((item):item is PlaceContext=>Boolean(item));
+  const pulseV2ForCurrentWorld = place?.world.id
+    ? await worldPulseV2EnabledForWorld(db, String(place.world.id)) : false;
   const [placePerspectives,worldPulse]=await Promise.all([
     loadPlacePerspectives({db,userId,characterInstanceId:String(instance.id),characterVersionId:String(instance.character_version_id),places:[place,...referencedPlaces].filter((item):item is PlaceContext=>Boolean(item))}),
-    place?.world.id&&!worldPulseV2Enabled()?resolveRelevantWorldPulse({db,userId,continuityId:String(instance.continuity_id),worldId:String(place.world.id),userMessage,currentLocationId:locationId,districtLocationId:place.district?.id??null,characterInstanceId:String(instance.id),characterIsLocal:true,now,maximumResults:historyIntent||planningIntent?3:2}).catch(()=>[]):[],
+    place?.world.id&&!pulseV2ForCurrentWorld?resolveRelevantWorldPulse({db,userId,continuityId:String(instance.continuity_id),worldId:String(place.world.id),userMessage,currentLocationId:locationId,districtLocationId:place.district?.id??null,characterInstanceId:String(instance.id),characterIsLocal:true,now,maximumResults:historyIntent||planningIntent?3:2}).catch(()=>[]):[],
   ]);
   const visibleLifeEvents=(events.data??[]).filter((item:Row)=>item.user_should_know!==false&&!isConvertedArcEvent(item)).map((item:Row)=>({id:String(item.id),title:naturalizeCharacterEventTitle(item.title,item.event_type),summary:naturalizeCharacterEventSummary(item.narrative_summary),startsAt:String(item.starts_at),significance:Number(item.significance??.5)}));
   const temporalContinuity=temporalContinuitySummary({lastMessageAt:conversation.last_message_at??conversation.updated_at,now,events:[...visibleLifeEvents,...worldPulse.map(item=>({title:item.title,summary:item.summary,startsAt:item.startsAt,significance:item.significance}))]});

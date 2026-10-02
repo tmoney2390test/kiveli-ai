@@ -3,15 +3,23 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
-// Generates a reviewable SQL import; it never connects to production. Apply
-// only after world-pulse:validate passes and the release is approved.
+// Generates a reviewable SQL import; it never connects to production. The
+// optional --world scope is for staged world releases, while default
+// validation remains global and must pass before all-world enablement.
 const root = path.resolve('content/world-pulse');
+const worldFlag = process.argv.indexOf('--world');
+const requestedWorld = worldFlag >= 0 ? process.argv[worldFlag + 1] : null;
+const batchFlag = process.argv.indexOf('--batch-size');
+const batchSize = batchFlag >= 0 ? Number(process.argv[batchFlag + 1]) : null;
 const target = process.argv.at(-1);
 if (!target || target.startsWith('--') || !target.endsWith('.sql')) {
-  console.error('Usage: pnpm world-pulse:seed -- <output.sql>');
+  console.error('Usage: pnpm world-pulse:seed -- [--world <world-slug>] [--batch-size <1..50>] <output.sql>');
   process.exit(2);
 }
-const validation = spawnSync(process.execPath, ['--experimental-strip-types', path.resolve('scripts/world-pulse-validate.mjs')], {
+if (worldFlag >= 0 && (!requestedWorld || requestedWorld.startsWith('--'))) throw new Error('--world requires a canonical world slug');
+if (batchFlag >= 0 && (!requestedWorld || !Number.isInteger(batchSize) || batchSize < 1 || batchSize > 50))
+  throw new Error('--batch-size requires a single --world and a value from 1 to 50');
+const validation = spawnSync(process.execPath, ['--experimental-strip-types', path.resolve('scripts/world-pulse-validate.mjs'), ...(requestedWorld ? ['--world', requestedWorld] : [])], {
   cwd: path.resolve('.'), encoding: 'utf8', maxBuffer: 2_000_000,
 });
 if (validation.status !== 0) {
@@ -22,9 +30,14 @@ if (validation.status !== 0) {
 const quote = (value) => `'${String(value).replaceAll("'", "''")}'`;
 const json = (value) => `${quote(JSON.stringify(value))}::jsonb`;
 const tags = (value) => `array[${(value ?? []).map(quote).join(',')}]::text[]`;
-const lines = ['begin;', 'set local search_path = public, extensions;', 'do $world_pulse_seed$', 'declare', '  v_world uuid;', '  v_location uuid;', '  v_primary uuid;', '  v_template uuid;', '  v_character uuid;', '  v_existing record;', '  v_facts jsonb;', '  v_known_ids jsonb;', 'begin'];
+const preamble = () => ['begin;', 'set local search_path = public, extensions;', 'do $world_pulse_seed$', 'declare', '  v_world uuid;', '  v_location uuid;', '  v_primary uuid;', '  v_template uuid;', '  v_character uuid;', '  v_existing record;', '  v_facts jsonb;', '  v_known_ids jsonb;', 'begin'];
+const close = (lines) => `${[...lines, 'end $world_pulse_seed$;', 'commit;'].join('\n')}\n`;
+let lines = preamble();
+const batches = [];
 let count = 0;
-for (const referenceFile of fs.readdirSync(path.join(root, 'reference')).filter((name) => name.endsWith('.json')).sort()) {
+let batchCount = 0;
+for (const referenceFile of fs.readdirSync(path.join(root, 'reference')).filter((name) => name.endsWith('.json')
+  && (!requestedWorld || name === `${requestedWorld}.json`)).sort()) {
   const worldSlug = referenceFile.slice(0, -5);
   const packFile = path.join(root, `${worldSlug}.json`);
   if (!fs.existsSync(packFile)) throw new Error(`Missing content pack: ${worldSlug}`);
@@ -34,7 +47,7 @@ for (const referenceFile of fs.readdirSync(path.join(root, 'reference')).filter(
   lines.push('  insert into public.together_world_pulse_settings (world_id, enabled) values (v_world, false) on conflict (world_id) do nothing;');
   for (const event of events) {
     const digest = crypto.createHash('sha256').update(JSON.stringify(event)).digest('hex');
-    lines.push(`  select id into strict v_location from public.together_locations where world_id = v_world and slug = ${quote(event.locationSlug)};`);
+    lines.push(`  select id into strict v_location from public.together_locations where world_id = v_world and slug = ${quote(event.locationSlug)} and owner_user_id is null and archived_at is null;`);
     lines.push(`  select id into strict v_primary from public.together_character_templates where slug = ${quote(event.primaryCharacterSlug)} and published and creator_id is null;`);
     lines.push(`  select id, repeat_identity, scheduling_rank, content_version into v_existing from public.together_world_pulse_templates where world_id = v_world and slug = ${quote(event.slug)};`);
     lines.push(`  if found and (v_existing.repeat_identity <> ${quote(event.repeatIdentity)} or v_existing.scheduling_rank <> ${event.schedulingRank} or v_existing.content_version > ${event.contentVersion}) then raise exception 'Unsafe Pulse identity, rank or version edit: ${worldSlug}/${event.slug}'; end if;`);
@@ -53,8 +66,21 @@ for (const referenceFile of fs.readdirSync(path.join(root, 'reference')).filter(
       lines.push(`  insert into public.together_world_pulse_template_participants (template_id,character_template_id,ordinal,role_label,perspective_summary,default_direct_message,knowledge) values (v_template,v_character,${ordinal},${quote(participant.roleLabel)},${quote(participant.perspective)},${quote(participant.defaultDirectMessage)},${json({ knownFactIds: participant.knownFactIds ?? [], revealConstraints: participant.revealConstraints ?? [] })});`);
     }
     count++;
+    batchCount++;
+    if (batchSize && batchCount === batchSize) {
+      batches.push(close(lines));
+      lines = preamble();
+      lines.push(`  select id into strict v_world from public.together_worlds where slug = ${quote(worldSlug)} and published;`);
+      batchCount = 0;
+    }
   }
 }
-lines.push('end $world_pulse_seed$;', 'commit;');
-fs.writeFileSync(path.resolve(target), `${lines.join('\n')}\n`);
-console.log(`Wrote ${count} Pulse templates to ${path.resolve(target)}. No database was changed.`);
+if (batchSize) {
+  if (batchCount) batches.push(close(lines));
+  const base = path.resolve(target).slice(0, -4);
+  batches.forEach((sql, index) => fs.writeFileSync(`${base}-${String(index + 1).padStart(2, '0')}.sql`, sql));
+  console.log(`Wrote ${count} Pulse templates in ${batches.length} reviewable batches at ${base}-NN.sql. No database was changed.`);
+} else {
+  fs.writeFileSync(path.resolve(target), close(lines));
+  console.log(`Wrote ${count} Pulse templates to ${path.resolve(target)}. No database was changed.`);
+}
