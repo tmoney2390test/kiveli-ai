@@ -64,15 +64,18 @@ export async function loadWorldPulseV2(input: {
   db: SupabaseClient; worldId: string; userId: string; continuityId: string; now?: Date;
 }): Promise<{ version: 2; worldId: string; serverNow: string; generatedAt: string; events: WorldPulseV2Event[] }> {
   const now = input.now ?? new Date(), serverNow = now.toISOString();
-  const access = await resolveWorldAccess({ db: input.db, userId: input.userId, worldId: input.worldId });
-  if (access === 'locked' || access === 'available') throw new AppError('FORBIDDEN', 'This world is unavailable.', 403);
   const cutoff = new Date(now.getTime() - WORLD_PULSE_DISCOVERY_TTL_HOURS * 3_600_000).toISOString();
   const recent = () => input.db.from('together_world_pulse_occurrences')
     .select('id,world_id,template_id,title_snapshot,feed_summary_snapshot,event_type_snapshot,occurred_at,ends_at,significance_snapshot,location_id')
     .eq('world_id', input.worldId).eq('status', 'published')
     .gte('occurred_at', cutoff).lte('occurred_at', serverNow)
     .order('occurred_at', { ascending: false }).limit(32);
-  let result = await recent();
+  const [access, initialResult] = await Promise.all([
+    resolveWorldAccess({ db: input.db, userId: input.userId, worldId: input.worldId }),
+    recent(),
+  ]);
+  if (access === 'locked' || access === 'available') throw new AppError('FORBIDDEN', 'This world is unavailable.', 403);
+  let result = initialResult;
   let rows = required(result.data, result.error, 'World Pulse could not be loaded.') as Row[];
   if (!rows.length) {
     const settings = await input.db.from('together_world_pulse_settings')

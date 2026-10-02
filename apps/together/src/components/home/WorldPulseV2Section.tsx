@@ -17,11 +17,11 @@ export function WorldPulseV2Section({ worldName, events, onOpen, onViewAll }: {
   onOpen: (event: WorldPulseV2Event) => void;
   onViewAll: () => void;
 }) {
-  if (!events.length) return null;
   return <View style={styles.section}>
     <View style={styles.heading}><View><Text style={styles.kicker}>WORLD PULSE</Text><Text accessibilityRole="header" style={styles.title}>Last 24 hours in {worldName}</Text></View>
       <Pressable accessibilityRole="button" accessibilityLabel="View all World Pulse events" onPress={onViewAll} hitSlop={8}><Text style={styles.all}>View all →</Text></Pressable></View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} accessibilityLabel={`World Pulse in ${worldName}`}>
+    {!events.length?<View style={styles.loadError}><Text style={styles.loadErrorText}>Nothing new in the last 24 hours. Check back soon.</Text></View>
+      :<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} accessibilityLabel={`World Pulse in ${worldName}`}>
       {events.slice(0, 5).map((event) => <Pressable key={event.id} accessibilityRole="button" accessibilityLabel={`${event.title}, ${event.location.name}`} onPress={() => onOpen(event)} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
         <View style={styles.cardTop}><Text style={styles.status}>RECENT</Text><View style={styles.cardTime}><Clock3 size={13} color="#BFA9BE" /><Text style={styles.timeText}>{relativePulseTime(event.occurredAt)}</Text></View></View>
         <Text numberOfLines={2} style={styles.cardTitle}>{event.title}</Text>
@@ -29,7 +29,31 @@ export function WorldPulseV2Section({ worldName, events, onOpen, onViewAll }: {
         <View style={styles.location}><MapPin size={13} color="#E79AC0" /><Text numberOfLines={1} style={styles.locationText}>{event.location.name}</Text></View>
         <View style={styles.peopleRow}><View style={styles.avatars}>{event.participants.map((person) => <CharacterAvatar key={person.characterTemplateId} slug={person.slug} name={person.name} size={23}/>)}</View><Text numberOfLines={1} style={styles.people}>{event.participants.map((person) => person.name).join(' · ')}</Text></View>
       </Pressable>)}
+    </ScrollView>}
+  </View>;
+}
+
+export function WorldPulseV2Skeleton({ worldName }: { worldName: string }) {
+  return <View style={styles.section} accessibilityRole="progressbar" accessibilityLabel={`Loading World Pulse in ${worldName}`}>
+    <View style={styles.heading}><View><Text style={styles.kicker}>WORLD PULSE</Text><Text accessibilityRole="header" style={styles.title}>Last 24 hours in {worldName}</Text></View></View>
+    <ScrollView horizontal scrollEnabled={false} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+      {[0, 1].map((item) => <View key={item} style={[styles.card, styles.skeletonCard]}>
+        <View style={[styles.skeletonLine, styles.skeletonKicker]} />
+        <View style={[styles.skeletonLine, styles.skeletonTitle]} />
+        <View style={[styles.skeletonLine, styles.skeletonBody]} />
+        <View style={[styles.skeletonLine, styles.skeletonBodyShort]} />
+        <View style={[styles.skeletonLine, styles.skeletonPlace]} />
+      </View>)}
     </ScrollView>
+  </View>;
+}
+
+export function WorldPulseV2LoadError({ onRetry }: { onRetry: () => void }) {
+  return <View style={styles.section}>
+    <Text style={styles.kicker}>WORLD PULSE</Text>
+    <View style={styles.loadError}><Text style={styles.loadErrorText}>World Pulse couldn’t load.</Text>
+      <Pressable accessibilityRole="button" onPress={onRetry} hitSlop={8}><Text style={styles.all}>Try again →</Text></Pressable>
+    </View>
   </View>;
 }
 
@@ -52,4 +76,13 @@ const styles = StyleSheet.create({
   peopleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   avatars: { flexDirection: 'row', gap: 3 },
   people: { color: '#B1A5B3', fontSize: 10, flex: 1 },
+  skeletonCard: { height: 190, overflow: 'hidden', backgroundColor: 'rgba(35,25,38,.64)' },
+  skeletonLine: { height: 10, borderRadius: 7, backgroundColor: 'rgba(222,173,207,.13)' },
+  skeletonKicker: { width: 63, height: 8, marginBottom: 5 },
+  skeletonTitle: { width: '76%', height: 18, marginBottom: 3 },
+  skeletonBody: { width: '94%' },
+  skeletonBodyShort: { width: '69%' },
+  skeletonPlace: { width: '46%', marginTop: 'auto' },
+  loadError: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 70, paddingHorizontal: 17, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(203,105,158,.17)', backgroundColor: 'rgba(26,18,29,.76)' },
+  loadErrorText: { color: '#BEB4C0', fontSize: 12 },
 });
