@@ -13,6 +13,10 @@ describe('coming soon world previews', () => {
     expect(catalog).toEqual([released]);
     expect(isComingSoonWorld(released)).toBe(false);
   });
+  it('drops the Gilded Age preview once The Gilded Coast is in the catalog', () => {
+    const live = { ...preview, id: 'gilded-coast', slug: 'gilded-coast', name: 'The Gilded Coast', published: true, metadata: {} };
+    expect(withComingSoonWorlds([live])).toEqual([live]);
+  });
   it('cannot be unlocked by a membership or owned-world entitlement', () => {
     for (const tier of ['free', 'kivelle_plus', 'kivelle_max']) {
       const snapshot = { entitlements: { tier }, userWorlds: [{ world_id: preview.id, access_status: 'unlocked' }] } as unknown as Snapshot;

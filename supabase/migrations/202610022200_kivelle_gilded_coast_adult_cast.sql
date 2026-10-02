@@ -323,11 +323,11 @@ where slug='gilded-coast'
 do $$
 declare template_count int; version_count int; private_count int; schedule_count int; underage int; missing_loc int; lodging int;
 begin
-  select count(*) into template_count from public.together_character_templates where id::text like '22000000-0000-4000-80a1-00000009%';
-  select count(*) into version_count from public.together_character_versions where id::text like '23000000-0000-4000-80a1-00000009%';
-  select count(*) into private_count from public.together_character_private_profiles where character_version_id::text like '23000000-0000-4000-80a1-00000009%';
-  select count(*) into schedule_count from public.together_schedule_templates where character_version_id::text like '23000000-0000-4000-80a1-00000009%';
-  select count(*) into underage from public.together_character_templates where id::text like '22000000-0000-4000-80a1-00000009%' and age<23;
+  select count(*) into template_count from public.together_character_templates where id::text like '22000000-0000-4000-80a1-000000009%';
+  select count(*) into version_count from public.together_character_versions where id::text like '23000000-0000-4000-80a1-000000009%';
+  select count(*) into private_count from public.together_character_private_profiles where character_version_id::text like '23000000-0000-4000-80a1-000000009%';
+  select count(*) into schedule_count from public.together_schedule_templates where character_version_id::text like '23000000-0000-4000-80a1-000000009%';
+  select count(*) into underage from public.together_character_templates where id::text like '22000000-0000-4000-80a1-000000009%' and age<23;
   select count(*) into missing_loc from ace_cast cross join lateral jsonb_array_elements(data) item
     where not exists (select 1 from public.together_locations where world_id=(item->>'worldId')::uuid and slug=item->>'work');
   select count(*) into lodging from ace_cast cross join lateral jsonb_array_elements(data) item

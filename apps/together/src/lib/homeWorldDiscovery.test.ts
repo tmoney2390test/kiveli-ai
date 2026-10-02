@@ -21,6 +21,10 @@ describe('home world discovery',()=>{
     expect(homeWorldDiscoveryOptions([world('juniper',1),hidden],'juniper').map((item)=>item.id)).toEqual(['preview-gilded-age']);
   });
 
+  it('does not keep the Gilded Age preview once The Gilded Coast is live',()=>{
+    expect(homeWorldDiscoveryOptions([world('juniper',1),world('gilded-coast',12)],'juniper').map((item)=>item.id)).toEqual(['gilded-coast']);
+  });
+
   it('wraps forward and backward rotation',()=>{
     expect(advanceHomeWorldIndex(2,3)).toBe(0);
     expect(advanceHomeWorldIndex(0,3,-1)).toBe(2);

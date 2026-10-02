@@ -32,6 +32,7 @@ export function onboardingWorldFantasy(world: World): string {
 
 const compactWorldCopy: Record<string, { genre: string; description: string }> = {
   'gilded-age': { genre: 'Pirate adventure', description: 'Fortunes beyond the horizon' },
+  'gilded-coast': { genre: 'Pirate adventure', description: 'Fortunes beyond the horizon' },
   'juniper-city': { genre: 'City life', description: 'Everyday sparks, new stories' },
   'port-vervelle': { genre: 'Slow romance', description: 'Slow love by the sea' },
   'neon-kyo': { genre: 'Cyberpunk', description: 'Real love in a synthetic city' },

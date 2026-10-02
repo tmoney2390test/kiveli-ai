@@ -543,11 +543,11 @@ where slug='gilded-coast'
 do $$
 declare template_count int; version_count int; private_count int; schedule_count int; underage int; missing_loc int; lodging int;
 begin
-  select count(*) into template_count from public.together_character_templates where id::text like '22000000-0000-4000-80a1-00000009%';
-  select count(*) into version_count from public.together_character_versions where id::text like '23000000-0000-4000-80a1-00000009%';
-  select count(*) into private_count from public.together_character_private_profiles where character_version_id::text like '23000000-0000-4000-80a1-00000009%';
-  select count(*) into schedule_count from public.together_schedule_templates where character_version_id::text like '23000000-0000-4000-80a1-00000009%';
-  select count(*) into underage from public.together_character_templates where id::text like '22000000-0000-4000-80a1-00000009%' and age<23;
+  select count(*) into template_count from public.together_character_templates where id::text like '22000000-0000-4000-80a1-000000009%';
+  select count(*) into version_count from public.together_character_versions where id::text like '23000000-0000-4000-80a1-000000009%';
+  select count(*) into private_count from public.together_character_private_profiles where character_version_id::text like '23000000-0000-4000-80a1-000000009%';
+  select count(*) into schedule_count from public.together_schedule_templates where character_version_id::text like '23000000-0000-4000-80a1-000000009%';
+  select count(*) into underage from public.together_character_templates where id::text like '22000000-0000-4000-80a1-000000009%' and age<23;
   select count(*) into missing_loc from ace_cast cross join lateral jsonb_array_elements(data) item
     where not exists (select 1 from public.together_locations where world_id=(item->>'worldId')::uuid and slug=item->>'work');
   select count(*) into lodging from ace_cast cross join lateral jsonb_array_elements(data) item
@@ -566,29 +566,29 @@ function buildTestSql() {
   return `begin;
 select plan(9);
 
-select is((select count(*) from public.together_character_templates where id::text like '22000000-0000-4000-80a1-00000009%'), 20::bigint,
+select is((select count(*) from public.together_character_templates where id::text like '22000000-0000-4000-80a1-000000009%'), 20::bigint,
   '20 Gilded Coast adult-cast templates exist');
-select is((select count(*) from public.together_character_versions where id::text like '23000000-0000-4000-80a1-00000009%'), 20::bigint,
+select is((select count(*) from public.together_character_versions where id::text like '23000000-0000-4000-80a1-000000009%'), 20::bigint,
   '20 Gilded Coast adult-cast versions exist');
-select is((select count(*) from public.together_character_private_profiles where character_version_id::text like '23000000-0000-4000-80a1-00000009%'), 20::bigint,
+select is((select count(*) from public.together_character_private_profiles where character_version_id::text like '23000000-0000-4000-80a1-000000009%'), 20::bigint,
   '20 Gilded Coast adult-cast private profiles exist');
-select is((select count(*) from public.together_schedule_templates where character_version_id::text like '23000000-0000-4000-80a1-00000009%'), 840::bigint,
+select is((select count(*) from public.together_schedule_templates where character_version_id::text like '23000000-0000-4000-80a1-000000009%'), 840::bigint,
   '20 Gilded Coast companions have full-week authored schedules');
-select is((select count(*) from public.together_character_templates where id::text like '22000000-0000-4000-80a1-00000009%' and age<23), 0::bigint,
+select is((select count(*) from public.together_character_templates where id::text like '22000000-0000-4000-80a1-000000009%' and age<23), 0::bigint,
   'no Gilded Coast adult-cast companion is under 23');
-select is((select count(*) from public.together_character_templates where id::text like '22000000-0000-4000-80a1-00000009%' and spice_level=3), 20::bigint,
+select is((select count(*) from public.together_character_templates where id::text like '22000000-0000-4000-80a1-000000009%' and spice_level=3), 20::bigint,
   'every Gilded Coast adult-cast companion is spice 3');
 select ok(not exists(
   select 1 from public.together_character_private_profiles
-  where character_version_id::text like '23000000-0000-4000-80a1-00000009%'
+  where character_version_id::text like '23000000-0000-4000-80a1-000000009%'
     and (length(coalesce(hidden_sexual,''))<40 or length(coalesce(intimate_anatomy,''))<40)
 ), 'every Gilded Coast adult-cast private profile has authored intimacy');
-select is((select count(distinct slug) from public.together_character_templates where id::text like '22000000-0000-4000-80a1-00000009%'), 20::bigint,
+select is((select count(distinct slug) from public.together_character_templates where id::text like '22000000-0000-4000-80a1-000000009%'), 20::bigint,
   'Gilded Coast adult-cast slugs are unique');
 select is((
   select count(*) from public.together_schedule_templates s
   join public.together_locations l on l.id=s.location_id
-  where s.character_version_id::text like '23000000-0000-4000-80a1-00000009%'
+  where s.character_version_id::text like '23000000-0000-4000-80a1-000000009%'
     and s.start_minute=0 and l.slug<>'blue-lantern-inn'
 ), 0::bigint, 'Gilded Coast adult-cast sleep blocks use photographed lodging');
 
@@ -632,15 +632,13 @@ async function patchAssets(characters) {
 async function patchLegacyTest() {
   const path = resolve(root, 'supabase/tests/162_kivelle_adult_cast_expansion.sql');
   let text = await readFile(path, 'utf8');
-  const from = "where id::text like '22000000-0000-4000-80a1-%'";
-  const to = "where id::text like '22000000-0000-4000-80a1-00000000%'";
-  if (text.includes(from) && !text.includes(to)) text = text.replaceAll(from, to);
-  const fromV = "where id::text like '23000000-0000-4000-80a1-%'";
-  const toV = "where id::text like '23000000-0000-4000-80a1-00000000%'";
-  if (text.includes(fromV) && !text.includes(toV)) text = text.replaceAll(fromV, toV);
-  const fromP = 'where character_version_id::text like \'23000000-0000-4000-80a1-%\'';
-  const toP = 'where character_version_id::text like \'23000000-0000-4000-80a1-00000000%\'';
-  if (text.includes(fromP) && !text.includes(toP)) text = text.replaceAll(fromP, toP);
+  text = text
+    .replaceAll("id::text like '22000000-0000-4000-80a1-%'", "id::text ~ '^22000000-0000-4000-80a1-00000000[1-8]'")
+    .replaceAll("id::text like '22000000-0000-4000-80a1-00000000%'", "id::text ~ '^22000000-0000-4000-80a1-00000000[1-8]'")
+    .replaceAll("id::text like '23000000-0000-4000-80a1-%'", "id::text ~ '^23000000-0000-4000-80a1-00000000[1-8]'")
+    .replaceAll("id::text like '23000000-0000-4000-80a1-00000000%'", "id::text ~ '^23000000-0000-4000-80a1-00000000[1-8]'")
+    .replaceAll("character_version_id::text like '23000000-0000-4000-80a1-%'", "character_version_id::text ~ '^23000000-0000-4000-80a1-00000000[1-8]'")
+    .replaceAll("character_version_id::text like '23000000-0000-4000-80a1-00000000%'", "character_version_id::text ~ '^23000000-0000-4000-80a1-00000000[1-8]'");
   await writeFile(path, text);
 }
 

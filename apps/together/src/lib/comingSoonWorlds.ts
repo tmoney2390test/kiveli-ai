@@ -12,7 +12,12 @@ export function isComingSoonWorld(world: World): boolean {
   return world.metadata?.catalog_status === 'coming_soon' || world.metadata?.coming_soon === true;
 }
 
+function previewIsReleased(preview: World, worlds: World[]): boolean {
+  if (worlds.some((world) => world.slug === preview.slug)) return true;
+  return preview.slug === 'gilded-age' && worlds.some((world) => world.slug === 'gilded-coast');
+}
+
 /** Preview records stay outside the playable snapshot and never replace a released world. */
 export function withComingSoonWorlds(worlds: World[]): World[] {
-  return [...worlds, ...previews.filter((preview) => !worlds.some((world) => world.slug === preview.slug))];
+  return [...worlds, ...previews.filter((preview) => !previewIsReleased(preview, worlds))];
 }
