@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  planWorldPulseHorizon, worldPulseDailyBudget, worldPulseThirtyDayAllocationFits, worldPulseIsDiscoverable, worldPulsePortraitCellWidth, knownWorldPulseFacts,
+  planWorldPulseHorizon, worldPulseDailyBudget, worldPulseThirtyDayAllocationFits, worldPulseIsDiscoverable, worldPulsePortraitCellWidth, worldPulseV2LegacyItems, knownWorldPulseFacts,
   worldPulseRepeatEligible, WORLD_PULSE_REPEAT_COOLDOWN_HOURS,
   type PulseTemplateForSchedule,
 } from './world-pulse-v2';
@@ -9,6 +9,26 @@ const templates = (count: number): PulseTemplateForSchedule[] => Array.from({ le
   id: `template-${index}`, repeatIdentity: `incident-${index}`, schedulingRank: index, active: true,
   participantIds: [`resident-${index % 48}`], eventType: 'community', locationId: `place-${index % 20}`,
 }));
+
+describe('pre-V2 native compatibility', () => {
+  it('provides the items array and canonical place fields older Home builds read', () => {
+    const items = worldPulseV2LegacyItems([{ id: 'event', worldId: 'world', templateId: 'template',
+      title: 'The repair ticket that came back twice', feedSummary: 'A water inspection stalled.',
+      eventType: 'water', occurredAt: '2026-10-02T01:15:00Z', endsAt: '2026-10-03T01:15:00Z',
+      significance: .45, location: { id: 'place', slug: 'solace-reservoir', name: 'Solace Reservoir' },
+      participants: [
+        { characterTemplateId: 'one', characterInstanceId: 'met-one', slug: 'naomi', publicHandle: null,
+          name: 'Naomi', roleLabel: 'Sought a plan', primary: true, ordinal: 0, available: true },
+        { characterTemplateId: 'two', characterInstanceId: null, slug: 'zoe', publicHandle: null,
+          name: 'Zoe', roleLabel: 'Identified care needs', primary: false, ordinal: 1, available: true },
+      ],
+    }]);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ id: 'event', kind: 'happening_now', startsAt: '2026-10-02T01:15:00Z',
+      locationId: 'place', locationSlug: 'solace-reservoir', locationName: 'Solace Reservoir',
+      participantNames: ['Naomi', 'Zoe'], participantCharacterInstanceIds: ['met-one'], action: 'open_place' });
+  });
+});
 
 describe('global World Pulse rotation', () => {
   it('uses 200 slots in a varied 30-day cycle', () => {

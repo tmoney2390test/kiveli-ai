@@ -1,4 +1,5 @@
 /** Global Pulse rules. No account or Life identifier enters this scheduler. */
+import type { AroundTownItem } from './world-pulse';
 export const WORLD_PULSE_DAILY_MIN = 6;
 export const WORLD_PULSE_DAILY_MAX = 8;
 export const WORLD_PULSE_TEMPLATES_PER_WORLD = 200;
@@ -192,3 +193,15 @@ export type WorldPulseV2Event = {
   location: { id: string; slug: string; name: string };
   participants: WorldPulseV2Participant[];
 };
+
+/** Keep pre-V2 native Home builds safe until they receive the new event route. */
+export function worldPulseV2LegacyItems(events: readonly WorldPulseV2Event[]): AroundTownItem[] {
+  return events.map((event) => ({
+    id: event.id, kind: 'happening_now', title: event.title, summary: event.feedSummary,
+    startsAt: event.occurredAt, endsAt: event.endsAt, locationId: event.location.id,
+    locationName: event.location.name, locationSlug: event.location.slug,
+    participantCharacterInstanceIds: event.participants.flatMap((person) => person.characterInstanceId ? [person.characterInstanceId] : []),
+    participantNames: event.participants.map((person) => person.name), action: 'open_place',
+    eventType: event.eventType, significance: event.significance,
+  }));
+}

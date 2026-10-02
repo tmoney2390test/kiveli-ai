@@ -4,6 +4,7 @@ import { json, serve } from '../_shared/http.ts';
 import { activeContinuity } from '../_shared/together-continuity.ts';
 import { loadAroundTown } from '../_shared/kivelle-world-pulse.ts';
 import { isWorldCatalogVisible } from '../../../packages/together-domain/src/world-access.ts';
+import { worldPulseV2LegacyItems } from '../../../packages/together-domain/src/world-pulse-v2.ts';
 import { loadWorldPulseV2, loadWorldPulseV2Detail, loadWorldPulseV2ConversationLabel, worldPulseV2Enabled, worldPulseV2EnabledForWorld } from '../_shared/kivelle-world-pulse-v2.ts';
 
 const querySchema=z.object({worldId:z.string().uuid().optional(),eventId:z.string().uuid().optional(),conversationId:z.string().uuid().optional()});
@@ -33,7 +34,9 @@ serve(async(request,correlationId)=>{
   if(!worldId)return json({data:{worldId:null,events:[],items:[],generatedAt:new Date().toISOString()},correlationId},200,correlationId);
   if(await worldPulseV2EnabledForWorld(db,worldId)){
     const pulse=await loadWorldPulseV2({db,worldId,userId:user.id,continuityId:String(continuity.id)});
-    return json({data:pulse,correlationId},200,correlationId);
+    // Installed native builds predating V2 still read `items` on Home. Keep
+    // their Around Town contract while newer clients use the rich V2 events.
+    return json({data:{...pulse,items:worldPulseV2LegacyItems(pulse.events)},correlationId},200,correlationId);
   }
   const timezone=String(profileResult.data?.experience_timezone??request.headers.get('x-kivelle-timezone')??'UTC');
   const pulse=await loadAroundTown({db,userId:user.id,continuityId:String(continuity.id),worldId,timezone,limit:8,refreshInBackground:(task)=>{
