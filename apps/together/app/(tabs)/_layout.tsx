@@ -6,6 +6,7 @@ import { Compass, Home, Images, MessageCircle, Plus } from 'lucide-react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppShell } from '../../src/shell/AppShellContext';
 import { MobileTabButton } from '../../src/shell/MobileTabButton';
+import { IosLiquidGlass, supportsIosLiquidGlass } from '../../src/shell/IosLiquidGlass';
 import { CreateMenu } from '../../src/components/CreateMenu';
 import { MESSAGES_INBOX_HREF, mostRecentChatHref, WEB_MESSAGES_INBOX_HREF } from '../../src/lib/messageInbox';
 import { useTogether } from '../../src/store/useTogether';
@@ -22,6 +23,7 @@ export default function TabsLayout() {
   const desktopViewport=isDesktopShellViewport(Platform.OS,width);
   const snapshot=useTogether((state)=>state.snapshot);
   const webBarWidth = Math.max(300, Math.min(720, width - 24));
+  const iosGlass = supportsIosLiquidGlass();
   const latestChatHref=snapshot?mostRecentChatHref(snapshot.conversations,snapshot.characters):null;
   const messagesInboxHref=web?WEB_MESSAGES_INBOX_HREF:MESSAGES_INBOX_HREF;
   const[webInputFocused,setWebInputFocused]=useState(false);
@@ -39,37 +41,38 @@ export default function TabsLayout() {
   return <><Tabs screenOptions={{
     headerShown: false,
     sceneStyle: { backgroundColor: colors.background, ...(web ? ({ minHeight: '100dvh' } as never) : {}) },
-    tabBarActiveTintColor: '#FF86AB',
+    tabBarActiveTintColor: Platform.OS === 'ios' ? '#FFF1F8' : '#FF86AB',
     tabBarInactiveTintColor: '#938996',
     tabBarActiveBackgroundColor: 'transparent',
     tabBarButton: (props) => <MobileTabButton {...props} />,
     tabBarHideOnKeyboard: true,
-    tabBarBackground: () => <FrostedTabBarBackground />,
+    tabBarBackground: () => <FrostedTabBarBackground liquidGlass={iosGlass} />,
     tabBarStyle: {
       display: desktop||desktopViewport||webInputFocused ? 'none' : 'flex',
       position: 'absolute',
       zIndex: 100,
-      left: 8,
-      right: 8,
+      left: Platform.OS === 'ios' ? 14 : 8,
+      right: Platform.OS === 'ios' ? 14 : 8,
       bottom: Math.max(8,insets.bottom),
-      height: 72,
-      paddingTop: 5,
-      paddingBottom: 7,
+      height: Platform.OS === 'ios' ? 68 : 72,
+      paddingTop: Platform.OS === 'ios' ? 3 : 5,
+      paddingBottom: Platform.OS === 'ios' ? 3 : 7,
       backgroundColor: 'transparent',
       borderTopWidth: 1,
       borderWidth: 1,
-      borderColor: 'rgba(255,248,244,.11)',
-      borderRadius: 20,
+      borderColor: iosGlass ? 'rgba(255,248,244,.2)' : 'rgba(255,248,244,.11)',
+      borderRadius: Platform.OS === 'ios' ? 34 : 20,
+      borderCurve: 'continuous',
       elevation: 18,
       shadowColor: '#000',
-      shadowOpacity: .45,
-      shadowRadius: 26,
-      shadowOffset: { width: 0, height: 13 },
+      shadowOpacity: Platform.OS === 'ios' ? .36 : .45,
+      shadowRadius: Platform.OS === 'ios' ? 22 : 26,
+      shadowOffset: { width: 0, height: Platform.OS === 'ios' ? 8 : 13 },
       overflow: 'hidden',
       ...(web ? { position: 'fixed' as never, width: webBarWidth, left: '50%', right: undefined, marginLeft: -webBarWidth / 2, bottom: 'max(8px, env(safe-area-inset-bottom))' as never, backdropFilter: 'blur(30px) saturate(145%)' } : {}),
     },
-    tabBarItemStyle: { minHeight: 52, borderRadius: 16, marginHorizontal: 5, marginVertical: 3 },
-    tabBarLabelStyle: { fontSize: 9, lineHeight: 14, flexShrink: 0, fontWeight: '800', letterSpacing: .12 },
+    tabBarItemStyle: { minHeight: Platform.OS === 'ios' ? 56 : 52, borderRadius: Platform.OS === 'ios' ? 26 : 16, marginHorizontal: Platform.OS === 'ios' ? 2 : 5, marginVertical: 3 },
+    tabBarLabelStyle: { fontSize: Platform.OS === 'ios' ? 10 : 9, lineHeight: 14, flexShrink: 0, fontWeight: '800', letterSpacing: .12 },
   }}>
     <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color, size, focused }) => <Home color={color} size={focused ? size + 1 : size} fill={focused ? 'rgba(239,82,137,.13)' : 'transparent'} /> }} listeners={{tabPress:()=>prepare('/home')}} />
     <Tabs.Screen name="explore" options={{ title: 'Explore', tabBarIcon: ({ color, size, focused }) => <Compass color={color} size={focused ? size + 2 : size} /> }} listeners={{tabPress:()=>prepare('/explore')}} />
@@ -90,7 +93,11 @@ export default function TabsLayout() {
   </>;
 }
 
-function FrostedTabBarBackground() {
+function FrostedTabBarBackground({liquidGlass}:{liquidGlass:boolean}) {
+  if(liquidGlass)return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <IosLiquidGlass colorScheme="dark" glassEffectStyle="regular" tintColor="#342536" style={styles.nativeGlass} />
+    <View style={styles.nativeGlassWash} />
+  </View>;
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
     <BlurView tint="systemMaterialDark" intensity={78} blurMethod="dimezisBlurViewSdk31Plus" style={[StyleSheet.absoluteFill, styles.glassBlur]} />
     <View style={styles.glassWash} />
@@ -98,6 +105,17 @@ function FrostedTabBarBackground() {
 }
 
 const styles = StyleSheet.create({
+  nativeGlass: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 34,
+    borderCurve: 'continuous',
+  },
+  nativeGlassWash: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 34,
+    borderCurve: 'continuous',
+    backgroundColor: 'rgba(37,23,43,.1)',
+  },
   glassBlur: {
     backgroundColor: 'rgba(15,12,21,.66)',
     ...(web ? ({ backdropFilter: 'blur(30px) saturate(145%)' } as never) : {}),
