@@ -352,6 +352,7 @@ export default function GroupChatScreen() {
     mediaRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
     deltaRefreshRunning=useRef(false),
     deltaRefreshQueued=useRef(false),
+    lastFullCatchUp=useRef(0),
     detailRef=useRef<GroupDetail|null>(null),
     scrollRef = useRef<FlatList<GroupTimelineItem> | null>(null),
     contentHeightRef=useRef(0),
@@ -498,7 +499,18 @@ export default function GroupChatScreen() {
     if(deltaRefreshRunning.current){deltaRefreshQueued.current=true;return;}
     deltaRefreshRunning.current=true;
     try{const delta=await manageGroup<GroupDetailDelta>({action:"changes",conversationId:params.id,since:current.syncedAt});setDetail((value)=>value&&value.conversation.id===params.id?applyGroupDetailDelta(value,delta):value);}
-    catch{/* The next realtime event, poll, or focus load safely retries. */}
+    catch{
+      // A delta can fail independently of a normal detail read. Fall back to
+      // the latest page, but cap full reloads when connectivity is poor.
+      if(Date.now()-lastFullCatchUp.current>60_000){
+        lastFullCatchUp.current=Date.now();
+        try{
+          const next=await loadGroupDetail(params.id,{messageLimit:30,timeoutMs:20_000});
+          setDetail((value)=>value&&value.conversation.id===params.id
+            ?{...next,messages:reconcileMessages(value.messages,next.messages)}:value);
+        }catch{/* The next focus or catch-up check will retry. */}
+      }
+    }
     finally{deltaRefreshRunning.current=false;if(deltaRefreshQueued.current){deltaRefreshQueued.current=false;void refreshGroupDeltaTask();}}
   },[params.id]);
   useEffect(()=>{
@@ -592,15 +604,23 @@ export default function GroupChatScreen() {
     };
   },[authLoading,groupCacheScope,groupLoadAttempt,groupSnapshotReady,params.id,prepareConversationScroll,session?.user.id]);
   useFocusEffect(useCallback(() => {
-    if (!params.id || loadedGroupRef.current!==params.id) return;
+    if (!params.id || loading || detail?.conversation.id!==params.id || loadedGroupRef.current!==params.id) return;
     void refreshGroupDelta();
+    // Realtime delivery can pause in a backgrounded Safari tab or after a
+    // connection handoff. Keep an open group caught up without a page reload.
+    const catchUp=setInterval(()=>{
+      if(AppState.currentState==='active'&&
+        (typeof document==='undefined'||document.visibilityState==='visible'))
+        void refreshGroupDelta();
+    },15_000);
     return () => {
+      clearInterval(catchUp);
       if (mediaRefreshTimer.current) clearTimeout(mediaRefreshTimer.current);
       if (initialBottomPinReleaseTimer.current) clearTimeout(initialBottomPinReleaseTimer.current);
       for(const timer of bottomPinSettleTimers.current)clearTimeout(timer);
       bottomPinSettleTimers.current.clear();
     };
-  }, [params.id,prepareConversationScroll,refreshGroupDelta]));
+  }, [detail?.conversation.id,loading,params.id,prepareConversationScroll,refreshGroupDelta]));
   useEffect(() => {
     if (!params.id) return;
     const refreshDetail = () => {
@@ -3623,8 +3643,9 @@ function GroupVoiceNote({
   const [media, setMedia] = useState(initialMedia),
     [quote, setQuote] = useState<VoiceNoteQuote | null>(null),
     [busy, setBusy] = useState(false),
-    [failed, setFailed] = useState(false);
+    [failureMessage, setFailureMessage] = useState<string|null>(null);
   const handledRequestToken=useRef(0);
+  const refreshedSource=useRef<string|null>(null);
   const source = media?.status === "ready" && media.signed_url
       ? media.signed_url
       : null,
@@ -3634,26 +3655,43 @@ function GroupVoiceNote({
   useEffect(() => {
     if (!active) player.pause();
   }, [active, player]);
+  useEffect(()=>{
+    if(initialMedia)setMedia(initialMedia);
+  },[initialMedia?.id,initialMedia?.status,initialMedia?.signed_url]);
+  useEffect(()=>{
+    if(!active||!source||(status.isLoaded&&!status.error)||refreshedSource.current===source)return;
+    const timer=setTimeout(()=>{
+      if((status.isLoaded&&!status.error)||!media)return;
+      refreshedSource.current=source;
+      void refreshVoiceNote(media.id).then((result)=>setMedia(result.media))
+        .catch(()=>setFailureMessage('Audio could not be loaded. Tap to try again.'));
+    },1800);
+    return()=>clearTimeout(timer);
+  },[active,source,status.isLoaded,status.error,media?.id]);
   useEffect(() => {
     if (!media || media.status === "ready" || media.status === "failed") return;
     const timer = setTimeout(() => {
       void refreshVoiceNote(media.id).then((result) => {
         setMedia(result.media);
-        setFailed(result.media.status === "failed");
-      }).catch(() => setFailed(true));
+        if(result.media.status==='failed')setFailureMessage(result.media.failure_reason_safe??'Voice note generation failed. Tap to retry.');
+      }).catch((caught) => setFailureMessage(caught instanceof Error?caught.message:'Voice note status could not be checked.'));
     }, 1600);
     return () => clearTimeout(timer);
   }, [media]);
   const generate = async (hideFuture = false) => {
     setBusy(true);
-    setFailed(false);
+    setFailureMessage(null);
     try {
       if (hideFuture) await hideVoiceNoteConfirmation();
       const result = await requestVoiceNote(message.id, crypto.randomUUID());
-      if (result.media) setMedia(result.media);
+      if(result.status==='not_configured')throw new Error(result.message??"Voice isn't connected yet.");
+      if(result.media){
+        setMedia(result.media);
+        if(result.media.status==='failed')setFailureMessage(result.media.failure_reason_safe??'Voice note generation failed. Tap to retry.');
+      }else throw new Error('The voice note could not be started.');
       setQuote(null);
-    } catch {
-      setFailed(true);
+    } catch (caught) {
+      setFailureMessage(caught instanceof Error?caught.message:'The voice note could not be generated.');
     } finally {
       setBusy(false);
     }
@@ -3668,21 +3706,23 @@ function GroupVoiceNote({
         player.pause();
         onVoiceActive(null);
       } else {
+        setFailureMessage(null);
         onVoiceActive(media.id);
         player.play();
       }
       return;
     }
     setBusy(true);
-    setFailed(false);
+    setFailureMessage(null);
     try {
       const next = await quoteVoiceNote(message.id);
-      if (await isVoiceNoteConfirmationHidden()) {
+      if(!next.generationRequired){await generate();}
+      else if (await isVoiceNoteConfirmationHidden()) {
         if (next.canAfford) await generate();
         else setQuote(next);
       } else setQuote(next);
-    } catch {
-      setFailed(true);
+    } catch (caught) {
+      setFailureMessage(caught instanceof Error?caught.message:'The voice note could not be prepared.');
     } finally {
       setBusy(false);
     }
@@ -3695,11 +3735,11 @@ function GroupVoiceNote({
   },[requestToken]);
   return (
     <>
-      {media||busy||failed?<Pressable
+      {media||busy||failureMessage?<Pressable
         accessibilityLabel={status.playing
           ? "Pause voice note"
           : `${
-            failed || media?.status === "failed" ? "Retry" : "Listen to"
+            failureMessage || media?.status === "failed" ? "Retry" : "Listen to"
           } ${name}`}
         disabled={busy}
         onPress={() => void listen()}
@@ -3722,9 +3762,10 @@ function GroupVoiceNote({
             ? (status.playing ? "Pause" : "Play")
             : !enabled
             ? "Listen · Kivelle+"
-            : (failed || media?.status === "failed" ? "Retry" : "Listen")}
+            : (failureMessage || media?.status === "failed" ? "Retry" : "Listen")}
         </Text>
       </Pressable>:null}
+      {failureMessage?<Text accessibilityLiveRegion="polite" style={voiceStyles.listenText}>{failureMessage}</Text>:null}
       <VoiceNotePurchaseModal
         visible={Boolean(quote)}
         name={name}
