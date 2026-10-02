@@ -149,7 +149,7 @@ select ok((select
   'Both additions can appear at High Gardens Open Afternoon');
 
 select is((select metadata->>'residentCompanionCount' from public.together_worlds where slug='vespormoor'),
-  '47','Vespormoor advertises the expanded 47-person roster');
+  '67','Vespormoor advertises the expanded 67-person roster');
 
 select * from finish();
 rollback;

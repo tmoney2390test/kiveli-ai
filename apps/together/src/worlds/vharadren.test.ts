@@ -42,16 +42,16 @@ describe('Vharadren playable world',()=>{
   });
 
   it('registers all 52 portrait slots without bundling server-only adult character depth',()=>{
-    expect(vharadrenWorld.metadata.residentCompanionCount).toBe(52);
-    expect(vharadrenWorld.metadata.portraitSlotCount).toBe(52);
-    expect(vharadrenWorld.metadata.residentGenderRatio).toEqual({women:36,men:16});
-    expect(vharadrenWorld.metadata.weeklyScheduleRowCount).toBe(2184);
-    expect(vharadrenCharacterSlugs).toHaveLength(52);
-    expect(new Set(vharadrenCharacterSlugs).size).toBe(52);
+    expect(vharadrenWorld.metadata.residentCompanionCount).toBe(72);
+    expect(vharadrenWorld.metadata.portraitSlotCount).toBe(72);
+    expect(vharadrenWorld.metadata.residentGenderRatio).toEqual({women:49,men:23});
+    expect(vharadrenWorld.metadata.weeklyScheduleRowCount).toBe(3024);
+    expect(vharadrenCharacterSlugs).toHaveLength(72);
+    expect(new Set(vharadrenCharacterSlugs).size).toBe(72);
     expect(vharadrenCharacterSlugs).toContain('sable-wren');
     expect(vharadrenCharacterSlugs).toContain('princess-maris-vaelorian');
     expect(vharadrenCharacterSlugs).toContain('celia-thatch');
-    expect(vharadrenAssetSlots.portraits).toHaveLength(52);
+    expect(vharadrenAssetSlots.portraits).toHaveLength(72);
     expect(vharadrenAssetSlots.portraits.every((slot)=>slot.status==='ready')).toBe(true);
     const publicCatalog=JSON.stringify({vharadrenWorld,vharadrenLocations,vharadrenCharacterSlugs,vharadrenAssetSlots});
     expect(publicCatalog).not.toMatch(/privateTruth|adultContinuity|intimateAnatomy|hiddenSexual/);

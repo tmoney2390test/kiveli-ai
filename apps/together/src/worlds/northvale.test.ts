@@ -10,7 +10,7 @@ describe('NorthVale playable world',()=>{
     expect(northvaleWorld.default_arrival_location_id).toBe(NORTHVALE_ARRIVAL_ID);
     expect(northvaleWorld.metadata.locationCount).toBe(51);
     expect(northvaleWorld.metadata.districtCount).toBe(6);
-    expect(northvaleWorld.metadata.residentCompanionCount).toBe(45);
+    expect(northvaleWorld.metadata.residentCompanionCount).toBe(65);
   });
 
   it('preserves the mining town, White Sunday, ski history, and Accord as canonical lore',()=>{

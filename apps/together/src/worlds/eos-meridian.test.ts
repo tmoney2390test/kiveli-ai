@@ -19,7 +19,7 @@ describe('Eos Meridian playable world', () => {
     expect(eosMeridianWorld.default_arrival_location_id).toBe(EOS_MERIDIAN_ARRIVAL_ID);
     expect(eosMeridianWorld.metadata.locationCount).toBe(54);
     expect(eosMeridianWorld.metadata.districtCount).toBe(6);
-    expect(eosMeridianWorld.metadata.residentCompanionCount).toBe(47);
+    expect(eosMeridianWorld.metadata.residentCompanionCount).toBe(67);
   });
 
   it('keeps the founding gap, independence charter, and night-side signal canonical', () => {
@@ -63,14 +63,14 @@ describe('Eos Meridian playable world', () => {
   });
 
   it('declares complete character and location media manifests', () => {
-    expect(eosMeridianCharacterSlugs).toHaveLength(47);
-    expect(new Set(eosMeridianCharacterSlugs).size).toBe(47);
+    expect(eosMeridianCharacterSlugs).toHaveLength(67);
+    expect(new Set(eosMeridianCharacterSlugs).size).toBe(67);
     expect(eosMeridianLocations.every((location) => location.metadata?.photoStatus === 'ready')).toBe(true);
     expect(eosMeridianLocations.every((location) => location.visual_asset_key === `eos-meridian-location-${location.slug}`)).toBe(true);
   });
 
   it('assigns every companion a stable supported xAI voice for notes and calls', () => {
-    expect(eosMeridianVoiceAssignments).toHaveLength(47);
+    expect(eosMeridianVoiceAssignments).toHaveLength(67);
     expect(new Set(eosMeridianVoiceAssignments.map((item) => item.slug))).toEqual(new Set(eosMeridianCharacterSlugs));
     expect(eosMeridianVoiceAssignments.every((item) => item.voiceKey === `eos-${item.slug}`)).toBe(true);
     expect(eosMeridianVoiceAssignments.every((item) => (XAI_BUILT_IN_VOICES as readonly string[]).includes(item.xaiVoiceId))).toBe(true);

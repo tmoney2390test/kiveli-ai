@@ -8,8 +8,8 @@ describe('Port Vervelle world seed',()=>{
     expect(portVervelleWorld.slug).toBe('port-vervelle');
     expect(portVervelleWorld.name).toBe('Port Vervelle');
     expect(portVervelleWorld.default_arrival_location_id).toBe(PORT_VERVELLE_ARRIVAL_ID);
-    expect(portVervelleWorld.metadata.residentCompanionCount).toBe(44);
-    expect(portVervelleWorld.metadata.maleResidentCompanionCount).toBe(12);
+    expect(portVervelleWorld.metadata.residentCompanionCount).toBe(64);
+    expect(portVervelleWorld.metadata.maleResidentCompanionCount).toBe(19);
     expect(portVervelleWorld.metadata.residentRosterVersion).toBe(2);
     expect(portVervelleLocations.find((location)=>location.id===PORT_VERVELLE_ARRIVAL_ID)?.slug).toBe('porto-marina');
   });

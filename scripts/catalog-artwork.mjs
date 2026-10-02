@@ -30,30 +30,47 @@ export async function referencedPaths() {
   if (!paths.size) throw new Error('No catalog references found');
   return [...paths].sort();
 }
-async function generate() {
+async function optimizePath(path) {
+  const bytes = await readFile(resolve(root, 'apps/together/assets', path));
+  const variants = {};
+  for (const [variant, dimension, quality] of [['display',1920,86], ['thumbnail',384,80]]) {
+    // Display copies only. Keep original composition, alpha and source files;
+    // auto-orient and remove EXIF (including any location metadata).
+    const {data, info} = await sharp(bytes).rotate().resize({width:dimension,height:dimension,fit:'inside',withoutEnlargement:true}).webp({quality,effort:4}).toBuffer({resolveWithObject:true});
+    const file = `v1/${sha256(data)}.webp`;
+    await mkdir(resolve(outputPath, 'v1'), {recursive:true});
+    await writeFile(resolve(outputPath, file), data);
+    variants[variant]={file,width:info.width,height:info.height,bytes:data.length};
+  }
+  return {sourceHash:sha256(bytes),...variants, originalBytes: bytes.length};
+}
+
+async function generate({missingOnly=false}={}) {
   await generateStartup();
   await mkdir(outputPath, {recursive:true});
-  const manifest = {};
-  let originalBytes=0, displayBytes=0, thumbnailBytes=0, done=0;
+  const existing = missingOnly ? JSON.parse(await readFile(manifestPath,'utf8')) : {};
+  const manifest = missingOnly ? {...existing} : {};
+  let originalBytes=0, displayBytes=0, thumbnailBytes=0, done=0, skipped=0;
   for (const path of await referencedPaths()) {
     const bytes = await readFile(resolve(root, 'apps/together/assets', path));
-    const variants = {};
-    for (const [variant, dimension, quality] of [['display',1920,86], ['thumbnail',384,80]]) {
-      // Display copies only. Keep original composition, alpha and source files;
-      // auto-orient and remove EXIF (including any location metadata).
-      const {data, info} = await sharp(bytes).rotate().resize({width:dimension,height:dimension,fit:'inside',withoutEnlargement:true}).webp({quality,effort:4}).toBuffer({resolveWithObject:true});
-      const file = `v1/${sha256(data)}.webp`;
-      await mkdir(resolve(outputPath, 'v1'), {recursive:true});
-      await writeFile(resolve(outputPath, file), data);
-      variants[variant]={file,width:info.width,height:info.height,bytes:data.length};
+    const hash = sha256(bytes);
+    if (missingOnly && existing[path]?.sourceHash===hash) {
+      skipped++;
+      originalBytes+=bytes.length;
+      displayBytes+=existing[path].display.bytes;
+      thumbnailBytes+=existing[path].thumbnail.bytes;
+      continue;
     }
-    manifest[path]={sourceHash:sha256(bytes),...variants};
-    originalBytes+=bytes.length; displayBytes+=variants.display.bytes; thumbnailBytes+=variants.thumbnail.bytes;
+    const {originalBytes: sourceBytes, ...entry} = await optimizePath(path);
+    manifest[path]=entry;
+    originalBytes+=sourceBytes; displayBytes+=entry.display.bytes; thumbnailBytes+=entry.thumbnail.bytes;
     if (++done % 100 === 0) console.log(`Optimized ${done} catalog images`);
   }
-  await writeFile(manifestPath, JSON.stringify(manifest,null,2)+'\n');
-  await writeFile(runtimePath, JSON.stringify(runtimeManifest(manifest))+'\n');
-  console.log(JSON.stringify({images:done,originalBytes,displayBytes,thumbnailBytes}));
+  const ordered = {};
+  for (const path of await referencedPaths()) ordered[path]=manifest[path];
+  await writeFile(manifestPath, JSON.stringify(ordered,null,2)+'\n');
+  await writeFile(runtimePath, JSON.stringify(runtimeManifest(ordered))+'\n');
+  console.log(JSON.stringify({images:done,skipped,originalBytes,displayBytes,thumbnailBytes,missingOnly}));
 }
 function runtimeManifest(manifest) {
   return Object.fromEntries(Object.entries(manifest).map(([path,entry])=>[path,Object.fromEntries(['display','thumbnail'].map(variant=>{
@@ -86,5 +103,7 @@ export async function verifyManifest() {
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   if(process.argv.includes('--verify')) await verifyManifest();
   else if(process.argv.includes('--runtime-only')) await writeFile(runtimePath,JSON.stringify(runtimeManifest(JSON.parse(await readFile(manifestPath,'utf8'))))+'\n');
-  else if(process.argv.includes('--startup-only')) await generateStartup(); else await generate();
+  else if(process.argv.includes('--startup-only')) await generateStartup();
+  else if(process.argv.includes('--missing-only')) await generate({missingOnly:true});
+  else await generate();
 }

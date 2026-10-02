@@ -13,7 +13,7 @@ describe('Vespormoor playable world',()=>{
     expect(vespormoorWorld.metadata.locationCount).toBe(51);
     expect(vespormoorWorld.metadata.districtCount).toBe(6);
     expect(vespormoorWorld.metadata.residentRosterStatus).toBe('ready');
-    expect(vespormoorWorld.metadata.residentCompanionCount).toBe(45);
+    expect(vespormoorWorld.metadata.residentCompanionCount).toBe(65);
   });
 
   it('preserves the Covenant, Burning Winter, and lake mystery as canonical lore',()=>{

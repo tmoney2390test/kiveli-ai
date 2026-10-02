@@ -51,7 +51,7 @@ export const vespormoorWorld:World={
     locationCount:51,
     districtCount:6,
     publicPlaceCount:45,
-    residentCompanionCount:45,
+    residentCompanionCount:65,
     residentRosterVersion:1,
     residentScheduleStatus:'authored_weekly_v1',
     socialGraphStatus:'authored_v1',

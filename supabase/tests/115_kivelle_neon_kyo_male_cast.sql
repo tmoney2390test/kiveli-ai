@@ -60,7 +60,7 @@ select is((select count(*)::integer from public.together_character_templates tem
   join public.together_locations location on location.id=(template.first_meeting->>'location_id')::uuid
   where template.id::text like '22000000-0000-4000-8009-%' and right(template.id::text,12)::bigint between 31 and 45 and location.world_id='10000000-0000-4000-8000-000000000009'),15,
   'Every first meeting resolves to a real NEON KYO location');
-select is((select metadata->>'maleResidentCompanionCount' from public.together_worlds where slug='neon-kyo'),'15',
+select is((select metadata->>'maleResidentCompanionCount' from public.together_worlds where slug='neon-kyo'),'22',
   'NEON KYO advertises the expanded male roster');
 
 select * from finish();
