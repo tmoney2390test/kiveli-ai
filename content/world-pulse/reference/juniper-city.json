@@ -1,5 +1,5 @@
 {
-  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "source": "Published canonical catalog, read-only snapshot 2026-10-02",
   "world": {
     "name": "Juniper City",
     "slug": "juniper-city",
@@ -333,6 +333,11 @@
       "occupation": "Corporate Attorney"
     },
     {
+      "name": "Ash Rahman",
+      "slug": "ash-rahman",
+      "occupation": "Kink-informed sexual-health clinician"
+    },
+    {
       "name": "Avery Ellis",
       "slug": "avery-ellis",
       "biography": "A former college athlete who now trains and mentors others with clear expectations and an easy confidence. Avery is physically assured, affectionate, and relationship-minded.",
@@ -343,6 +348,11 @@
       "slug": "becka-shaw",
       "biography": "An environmental science student and part-time climbing instructor who is adventurous, mischievous, and prone to turning a quick stop into an unexpected night across town.",
       "occupation": "Environmental Science Student"
+    },
+    {
+      "name": "Briggs Donovan",
+      "slug": "briggs-donovan",
+      "occupation": "Private military contractor"
     },
     {
       "name": "Brooke Sullivan",
@@ -363,6 +373,16 @@
       "occupation": "Restaurant Owner"
     },
     {
+      "name": "Cass Morrow",
+      "slug": "cass-morrow",
+      "occupation": "Unlicensed fixer"
+    },
+    {
+      "name": "Celeste Duval",
+      "slug": "celeste-duval",
+      "occupation": "Scorched-earth divorce attorney"
+    },
+    {
       "name": "Claire Holloway",
       "slug": "claire-holloway",
       "biography": "A socially polished junior interior designer with an observant eye and a perfectionist streak. Claire enjoys flirtation and ambition, and dislikes being mistaken for someone untested.",
@@ -373,6 +393,11 @@
       "slug": "daniel-kim",
       "biography": "A composed trauma surgeon whose authority is reassuring rather than theatrical, and whose carefully protected private life has become a little too effective at keeping everyone out.",
       "occupation": "Trauma Surgeon"
+    },
+    {
+      "name": "Dante Ruiz",
+      "slug": "dante-ruiz",
+      "occupation": "The Red Hour door enforcer"
     },
     {
       "name": "Darius King",
@@ -399,6 +424,11 @@
       "occupation": "Game Developer"
     },
     {
+      "name": "Fox Callahan",
+      "slug": "fox-callahan",
+      "occupation": "Adult livestreamer"
+    },
+    {
       "name": "Gabriel Ortiz",
       "slug": "gabriel-ortiz",
       "biography": "A persuasive deputy city planner with polished public confidence, a genuine belief in useful cities, and a private appetite for conversations that do not end in compromise.",
@@ -409,6 +439,16 @@
       "slug": "hannah-mercin",
       "biography": "A warm elementary art teacher who brings equal enthusiasm to pottery, horror movies, and a properly difficult trivia question. Hannah is affectionate, sincere, and slow to rush trust.",
       "occupation": "Elementary Art Teacher"
+    },
+    {
+      "name": "Holt Brennan",
+      "slug": "holt-brennan",
+      "occupation": "Union enforcer"
+    },
+    {
+      "name": "Indigo Voss",
+      "slug": "indigo-voss",
+      "occupation": "Adult-film director"
     },
     {
       "name": "Jade Nguyen",
@@ -423,6 +463,11 @@
       "occupation": "Taquería Lumen Chef-owner"
     },
     {
+      "name": "Joss Varela",
+      "slug": "joss-varela",
+      "occupation": "Crime-scene cleaner"
+    },
+    {
       "name": "Jules Navarro",
       "slug": "jules-navarro",
       "biography": "A magnetic night dispatcher whose fast humor and composure thrive after dark, while their habit of turning uncertainty into entertainment keeps deeper needs just out of view.",
@@ -433,6 +478,11 @@
       "slug": "kenji-sato",
       "biography": "An industrial designer who speaks carefully, notices construction details, and prefers espresso to small talk. Kenji is quiet rather than shy: restrained in public and passionate in private.",
       "occupation": "Industrial Designer"
+    },
+    {
+      "name": "Killian Drake",
+      "slug": "killian-drake",
+      "occupation": "Underground fight promoter"
     },
     {
       "name": "Leila Rahman",
@@ -457,6 +507,11 @@
       "slug": "luca-moretti",
       "biography": "A live-music venue owner with an old guitar, a good kitchen, and a long memory for Juniper stories. Luca is experienced, affectionate, and more interested in substance than spectacle.",
       "occupation": "Live-Music Venue Owner"
+    },
+    {
+      "name": "Lumen Park",
+      "slug": "lumen-park",
+      "occupation": "Burlesque producer"
     },
     {
       "name": "Malcolm “Mal” Reed",
@@ -489,6 +544,11 @@
       "occupation": "Sports Reporter and Digital Host"
     },
     {
+      "name": "Nico Graves",
+      "slug": "nico-graves",
+      "occupation": "Contract killer and bartender"
+    },
+    {
       "name": "Noah Williams",
       "slug": "noah-williams",
       "biography": "A steady rail supervisor who can recover an entire station from a bad morning but is less practiced at admitting when his own life needs a new route.",
@@ -501,6 +561,11 @@
       "occupation": "Transit Systems Engineer"
     },
     {
+      "name": "Petra Solis",
+      "slug": "petra-solis",
+      "occupation": "Blackmail photographer"
+    },
+    {
       "name": "Priya Kapoor",
       "slug": "priya-kapoor",
       "biography": "An ER physician who is calm under pressure and delightfully direct outside it. Priya protects her limited free time and spends it on music, travel, wine, and people worth knowing.",
@@ -511,6 +576,26 @@
       "slug": "reese-morgan",
       "biography": "An incisive accessibility designer with understated style, sharp humor, and a practical conviction that care should be built into ordinary life rather than announced afterward.",
       "occupation": "Civic Accessibility Designer"
+    },
+    {
+      "name": "Rhea Solano",
+      "slug": "rhea-solano",
+      "occupation": "Internal-affairs detective"
+    },
+    {
+      "name": "Roman Ibarra",
+      "slug": "roman-ibarra",
+      "occupation": "Arms broker"
+    },
+    {
+      "name": "Roxie Hale",
+      "slug": "roxie-hale",
+      "occupation": "The Red Hour dominant"
+    },
+    {
+      "name": "Sabine Ortiz",
+      "slug": "sabine-ortiz",
+      "occupation": "Concealment-scar tattooist"
     },
     {
       "name": "Samira Haddad",
@@ -543,10 +628,25 @@
       "occupation": "Radio Producer and Podcaster"
     },
     {
+      "name": "Vesper Lang",
+      "slug": "vesper-lang",
+      "occupation": "Gallery-cover escort"
+    },
+    {
       "name": "Vincent Hale",
       "slug": "vincent-hale",
       "biography": "A seasoned civic columnist with a dry voice, patient attention, and a reputation for knowing which official answer contains the real unanswered question.",
       "occupation": "Civic Investigations Columnist and Radio Commentator"
+    },
+    {
+      "name": "Wynn Harlan",
+      "slug": "wynn-harlan",
+      "occupation": "Capital-case investigator"
+    },
+    {
+      "name": "Yara Mensah",
+      "slug": "yara-mensah",
+      "occupation": "Hostage negotiator"
     },
     {
       "name": "Zoe Bennett",

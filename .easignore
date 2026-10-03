@@ -5,6 +5,7 @@
 node_modules/
 .pnpm-store/
 .wrangler/
+.wrangler-config/
 supabase/.temp/
 .expo/
 dist/

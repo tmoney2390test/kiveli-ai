@@ -36,6 +36,12 @@ for (const worldFile of worldFiles) {
     });
     if (sourceCheck.status !== 0) errors.push(`${world}: authored source and checked-in JSON differ: ${sourceCheck.stderr?.trim() || sourceCheck.stdout?.trim()}`);
   }
+  if (world === 'eos-meridian') {
+    const sourceCheck = spawnSync(process.execPath, [path.resolve('scripts/build-eos-world-pulse.mjs'), '--check'], {
+      cwd: path.resolve('.'), encoding: 'utf8', maxBuffer: 200_000,
+    });
+    if (sourceCheck.status !== 0) errors.push(`${world}: authored source and checked-in JSON differ: ${sourceCheck.stderr?.trim() || sourceCheck.stdout?.trim()}`);
+  }
   if (world === 'juniper-city') {
     const sourceCheck = spawnSync(process.execPath, [path.resolve('scripts/build-juniper-world-pulse.mjs'), '--check'], {
       cwd: path.resolve('.'), encoding: 'utf8', maxBuffer: 200_000,

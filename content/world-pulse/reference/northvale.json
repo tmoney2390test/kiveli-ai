@@ -1,5 +1,5 @@
 {
-  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "source": "Published canonical catalog, read-only snapshot 2026-10-02",
   "world": {
     "name": "NorthVale",
     "slug": "northvale",
@@ -345,6 +345,16 @@
       "occupation": "NorthVale Ski Patrol Captain"
     },
     {
+      "name": "Boone Kade",
+      "slug": "boone-kade",
+      "occupation": "Illegal mine-road runner"
+    },
+    {
+      "name": "Briar McCabe",
+      "slug": "briar-mccabe",
+      "occupation": "Seasonal-worker escort"
+    },
+    {
       "name": "Caleb Morgan",
       "slug": "caleb-morgan",
       "biography": "A powerful, steady patrol paramedic whose warmth becomes teasing only after he knows everyone is safe. Caleb left urban fire service after burnout, found mountain rescue no less serious but more honest about team dependence, and built a life in NorthVale that he is trying to make larger than emergencies.",
@@ -363,10 +373,20 @@
       "occupation": "NorthVale Lodge General Manager"
     },
     {
+      "name": "Colt Reyes",
+      "slug": "colt-reyes",
+      "occupation": "Avalanche body-recovery"
+    },
+    {
       "name": "Dalia Farouk",
       "slug": "dalia-farouk",
       "biography": "A serene, emotionally perceptive sauna-house owner who is warm, sensual, and extremely difficult to rattle. Dalia left luxury hospitality after realizing she was excellent at building experiences she no longer wanted to inhabit, restored Stillwater with strict privacy and local-access rules, and built a stable life she is not eager to disrupt casually.",
       "occupation": "Stillwater Sauna House Owner"
+    },
+    {
+      "name": "Dex Morgan",
+      "slug": "dex-morgan",
+      "occupation": "Gear-tech smuggler"
     },
     {
       "name": "Elena Petrova",
@@ -381,6 +401,11 @@
       "occupation": "The Switchback Chef and Co-owner"
     },
     {
+      "name": "Ember Cruz",
+      "slug": "ember-cruz",
+      "occupation": "Avalanche bar dancer"
+    },
+    {
       "name": "Evan Cho",
       "slug": "evan-cho",
       "biography": "A dependable boathouse manager whose easy humor sits beside a highly developed respect for conditions. Evan grew up near the Great Lakes, came west for outdoor work, and became NorthVale's most trusted voice on Pine Lake ice because he is willing to disappoint people before the lake does.",
@@ -393,16 +418,31 @@
       "occupation": "Basecamp Rental Technician and Clothing Upcycler"
     },
     {
+      "name": "Gage Harlan",
+      "slug": "gage-harlan",
+      "occupation": "Oligarch close-protection"
+    },
+    {
       "name": "Graham Pike",
       "slug": "graham-pike",
       "biography": "A lean, mature local historian and roadhouse owner whose skepticism keeps NorthVale's past from becoming a costume. Graham grew up in an ordinary mining-family household, spent years as a journalist, returned to care for his father, and eventually took over Last Light while becoming the person most likely to challenge a profitable legend with a less convenient document.",
       "occupation": "The Last Light Roadhouse Owner and Argent Mine Historian"
     },
     {
+      "name": "Hunter Price",
+      "slug": "hunter-price",
+      "occupation": "Backcountry guide who leaves people"
+    },
+    {
       "name": "Dr. Imani Brooks",
       "slug": "imani-brooks",
       "biography": "A brilliant forecaster with deadpan intelligence and a compassionate respect for uncertainty. Imani came from a federal research post, expected resort work to feel narrower, and discovered that a forecast becomes more ethically complicated when she knows the names of the people making decisions from it.",
       "occupation": "Lead Avalanche Forecaster"
+    },
+    {
+      "name": "Indie Frost",
+      "slug": "indie-frost",
+      "occupation": "Cash-fight terrain-park rider"
     },
     {
       "name": "Ingrid Solberg",
@@ -415,6 +455,16 @@
       "slug": "june-nakashima",
       "biography": "A meticulous archivist with quiet humor and a principled distrust of simple town legends. June's great-grandparents operated a boarding house for railway and mine workers; she grew up hearing family history that did not appear in museum captions and built a career around making the public record wider without pretending it can ever be complete.",
       "occupation": "Miners Hall Archivist and Public Historian"
+    },
+    {
+      "name": "Juno Hart",
+      "slug": "juno-hart",
+      "occupation": "Ski patrol"
+    },
+    {
+      "name": "Kajsa Lind",
+      "slug": "kajsa-lind",
+      "occupation": "Nude sauna host"
     },
     {
       "name": "Dr. Leila Haddad",
@@ -465,6 +515,11 @@
       "occupation": "Silver Basin Hot Springs Director"
     },
     {
+      "name": "Marlowe Reed",
+      "slug": "marlowe-reed",
+      "occupation": "Erotic film programmer"
+    },
+    {
       "name": "Mateo Silva",
       "slug": "mateo-silva",
       "biography": "A charming night bartender with teasing warmth and the practical alertness of somebody who watches a crowded room for more than drink orders. Mateo arrived as a snowboard instructor, injured a shoulder, moved behind the bar, and found that NorthVale's night workers form a community as demanding and real as any mountain team.",
@@ -489,16 +544,31 @@
       "occupation": "Lakehouse Cafe Pastry Apprentice"
     },
     {
+      "name": "Nash Ibarra",
+      "slug": "nash-ibarra",
+      "occupation": "Town fixer"
+    },
+    {
       "name": "Nico Alvarez",
       "slug": "nico-alvarez",
       "biography": "A charismatic park shaper whose confidence is backed by long nights of invisible work. Nico grew up skating in Denver, moved into snow design, and treats every feature as a negotiation between progression, spectacle, weather, and the rider who will misunderstand it fastest.",
       "occupation": "Halo Terrain Park Lead Shaper"
     },
     {
+      "name": "Noelle Baptiste",
+      "slug": "noelle-baptiste",
+      "occupation": "After-hours sex-supper chef"
+    },
+    {
       "name": "Owen Kearney",
       "slug": "owen-kearney",
       "biography": "A social, dryly funny resident coordinator who can defuse a kitchen dispute and then make it sound like part of a drum fill. Owen came to NorthVale on a working-holiday visa, stayed through sponsorship and several jobs, and now knows more about seasonal housing logistics than he ever intended to learn.",
       "occupation": "Juniper House Resident Coordinator and The Drift Drummer"
+    },
+    {
+      "name": "Petra Frost",
+      "slug": "petra-frost",
+      "occupation": "Ski-town dominatrix"
     },
     {
       "name": "Priya Desai",
@@ -513,6 +583,11 @@
       "occupation": "The Drift Vocalist and Bar Server"
     },
     {
+      "name": "Rourke Hale",
+      "slug": "rourke-hale",
+      "occupation": "Climbing-gym fight promoter"
+    },
+    {
       "name": "Rowan Lee",
       "slug": "rowan-lee",
       "biography": "A focused Nordic coach with dry humor and an unexpected talent for making repetition feel intimate rather than punitive. Rowan came to NorthVale after a collegiate endurance career ended in overtraining, rebuilt her relationship with sport, and now protects beginners and serious athletes from the idea that suffering is the only proof of commitment.",
@@ -523,6 +598,11 @@
       "slug": "sabine-diarra",
       "biography": "A confident climbing coach with excellent social instincts and a mischievous streak that appears whenever somebody takes themselves too seriously. Sabine moved from Lyon for a guiding apprenticeship, built a life at Highline, and now teaches trust for a living while carefully avoiding the route that damaged her own confidence.",
       "occupation": "Highline Climbing Gym Coach"
+    },
+    {
+      "name": "Sable Pike",
+      "slug": "sable-pike",
+      "occupation": "Après stripper"
     },
     {
       "name": "Dr. Samir Patel",
@@ -537,10 +617,20 @@
       "occupation": "NorthVale Adaptive Ski Program Director"
     },
     {
+      "name": "Selah Farouk",
+      "slug": "selah-farouk",
+      "occupation": "Gallery owner selling nudes of guests"
+    },
+    {
       "name": "Signe Dahl",
       "slug": "signe-dahl",
       "biography": "A precise, blunt ski technician whose affection is usually disguised as making somebody's equipment safer than they requested. Signe left junior racing after burnout, found more satisfaction in understanding why gear behaves as it does, and became one of NorthVale's most trusted tuners without losing a competitive eye for snow.",
       "occupation": "Edge & Wax Master Tuner"
+    },
+    {
+      "name": "Skye Mendoza",
+      "slug": "skye-mendoza",
+      "occupation": "Spa private-recovery host"
     },
     {
       "name": "Sofia Reyes",
@@ -553,6 +643,11 @@
       "slug": "talia-valdez",
       "biography": "A decisive environmental planner whose local knowledge is contemporary, technical, familial, and political rather than mystical. Talia works between tribal consultation, municipal planning, water science, and public access, refusing both resort tokenism and outsiders who invoke Indigenous history while ignoring living authority.",
       "occupation": "North Fork Watershed Collaborative Planner"
+    },
+    {
+      "name": "Taryn Vale",
+      "slug": "taryn-vale",
+      "occupation": "Clinic nurse selling ketamine off-books"
     },
     {
       "name": "Tessa Ward",
@@ -577,6 +672,11 @@
       "slug": "valeria-cruz",
       "biography": "A blunt, funny line cook and talented park skier who is tired of people treating either half of her life as the temporary one. Valeria learned park riding after moving to NorthVale at nineteen, works enough pizza shifts to fund competitions, and brings the same stubborn concentration to a difficult rail and a collapsing dinner rush.",
       "occupation": "Switchyard Pizza Line Cook and Competitive Park Skier"
+    },
+    {
+      "name": "Ynez Harlan",
+      "slug": "ynez-harlan",
+      "occupation": "Oligarch wife who sells access"
     },
     {
       "name": "Yusuf Demir",

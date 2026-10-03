@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { loadNewcomers, validateSourceResidents, applyNewcomerIncidents } from './world-pulse-newcomers.mjs';
 
 const worldSlug = process.argv[2];
 const checkOnly = process.argv.includes('--check');
@@ -31,7 +32,9 @@ for (const group of groups) {
     member.set(slug, { group, index });
   }
 }
-if (member.size !== residents.size || Object.keys(residentBriefs).length !== residents.size) {
+const newcomerMaterial = await loadNewcomers(worldSlug);
+validateSourceResidents(reference, [...member.keys()], newcomerMaterial);
+if (Object.keys(residentBriefs).length !== member.size) {
   throw new Error(`${worldSlug}: every canonical resident needs exactly one grouped brief set`);
 }
 const defaultOffsets = [[], [1], [2, 3], [4, 5, 6]];
@@ -103,8 +106,9 @@ const events = rows.map(({ lead, others, brief }) => {
 events.sort((left, right) => crypto.createHash('sha256').update(`${worldSlug}-pulse-v1:${left.slug}`).digest('hex')
   .localeCompare(crypto.createHash('sha256').update(`${worldSlug}-pulse-v1:${right.slug}`).digest('hex')));
 events.forEach((event, schedulingRank) => { event.schedulingRank = schedulingRank; });
+const expanded = applyNewcomerIncidents(worldSlug, events, reference, newcomerMaterial);
 const outputPath = path.join(root, `${worldSlug}.json`);
-const output = `${JSON.stringify({ worldSlug, events }, null, 2)}\n`;
+const output = `${JSON.stringify({ worldSlug, events: expanded }, null, 2)}\n`;
 if (checkOnly) {
   if (!fs.existsSync(outputPath) || fs.readFileSync(outputPath, 'utf8') !== output) {
     throw new Error(`${worldSlug}: checked-in JSON is out of sync with its authored source`);

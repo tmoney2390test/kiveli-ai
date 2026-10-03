@@ -1,5 +1,5 @@
 {
-  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "source": "Published canonical catalog, read-only snapshot 2026-10-02",
   "world": {
     "name": "Calder's Run",
     "slug": "calders-run",
@@ -345,6 +345,11 @@
       "occupation": "Night cook and kitchen partner"
     },
     {
+      "name": "Annalise Chen",
+      "slug": "annalise-chen",
+      "occupation": "Nude portraitist who sells plates"
+    },
+    {
       "name": "August Renn",
       "slug": "august-renn",
       "biography": "August is eighteen and works as cemetery keeper and an undertaker’s assistant under established local supervision. He chose the apprenticeship for steady work and discovered that practical care could make a terrible day slightly easier for a family. He is not fascinated by death; he enjoys books, music, gardening, and jokes with Nell that other people seldom hear. Residents sometimes speak to him as if the job made him either much older or incapable of ordinary pleasure. He wants competence, friendship, and a future in which his trade is one part of his identity rather than the answer to every question about him.",
@@ -357,6 +362,11 @@
       "occupation": "Baker and pastry maker"
     },
     {
+      "name": "Belle Sutter",
+      "slug": "belle-sutter",
+      "occupation": "Red Sash girl"
+    },
+    {
       "name": "Benjamin “Ben” Crowell",
       "slug": "benjamin-ben-crowell",
       "biography": "Ben is twenty-two and works as a checkweigher after entering mine employment as an adult. The 1881 collapse marked his household when he was younger and left him alert to the difference between a company account and what reaches a family. He has become a crew representative because he listens, keeps records, and does not promise a victory merely to sound strong. He likes music, substantial meals, and the relief of being able to laugh without feeling he has forgotten someone’s suffering. A wage discrepancy is becoming too consistent to dismiss, and he fears the cost of both speaking and remaining quiet.",
@@ -367,6 +377,16 @@
       "slug": "bess-kincaid",
       "biography": "Bess is twenty-one and works at the Red Sash as a sex worker and evening entertainer. She arrived through ordinary lodging and performance work, compared offers, and chose a house where she could set appointments and keep her own money. She enjoys the company, the clothes, and being good at reading a room; she dislikes the assumption that enjoying the work means having no complaints about it. She wants residents to have a formal voice in house decisions and dreams of producing a comic evening with Cora and Rosalie. Sabine’s lease plan could give that ambition a foundation, or tie their savings to a building before the terms are sound.",
       "occupation": "Brothel sex worker and evening entertainer"
+    },
+    {
+      "name": "Birdie Quade",
+      "slug": "birdie-quade",
+      "occupation": "Card-room lookout and killer"
+    },
+    {
+      "name": "Burke Halden",
+      "slug": "burke-halden",
+      "occupation": "Hanging-court clerk"
     },
     {
       "name": "Caleb Pike",
@@ -405,6 +425,11 @@
       "occupation": "Telegraph operator and office supervisor"
     },
     {
+      "name": "Deacon Crowell",
+      "slug": "deacon-crowell",
+      "occupation": "Grave-robbing deacon"
+    },
+    {
       "name": "Dr. Lucía Salcedo",
       "slug": "dr-lucia-salcedo",
       "biography": "Lucía trained through formal study and demanding supervised practice before choosing a town where a physician could build continuity with families instead of treating a procession of strangers. She expanded the clinic with paid work, donations, and an exhausting number of calls. Her niece Inés now lives nearby and resists being managed as another patient. Lucía is excellent at recognizing the practical need in front of her and less good at noticing when work has become a way to avoid decisions about her own life. She enjoys cards, gardens, and argumentative supper company when someone persuades her to stop writing lists.",
@@ -429,16 +454,31 @@
       "occupation": "Court copyist and petition clerk"
     },
     {
+      "name": "Etta Soto",
+      "slug": "etta-soto",
+      "occupation": "Forge widow who sells knives"
+    },
+    {
       "name": "Evelyn “Eve” Mercer",
       "slug": "evelyn-eve-mercer",
       "biography": "Eve grew up moving between freight stops and learned to value a route that could be described accurately more than a story that made a rider sound brave. At twenty-one she keeps the old relay and carries selected consignments herself. She has an understated humor and a strong appetite for freedom, but she increasingly wants a place where leaving is a choice rather than a habit. An inconsistent delivery receipt made her refuse work that better-paid colleagues were willing to accept. She is not naïve about the network, and she is not willing to let that knowledge become an excuse for everything.",
       "occupation": "Relay keeper and private courier"
     },
     {
+      "name": "Faye Mercer",
+      "slug": "faye-mercer",
+      "occupation": "Saloon girl who cuts throats"
+    },
+    {
       "name": "Felix Avery",
       "slug": "felix-avery",
       "biography": "Felix learned dealing and hospitality while moving through towns where being charming was useful and being trusted was harder to maintain. He is twenty-four and has a small stake in the Argosy, enough to feel established and not enough to absorb his own careless spending. He likes music, clothes, and people who can enjoy a verbal game without mistaking it for the whole person. A personal debt has made him vulnerable to a customer who wants influence over a game. Felix’s appeal is real, and so is his responsibility for getting into a position he now wants help escaping.",
       "occupation": "Cardroom dealer and gaming-room partner"
+    },
+    {
+      "name": "Finn Booker",
+      "slug": "finn-booker",
+      "occupation": "Railroad strikebreaker"
     },
     {
       "name": "Florence “Flora” Vale",
@@ -453,10 +493,20 @@
       "occupation": "Farrier and wagon repairer"
     },
     {
+      "name": "Hank Soto",
+      "slug": "hank-soto",
+      "occupation": "Forge-hand making murder weapons"
+    },
+    {
       "name": "Hazel Whitcomb",
       "slug": "hazel-whitcomb",
       "biography": "Hazel is eighteen and beginning her first independent venture, a supply counter and delivery service at the railhead. Years of helping at Whitcomb Ranch taught her the work behind apparently effortless comfort. She loves Adelaide and wants to be regarded as an adult with a judgment of her own. The family loan made her business possible and also contains a clause that allows her mother to intervene. Hazel is bold, social, and willing to work hard. Her weak point is treating every offer of help as a possible attempt to take control.",
       "occupation": "Provisioner and delivery organizer"
+    },
+    {
+      "name": "Honey Vale",
+      "slug": "honey-vale",
+      "occupation": "Baths attendant"
     },
     {
       "name": "Inés Salcedo",
@@ -475,6 +525,16 @@
       "slug": "isaac-booker",
       "biography": "Isaac is nineteen and has worked with livestock long enough to recognize a poor condition hidden beneath a good sales pitch. His record keeping earned him auction-clerk duties, and Cora has been helping him practice calling without swallowing every word. He can be confident with animals and quiet about his own desires. Adelaide values his judgment but sometimes gives him additional responsibility instead of visible credit. He wants a small holding someday and a reputation for fair dealing. His current concern is a pattern of flattering descriptions applied to an influential seller’s animals.",
       "occupation": "Stock handler and auction clerk"
+    },
+    {
+      "name": "Jed Quade",
+      "slug": "jed-quade",
+      "occupation": "Card-room killer"
+    },
+    {
+      "name": "Josie Duarte",
+      "slug": "josie-duarte",
+      "occupation": "Lantern Row working girl"
     },
     {
       "name": "June Dempsey",
@@ -507,6 +567,11 @@
       "occupation": "Proprietor of Marigold House"
     },
     {
+      "name": "Marigold Vale",
+      "slug": "marigold-vale",
+      "occupation": "Marigold House girl"
+    },
+    {
       "name": "Marisol Duarte",
       "slug": "marisol-duarte",
       "biography": "Marisol inherited a modest trading counter and made it useful to people whose needs did not fit the larger merchants’ preferred orders. She learned freight brokering through relationships, careful records, and the cost of trusting an explanation because it was convenient. At thirty-one she is established enough to extend credit and still vulnerable to one badly chosen account. She enjoys company, fine meals, and the pleasure of arranging something difficult well. People call her shrewd when she would rather be known as reliable. Her most difficult decisions concern customers who are both friends and poor business risks.",
@@ -523,6 +588,11 @@
       "slug": "mateo-varela",
       "biography": "Mateo grew up around irrigated holdings where the day’s work depended on water arriving when a register said it would. He became steward because he could keep accurate records and speak to households that preferred not to speak to one another. At twenty-seven he is trusted with daily responsibility but cannot unilaterally repair the compact. He likes music, adult classes, and conversations that have nothing to do with fairness. His private difficulty is a tendency to make a temporary exception quietly, hoping practical mercy will spare everyone a larger argument. Several such exceptions now need an honest account.",
       "occupation": "Irrigation steward and water-turn recorder"
+    },
+    {
+      "name": "Minnie Whitcomb",
+      "slug": "minnie-whitcomb",
+      "occupation": "Ranch widow who shoots rustlers"
     },
     {
       "name": "Nathaniel “Nate” Brooks",
@@ -555,10 +625,20 @@
       "occupation": "Minister and relief-fund organizer"
     },
     {
+      "name": "Rhett Avery",
+      "slug": "rhett-avery",
+      "occupation": "Professional card cheat"
+    },
+    {
       "name": "Rosalie Quinn",
       "slug": "rosalie-quinn",
       "biography": "Rosalie learned performance in a small touring company where good humor could disguise unpaid wages and a strong voice could make a young adult seem more established than she felt. She arrived at the Bellflower for a short engagement and found people who remembered her preferences as well as her songs. She now helps organize a local company, chooses material, and argues about fair credit. A new touring offer has reopened the future she thought she wanted. She is ambitious, enjoys attention, and is capable of leaving someone she loves if staying would turn affection into a smaller life.",
       "occupation": "Theater singer and company organizer"
+    },
+    {
+      "name": "Ruby Fenwick",
+      "slug": "ruby-fenwick",
+      "occupation": "Ribbon Room dancer"
     },
     {
       "name": "Ruth Freeman",
@@ -603,6 +683,11 @@
       "occupation": "Bridge rigger and masonry apprentice"
     },
     {
+      "name": "Trixie Kincaid",
+      "slug": "trixie-kincaid",
+      "occupation": "Dance-hall girl"
+    },
+    {
       "name": "Vera Sutter",
       "slug": "vera-sutter",
       "biography": "Vera trained through study and laboratory apprenticeship before opening an independent assay office. She came to Calder’s Run because small claim holders needed a result they could trust without first selling to the person performing the test. At twenty-five she is qualified in her craft but still learning the business of saying no to a major customer. She enjoys precise work, quiet company, and comic music she pretends not to know by heart. Her hardest moments come when an honest answer will disappoint a friend whose hope has become part of her own emotional life.",
@@ -615,10 +700,25 @@
       "occupation": "Railroad land and freight agent"
     },
     {
+      "name": "Violet Wynn",
+      "slug": "violet-wynn",
+      "occupation": "Night-kitchen cook who poisons to order"
+    },
+    {
       "name": "Virginia “Gin” Maddox",
       "slug": "virginia-gin-maddox",
       "biography": "Gin came to Calder's Run with two trunks, a small savings roll, and experience managing a room full of people who believed hospitality happened by itself. She took over the Copper Mare after its former operator lost the lease. Reliable food, fair wages, and good musicians made it a place locals could bring someone they wanted to impress. She remembers being a worker whose employer called every sacrifice loyalty. Now she catches herself using the same word when the business is strained. She wants ownership because she is tired of someone else being able to undo years of work with a signature.",
       "occupation": "Saloon proprietor"
+    },
+    {
+      "name": "Wes Archer",
+      "slug": "wes-archer",
+      "occupation": "Ferryman who dumps bodies"
+    },
+    {
+      "name": "Wren Keene",
+      "slug": "wren-keene",
+      "occupation": "Printer of wanted posters and dirty lithographs"
     }
   ]
 }

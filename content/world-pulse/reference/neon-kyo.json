@@ -1,5 +1,5 @@
 {
-  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "source": "Published canonical catalog, read-only snapshot 2026-10-02",
   "world": {
     "name": "Neon Kyo",
     "slug": "neon-kyo",
@@ -327,6 +327,11 @@
       "occupation": "Owner-Chef of Soba Miyako"
     },
     {
+      "name": "Akemi Noir",
+      "slug": "akemi-noir",
+      "occupation": "Room Thirteen dominant"
+    },
+    {
       "name": "Ana Luiza Ribeiro",
       "slug": "ana-luiza-ribeiro",
       "biography": "A warm Quiet Hours bartender who wants to combine Sao Paulo energy with Tsuki intimacy in a live-music cocktail bar of her own.",
@@ -345,16 +350,31 @@
       "occupation": "Maison Vice Stylist and Junior Model Scout"
     },
     {
+      "name": "Azami Bell",
+      "slug": "azami-bell",
+      "occupation": "Static-club exhibitionist"
+    },
+    {
       "name": "Chloé Mercier",
       "slug": "chloe-mercier",
       "biography": "A witty French stylist who came to NEON KYO for six months, never left, and wants creative authority without becoming a personal brand.",
       "occupation": "Creative Stylist at Mirror"
     },
     {
+      "name": "Cipher Ren",
+      "slug": "cipher-ren",
+      "occupation": "Memory thief"
+    },
+    {
       "name": "Daisuke Arata",
       "slug": "daisuke-arata",
       "biography": "A composed night manager who protects Room 13 guests with ruthless discretion and has become too practiced at keeping his own life compartmentalized.",
       "occupation": "Room 13 Night Manager"
+    },
+    {
+      "name": "Draven Kade",
+      "slug": "draven-kade",
+      "occupation": "Vice-district fixer"
     },
     {
       "name": "Elena Volkov",
@@ -399,6 +419,16 @@
       "occupation": "Synthetic Rights Engineer"
     },
     {
+      "name": "Hideo Kwan",
+      "slug": "hideo-kwan",
+      "occupation": "Black-market organ broker"
+    },
+    {
+      "name": "Inez Shirogane",
+      "slug": "inez-shirogane",
+      "occupation": "Deepfake porn producer"
+    },
+    {
       "name": "Iori",
       "slug": "iori",
       "biography": "A bio-synthetic ecological caretaker with legal personhood who wants an ordinary valued life, friends, and someone who notices when she is absent.",
@@ -417,6 +447,11 @@
       "occupation": "Nova Arena Strategy Coach"
     },
     {
+      "name": "Jiro Vance",
+      "slug": "jiro-vance",
+      "occupation": "Blackmail-footage broker"
+    },
+    {
       "name": "Kaito Fujimori",
       "slug": "kaito-fujimori",
       "biography": "A patient investigative editor assembling physical accounts of the city events that corporate search systems continually rewrite.",
@@ -427,6 +462,11 @@
       "slug": "kenji-watanabe",
       "biography": "A restrained rehabilitation physician helping residents adapt to elective and necessary augmentation while pushing back against Aoyama perfection culture.",
       "occupation": "Neural Rehabilitation Physician"
+    },
+    {
+      "name": "Kenzo Mori",
+      "slug": "kenzo-mori",
+      "occupation": "Corporate assassin"
     },
     {
       "name": "KIRA-3 “Kira”",
@@ -483,6 +523,11 @@
       "occupation": "Sensory Architect at Eden"
     },
     {
+      "name": "Nami Kwan",
+      "slug": "nami-kwan",
+      "occupation": "Organ-waitlist nurse selling slots"
+    },
+    {
       "name": "Natsumi Endo",
       "slug": "natsumi-endo",
       "biography": "A creative body-art apprentice with reactive subdermal tattoos who wants respect for her work rather than attention for how unusual she looks.",
@@ -501,10 +546,40 @@
       "occupation": "Hikari Capsule Club Concierge"
     },
     {
+      "name": "Nova Chen",
+      "slug": "nova-chen",
+      "occupation": "24-hour love-hotel clerk"
+    },
+    {
+      "name": "Nyx Arakawa",
+      "slug": "nyx-arakawa",
+      "occupation": "Chrome Kiss host"
+    },
+    {
+      "name": "Onyx Vale",
+      "slug": "onyx-vale",
+      "occupation": "Identity-erasure body-mod surgeon"
+    },
+    {
+      "name": "Pax Ortega",
+      "slug": "pax-ortega",
+      "occupation": "Illegal deathmatch promoter"
+    },
+    {
       "name": "Piper Shaw",
       "slug": "piper-shaw",
       "biography": "A cheeky fashion-tech student who came to NEON KYO to escape everyone else's prior opinion and dreams of designing responsive clothing.",
       "occupation": "Atrium Boutique Assistant and Fashion-Tech Student"
+    },
+    {
+      "name": "Rei Voss",
+      "slug": "rei-voss",
+      "occupation": "Fight-club medic"
+    },
+    {
+      "name": "Reika Sol",
+      "slug": "reika-sol",
+      "occupation": "VR sex-club DJ"
     },
     {
       "name": "Reina Kuroda",
@@ -529,6 +604,16 @@
       "slug": "rin-akiyama",
       "biography": "A nocturnal security researcher who anonymously leaks corporate privacy abuses while maintaining an ordinary consulting career and ZeroDay bar shifts.",
       "occupation": "Cybersecurity Researcher and ZeroDay Bartender"
+    },
+    {
+      "name": "Ryu Taniguchi",
+      "slug": "ryu-taniguchi",
+      "occupation": "Shade-district killer"
+    },
+    {
+      "name": "Sable Ito",
+      "slug": "sable-ito",
+      "occupation": "Rating-blackmail escort"
     },
     {
       "name": "SOL-9 “Sol”",
@@ -561,10 +646,25 @@
       "occupation": "Tower Emergency Electrician"
     },
     {
+      "name": "Veda Mori",
+      "slug": "veda-mori",
+      "occupation": "Corporate honeytrap counsel"
+    },
+    {
       "name": "Vittoria Bellandi",
       "slug": "vittoria-bellandi",
       "biography": "An expressive Italian curator determined to find artists before Aoyama collectors reduce their work to financial assets.",
       "occupation": "Assistant Curator at Gallery Null"
+    },
+    {
+      "name": "Wren Solari",
+      "slug": "wren-solari",
+      "occupation": "Scarlet Garden blood-play host"
+    },
+    {
+      "name": "Yoru Nakamura",
+      "slug": "yoru-nakamura",
+      "occupation": "Pleasure-android handler"
     },
     {
       "name": "Yumi Kato",

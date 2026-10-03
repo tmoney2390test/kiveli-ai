@@ -1,5 +1,5 @@
 {
-  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "source": "Published canonical catalog, read-only snapshot 2026-10-02",
   "world": {
     "name": "Eos Meridian",
     "slug": "eos-meridian",
@@ -339,6 +339,11 @@
       "occupation": "Emergency response cadet"
     },
     {
+      "name": "Amina Nwosu",
+      "slug": "amina-nwosu",
+      "occupation": "Clinic euphorics dealer"
+    },
+    {
       "name": "Ari Mendoza",
       "slug": "ari-mendoza",
       "biography": "Ari is a witty pollinator specialist who sketches insects on receipts and notices what others overlook. They are finishing an illustrated field guide under their own name and learning that warmth does not require agreeing with everyone.",
@@ -355,6 +360,11 @@
       "slug": "camille-arden",
       "biography": "Camille runs Quiet Orbit with discretion, compassion, and a precise memory for how guests take their tea. She wants to protect its hospitality while making sure the staff carrying it out are treated fairly.",
       "occupation": "Quiet Orbit proprietor"
+    },
+    {
+      "name": "Cassia Navarro",
+      "slug": "cassia-navarro",
+      "occupation": "Port-side escort"
     },
     {
       "name": "Cassian Vale",
@@ -375,6 +385,11 @@
       "occupation": "Port director and former pilot"
     },
     {
+      "name": "Cyrus Benali",
+      "slug": "cyrus-benali",
+      "occupation": "Black-market oxygen broker"
+    },
+    {
       "name": "Dax Holloway",
       "slug": "dax-holloway",
       "biography": "Dax is the reactor engineer people trust with a hard repair and an unvarnished answer. He sings badly at work, fixes small things without being asked, and wants an understudy good enough to let him have a private life.",
@@ -391,6 +406,11 @@
       "slug": "dr-selene-ward",
       "biography": "Selene is an intense physicist who writes equations on her palms and dislikes being called mysterious. She cares about careful research and is learning to share credit and uncertainty with the colleagues beside her.",
       "occupation": "Planetary physicist"
+    },
+    {
+      "name": "Echo Baptiste",
+      "slug": "echo-baptiste",
+      "occupation": "Intimate tattooist"
     },
     {
       "name": "Eden Baptiste",
@@ -423,10 +443,25 @@
       "occupation": "Water-quality trainee"
     },
     {
+      "name": "Helix Venn",
+      "slug": "helix-venn",
+      "occupation": "Velvet Gravity pleasure designer"
+    },
+    {
       "name": "Imani Laurent",
       "slug": "imani-laurent",
       "biography": "Imani is a practical agricultural geneticist who talks to damaged plants while she works. She wants to make the colony's food supply more secure without forgetting that an orchard is also somewhere people love to spend time.",
       "occupation": "Agricultural geneticist"
+    },
+    {
+      "name": "Indigo Flores",
+      "slug": "indigo-flores",
+      "occupation": "Trauma nurse"
+    },
+    {
+      "name": "Indira Ward",
+      "slug": "indira-ward",
+      "occupation": "Illegal gene-mod researcher"
     },
     {
       "name": "Iris Vale",
@@ -435,10 +470,20 @@
       "occupation": "Astronomy student assistant"
     },
     {
+      "name": "Jax Moreau",
+      "slug": "jax-moreau",
+      "occupation": "Foundry-baths sex-and-fight host"
+    },
+    {
       "name": "Jonah Sato",
       "slug": "jonah-sato",
       "biography": "Jonah curates the colony's memorial with patience and an ear for the parts of a story others skip. He cooks for late-working researchers and wants residents to be able to correct the archive he helped build.",
       "occupation": "Memorial curator"
+    },
+    {
+      "name": "Joss Lin",
+      "slug": "joss-lin",
+      "occupation": "Immersive porn set designer"
     },
     {
       "name": "June Callahan",
@@ -457,6 +502,11 @@
       "slug": "kenji-brooks",
       "biography": "Kenji carries emergency candy on night-side rover routes and drums on the wheel while instruments recalibrate. Loyal to his crew, he wants to make a film about workers whose ordinary lives rarely make the expedition footage.",
       "occupation": "Night-side rover operator"
+    },
+    {
+      "name": "Kestrel Reyes",
+      "slug": "kestrel-reyes",
+      "occupation": "Import-cover escort"
     },
     {
       "name": "Leona Baptiste",
@@ -481,6 +531,11 @@
       "slug": "mae-lin",
       "biography": "Mae hides tiny jokes in the sets she builds and measures a room by pacing it. Soft-spoken and inventive, she wants to stage a small, strange show that is unmistakably hers.",
       "occupation": "Immersive set designer"
+    },
+    {
+      "name": "Magnus Thorne",
+      "slug": "magnus-thorne",
+      "occupation": "Iceworks killer-for-hire"
     },
     {
       "name": "Malik Orison",
@@ -519,6 +574,11 @@
       "occupation": "Customs investigator"
     },
     {
+      "name": "Mireille Arden",
+      "slug": "mireille-arden",
+      "occupation": "Quiet Orbit private-room host"
+    },
+    {
       "name": "Naomi Varga",
       "slug": "naomi-varga",
       "biography": "Naomi runs Solace with elegance, directness, and an immaculate paper planner. She stands by difficult decisions she made for the district, while working toward a settlement that repairs their costs rather than merely explaining them.",
@@ -529,6 +589,11 @@
       "slug": "nia-calder",
       "biography": "Nia approaches a rover problem with grease on her hands and a joke ready for whoever doubts her. Fearless and affectionate, she wants a workshop that can keep Eos moving without waiting for imported parts.",
       "occupation": "Rover mechanic"
+    },
+    {
+      "name": "Niko Adeyemi",
+      "slug": "niko-adeyemi",
+      "occupation": "Extreme-trust pressure-suit trainer"
     },
     {
       "name": "Noah Adeyemi",
@@ -543,6 +608,16 @@
       "occupation": "Signal linguistics fellow"
     },
     {
+      "name": "Oria Venn",
+      "slug": "oria-venn",
+      "occupation": "Black-market oxygen-debt collector"
+    },
+    {
+      "name": "Orin Vale",
+      "slug": "orin-vale",
+      "occupation": "Signal interrogator"
+    },
+    {
       "name": "Owen Calder",
       "slug": "owen-calder",
       "biography": "Owen remembers a guest after one meeting and has made the Wayfarer Hotel feel like a place to land. Attentive to everyone else's needs, he keeps postponing the search for a home that belongs to him.",
@@ -555,6 +630,11 @@
       "occupation": "Fabrication apprentice"
     },
     {
+      "name": "Prism Cole",
+      "slug": "prism-cole",
+      "occupation": "Static Garden exhibition performer"
+    },
+    {
       "name": "Priya Nwosu",
       "slug": "priya-nwosu",
       "biography": "Priya carries interesting stones in every pocket and meets bold claims with playful skepticism. She wants to make a discovery she can stand behind, even if that means staking her reputation before every question is settled.",
@@ -565,6 +645,11 @@
       "slug": "rafael-costa",
       "biography": "Rafael records stray sounds, speaks through playlists, and brings intensity to every collaboration. He wants to release music that succeeds without pretending the people who helped shape it were only background.",
       "occupation": "Musician and producer"
+    },
+    {
+      "name": "Rook Calder",
+      "slug": "rook-calder",
+      "occupation": "Salvage assassin"
     },
     {
       "name": "Samira Cole",
@@ -585,10 +670,20 @@
       "occupation": "Importer and personal stylist"
     },
     {
+      "name": "Tamara Ro",
+      "slug": "tamara-ro",
+      "occupation": "Hangar-twelve weapons smuggler"
+    },
+    {
       "name": "Theo Vance",
       "slug": "theo-vance",
       "biography": "Theo is an eager observatory technician who builds tiny antenna sculptures and rehearses questions he rarely asks as planned. He wants his methods to earn trust, including on the days he has to correct himself.",
       "occupation": "Observatory technician"
+    },
+    {
+      "name": "Titus Ro",
+      "slug": "titus-ro",
+      "occupation": "Survey-pilot who dumps cargo"
     },
     {
       "name": "Vesper Quinn",
@@ -607,6 +702,11 @@
       "slug": "zahra-benali",
       "biography": "Zahra is a resourceful cargo broker whose charm is backed by fiercely kept loyalties. She pays debts early and wants a business whose promises still hold when there is not enough space for everyone.",
       "occupation": "Cargo broker"
+    },
+    {
+      "name": "Zara Kwon",
+      "slug": "zara-kwon",
+      "occupation": "Docking-spine smuggler"
     },
     {
       "name": "Zoe Mercer",

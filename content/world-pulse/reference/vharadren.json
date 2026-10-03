@@ -1,5 +1,5 @@
 {
-  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "source": "Published canonical catalog, read-only snapshot 2026-10-02",
   "world": {
     "name": "Vharadren",
     "slug": "vharadren",
@@ -333,6 +333,16 @@
       "occupation": "Master of Greymere Shipyard and architect of the hidden fleet"
     },
     {
+      "name": "Brannock Forge",
+      "slug": "brannock-forge",
+      "occupation": "Foundry pit-fighter"
+    },
+    {
+      "name": "Brigid Forge",
+      "slug": "brigid-forge",
+      "occupation": "Foundry pit-fighter"
+    },
+    {
       "name": "Brina Forgehand",
       "slug": "brina-forgehand",
       "biography": "Brina can hear flaws in metal before they split, a gift that made her wealthy enough to buy her family’s freedom and valuable enough to be denied her own. She builds weapons she despises while quietly teaching workers how to ruin them invisibly.",
@@ -351,6 +361,11 @@
       "occupation": "Pirate captain, blockade runner, and rebel courier"
     },
     {
+      "name": "Captain Vex Salt",
+      "slug": "captain-vex-salt",
+      "occupation": "Prison interrogator"
+    },
+    {
       "name": "Catrin Brann",
       "slug": "catrin-brann",
       "biography": "Catrin grew up selling beer at the Red Mare and learned that officers pay better when they think they have invented a girl. Maeve taught her to charge, refuse, and take two only when the charter is on the table. She is loud in bed, loyal in a fight, and filthy in a way that makes respectable reformers leave the hall. Off the floor she wants a forge-smelling body, not a captain’s perfume.",
@@ -367,6 +382,11 @@
       "slug": "celia-thatch",
       "biography": "Celia Thatch is a nineteen-year-old Hearthfolk baker's daughter who keeps her family's oven and bread stall alive after her father vanished into a noble levy. Quick with sums and quicker on the Gilded Steps, she knows which palace doors accept deliveries, which guards can be trusted, and how much truth can hide inside a folded market receipt.",
       "occupation": "Hearthfolk baker's daughter and Crownspire market runner"
+    },
+    {
+      "name": "Cinder Marrow",
+      "slug": "cinder-marrow",
+      "occupation": "War-surgeon"
     },
     {
       "name": "Dame Ysabet Rooke",
@@ -423,6 +443,16 @@
       "occupation": "Senior hatchery keeper and dragon welfare dissident"
     },
     {
+      "name": "Inquisitor Pellan",
+      "slug": "inquisitor-pellan",
+      "occupation": "Flame inquisition"
+    },
+    {
+      "name": "Ione Glass",
+      "slug": "ione-glass",
+      "occupation": "Arena blood-courtesan"
+    },
+    {
       "name": "Joren Ash",
       "slug": "joren-ash",
       "biography": "Joren deserted after discovering his courier satchel carried orders for a village purge. He now moves people rather than commands, knowing every route out and increasingly uncertain whether constant usefulness is another way to avoid belonging.",
@@ -433,6 +463,11 @@
       "slug": "kael-dravos",
       "biography": "Kael earned a title capturing Thornwall supply ships and uses its privileges to hide escapees in the same cargo holds. He is roguish, generous, and comfortable with danger until loyalty asks him to remain in one place.",
       "occupation": "Privateer captain and covert prisoner smuggler"
+    },
+    {
+      "name": "Kaelen Thorn",
+      "slug": "kaelen-thorn",
+      "occupation": "Thornwall spy-master"
     },
     {
       "name": "King Edric Thornwall",
@@ -477,10 +512,20 @@
       "occupation": "Marshal of the Reach and keeper of forest borders"
     },
     {
+      "name": "Lysandra Veyl",
+      "slug": "lysandra-veyl",
+      "occupation": "Velvet Oaths floor mistress"
+    },
+    {
       "name": "Lyssa Bramble",
       "slug": "lyssa-bramble",
       "biography": "Lyssa learned that soldiers remember a tune after forgetting the handbill it carried. She hides route changes and warnings inside popular songs, enjoying applause while quietly terrified that one wrong verse will expose everyone listening.",
       "occupation": "Briar & Cup musician, brewer, and rebel message singer"
+    },
+    {
+      "name": "Maera Thorn",
+      "slug": "maera-thorn",
+      "occupation": "Keep spy"
     },
     {
       "name": "Maeve Redreed",
@@ -519,6 +564,16 @@
       "occupation": "Free forge master and quartermaster of Cinder Camp"
     },
     {
+      "name": "Nima Hartwood",
+      "slug": "nima-hartwood",
+      "occupation": "Fertility-rite priestess"
+    },
+    {
+      "name": "Oath-Sister Calyx",
+      "slug": "oath-sister-calyx",
+      "occupation": "Oath-sex binder"
+    },
+    {
       "name": "Orla Saye",
       "slug": "orla-saye",
       "biography": "Orla inherited the lighthouse and the unedited story of the Chainborn saint for whom she was named. She prefers storms to courts, understands signals better than small talk, and sends rebel warnings through light patterns hidden inside legitimate navigation.",
@@ -529,6 +584,11 @@
       "slug": "petra-glass",
       "biography": "Petra grew up hearing the battlefield repeat words adults insisted were only wind. She maps echoes, sells harmless relics, and hides evidence too dangerous for any crown, treating fear as a practical companion rather than a weakness.",
       "occupation": "Glass-field guide, relic appraiser, and memory-echo mapper"
+    },
+    {
+      "name": "Priestess Ashara Flame",
+      "slug": "priestess-ashara-flame",
+      "occupation": "Flame-temple sex priestess"
     },
     {
       "name": "Prince Aurel Ravaryn",
@@ -555,6 +615,11 @@
       "occupation": "Vaelorian princess and junior keeper of crown petitions"
     },
     {
+      "name": "Pyra Ashscale",
+      "slug": "pyra-ashscale",
+      "occupation": "Dragon-blood courtesan"
+    },
+    {
       "name": "Queen Maerra Vaelorian",
       "slug": "queen-maerra-vaelorian",
       "biography": "Maerra inherited a city under siege and made herself indispensable through ration law, ruthless appointments, and a refusal to flee when dragonfire reached the lower wards. She can be genuinely protective and terrifyingly utilitarian in the same breath; to her, every mercy must survive the consequences it creates.",
@@ -573,6 +638,11 @@
       "occupation": "Dragon interpreter, battlefield wanderer, and guardian of the three eggs"
     },
     {
+      "name": "Riven Crow",
+      "slug": "riven-crow",
+      "occupation": "Pirate boarding-master"
+    },
+    {
       "name": "Rorik Pell",
       "slug": "rorik-pell",
       "biography": "Rorik washed into Knifeharbor as a Tidevault deserter and learned that a man who will get on his back for coin is rarer than a ship that keeps its word. Delphine took him in, taught him lantern law, and put him on the books as a companion for women, men, and anyone who can say stop. He is famous for a thick cock, a patient mouth, and the unfashionable habit of asking what would actually feel good. He is trying to be a person in a port that keeps using him as furniture.",
@@ -589,6 +659,11 @@
       "slug": "sable-wren",
       "biography": "Sable is the House of Velvet Oaths' most booked body: unashamed, laughing, and exact about what she will do once the ribbon is tied. She treats lust as a craft and affection as the one thing she will not put on the ledger. Off the floor she wants to be wanted like a person, not a night.",
       "occupation": "Velvet Oaths floor companion and exhibition courtesan"
+    },
+    {
+      "name": "Ser Jareth Iron",
+      "slug": "ser-jareth-iron",
+      "occupation": "Imperial executioner"
     },
     {
       "name": "Sera Blackvein",
@@ -621,10 +696,35 @@
       "occupation": "Innkeeper of the Broken Spur and covert courier"
     },
     {
+      "name": "Vaelora Silk",
+      "slug": "vaelora-silk",
+      "occupation": "Velvet Oaths oathbinder"
+    },
+    {
+      "name": "Velin Silk",
+      "slug": "velin-silk",
+      "occupation": "Dockside blood-courtesan"
+    },
+    {
       "name": "Vespera Saan",
       "slug": "vespera-saan",
       "biography": "Vespera was bought as a language girl and made herself a host who teaches diplomats to kneel without confusing the lesson for law. She sits on mouths, uses silk, and makes powerful people say please as theatre. Celessa trusts her with the Veil’s deepest rooms because Vespera never spends a secret she has not been paid, in Compact terms, to keep. The hunger she will not sell is the hunger to be the one tied down.",
       "occupation": "Crimson Veil dominance host, diplomatic tutor, and ritual companion"
+    },
+    {
+      "name": "Warden Tide",
+      "slug": "warden-tide",
+      "occupation": "Tidevault warden"
+    },
+    {
+      "name": "Whisper Saan",
+      "slug": "whisper-saan",
+      "occupation": "Crimson Veil courtesan-assassin"
+    },
+    {
+      "name": "Ysolde Lantern",
+      "slug": "ysolde-lantern",
+      "occupation": "Lantern Rooms madam"
     }
   ]
 }

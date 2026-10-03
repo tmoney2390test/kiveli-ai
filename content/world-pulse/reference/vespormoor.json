@@ -1,5 +1,5 @@
 {
-  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "source": "Published canonical catalog, read-only snapshot 2026-10-02",
   "world": {
     "name": "Vespormoor",
     "slug": "vespormoor",
@@ -327,6 +327,11 @@
       "occupation": "Black Lantern Bartender and Co-owner"
     },
     {
+      "name": "Alaric Crowe",
+      "slug": "alaric-crowe",
+      "occupation": "Covenant executioner"
+    },
+    {
       "name": "Amara Nwosu",
       "slug": "amara-nwosu",
       "biography": "A warm cabin-retreat owner whose hospitality is generous but never an invitation to ignore her privacy.",
@@ -339,6 +344,16 @@
       "occupation": "Astronomy Researcher"
     },
     {
+      "name": "Briony Fox",
+      "slug": "briony-fox",
+      "occupation": "Poison gardener"
+    },
+    {
+      "name": "Calista Vane",
+      "slug": "calista-vane",
+      "occupation": "Bathhouse blood-ritual attendant"
+    },
+    {
       "name": "Callum Reid",
       "slug": "callum-reid",
       "biography": "A steady senior ranger who has spent years translating impossible incidents into reports outsiders will accept.",
@@ -349,6 +364,16 @@
       "slug": "camille-laurent-vespormoor",
       "biography": "A disciplined chef whose warmth appears in food long before she trusts someone with it in words.",
       "occupation": "The Conservatory Chef"
+    },
+    {
+      "name": "Canon Ward",
+      "slug": "canon-ward",
+      "occupation": "Inquisitor-priest"
+    },
+    {
+      "name": "Caspian Reed",
+      "slug": "caspian-reed",
+      "occupation": "Forbidden anatomist"
     },
     {
       "name": "Dr. Celeste Moreau",
@@ -387,6 +412,16 @@
       "occupation": "Art History Student"
     },
     {
+      "name": "Esme Nightingale",
+      "slug": "esme-nightingale",
+      "occupation": "Funeral-house seductress"
+    },
+    {
+      "name": "Evangeline Crowe",
+      "slug": "evangeline-crowe",
+      "occupation": "Conservatory siren"
+    },
+    {
       "name": "Evelyn Harrow",
       "slug": "evelyn-harrow",
       "biography": "A thoughtful bookseller with gentle intelligence and dry humor who knows local history without performing it for visitors.",
@@ -405,6 +440,11 @@
       "occupation": "Clinical Lecturer and Medical Historian"
     },
     {
+      "name": "Gwendolyn Ash",
+      "slug": "gwendolyn-ash",
+      "occupation": "Witch-hunter's widow who poisons at the retreat"
+    },
+    {
       "name": "Hana Watanabe",
       "slug": "hana-watanabe",
       "biography": "A calm history student with a faint psychometric gift who prefers evidence to the dramatic stories objects try to tell her.",
@@ -417,10 +457,25 @@
       "occupation": "Drowned Bell Bartender"
     },
     {
+      "name": "Hester Crowe",
+      "slug": "hester-crowe",
+      "occupation": "Estate interrogator"
+    },
+    {
       "name": "Isabella Reyes",
       "slug": "isabella-reyes-vespormoor",
       "biography": "A meticulous archivist with a sly sense of humor who believes access should be earned by care, not inherited status.",
       "occupation": "Blackglass Library Archivist"
+    },
+    {
+      "name": "Iskra Dragomir",
+      "slug": "iskra-dragomir",
+      "occupation": "Crimson Room dominant"
+    },
+    {
+      "name": "Isolde Crane",
+      "slug": "isolde-crane",
+      "occupation": "Vesper House blood courtesan"
     },
     {
       "name": "Julian Ashcroft",
@@ -507,6 +562,11 @@
       "occupation": "Velvet Thorn Proprietor"
     },
     {
+      "name": "Morrigan Ash",
+      "slug": "morrigan-ash",
+      "occupation": "Grave-witch"
+    },
+    {
       "name": "Naomi Okafor",
       "slug": "naomi-okafor",
       "biography": "A decisive architect who loves old buildings without romanticizing the power structures that built them.",
@@ -519,10 +579,20 @@
       "occupation": "Black Veil Tattoo Artist"
     },
     {
+      "name": "Ophelia Graves",
+      "slug": "ophelia-graves",
+      "occupation": "Velvet Thorn madam"
+    },
+    {
       "name": "Owen Mercer",
       "slug": "owen-mercer",
       "biography": "A reserved pianist whose humor is warmer than his stage persona and whose music shifts with the lake's moods.",
       "occupation": "Stillwater House Pianist"
+    },
+    {
+      "name": "Persephone Bell",
+      "slug": "persephone-bell",
+      "occupation": "Drowned-chapel priestess of desire"
     },
     {
       "name": "Priya Raman",
@@ -537,10 +607,20 @@
       "occupation": "Physics Student and Observatory Technician"
     },
     {
+      "name": "Raven Holloway",
+      "slug": "raven-holloway",
+      "occupation": "Curse-mark tattooist"
+    },
+    {
       "name": "Ren Takahashi",
       "slug": "ren-takahashi",
       "biography": "A composed conservation engineer who reads old buildings with technical rigor while hiding how literally some walls leave impressions in his hands.",
       "occupation": "Architectural Conservation Engineer"
+    },
+    {
+      "name": "Rook Vesper",
+      "slug": "rook-vesper",
+      "occupation": "Dockside strangler-for-hire"
     },
     {
       "name": "Rowan Hale",
@@ -555,6 +635,11 @@
       "occupation": "Afterdark Diner Night Waitress"
     },
     {
+      "name": "Sebastian Crowe",
+      "slug": "sebastian-crowe",
+      "occupation": "Estate huntsman"
+    },
+    {
       "name": "Selene Morcant",
       "slug": "selene-morcant",
       "biography": "A poised spa director who understands bodies, privacy, and the difference between relaxation and avoidance.",
@@ -565,6 +650,11 @@
       "slug": "seraphine-orison",
       "biography": "A serene chapel caretaker whose compassion feels contemporary even when her knowledge of the building does not.",
       "occupation": "Saint Orison Chapel Caretaker"
+    },
+    {
+      "name": "Silas Thorn",
+      "slug": "silas-thorn",
+      "occupation": "Lake-body recovery diver"
     },
     {
       "name": "Sofia Alvarez",
@@ -585,10 +675,20 @@
       "occupation": "Blackwood Estate Heiress and Foundation Director"
     },
     {
+      "name": "Willa Night",
+      "slug": "willa-night",
+      "occupation": "After-dark diner waitress"
+    },
+    {
       "name": "Willow Thorne",
       "slug": "willow-thorne",
       "biography": "A quietly sensual cook whose affinity with plants is practical, intimate, and impossible to reduce to a party trick.",
       "occupation": "Crooked Oak Cook"
+    },
+    {
+      "name": "Wolfe Brennan",
+      "slug": "wolfe-brennan",
+      "occupation": "Ranger who hunts Veiled Covenant-breakers"
     },
     {
       "name": "Zuri Campbell",

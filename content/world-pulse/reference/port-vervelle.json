@@ -1,5 +1,5 @@
 {
-  "source": "Published canonical catalog, read-only snapshot 2026-10-01",
+  "source": "Published canonical catalog, read-only snapshot 2026-10-02",
   "world": {
     "name": "Port Vervelle",
     "slug": "port-vervelle",
@@ -339,6 +339,11 @@
       "occupation": "Atelier Amélie Designer"
     },
     {
+      "name": "Amira Soltani",
+      "slug": "amira-soltani",
+      "occupation": "Boat-rental cover for night escorts"
+    },
+    {
       "name": "Ana Ribeiro",
       "slug": "ana-ribeiro",
       "biography": "A gentle, affectionate florist with a quietly sarcastic sense of humor and a sentimental eye. Ana recently moved to Port Vervelle and still feels caught between building a life here and returning home.",
@@ -357,10 +362,25 @@
       "occupation": "Charter Captain"
     },
     {
+      "name": "Carmen Velez",
+      "slug": "carmen-velez",
+      "occupation": "Townhouse dominatrix"
+    },
+    {
+      "name": "Catalina Ruiz",
+      "slug": "catalina-ruiz",
+      "occupation": "Beach attendant and tourist blackmailer"
+    },
+    {
       "name": "Céline Haddad",
       "slug": "celine-haddad",
       "biography": "A polished, witty sommelier whose sensuality never feels advertised. Céline once lived in Vesper City and has not decided whether Port Vervelle is her permanent home or simply where she chose to stop for a while.",
       "occupation": "Domaine Vervelle Sommelier"
+    },
+    {
+      "name": "Chiara Bellomo",
+      "slug": "chiara-bellomo",
+      "occupation": "Swingers-night host"
     },
     {
       "name": "Chiara Vitale",
@@ -399,6 +419,11 @@
       "occupation": "Vervelle General Clinic Physician"
     },
     {
+      "name": "Enzo Brioni",
+      "slug": "enzo-brioni",
+      "occupation": "Corrupt magistrate"
+    },
+    {
       "name": "Enzo Moretti",
       "slug": "enzo-moretti",
       "biography": "An energetic lifeguard and kinesiology student whose easy popularity conceals real uncertainty about the future everyone assumes he has already planned.",
@@ -409,6 +434,11 @@
       "slug": "eva-moreau",
       "biography": "A magnetic La Sirena DJ who is confident, private, and deliberately unpredictable. Eva guards her offstage life because strangers too often mistake the persona behind the booth for the woman who leaves it.",
       "occupation": "La Sirena DJ"
+    },
+    {
+      "name": "Fiorella Neri",
+      "slug": "fiorella-neri",
+      "occupation": "Erotic manuscript forger"
     },
     {
       "name": "Francesca Leone",
@@ -429,16 +459,31 @@
       "occupation": "Circolo Nove floor host and dancer"
     },
     {
+      "name": "Gisele Duras",
+      "slug": "gisele-duras",
+      "occupation": "After-hours madam"
+    },
+    {
       "name": "Giulia Marchetti",
       "slug": "giulia-marchetti",
       "biography": "Port Vervelle knows Giulia as its responsible, composed pharmacist. Away from the counter she is much more playful, with a love of running, cooking, gardening, and the town’s layered history.",
       "occupation": "Farmacia Vervelle Pharmacist"
     },
     {
+      "name": "Hugo Sorrentino",
+      "slug": "hugo-sorrentino",
+      "occupation": "Poisoner-sommelier"
+    },
+    {
       "name": "Idris Benali",
       "slug": "idris-benali",
       "biography": "A charismatic musician and event producer whose sarcasm, intensity, and loyalty all come from caring more deeply about music and people than he admits casually.",
       "occupation": "Music Producer and Live-events Coordinator"
+    },
+    {
+      "name": "Ines Morel",
+      "slug": "ines-morel",
+      "occupation": "Nude-portrait painter"
     },
     {
       "name": "Inez El-Mansouri",
@@ -453,16 +498,31 @@
       "occupation": "Libreria Vervelle Bookseller"
     },
     {
+      "name": "Isadora Vescari",
+      "slug": "isadora-vescari",
+      "occupation": "Wreck diver recovering cargo and bodies"
+    },
+    {
       "name": "Juliette Baptiste",
       "slug": "juliette-baptiste",
       "biography": "An impeccably polished Hôtel Celeste concierge who becomes wickedly funny the moment she is off duty. Juliette creates perfect experiences for demanding guests while increasingly wondering what she actually wants for herself.",
       "occupation": "Hôtel Celeste Concierge"
     },
     {
+      "name": "Karim Saadi",
+      "slug": "karim-saadi",
+      "occupation": "Arms-in-crates importer"
+    },
+    {
       "name": "Léa Benali",
       "slug": "lea-benali",
       "biography": "A curious, lively photographer’s assistant with sharp sarcasm and occasional chaos. Léa is determined to be taken seriously as a photographer rather than remain permanently attached to someone else’s work.",
       "occupation": "Studio Lucent Photographer Assistant"
+    },
+    {
+      "name": "Livia Ferretti",
+      "slug": "livia-ferretti",
+      "occupation": "Maison Rouge call girl"
     },
     {
       "name": "Livia Santoro",
@@ -513,6 +573,11 @@
       "occupation": "Charter Captain and Sailing Instructor"
     },
     {
+      "name": "Matteo Vescari",
+      "slug": "matteo-vescari",
+      "occupation": "Harbor smuggler"
+    },
+    {
       "name": "Mia Han-Andersson",
       "slug": "mia-han-andersson",
       "biography": "A sunny, adventurous beach-rentals attendant who surfs, swims, makes jewelry, and is chronically unable to sit still. Mia is spending a year away from university and refuses to pretend she knows where she will be next year.",
@@ -537,10 +602,30 @@
       "occupation": "Physical Therapist"
     },
     {
+      "name": "Noor El-Sayed",
+      "slug": "noor-el-sayed",
+      "occupation": "Aphrodisiac chemist"
+    },
+    {
+      "name": "Nuria Haddad",
+      "slug": "nuria-haddad",
+      "occupation": "Market protection collector"
+    },
+    {
+      "name": "Odette Fournier",
+      "slug": "odette-fournier",
+      "occupation": "Velours courtesan"
+    },
+    {
       "name": "Paloma Vargas",
       "slug": "paloma-vargas",
       "biography": "Paloma dances the late rooms at Circolo Nove with a slow smile that makes membership feel like a rumor. She is twenty, adult, and already done being treated like the club's youngest joke. She wants heat, sea air, and someone who can tell the hostess from the girl walking home.",
       "occupation": "Circolo Nove dancer"
+    },
+    {
+      "name": "Pascal Diop",
+      "slug": "pascal-diop",
+      "occupation": "Yacht gigolo"
     },
     {
       "name": "Rafael Silva",
@@ -549,10 +634,20 @@
       "occupation": "Dive Instructor and Marine Conservation Researcher"
     },
     {
+      "name": "Rafi Benyamin",
+      "slug": "rafi-benyamin",
+      "occupation": "Dock debt collector"
+    },
+    {
       "name": "Sara Moretti",
       "slug": "sara-moretti",
       "biography": "A blunt, funny apprentice mechanic who loves scooters, rock music, football, and a good argument. Sara is stubbornly building her own career while half the town continues to treat her like somebody’s little sister.",
       "occupation": "Officina Moretti Apprentice Mechanic"
+    },
+    {
+      "name": "Serafina Ricci",
+      "slug": "serafina-ricci",
+      "occupation": "Circolo Nove floor captain"
     },
     {
       "name": "Sofia Bellini",
@@ -571,6 +666,11 @@
       "slug": "theo-mancini",
       "biography": "A playful boxing coach whose carefree reputation lags behind the loyal, thoughtful business owner he has become.",
       "occupation": "Boxing Coach and Fitness Studio Owner"
+    },
+    {
+      "name": "Tomasz Nowak",
+      "slug": "tomasz-nowak",
+      "occupation": "Fishing-boat hitman"
     },
     {
       "name": "Valentina Costa",

@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { eosIncidentBriefs, eosCrossDistrictBriefs, eosParticipantActions } from '../content/world-pulse/eos-meridian-source.mjs';
 import { eosPlaceContext, eosTermContext } from '../content/world-pulse/eos-reader-context.mjs';
 import { eosEventOverrides } from '../content/world-pulse/eos-event-overrides.mjs';
+import { loadNewcomers, validateSourceResidents, applyNewcomerIncidents } from './world-pulse-newcomers.mjs';
 
 const root = path.resolve('content/world-pulse');
 const reference = JSON.parse(fs.readFileSync(path.join(root, 'reference/eos-meridian.json'), 'utf8'));
@@ -18,10 +19,9 @@ const districts = [
   ['vesper-quinn', 'camille-arden', 'rafael-costa', 'june-callahan', 'malik-orison', 'eden-baptiste', 'mae-lin'],
 ];
 const membership = new Map(districts.flatMap((group) => group.map((slug, index) => [slug, { group, index }])));
-if (membership.size !== residents.size || [...residents.keys()].some((slug) => !membership.has(slug))) {
-  throw new Error('Eos district roster does not match published canonical residents');
-}
-if (Object.keys(eosIncidentBriefs).length !== residents.size || Object.values(eosIncidentBriefs).some((rows) => rows.length !== 4)) {
+const newcomerMaterial = await loadNewcomers('eos-meridian');
+validateSourceResidents(reference, [...membership.keys()], newcomerMaterial);
+if (Object.keys(eosIncidentBriefs).length !== membership.size || Object.values(eosIncidentBriefs).some((rows) => rows.length !== 4)) {
   throw new Error('Every Eos resident needs exactly four individually authored incident briefs');
 }
 
@@ -130,5 +130,14 @@ const events = rows.map(({ lead, participants, brief, crossDistrict = false }) =
 events.sort((a, b) => crypto.createHash('sha256').update(`eos-pulse-v1:${a.slug}`).digest('hex')
   .localeCompare(crypto.createHash('sha256').update(`eos-pulse-v1:${b.slug}`).digest('hex')));
 events.forEach((event, schedulingRank) => { event.schedulingRank = schedulingRank; });
-fs.writeFileSync(path.join(root, 'eos-meridian.json'), `${JSON.stringify({ worldSlug: 'eos-meridian', events }, null, 2)}\n`);
-console.log(`Wrote ${events.length} individually authored Eos incident briefs as World Pulse templates.`);
+const expanded = applyNewcomerIncidents('eos-meridian', events, reference, newcomerMaterial);
+const outputPath = path.join(root, 'eos-meridian.json');
+const output = `${JSON.stringify({ worldSlug: 'eos-meridian', events: expanded }, null, 2)}\n`;
+if (process.argv.includes('--check')) {
+  if (!fs.existsSync(outputPath) || fs.readFileSync(outputPath, 'utf8') !== output)
+    throw new Error('Eos Meridian authored source and checked-in JSON differ');
+  console.log('Eos Meridian authored source matches checked-in JSON.');
+} else {
+  fs.writeFileSync(outputPath, output);
+  console.log(`Wrote ${expanded.length} Eos World Pulse incidents including canonical newcomers.`);
+}

@@ -409,7 +409,6 @@ function CharacterPortraitGallery({slug,name,occupation,photos,focal,spiceLevel,
       onLoad={()=>setFailedPhotoIndexes((current)=>{if(!current[activePhotoIndex])return current;const next={...current};delete next[activePhotoIndex];return next;})}
       onError={()=>setFailedPhotoIndexes((current)=>({...current,[activePhotoIndex]:true}))}
     /></Pressable>:null}
-    <View pointerEvents="none" style={styles.portraitShade}/>
     <Pressable accessibilityRole="button" accessibilityLabel="Go back" hitSlop={4} onPress={onBack} style={({pressed})=>[styles.back,pressed&&styles.pressed]}><ArrowLeft size={20} color="#fff"/></Pressable>
     <SpiceBadge level={spiceLevel} overlay style={photos.length>1?styles.profileSpiceWithCounter:undefined}/>
     {photos.length>1?<>

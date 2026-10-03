@@ -9,6 +9,7 @@ import { seedableMajorCatalogs } from '../content/world-pulse/major-catalogs.mjs
 // validation remains global and must pass before all-world enablement.
 const root = path.resolve('content/world-pulse');
 const major = process.argv.includes('--major');
+const replaceRoster = process.argv.includes('--replace-roster');
 const includeUnpublished = process.argv.includes('--include-unpublished');
 const worldFlag = process.argv.indexOf('--world');
 const requestedWorld = worldFlag >= 0 ? process.argv[worldFlag + 1] : null;
@@ -23,6 +24,8 @@ if (worldFlag >= 0 && (!requestedWorld || requestedWorld.startsWith('--'))) thro
 if (batchFlag >= 0 && (!requestedWorld || !Number.isInteger(batchSize) || batchSize < 1 || batchSize > 50))
   throw new Error('--batch-size requires a single --world and a value from 1 to 50');
 if (major && !requestedWorld) throw new Error('--major requires --world to keep world releases explicit');
+if (replaceRoster && (!requestedWorld || major || batchSize))
+  throw new Error('--replace-roster requires one routine --world and a single atomic seed file');
 if (includeUnpublished && !requestedWorld) throw new Error('--include-unpublished requires one explicit staged world');
 if (major && !seedableMajorCatalogs[requestedWorld]) throw new Error(`No seedable major catalog exists for ${requestedWorld}`);
 for (const validator of major
@@ -55,6 +58,13 @@ for (const referenceFile of fs.readdirSync(path.join(root, 'reference')).filter(
   if (events.length !== (major ? 15 : 200)) throw new Error(`${worldSlug} has ${events.length} templates, expected ${major ? 15 : 200}`);
   lines.push(`  select id into strict v_world from public.together_worlds where slug = ${quote(worldSlug)}${includeUnpublished ? '' : ' and published'};`);
   lines.push('  insert into public.together_world_pulse_settings (world_id, enabled) values (v_world, false) on conflict (world_id) do nothing;');
+  if (replaceRoster) {
+    const currentSlugs = tags(events.map((event) => event.slug));
+    lines.push("  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('world-pulse-v2:' || v_world::text, 0));");
+    lines.push("  if exists (select 1 from public.together_world_pulse_engagements engagement join public.together_world_pulse_occurrences occurrence on occurrence.id = engagement.occurrence_id where occurrence.world_id = v_world and occurrence.slot between 0 and 7 and occurrence.status = 'reserved' and occurrence.occurred_at > now()) or exists (select 1 from public.together_world_pulse_conversation_links link join public.together_world_pulse_occurrences occurrence on occurrence.id = link.occurrence_id where occurrence.world_id = v_world and occurrence.slot between 0 and 7 and occurrence.status = 'reserved' and occurrence.occurred_at > now()) then raise exception 'Future Pulse reservation has user engagement; refusing roster replacement'; end if;");
+    lines.push("  delete from public.together_world_pulse_occurrences where world_id = v_world and slot between 0 and 7 and status = 'reserved' and occurred_at > now();");
+    lines.push(`  with obsolete as (select id, row_number() over (order by id) as ordinal from public.together_world_pulse_templates where world_id = v_world and coalesce(metadata->>'pulseTier', 'routine') = 'routine' and slug <> all(${currentSlugs})), ceiling as (select coalesce(max(scheduling_rank), 999) as top_rank from public.together_world_pulse_templates where world_id = v_world) update public.together_world_pulse_templates template set active = false, scheduling_rank = ceiling.top_rank + obsolete.ordinal, updated_at = now() from obsolete, ceiling where template.id = obsolete.id;`);
+  }
   for (const [eventIndex, event] of events.entries()) {
     const rank = major ? 200 + eventIndex : event.schedulingRank;
     const metadata = major ? { contentDigest: crypto.createHash('sha256').update(JSON.stringify(event)).digest('hex'), pulseTier: 'major' } : { contentDigest: crypto.createHash('sha256').update(JSON.stringify(event)).digest('hex') };
@@ -84,6 +94,10 @@ for (const referenceFile of fs.readdirSync(path.join(root, 'reference')).filter(
       lines.push(`  select id into strict v_world from public.together_worlds where slug = ${quote(worldSlug)}${includeUnpublished ? '' : ' and published'};`);
       batchCount = 0;
     }
+  }
+  if (replaceRoster) {
+    lines.push("  if not public.kivelle_world_pulse_catalog_ready(v_world) then raise exception 'Replacement Pulse catalog failed database readiness check'; end if;");
+    lines.push("  if exists (select 1 from public.together_world_pulse_settings where world_id = v_world and enabled) then perform public.kivelle_world_pulse_reserve_world(v_world, (now() at time zone 'UTC')::date, 60); end if;");
   }
 }
 if (batchSize) {
