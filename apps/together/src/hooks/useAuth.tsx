@@ -72,6 +72,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     let bootstrapped = false;
     const { data } = supabase.auth.onAuthStateChange((event, next) => {
       if (event === 'SIGNED_OUT') {
+        queryClient.removeQueries({ queryKey: ['kivelle-subscription-status'] });
         queryClient.removeQueries({ queryKey: ['kivelle-world-pulse'] });
         queryClient.removeQueries({ queryKey: ['world-pulse-detail'] });
         queryClient.removeQueries({ queryKey: ['world-pulse-conversation-label'] });

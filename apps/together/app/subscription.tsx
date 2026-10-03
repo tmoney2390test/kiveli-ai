@@ -9,8 +9,9 @@ import { Image } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Brain, Camera, Check, ChevronDown, ChevronRight, CircleAlert, ExternalLink, Gift, Globe2, Heart, History, LockKeyhole, RefreshCw, ShieldCheck, Sparkles, UserRound, Zap } from 'lucide-react-native';
-import { GradientButton, KivelleCreditIcon, LoadingSkeleton, Screen } from '../src/components';
-import { subscriptionStatusQueryKey, useSubscriptionStatus } from '../src/hooks/useSubscriptionStatus';
+import { GradientButton, LoadingSkeleton, Screen } from '../src/components/ui';
+import { KivelleCreditIcon } from '../src/components/KivelleCreditIcon';
+import { subscriptionStatusKey, useSubscriptionStatus } from '../src/hooks/useSubscriptionStatus';
 import { useAuth } from '../src/hooks/useAuth';
 import { ApiError, manageSubscription } from '../src/lib/api';
 import { loadNativeProductPrices, loadNativeCreditPrices, purchaseNativeCredits, nativePurchasesConfigured, purchaseNativeSubscription, restoreNativePurchases } from '../src/lib/nativePurchases';
@@ -20,6 +21,7 @@ import { revenueCatPackageIdentifiers, type PurchasableTier } from '../src/lib/r
 import { resumeNativePurchase, currentPurchaseAccount } from '../src/lib/nativePurchaseRecovery';
 import type { BillingInterval, CheckoutConfirmation, CreditActivityEvent, SubscriptionPlan, SubscriptionStatus, SubscriptionTier } from '../src/lib/subscription';
 import { intelligenceLabel } from '../src/lib/subscription';
+import { personalPlaceLimit } from '@together/domain/src/personal-place-limits';
 import { annualSavingsPercentage, billingStatusPresentation, checkoutBackoffDelay, creditActivityPresentation, managementActionLabel, membershipBenefits, membershipMetrics, membershipPageMode, membershipPricePresentation, normalizeSubscriptionIntent, safeSubscriptionReturnTo, shouldShowSubscriptionIntentCallout, subscriptionIntentPresentation } from '../src/lib/subscriptionPresentation';
 import { colors, radius, spacing } from '../src/theme';
 
@@ -91,7 +93,8 @@ export default function Subscription() {
   }, [params.billing, params.checkout, query.refetch]);
 
   useEffect(() => {
-    if (params.checkout !== 'success') return;
+    const userId = session?.user.id;
+    if (params.checkout !== 'success' || !userId) return;
     const sessionId = params.session_id;
     if (!sessionId) {
       setNotice({ tone: 'warning', title: 'Purchase is still syncing', body: 'We could not verify the checkout automatically. Refresh your billing status before trying again.', retry: true });
@@ -106,7 +109,7 @@ export default function Subscription() {
       try {
         const confirmation = await manageSubscription<CheckoutConfirmation>({ action: 'checkout_confirmation', sessionId });
         if (disposed) return;
-        queryClient.setQueryData(subscriptionStatusQueryKey, confirmation.state);
+        queryClient.setQueryData(subscriptionStatusKey(userId), confirmation.state);
         if (confirmation.outcome === 'succeeded') {
           const title = confirmation.purchase?.kind === 'credits' ? `${confirmation.purchase.creditsAdded.toLocaleString()} Credits added` : `${confirmation.state.capabilities.displayName} is active`;
           setNotice({ tone: 'success', title, body: returnTo ? 'Everything is ready. Continue where you left off.' : 'Your purchase is confirmed and ready to use.' });
@@ -128,7 +131,7 @@ export default function Subscription() {
     };
     timer = setTimeout(() => void verify(), checkoutBackoffDelay(0));
     return () => { disposed = true; if (timer) clearTimeout(timer); };
-  }, [confirmationRetry, params.checkout, params.purchase, params.session_id, queryClient, returnTo]);
+  }, [confirmationRetry, params.checkout, params.purchase, params.session_id, queryClient, returnTo, session?.user.id]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (next) => {
@@ -350,7 +353,7 @@ function NoticeCard({ notice, onRetry, onContinue, continueLabel = 'Continue' }:
 }
 
 function Comparison({ plans, currentTier, compact }: { plans: SubscriptionPlan[]; currentTier: SubscriptionTier; compact: boolean }) {
-  return <View style={[styles.compareGrid, !compact && styles.compareGridWide]}>{plans.map((plan) => <View key={plan.tier} style={[styles.compareCard, compact && styles.compareCardCompact]}><View style={styles.compareCardTop}><Text style={styles.comparePlan}>{plan.displayName}</Text>{plan.tier === currentTier ? <Text style={styles.compareCurrent}>CURRENT</Text> : null}</View><CompareRow label="Active conversations" value={`${plan.maxActiveConversations}`} /><CompareRow label="Messages" value={plan.dailyMessageLimit === null ? 'Unlimited' : `${plan.dailyMessageLimit} per day`} /><CompareRow label="Continuity" value={intelligenceLabel(plan.intelligenceProfile)} /><CompareRow label="Included photos" value={plan.includedCompanionPhotoDailyLimit ? `${plan.includedCompanionPhotoDailyLimit} per day` : 'Credits'} /><CompareRow label="Monthly Credits" value={plan.monthlyCreditGrant ? plan.monthlyCreditGrant.toLocaleString() : '—'} /><CompareRow label="Lives / custom companions" value={`${plan.maxLives} / ${plan.maxCustomCompanions}`} /><CompareRow label="Worlds" value={plan.worldAccess === 'all_standard' ? 'Every standard world' : 'Released free worlds'} /><CompareRow label="New worlds" value={plan.tier === 'free' ? 'After early access' : 'Early access included'} /><CompareRow label="Media priority" value={plan.mediaQueue} /></View>)}</View>;
+  return <View style={[styles.compareGrid, !compact && styles.compareGridWide]}>{plans.map((plan) => <View key={plan.tier} style={[styles.compareCard, compact && styles.compareCardCompact]}><View style={styles.compareCardTop}><Text style={styles.comparePlan}>{plan.displayName}</Text>{plan.tier === currentTier ? <Text style={styles.compareCurrent}>CURRENT</Text> : null}</View><CompareRow label="Active conversations" value={`${plan.maxActiveConversations}`} /><CompareRow label="Messages" value={plan.dailyMessageLimit === null ? 'Unlimited' : `${plan.dailyMessageLimit} per day`} /><CompareRow label="Continuity" value={intelligenceLabel(plan.intelligenceProfile)} /><CompareRow label="Chat paths" value={plan.tier==='free'?'—':plan.tier==='kivelle_max'?'Up to 50':'Up to 20'} /><CompareRow label="Included photos" value={plan.includedCompanionPhotoDailyLimit ? `${plan.includedCompanionPhotoDailyLimit} per day` : 'Credits'} /><CompareRow label="Monthly Credits" value={plan.monthlyCreditGrant ? plan.monthlyCreditGrant.toLocaleString() : '—'} /><CompareRow label="Lives / custom companions" value={`${plan.maxLives} / ${plan.maxCustomCompanions}`} /><CompareRow label="Personal places" value={`${personalPlaceLimit(plan.tier)}`} /><CompareRow label="Worlds" value={plan.worldAccess === 'all_standard' ? 'Every standard world' : 'Released free worlds'} /><CompareRow label="New worlds" value={plan.tier === 'free' ? 'After early access' : 'Early access included'} /><CompareRow label="Media priority" value={plan.mediaQueue} /></View>)}</View>;
 }
 function CompareRow({ label, value }: { label: string; value: string }) { return <View style={styles.compareRow}><Text style={styles.compareLabel}>{label}</Text><Text style={styles.compareValue}>{value}</Text></View>; }
 function PolicyLink({ label, route }: { label: string; route: string }) { return <Text accessibilityRole="link" onPress={() => router.push(route as never)} style={styles.policyLink}>{label}</Text>; }

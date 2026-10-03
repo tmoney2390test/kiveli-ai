@@ -52,7 +52,7 @@ test('scenario leads, places, and arcs match the canonical pack without exposing
 
 test('portrait and location references are discoverable for photo, video, and group media',async()=>{
   const assets=(await discoverAssets()).filter((asset)=>asset.worldSlug===world);
-  assert.equal(assets.filter((asset)=>asset.role==='character_identity').length,36);
+  assert.equal(assets.filter((asset)=>asset.role==='character_identity').length,56);
   assert.equal(assets.filter((asset)=>asset.role==='location_canonical').length,42);
   assert.equal(assets.filter((asset)=>asset.role==='world_canonical').length,1);
   for(const asset of assets)await access(asset.path);

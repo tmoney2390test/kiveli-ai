@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CreatorModal } from './CreatorPicker';
 import { CreateChoiceArtwork } from './CreateChoiceArtwork';
 import { PersonalPlacePicker } from './PersonalPlacePicker';
@@ -14,6 +15,7 @@ export function CreateMenu({ visible, onClose, onCreateCharacter }: {
   onCreateCharacter: () => void;
 }) {
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const snapshot = useTogether((state) => state.snapshot);
   const browsedWorldId = useTogether((state) => state.browsedWorldId);
   const [placeOpen, setPlaceOpen] = useState(false);
@@ -26,7 +28,8 @@ export function CreateMenu({ visible, onClose, onCreateCharacter }: {
   const placeWorld = snapshot?.worlds.find((world) => world.id === currentWorld?.id && canAccessWorld(snapshot, world))
     ?? snapshot?.worlds.find((world) => isWorldCatalogVisible(world) && canAccessWorld(snapshot, world));
   const stacked = width < 720;
-  const compactCard = stacked ? { flexGrow: 0, flexShrink: 0, flexBasis: Math.max(170, Math.min(240, (height - 230) / 2)) } : undefined;
+  const safeHeight = height - (Platform.OS === 'ios' ? insets.top + insets.bottom : 0);
+  const compactCard = stacked ? { flexGrow: 0, flexShrink: 0, flexBasis: Math.max(150, Math.min(200, (safeHeight - 190) / 2)) } : undefined;
 
   return <>
     <CreatorModal visible={visible && !placeOpen} title="What would you like to create?" onClose={onClose} onDismiss={Platform.OS === 'ios' ? () => setChooserDismissed(true) : undefined} cardChooser>

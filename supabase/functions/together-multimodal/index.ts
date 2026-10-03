@@ -262,7 +262,7 @@ serve(async (request, correlationId) => {
     );
     if (attachment.analysis_status === "ready" && attachment.upload_status === "uploaded") {
       if ((attachment.content_rating === "explicit" || attachment.visibility_scope === "web_adult") && !adultAccess.authorized_web_adult) {
-        throw new AppError("FORBIDDEN", "That photo is unavailable in this session.", 403, false);
+        throw new AppError("PROVIDER_CONTENT_BLOCKED", "Explicit photos can be shared only in an eligible adult website session.", 422, false);
       }
       return json({ data: await attachmentPayload(db, attachment), correlationId }, 200, correlationId);
     }
@@ -334,6 +334,9 @@ serve(async (request, correlationId) => {
         safetyIdentifier: await opaqueSafetyIdentifier(user.id),
         allowExplicitAdult: adultAccess.authorized_web_adult,
       });
+      if (result.contentRating === "explicit" && !adultAccess.authorized_web_adult) {
+        throw new AppError("PROVIDER_CONTENT_BLOCKED", "Explicit photos can be shared only in an eligible adult website session.", 422, false);
+      }
       const restricted=result.contentRating === "explicit";
       const { data } = await db.from("together_conversation_attachments")
         .update({

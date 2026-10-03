@@ -7,7 +7,8 @@ import{Image}from'expo-image';
 import{router,useFocusEffect,useLocalSearchParams}from'expo-router';
 import{AlertCircle,BookOpen,Check,ChevronDown,ChevronLeft,ChevronRight,LockKeyhole,MapPin,Search,Sparkles,UsersRound,X}from'lucide-react-native';
 import{useSafeAreaInsets}from'react-native-safe-area-context';
-import{EmptyState,LoadingSkeleton,PlaceCategoryFilters,Screen}from'../../src/components';
+import { EmptyState, LoadingSkeleton, Screen } from '../../src/components/ui';
+import { PlaceCategoryFilters } from '../../src/components/PlaceCategoryFilters';
 import{CompanionPortraitCard}from'../../src/components/CompanionPortraitCard';
 import{CompanionGenderToggle,useCompanionGenderPreference}from'../../src/components/CompanionGenderToggle';
 import{CompanionSpicePicker,type CompanionSpiceFilter}from'../../src/components/CompanionSpicePicker';
@@ -38,6 +39,7 @@ import{subscriptionHref}from'../../src/lib/subscriptionPresentation';
 import{useWorldPulse}from'../../src/hooks/useWorldPulse';
 import{WorldPulseV2Section}from'../../src/components/home/WorldPulseV2Section';
 import{WorldPulseEventModal}from'../../src/components/WorldPulseEventModal';
+import type{WorldPulseV2Event}from'@together/domain/src/world-pulse-v2';
 
 const nav={
   push:(href:string)=>router.push(href as never),
@@ -62,7 +64,7 @@ export default function Explore(){
   const[sortMode,setSortMode]=useState<CompanionSortMode>('recommended');
   const heroReady=useSurfaceReadyTiming('explore','hero_image_ready',Boolean(snapshot&&snapshot.profile?.privacy_settings?.analytics!==false));
   const[worldPickerOpen,setWorldPickerOpen]=useState(false);
-  const[selectedPulseEventId,setSelectedPulseEventId]=useState<string|null>(null);
+  const[selectedPulseEvent,setSelectedPulseEvent]=useState<WorldPulseV2Event|null>(null);
   const[category,setCategory]=useState<ExploreCategoryId|null>(null);
   const[query,setQuery]=useState('');
   const[peopleLimit,setPeopleLimit]=useState(12);
@@ -221,7 +223,7 @@ export default function Explore(){
       {selectedIntent==='scenarios'?<View accessibilityRole="toolbar" accessibilityLabel="Filter scenarios" style={styles.peopleFilters}><CompanionGenderToggle value={gender} onChange={setGender}/></View>:null}
       <ScenarioBrowser key={`${selectedWorld.id}:${selectedIntent}`} worldId={selectedWorld.id} gender={selectedIntent==='scenarios'?gender:'any'} limit={selectedIntent==='for_you'?3:undefined} query={query}/>
     </Section>:null}
-    {showEvents&&pulseData?.version===2?<WorldPulseV2Section worldName={selectedWorld.name} events={pulseData.events} onOpen={(event)=>setSelectedPulseEventId(event.id)} onViewAll={()=>nav.push(`/world-pulse?world=${selectedWorld.slug}`)}/>:null}
+    {showEvents&&pulseData?.version===2?<WorldPulseV2Section worldName={selectedWorld.name} events={pulseData.events} onOpen={setSelectedPulseEvent} onViewAll={()=>nav.push(`/world-pulse?world=${selectedWorld.slug}`)}/>:null}
     {showEvents&&pulseData&&pulseData.version!==2&&context.worldEvents.length?<Section title={hasActiveWorldEvent?'Happening now':'Coming up'} subtitle={hasActiveWorldEvent?`What is unfolding around ${selectedWorld.name}`:`What is next around ${selectedWorld.name}`} action="Explore places" onAction={()=>nav.push(`/world/places?world=${selectedWorld.slug}`)}><View style={styles.eventStack}>{context.worldEvents.slice(0,4).map((event,index)=>{const location=context.locations.find((item)=>item.id===event.location_id),title=naturalizeCharacterEventTitle(event.title,event.event_type),summary=naturalizeCharacterEventSummary(event.narrative_summary),status=exploreEventStatus(event);return <Pressable key={event.id} accessibilityRole="button" accessibilityLabel={`${status}: ${title}`} onPress={()=>discussionHandle?nav.push(`/(tabs)/chat-tab?character=${discussionHandle}&draft=${encodeURIComponent(`What's going on with ${title}?`)}`):location?openLocation(location):undefined} style={({pressed})=>[styles.eventCard,index===0&&styles.eventCardFeatured,pressed&&styles.pressed]}><View style={styles.eventIcon}><Sparkles size={16} color={colors.warm}/></View><View style={{flex:1}}><Text style={styles.eventKicker}>{status}</Text><Text style={styles.eventTitle}>{title}</Text><Text numberOfLines={2} style={styles.eventCopy}>{summary}</Text>{location?<Text style={styles.eventLocation}>{location.name}</Text>:null}</View><ChevronRight size={17} color={colors.muted}/></Pressable>;})}</View></Section>:null}
 
     {showPeople?<Section title={searching?'People':fullPeopleCatalog?`People of ${selectedWorld.name}`:'People you might connect with'} subtitle={fullPeopleCatalog?`Meet the residents of ${selectedWorld.name}`:`Chosen from ${selectedWorld.name} for your interests and goals`} action={fullPeopleCatalog?undefined:'View all'} onAction={fullPeopleCatalog?undefined:()=>changeIntent('people')}>
@@ -243,7 +245,7 @@ export default function Explore(){
 
     {sections.worlds&&searching&&matchingWorlds.length?<Section title={`Worlds · ${matchingWorlds.length}`}><HorizontalRail label="Matching Kivelle worlds" showControls={false} snapInterval={responsive.worldDiscoveryCardWidth+11} contentStyle={styles.worldRow}>{matchingWorlds.map((world)=><WorldCard key={world.id} world={world} width={responsive.worldDiscoveryCardWidth} accessible={accessibleWorldIds.has(world.id)} onPress={()=>chooseWorld(world)}/>)}</HorizontalRail></Section>:null}
     {sections.worlds&&!searching&&matchingWorlds.length?<Section title="Discover other worlds" subtitle="Different worlds bring different people, places, and possibilities" action="Choose a world" onAction={openAllWorlds}><HorizontalRail label="Discover other Kivelle worlds" showControls={false} snapInterval={responsive.worldDiscoveryCardWidth+11} contentStyle={styles.worldRow}>{matchingWorlds.map((world)=><WorldCard key={world.id} world={world} width={responsive.worldDiscoveryCardWidth} accessible={accessibleWorldIds.has(world.id)} onPress={()=>chooseWorld(world)}/>)}</HorizontalRail></Section>:null}
-  </Screen><WorldSwitcherSheet visible={worldPickerOpen} worlds={worlds} selectedWorldId={selectedWorld.id} accessibleWorldIds={accessibleWorldIds} homeWorldId={companionWorld?.id} loading={refreshing} error={refreshError} desktop={desktop} reducedMotion={reducedMotion} returnFocusRef={worldSelectorRef} onRetry={()=>void refreshCatalog(true)} onSelect={chooseWorld} onClose={closeWorldPicker}/><WorldPulseEventModal eventId={selectedPulseEventId} onClose={()=>setSelectedPulseEventId(null)} onNavigate={(href)=>{setSelectedPulseEventId(null);nav.push(href);}}/></>;
+  </Screen><WorldSwitcherSheet visible={worldPickerOpen} worlds={worlds} selectedWorldId={selectedWorld.id} accessibleWorldIds={accessibleWorldIds} homeWorldId={companionWorld?.id} loading={refreshing} error={refreshError} desktop={desktop} reducedMotion={reducedMotion} returnFocusRef={worldSelectorRef} onRetry={()=>void refreshCatalog(true)} onSelect={chooseWorld} onClose={closeWorldPicker}/><WorldPulseEventModal eventId={selectedPulseEvent?.id??null} previewEvent={selectedPulseEvent} onClose={()=>setSelectedPulseEvent(null)} onNavigate={(href)=>{setSelectedPulseEvent(null);nav.push(href);}}/></>;
 }
 
 function WorldPersonCard({person,index,width,height,worldName,snapshot,onFeedback}:{person:FeaturedCompanion;index:number;width:number;height:number;worldName:string;snapshot:Snapshot;onFeedback:(message:string)=>void}){

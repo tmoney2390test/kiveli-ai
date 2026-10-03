@@ -11,7 +11,8 @@ import {
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Check, ChevronLeft, Lock, Users } from "lucide-react-native";
-import { CharacterAvatar, FrostedSurface } from "../src/components";
+import { CharacterAvatar } from '../src/components/ui';
+import { FrostedSurface } from '../src/components/FrostedGlass';
 import { manageGroup } from "../src/lib/api";
 import { groupWorldOptions } from "../src/lib/groupWorld";
 import { parseGroupPrefillParticipants } from "../src/lib/groupInvite";

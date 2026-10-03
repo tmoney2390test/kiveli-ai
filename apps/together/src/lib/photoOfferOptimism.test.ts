@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { MediaOffer } from '../types';
-import { withPhotoRequestTimeout, createOptimisticPhotoRequest, matchingServerPhotoOffer, photoOfferStatusSettled, queueOptimisticPhotoOfferAcceptance, queueServerPhotoOfferAcceptance, waitForMatchingServerPhotoOffer, waitForPhotoOfferStatus } from './photoOfferOptimism';
+import type { MediaOffer, Message } from '../types';
+import { declinedPhotoReplyAnchor, declinedPhotoReplayText, withPhotoRequestTimeout, createOptimisticPhotoRequest, matchingServerPhotoOffer, photoOfferStatusSettled, queueOptimisticPhotoOfferAcceptance, queueServerPhotoOfferAcceptance, waitForMatchingServerPhotoOffer, waitForPhotoOfferStatus } from './photoOfferOptimism';
 
 function serverOffer(overrides: Partial<MediaOffer> = {}): MediaOffer {
   return {
@@ -17,6 +17,33 @@ function serverOffer(overrides: Partial<MediaOffer> = {}): MediaOffer {
 }
 
 describe('photo offer optimism', () => {
+  it('replies in text only to a newly declined latest user photo request', () => {
+    const pending = serverOffer({ status: 'pending', message_id: 'photo-placeholder',preview_metadata:{clientRequestId:'photo-request'} });
+    const declined = serverOffer({ status: 'declined', message_id: 'photo-placeholder' });
+    const user = { id: 'user-message', role: 'user', conversation_id: 'conversation-1',client_request_id:'photo-request' } as Message;
+    const placeholder = { id: 'photo-placeholder', role: 'assistant', conversation_id: 'conversation-1' } as Message;
+    expect(declinedPhotoReplyAnchor(pending, declined, [user, placeholder])).toBe('photo-placeholder');
+    expect(declinedPhotoReplyAnchor(pending, declined, [user, placeholder, { ...user, id: 'newer-message' }])).toBeNull();
+    expect(declinedPhotoReplyAnchor(pending, declined, [user, { ...placeholder, conversation_id: 'another-chat' }])).toBeNull();
+    expect(declinedPhotoReplyAnchor(pending, serverOffer({ status: 'failed' }), [user, placeholder])).toBeNull();
+    expect(declinedPhotoReplyAnchor(serverOffer({ ...pending, source: 'story' }), declined, [user, placeholder])).toBeNull();
+    expect(declinedPhotoReplyAnchor(pending,declined,[{...user,provider_metadata:{uiHidden:true}},placeholder])).toBeNull();
+  });
+  it('uses the same pending-offer guard for a group photo decline', () => {
+    const pending=serverOffer({status:'pending',conversation_id:'group-1',message_id:'group-photo',preview_metadata:{clientRequestId:'group-request',requestText:'Can I see a picture?'}});
+    const declined=serverOffer({...pending,status:'declined'});
+    const user={id:'group-user',role:'user',conversation_id:'group-1',client_request_id:'group-request'} as Message;
+    const photo={id:'group-photo',role:'assistant',conversation_id:'group-1',content:'[Photo]',delivery_status:'complete',created_at:'2026-10-03T00:00:00Z',provider_metadata:{mediaOnly:true}} as Message;
+    expect(declinedPhotoReplyAnchor(pending,declined,[user,photo])).toBe('group-photo');
+    expect(declinedPhotoReplyAnchor(pending,declined,[user,photo,{...photo,id:'newer'}])).toBeNull();
+  });
+  it('quotes a declined-photo retry using only its original visible message in the same chat', () => {
+    const control={id:'control',role:'user',conversation_id:'chat-1',content:'[Photo declined]',delivery_status:'complete',created_at:'2026-10-03T00:00:00Z',provider_metadata:{uiHidden:true,messageAction:'respond_to_declined_photo',photoDeclineSourceMessageId:'source'}} as Message;
+    const original={id:'source',role:'user',conversation_id:'chat-1',content:'Please tell me in words.'} as Message;
+    expect(declinedPhotoReplayText(control,[original])).toBe(original.content);
+    expect(declinedPhotoReplayText(control,[{...original,conversation_id:'another-chat'}])).toBe(control.content);
+    expect(declinedPhotoReplayText(control,[{...original,provider_metadata:{uiHidden:true}}])).toBe(control.content);
+  });
   it('does not claim a server offer was accepted before the API confirms it', () => {
     const pending=serverOffer({status:'pending'});
     const queued=queueServerPhotoOfferAcceptance(pending,'2026-09-05T20:00:00.000Z');

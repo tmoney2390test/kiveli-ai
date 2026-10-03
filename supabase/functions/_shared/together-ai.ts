@@ -13,10 +13,7 @@ import {
   type OpenThreadCandidate,
   threadAnswered,
 } from "./together.ts";
-import {
-  buildCompanionPrompt,
-  responseTokenBudget,
-} from "./kivelle-intelligence.ts";
+import { buildCompanionPrompt } from "./kivelle-intelligence.ts";
 import type { KivelleConversationContext } from "./kivelle-conversation-context.ts";
 import type { PlaceOpinionCandidate } from "./kivelle-place-perspective.ts";
 import {
@@ -53,14 +50,12 @@ import {
   isContradictoryAcceptedIntimacyRefusal,
   isDialogueHardBlocked,
   isUnsupportedTemperatureResponse,
-  limitVisibleDialogue,
   providerGenerationControls,
   type NormalizedAiUsage,
   type NormalizedModerationResult,
   normalizeResponsesUsage,
   parseResponsesStreamEvent,
   type ResponsesServiceTier,
-  visibleDialoguePrefix,
 } from "../../../packages/together-domain/src/index.ts";
 import { type AiUsageScope, recordAiUsage } from "./kivelle-ai-usage.ts";
 import {
@@ -2366,10 +2361,10 @@ async function generateGemini(
       part: Record<string, unknown>,
     ) => part.text).filter(Boolean).join("");
   if (typeof rawText !== 'string' || !rawText.trim()) throw new Error('empty_gemini_response');
-  const visible = limitVisibleDialogue(rawText, options.generationProfile?.visibleTokenBudget ?? responseTokenBudget(context));
-  options.visibleOutputTruncated = visible.truncated;
-  options.deliveredVisibleOutputTokensEstimate = visible.estimatedTokens;
-  return visible.text;
+  if (data.candidates?.[0]?.finishReason === 'MAX_TOKENS') throw new Error('incomplete_gemini_response');
+  options.visibleOutputTruncated = false;
+  options.deliveredVisibleOutputTokensEstimate = estimateContextTokens(rawText.trim());
+  return rawText.trim();
 }
 
 async function* streamGemini(
@@ -2396,28 +2391,20 @@ async function* streamGemini(
     throw new Error(`Gemini stream failed (${response.status})`);
   }
   let deliveredText = '';
-  let visibleLimitReached = false;
-  const visibleBudget = options.generationProfile?.visibleTokenBudget ?? responseTokenBudget(context);
+  let finishReason: string | undefined;
   for await (const data of sseData(response.body)) {
     const payload = JSON.parse(data) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>;
     };
+    finishReason = payload.candidates?.[0]?.finishReason ?? finishReason;
     const token = payload.candidates?.[0]?.content?.parts?.map((part) =>
       part.text ?? ""
     ).join("") ?? "";
-    if (token && !visibleLimitReached) {
-      const candidate = `${deliveredText}${token}`;
-      const limited = visibleDialoguePrefix(candidate, visibleBudget);
-      const deliverable = limited.slice(deliveredText.length);
-      if (limited.length < candidate.length) {
-        options.visibleOutputTruncated = true;
-        visibleLimitReached = true;
-      }
-      deliveredText = limited;
-      if (deliverable) yield deliverable;
-    }
+    if (token) { deliveredText += token; yield token; }
   }
-  options.deliveredVisibleOutputTokensEstimate = limitVisibleDialogue(deliveredText, visibleBudget).estimatedTokens;
+  if (finishReason === 'MAX_TOKENS') throw new Error('incomplete_gemini_response');
+  options.visibleOutputTruncated = false;
+  options.deliveredVisibleOutputTokensEstimate = estimateContextTokens(deliveredText.trim());
 }
 
 async function* sseData(

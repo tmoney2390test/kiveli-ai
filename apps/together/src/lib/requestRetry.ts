@@ -1,7 +1,10 @@
+import { throwIfRequestAborted, waitForRetry } from './requestAbort';
+
 export type IdempotentRetryOptions = {
   attempts?: number;
   delayMs?: number;
   onRetry?: (error: unknown, attempt: number) => void;
+  signal?: AbortSignal;
 };
 
 export function isTransientRequestFailure(error: unknown): boolean {
@@ -15,12 +18,16 @@ export function isTransientRequestFailure(error: unknown): boolean {
 export async function withIdempotentRetry<T>(operation: () => Promise<T>, options: IdempotentRetryOptions = {}): Promise<T> {
   const attempts = Math.max(1, options.attempts ?? 2);
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    throwIfRequestAborted(options.signal);
     try {
-      return await operation();
+      const result = await operation();
+      throwIfRequestAborted(options.signal);
+      return result;
     } catch (error) {
+      throwIfRequestAborted(options.signal);
       if (attempt >= attempts || !isTransientRequestFailure(error)) throw error;
       options.onRetry?.(error, attempt);
-      await new Promise((resolve) => setTimeout(resolve, Math.max(0, options.delayMs ?? 180) * attempt));
+      await waitForRetry(Math.max(0, options.delayMs ?? 180) * attempt, options.signal);
     }
   }
   throw new Error('The request could not be completed.');

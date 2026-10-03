@@ -3,9 +3,11 @@ import { Platform, StyleSheet } from 'react-native';
 import { PlatformPressable } from 'expo-router/react-navigation';
 import { IosLiquidGlass, supportsIosLiquidGlass } from './IosLiquidGlass';
 
-export function MobileTabButton({ style, children, ...props }: ComponentProps<typeof PlatformPressable>) {
+type MobileTabButtonProps = ComponentProps<typeof PlatformPressable> & { reduceTransparency?: boolean };
+
+export function MobileTabButton({ style, children, reduceTransparency = false, ...props }: MobileTabButtonProps) {
   const selected = props['aria-selected'] === true || props.accessibilityState?.selected === true;
-  const liquidGlass = supportsIosLiquidGlass();
+  const liquidGlass = !reduceTransparency && supportsIosLiquidGlass();
 
   // The navigator rounds the item container but resets the inner button to 0.
   // Style the actual button so its fill, border, and press feedback share a shape.
@@ -16,7 +18,7 @@ export function MobileTabButton({ style, children, ...props }: ComponentProps<ty
     style={[style, styles.button, Platform.OS === 'ios' && styles.iosButton, selected && (liquidGlass ? styles.selectedGlass : Platform.OS === 'ios' ? styles.iosSelected : styles.selected)]}
   >
     {selected && liquidGlass
-      ? <IosLiquidGlass pointerEvents="none" colorScheme="dark" glassEffectStyle="regular" tintColor="#783E70" style={styles.glassFill} />
+      ? <IosLiquidGlass pointerEvents="none" glassEffectStyle="regular" style={styles.glassFill} />
       : null}
     {children}
   </PlatformPressable>;
@@ -49,11 +51,7 @@ const styles = StyleSheet.create({
   },
   selectedGlass: {
     backgroundColor: 'transparent',
-    borderColor: 'rgba(255,221,240,.28)',
-    shadowColor: '#E166C2',
-    shadowOpacity: .19,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 3 },
+    borderColor: 'rgba(255,255,255,.16)',
   },
   glassFill: {
     ...StyleSheet.absoluteFill,

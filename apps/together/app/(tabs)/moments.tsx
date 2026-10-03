@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ChevronDown, Search, Sparkles } from 'lucide-react-native';
-import { CharacterAvatar, EmptyState, FrostedSurface, GlassCard, MomentCard, PageTitle, Screen } from '../../src/components';
+import { CharacterAvatar, EmptyState, GlassCard, MomentCard, PageTitle, Screen } from '../../src/components/ui';
+import { FrostedSurface } from '../../src/components/FrostedGlass';
 import { colors, radius } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { useAuth } from '../../src/hooks/useAuth';
@@ -29,6 +30,8 @@ export default function MomentsTab() {
 }
 
 function MomentsFeed() {
+  const {width:windowWidth}=useWindowDimensions();
+  const cardWidth: `${number}%`=windowWidth>=1000?'23.5%':windowWidth>=680?'31.5%':'47.5%';
   const{session}=useAuth();
   const snapshot = useTogether((state) => state.snapshot);
   const upsertMedia=useTogether((state)=>state.upsertMedia);
@@ -109,12 +112,12 @@ function MomentsFeed() {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>{filters.map((item)=><Pressable key={item} onPress={()=>setFilter(item)} style={[styles.tab,filter===item&&styles.active]}><Text style={[styles.tabText,filter===item&&styles.activeText]}>{item}</Text></Pressable>)}</ScrollView>
     {entries.length >= 6 ? <View style={styles.search}><Search size={16} color={colors.muted}/><TextInput value={query} onChangeText={setQuery} placeholder="Search people, places, or memories" placeholderTextColor={colors.muted} style={styles.searchInput}/></View> : null}
     {libraryError?<Pressable accessibilityRole="button" accessibilityLabel="Retry loading media" onPress={()=>void loadLibrary()} style={styles.libraryError}><Text style={styles.libraryErrorText}>{libraryError} Tap to retry.</Text></Pressable>:null}
-    {entries.length ? <>{groups.map((group,groupIndex)=><View key={group.label} style={styles.group}><Text style={styles.groupTitle}>{group.label}</Text><View style={styles.grid}>{group.items.map((entry,itemIndex)=><FeedCard key={`${entry.kind}:${entry.id}`} entry={entry} companionId={companionId} onMediaLoad={groupIndex===0&&itemIndex===0?firstMediaReady:undefined}/>)}</View></View>)}{visibleCount<entries.length?<Pressable accessibilityRole="button" onPress={()=>setVisibleCount((value)=>Math.min(entries.length,value+48))} style={styles.loadMore}><Text style={styles.loadMoreText}>Show more moments</Text></Pressable>:null}</> : libraryLoading?<View style={styles.libraryLoading}><ActivityIndicator color={colors.rose}/><Text style={styles.libraryLoadingText}>Gathering your moments…</Text></View>:<View style={styles.emptyWrap}><View style={styles.emptyIcon}><Sparkles size={24} color={colors.rose}/></View><EmptyState title={emptyTitle(filter,name)} body={emptyBody(filter,name)}/></View>}
+    {entries.length ? <>{groups.map((group,groupIndex)=><View key={group.label} style={styles.group}><Text style={styles.groupTitle}>{group.label}</Text><View style={styles.grid}>{group.items.map((entry,itemIndex)=><FeedCard key={`${entry.kind}:${entry.id}`} entry={entry} companionId={companionId} cardWidth={cardWidth} onMediaLoad={groupIndex===0&&itemIndex===0?firstMediaReady:undefined}/>)}</View></View>)}{visibleCount<entries.length?<Pressable accessibilityRole="button" onPress={()=>setVisibleCount((value)=>Math.min(entries.length,value+48))} style={styles.loadMore}><Text style={styles.loadMoreText}>Show more moments</Text></Pressable>:null}</> : libraryLoading?<View style={styles.libraryLoading}><ActivityIndicator color={colors.rose}/><Text style={styles.libraryLoadingText}>Gathering your moments…</Text></View>:<View style={styles.emptyWrap}><View style={styles.emptyIcon}><Sparkles size={24} color={colors.rose}/></View><EmptyState title={emptyTitle(filter,name)} body={emptyBody(filter,name)}/></View>}
     <GlassCard style={styles.note}><Sparkles size={17} color={colors.warm}/><Text style={styles.noteText}>Completed plans appear immediately. Especially meaningful experiences can still be promoted into featured Moments.</Text></GlassCard>
   </Screen>;
 }
 
-function FeedCard({entry,companionId,onMediaLoad}:{entry:MomentsFeedEntry;companionId:string;onMediaLoad?:()=>void}) {
+function FeedCard({entry,companionId,cardWidth,onMediaLoad}:{entry:MomentsFeedEntry;companionId:string;cardWidth:`${number}%`;onMediaLoad?:()=>void}) {
   const snapshot=useTogether((state)=>state.snapshot);
   if(!snapshot)return null;
   const moment=entryAsMoment(entry);
@@ -134,7 +137,7 @@ function FeedCard({entry,companionId,onMediaLoad}:{entry:MomentsFeedEntry;compan
     else if(entry.kind==='date')router.push(`/date/${entry.id}` as never);
     else if(character){const handle=character.together_character_templates.public_handle??character.together_character_templates.slug;router.push(entry.kind==='memory'?`/memories?character=${handle}` as never:`/chat?character=${handle}` as never);}
   };
-  return <View style={styles.momentWrap}><MomentCard moment={moment} character={character} portraitVersion={character?selectPortraitVersion(snapshot,character):undefined} mediaUrl={mediaUrl} videoUrl={videoUrl} fallbackSource={locationFallback} onPress={open} onMediaLoad={onMediaLoad}/>{meta?<Text style={styles.momentMeta} numberOfLines={1}>{meta}</Text>:null}</View>;
+  return <View style={[styles.momentWrap,{width:cardWidth}]}><MomentCard grid moment={moment} character={character} portraitVersion={character?selectPortraitVersion(snapshot,character):undefined} mediaUrl={mediaUrl} videoUrl={videoUrl} fallbackSource={locationFallback} onPress={open} onMediaLoad={onMediaLoad}/>{meta?<Text style={styles.momentMeta} numberOfLines={1}>{meta}</Text>:null}</View>;
 }
 
 function entryAsMoment(entry:MomentsFeedEntry):Moment {

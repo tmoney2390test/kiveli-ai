@@ -4,7 +4,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { X } from 'lucide-react-native';
 import { characterAssets } from '../src/assets';
-import { Body, DateChoice, GradientButton, Screen } from '../src/components';
+import { Body, DateChoice, GradientButton, Screen } from '../src/components/ui';
 import { colors, radius, spacing } from '../src/theme';
 import { introduction } from '../src/lib/api';
 import { useTogether } from '../src/store/useTogether';

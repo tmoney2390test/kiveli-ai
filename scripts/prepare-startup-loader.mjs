@@ -24,7 +24,9 @@ for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
   data[offset + 3] = Math.round(opacity * 255);
 }
 
-const outputSize = 384;
+// The loading mark is displayed at no more than 128 px, so 256 px retains
+// enough detail for high-density screens without shipping oversized frames.
+const outputSize = 256;
 const resizedFrames = [];
 const frameDelays = [];
 const bytesPerFrame = info.width * animation.pageHeight * 4;
@@ -43,7 +45,7 @@ for (let frame = 0; frame < animation.pages; frame += 1) {
 const frames = sharp(Buffer.concat(resizedFrames), {
   raw: { width: outputSize, height: outputSize * resizedFrames.length, channels: 4, pageHeight: outputSize },
 });
-await frames.webp({ quality: 80, effort: 3, loop: 0, delay: frameDelays })
+await frames.webp({ quality: 76, effort: 6, loop: 0, delay: frameDelays })
   .toFile(resolve(assets, 'loading-kivelli.webp'));
 await sharp(data.subarray(0, info.width * animation.pageHeight * 4), {
   raw: { width: info.width, height: animation.pageHeight, channels: 4 },

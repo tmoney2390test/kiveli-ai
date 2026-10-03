@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Brain, ChevronRight, CreditCard, Heart, KeyRound, LifeBuoy, MessageCircle, Shield, Sparkles, UsersRound, X } from 'lucide-react-native';
+import { Brain, ChevronRight, CreditCard, Heart, KeyRound, LifeBuoy, LogOut, MessageCircle, Shield, Sparkles, UsersRound, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTogether } from '../store/useTogether';
 import { useProfileAvatarUrl } from '../hooks/useProfileAvatarUrl';
@@ -10,17 +10,23 @@ import { useSubscriptionStatus } from '../hooks/useSubscriptionStatus';
 import { privateStoredImageSource } from '../lib/mediaImageSource';
 import { subscriptionHref } from '../lib/subscriptionPresentation';
 import { warmRoute } from '../lib/routeWarmup';
+import { confirmAction, showActionAlert } from '../lib/dialogs';
+import { startSignOutTransition } from '../lib/signOutTransition';
+import { useAuth } from '../hooks/useAuth';
 import { colors } from '../theme';
 
 const accent = '#CBA6EF';
 
-export function AccountMenu({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+export function AccountMenu({ visible, onClose, onNavigate, inline = false }: { visible: boolean; onClose: () => void; onNavigate?: (href: string) => void; inline?: boolean }) {
   const snapshot = useTogether(state => state.snapshot);
+  const clearPrivateState = useTogether(state => state.clear);
+  const { signOut } = useAuth();
   const { data: subscription, isError, refetch } = useSubscriptionStatus(visible && Boolean(snapshot));
   const avatarPath = snapshot?.profile?.avatar_path;
   const avatarUrl = useProfileAvatarUrl(avatarPath);
   const avatar = privateStoredImageSource(avatarUrl, avatarPath);
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const desktop = width >= 768;
@@ -42,10 +48,33 @@ export function AccountMenu({ visible, onClose }: { visible: boolean; onClose: (
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [visible, onClose]);
-  const open = (href: string) => { onClose(); router.push(href as never); };
+  const open = (href: string) => {
+    if (onNavigate) { onNavigate(href); return; }
+    onClose();
+    router.push(href as never);
+  };
+  const performSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await startSignOutTransition({
+        signOut,
+        clearPrivateState,
+        openSignIn: () => { onClose(); router.replace('/auth?mode=signin'); },
+      });
+    } catch (error) {
+      showActionAlert('Could not sign out', error instanceof Error ? error.message : 'Please try again.');
+    } finally { setSigningOut(false); }
+  };
+  const confirmSignOut = () => confirmAction({
+    title: 'Sign out?',
+    message: 'Your relationships and memories will still be here when you return.',
+    confirmLabel: 'Sign out',
+    destructive: true,
+    onConfirm: performSignOut,
+  });
   const row = (label: string, icon: ReactNode, href: string, detail?: string) => <Pressable key={label} accessibilityRole="button" onHoverIn={() => warmRoute(href, value => router.prefetch(value as never))} onPressIn={() => warmRoute(href, value => router.prefetch(value as never))} onPress={() => open(href)} style={({ pressed }) => [s.row, pressed && s.pressed]}>{icon}<View style={s.copy}><Text style={s.label}>{label}</Text>{detail ? <Text style={s.muted}>{detail}</Text> : null}</View><ChevronRight size={18} color={accent}/></Pressable>;
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-    <View style={[s.backdrop, { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 12) }, desktop && s.desktop]}>
+  const surface = <View style={[s.backdrop, { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 12) }, desktop && s.desktop]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close account menu" style={StyleSheet.absoluteFill} onPress={onClose}/>
       <View accessibilityViewIsModal style={[s.sheet, { maxHeight: height - insets.top - Math.max(insets.bottom, 12) - 24 }]}>
         <View style={s.header}><Text accessibilityRole="header" style={s.title}>Your account</Text><Pressable accessibilityRole="button" accessibilityLabel="Close account menu" onPress={onClose} style={s.close}><X color={colors.text} size={24}/></Pressable></View>
@@ -69,9 +98,14 @@ export function AccountMenu({ visible, onClose }: { visible: boolean; onClose: (
             {row('Help & support', <LifeBuoy size={21} color={accent}/>, '/settings?section=support')}
           </View>
         </ScrollView>
+        <View style={s.footer}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Sign out" accessibilityState={{ disabled: signingOut }} disabled={signingOut} onPress={confirmSignOut} style={({ pressed }) => [s.signOut, pressed && s.pressed, signingOut && s.signOutDisabled]}>
+            <LogOut size={18} color={colors.danger}/><Text style={s.signOutLabel}>{signingOut ? 'Signing out…' : 'Sign out'}</Text>
+          </Pressable>
+        </View>
       </View>
-    </View>
-  </Modal>;
+    </View>;
+  return inline ? visible ? surface : null : <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>{surface}</Modal>;
 }
 
 const s = StyleSheet.create({
@@ -94,5 +128,9 @@ const s = StyleSheet.create({
   label: { color: colors.text, fontSize: 16, flexShrink: 1 },
   muted: { color: '#BDB0CA', fontSize: 12, lineHeight: 18 },
   retry: { padding: 14, minHeight: 44 },
+  footer: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#3B3047' },
+  signOut: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,113,129,.25)', backgroundColor: 'rgba(255,113,129,.065)' },
+  signOutLabel: { color: colors.danger, fontSize: 14, fontWeight: '800' },
+  signOutDisabled: { opacity: .55 },
   pressed: { opacity: .72 },
 });

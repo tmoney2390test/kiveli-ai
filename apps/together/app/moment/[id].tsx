@@ -4,7 +4,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, CalendarDays, MapPin, Sparkles } from 'lucide-react-native';
 import { characterAssets, cityLifeAsset } from '../../src/assets';
-import { Body, EmptyState, GlassCard, ImageLightbox, LoadingSkeleton, MediaGallery, Screen, SectionHeader } from '../../src/components';
+import { Body, EmptyState, GlassCard, LoadingSkeleton, Screen, SectionHeader } from '../../src/components/ui';
+import { ImageLightbox } from '../../src/components/ImageLightbox';
+import { MediaGallery } from '../../src/components/media/MediaGallery';
 import { colors, radius } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 

@@ -1,4 +1,5 @@
 import type { BillingInterval, BillingManagement, CreditActivityEvent, SubscriptionPlan, SubscriptionStatus, SubscriptionTier } from './subscription';
+import { personalPlaceLimit } from '@together/domain/src/personal-place-limits';
 
 export const subscriptionIntents=['plans','photo_sharing','credits','generated_media','voice','memory','initiative','worlds','group_chat'] as const;
 export type SubscriptionIntent=typeof subscriptionIntents[number];
@@ -62,14 +63,16 @@ export function membershipMetrics(plan:SubscriptionPlan):MembershipMetric[]{
 }
 
 export function membershipBenefits(plan:SubscriptionPlan):string[]{
-  if(plan.tier==='free')return[`${plan.maxActiveConversations} active conversations`,`${plan.dailyMessageLimit} messages per day`,'Access to released free worlds','Core continuity','One Life and one custom companion'];
+  if(plan.tier==='free')return[`${plan.maxActiveConversations} active conversations`,`${plan.dailyMessageLimit} messages per day`,'Access to released free worlds','Core continuity','One Life and one custom companion',`${personalPlaceLimit(plan.tier)} personal places`];
   const benefits=[
     `${plan.maxActiveConversations} active conversations and group chats`,
     'Unlimited messages',
+    `Up to ${plan.tier==='kivelle_max'?50:20} alternate chat paths`,
     plan.tier==='kivelle_max'?'Deepest memory and continuity':'Share your own photos without using Credits',
     `${plan.includedCompanionPhotoDailyLimit} generated ${plan.includedCompanionPhotoDailyLimit===1?'photo':'photos'} every day`,
     `${plan.monthlyCreditGrant.toLocaleString()} monthly Kivelle Credits`,
     `${plan.maxLives} Lives and ${plan.maxCustomCompanions} custom companions`,
+    `${personalPlaceLimit(plan.tier)} personal places`,
   ];
   if(plan.tier==='kivelle_max')benefits.push('Highest media priority');
   else benefits.push('Deeper continuity');

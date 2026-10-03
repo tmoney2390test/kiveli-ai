@@ -1,7 +1,8 @@
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Camera } from 'lucide-react-native';
-import { KivelleCreditIcon, PageTitle, Screen, SectionHeader } from '../src/components';
+import { KivelleCreditIcon } from '../src/components/KivelleCreditIcon';
+import { PageTitle, Screen, SectionHeader } from '../src/components/ui';
 import { colors, radius } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
 import { manageMedia } from '../src/lib/api';

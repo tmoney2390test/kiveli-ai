@@ -3,7 +3,8 @@ import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import { router as expoRouter, useLocalSearchParams } from 'expo-router';
 import { AlertTriangle, CalendarDays, X } from 'lucide-react-native';
 import { characterAssets, cityLifeAsset } from '../../src/assets';
-import { Body, DateChoice, DateScene, GlassCard, GradientButton, LoadingSkeleton, PlanHistoryPanel, Screen } from '../../src/components';
+import { Body, DateChoice, DateScene, GlassCard, GradientButton, LoadingSkeleton, Screen } from '../../src/components/ui';
+import { PlanHistoryPanel } from '../../src/components/PlanHistoryPanel';
 import { colors } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { mutateDate } from '../../src/lib/api';

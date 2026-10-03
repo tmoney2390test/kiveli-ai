@@ -2,15 +2,16 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ArrowLeft, Clock3, MapPin } from 'lucide-react-native';
-import { Screen, LoadingSkeleton } from '../../src/components';
+import { Screen, LoadingSkeleton } from '../../src/components/ui';
 import { useWorldPulse } from '../../src/hooks/useWorldPulse';
 import { useTogether } from '../../src/store/useTogether';
 import { useAuth } from '../../src/hooks/useAuth';
 import { colors, typography } from '../../src/theme';
 import { WorldPulseEventModal } from '../../src/components/WorldPulseEventModal';
+import type { WorldPulseV2Event } from '@together/domain/src/world-pulse-v2';
 
 export default function WorldPulseList() {
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<WorldPulseV2Event | null>(null);
   const { world: slug } = useLocalSearchParams<{ world?: string }>();
   const snapshot = useTogether((state) => state.snapshot);
   const { session } = useAuth();
@@ -24,14 +25,14 @@ export default function WorldPulseList() {
     {isLoading ? <LoadingSkeleton label="Loading World Pulse…" /> : null}
     {isError ? <Pressable accessibilityRole="button" onPress={() => void refetch()}><Text style={styles.error}>World Pulse could not be loaded. Tap to retry.</Text></Pressable> : null}
     {data?.version === 2 && !data.events.length ? <Text style={styles.empty}>No fresh events right now. Check back later.</Text> : null}
-    {data?.version === 2 ? data.events.map((event) => <Pressable key={event.id} accessibilityRole="button" accessibilityLabel={`${event.feedSummary}, ${event.location.name}`} onPress={() => setSelectedEventId(event.id)} style={({ pressed }) => [styles.card, event.eventTier === 'major' && styles.majorCard, pressed && { opacity: .82 }]}>
+    {data?.version === 2 ? data.events.map((event) => <Pressable key={event.id} accessibilityRole="button" accessibilityLabel={`${event.feedSummary}, ${event.location.name}`} onPress={() => setSelectedEvent(event)} style={({ pressed }) => [styles.card, event.eventTier === 'major' && styles.majorCard, pressed && { opacity: .82 }]}>
       {event.eventTier === 'major' ? <Text style={styles.majorLabel}>MAJOR EVENT</Text> : null}
       <Text style={styles.summary}>{event.feedSummary}</Text>
       <View style={styles.meta}><Clock3 size={14} color={colors.muted} /><Text style={styles.metaText}>{new Date(event.occurredAt).toLocaleString()}</Text></View>
       <View style={styles.meta}><MapPin size={14} color={colors.rose} /><Text style={styles.metaText}>{event.location.name}</Text></View>
       <Text style={styles.people}>{event.participants.map((person) => person.name).join(' · ')}</Text>
     </Pressable>) : null}
-  </Screen><WorldPulseEventModal eventId={selectedEventId} onClose={() => setSelectedEventId(null)} onNavigate={(href) => { setSelectedEventId(null); router.push(href as never); }}/></>;
+  </Screen><WorldPulseEventModal eventId={selectedEvent?.id??null} previewEvent={selectedEvent} onClose={() => setSelectedEvent(null)} onNavigate={(href) => { setSelectedEvent(null); router.push(href as never); }}/></>;
 }
 
 const styles = StyleSheet.create({

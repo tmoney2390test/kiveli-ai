@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { BookOpen, Globe2, Sparkles, Users } from 'lucide-react-native';
-import { Body, GlassCard, PageTitle, Screen, SectionHeader } from '../../src/components';
+import { Body, GlassCard, PageTitle, Screen, SectionHeader } from '../../src/components/ui';
 import { colors, radius } from '../../src/theme';
 
 export default function Market(){return <Screen><PageTitle>Market</PageTitle><Body muted>New characters, stories, and worlds—built to preserve identity and continuity.</Body><SectionHeader title="Explore what’s next"/><View style={styles.grid}><Tile icon={<Users color={colors.rose}/>} title="Characters" body="Persistent people with distinct lives."/><Tile icon={<BookOpen color={colors.warm}/>} title="Stories" body="Narrative arcs that remember choices."/><Tile icon={<Globe2 color={colors.violet}/>} title="Worlds" body="New places with connected social lives."/><Tile icon={<Sparkles color={colors.rose}/>} title="Creator Spotlight" body="Original voices and experiences."/></View><GlassCard><Text style={styles.title}>Creator Studio</Text><Body muted>Design persistent characters without flattening them into prompt presets.</Body><View style={styles.coming}><Text style={styles.comingText}>COMING SOON</Text></View></GlassCard></Screen>;}

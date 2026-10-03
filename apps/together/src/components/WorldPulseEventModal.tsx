@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Clock3, LockKeyhole, MapPin, X } from 'lucide-react-native';
+import { worldPulseIsDiscoverable, type WorldPulseV2Event } from '@together/domain/src/world-pulse-v2';
 import { FrostedBackdrop, FrostedSurface } from './FrostedGlass';
 import { CharacterAvatar } from './ui';
 import { useTogether } from '../store/useTogether';
@@ -25,12 +26,13 @@ async function suggestedDraft(userId: string, conversationId: string, kind: 'dir
   return suggestion;
 }
 
-export function WorldPulseEventModal({ eventId, onClose, onNavigate }: {
+export function WorldPulseEventModal({ eventId, previewEvent, onClose, onNavigate }: {
   eventId: string | null;
+  previewEvent?: WorldPulseV2Event | null;
   onClose: () => void;
   onNavigate: (href: string) => void;
 }) {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const snapshot = useTogether((state) => state.snapshot);
   const { session } = useAuth();
   const [chooserOpen, setChooserOpen] = useState(false);
@@ -39,19 +41,24 @@ export function WorldPulseEventModal({ eventId, onClose, onNavigate }: {
   const scope = session?.user.id && snapshot?.activeContinuity?.id ? `${session.user.id}:${snapshot.activeContinuity.id}` : null;
   const query = useQuery({
     queryKey: ['world-pulse-detail', scope, eventId],
-    queryFn: () => loadWorldPulseEvent(eventId!),
+    queryFn: async () => ({ ...await loadWorldPulseEvent(eventId!), receivedAtMonotonic: performance.now() }),
     enabled: Boolean(scope && eventId),
     retry: false,
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 60_000,
   });
   useEffect(() => { setChooserOpen(false); setActionError(''); }, [eventId]);
-  const event = query.data?.event;
-  const world = snapshot?.worlds.find((item) => item.id === event?.worldId);
+  const cached = query.data;
+  const cachedServerNow = cached ? new Date(Date.parse(cached.serverNow) + Math.max(0, performance.now() - cached.receivedAtMonotonic)).toISOString() : null;
+  const event = cached && cachedServerNow && worldPulseIsDiscoverable(cached.event.occurredAt, cachedServerNow) ? cached.event : null;
+  const expired = String((query.error as { code?: string } | null)?.code) === 'WORLD_PULSE_EXPIRED' || Boolean(cached && !event);
+  const preview = previewEvent?.id === eventId ? previewEvent : null;
+  const displayEvent = expired ? null : event ?? (query.isPending ? preview : null);
+  const world = snapshot?.worlds.find((item) => item.id === displayEvent?.worldId);
   const count = event?.participants.length ?? 0;
+  const displayCount = displayEvent?.participants.length ?? 0;
   const groupEntitled = event?.allowedActions.group === true;
   const groupAvailable = event?.participants.every((person) => person.available) ?? false;
-  const cellWidth = count ? Math.max(55, Math.min(130, (Math.min(width - 24, 660) - 40 - (count - 1) * 6) / count)) : 0;
+  const cellWidth = displayCount ? Math.max(55, Math.min(130, (Math.min(width - 24, 660) - 40 - (displayCount - 1) * 6) / displayCount)) : 0;
   const close = () => chooserOpen ? setChooserOpen(false) : onClose();
 
   const direct = async (characterTemplateId: string) => {
@@ -81,29 +88,29 @@ export function WorldPulseEventModal({ eventId, onClose, onNavigate }: {
     <View style={[styles.root, width >= 720 ? styles.centered : styles.bottom]}>
       <FrostedBackdrop intensity={36} />
       <Pressable accessibilityLabel="Close World Pulse event" onPress={close} style={StyleSheet.absoluteFill} />
-      <FrostedSurface intensity={88} style={[styles.card, width >= 720 && styles.cardDesktop, event?.eventTier === 'major' && styles.majorCard]}>
+      <FrostedSurface intensity={88} style={[styles.card, { height: Math.min(620, height * .78) }, width >= 720 && styles.cardDesktop, displayEvent?.eventTier === 'major' && styles.majorCard]}>
         <View style={styles.header}>
           <View style={styles.headerCopy}>
-            <Text style={[styles.eyebrow, event?.eventTier === 'major' && styles.majorEyebrow]}>{event?.eventTier === 'major' ? 'MAJOR WORLD EVENT' : 'WORLD PULSE'}{world ? ` · ${world.name}` : ''}</Text>
-            {event ? <View style={styles.meta}><Clock3 size={13} color={colors.muted}/><Text style={styles.metaText}>{new Date(event.occurredAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</Text><MapPin size={13} color={colors.rose}/><Text numberOfLines={1} style={styles.metaPlace}>{event.location.name}</Text></View> : null}
+            <Text style={[styles.eyebrow, displayEvent?.eventTier === 'major' && styles.majorEyebrow]}>{displayEvent?.eventTier === 'major' ? 'MAJOR WORLD EVENT' : 'WORLD PULSE'}{world ? ` · ${world.name}` : ''}</Text>
+            {displayEvent ? <View style={styles.meta}><Clock3 size={13} color={colors.muted}/><Text style={styles.metaText}>{new Date(displayEvent.occurredAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</Text><MapPin size={13} color={colors.rose}/><Text numberOfLines={1} style={styles.metaPlace}>{displayEvent.location.name}</Text></View> : null}
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel="Close World Pulse event" onPress={onClose} hitSlop={8} style={styles.close}><X size={19} color={colors.text}/></Pressable>
         </View>
-        {query.isPending || query.isFetching ? <View style={styles.loading}><View style={styles.loadingLine}/><View style={[styles.loadingLine, { width: '84%' }]}/><View style={[styles.loadingLine, { width: '63%' }]}/></View>
-          : !event ? <View style={styles.empty}><Text accessibilityRole="alert" style={styles.emptyTitle}>{String((query.error as { code?: string } | null)?.code) === 'WORLD_PULSE_EXPIRED' ? 'This World Pulse has passed.' : 'This event is unavailable.'}</Text><Text style={styles.emptyCopy}>Fresh events appear in the last 24 hours feed.</Text></View>
+        {expired || (!event && (query.isError || !query.isPending)) ? <View style={styles.empty}><Text accessibilityRole="alert" style={styles.emptyTitle}>{expired ? 'This World Pulse has passed.' : 'This event could not be loaded.'}</Text><Text style={styles.emptyCopy}>{expired ? 'Fresh events appear in the last 24 hours feed.' : 'Check your connection and try again.'}</Text>{!expired ? <Pressable accessibilityRole="button" accessibilityLabel="Retry World Pulse event" onPress={() => void query.refetch()}><Text style={styles.retry}>Try again →</Text></Pressable> : null}</View>
           : <>
             <ScrollView bounces={false} showsVerticalScrollIndicator={false} style={styles.scroll} contentContainerStyle={styles.content}>
-              <Text style={styles.body}>{event.detailBody}</Text>
-              <View style={styles.cast}>{event.participants.map((person) => <Pressable key={person.characterTemplateId} accessibilityRole="button" accessibilityLabel={`View ${person.name}'s profile`} onPress={() => onNavigate(`/character/${person.publicHandle ?? person.slug}`)} style={[styles.person, { width: cellWidth }]}>
+              {displayEvent ? <Text accessibilityRole="header" style={styles.eventTitle}>{displayEvent.title}</Text> : null}
+              {event ? <Text style={styles.body}>{event.detailBody}</Text> : preview ? <Text style={styles.body}>{preview.feedSummary}</Text> : <View style={styles.loading}><View style={styles.loadingLine}/><View style={[styles.loadingLine, { width: '84%' }]}/><View style={[styles.loadingLine, { width: '63%' }]}/></View>}
+              {displayEvent ? <View style={styles.cast}>{displayEvent.participants.map((person) => <Pressable key={person.characterTemplateId} accessibilityRole="button" accessibilityLabel={`View ${person.name}'s profile`} onPress={() => onNavigate(`/character/${person.publicHandle ?? person.slug}`)} style={[styles.person, { width: cellWidth }]}>
                 <CharacterAvatar slug={person.slug} name={person.name} size={Math.min(64, cellWidth - 8)}/>
                 <Text numberOfLines={2} style={styles.personName}>{person.name}</Text>
                 <Text numberOfLines={2} style={styles.role}>{person.roleLabel}</Text>
-              </Pressable>)}</View>
+              </Pressable>)}</View> : null}
             </ScrollView>
-            <View style={styles.footer}>
+            {event ? <View style={styles.footer}>
               <Pressable accessibilityRole="button" accessibilityLabel={count === 1 ? `Message ${event.participants[0]?.name}` : 'Message about this'} disabled={busy || (count === 1 && !event.participants[0]?.available)} onPress={() => count === 1 ? void direct(event.participants[0]!.characterTemplateId) : setChooserOpen(true)} style={({ pressed }) => [styles.mainAction, pressed && styles.pressed]}><Text style={styles.mainText}>{busy ? 'Opening chat…' : count === 1 && !event.participants[0]?.available ? 'Unavailable in this Life' : count === 1 ? `Message ${event.participants[0]?.name}` : 'Message about this'}</Text></Pressable>
               {actionError ? <Text accessibilityRole="alert" style={styles.error}>{actionError}</Text> : null}
-            </View>
+            </View> : <View accessibilityRole="progressbar" accessibilityLabel="Loading full World Pulse story" style={[styles.footer, styles.loadingFooter]}><ActivityIndicator size="small" color={colors.rose}/><Text style={styles.loadingStatusText}>Getting the full story…</Text></View>}
           </>}
       </FrostedSurface>
       {chooserOpen && event ? <View style={styles.chooserLayer}>
@@ -127,15 +134,17 @@ const styles = StyleSheet.create({
   headerCopy: { flex: 1, gap: 9 }, eyebrow: { color: '#E8A4D1', fontSize: 10, fontWeight: '900', letterSpacing: 1.3 }, majorEyebrow: { color: '#FFA8B0' },
   meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 }, metaText: { color: colors.muted, fontSize: 11, marginRight: 7 }, metaPlace: { color: '#E5C9D9', fontSize: 11, fontWeight: '700', flexShrink: 1 },
   close: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.08)' },
-  scroll: { flexShrink: 1 }, content: { paddingHorizontal: 20, paddingVertical: 22, gap: 23 },
+  scroll: { flex: 1 }, content: { paddingHorizontal: 20, paddingVertical: 22, gap: 23 },
+  eventTitle: { color: colors.text, fontSize: 22, fontWeight: '800', lineHeight: 28 },
   body: { color: '#F0E8EE', fontSize: 15, lineHeight: 23 },
   cast: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
   person: { minHeight: 117, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 2, borderWidth: 1, borderColor: 'rgba(246,200,232,.16)', backgroundColor: 'rgba(255,255,255,.055)', borderRadius: 17, gap: 4 },
   personName: { color: colors.text, fontSize: 11, fontWeight: '800', textAlign: 'center' }, role: { color: '#CBB7C5', fontSize: 10, textAlign: 'center' },
   footer: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,.15)', gap: 8 },
   mainAction: { minHeight: 50, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: '#A867CC' }, mainText: { color: '#fff', fontSize: 14, fontWeight: '900' }, pressed: { opacity: .82 }, error: { color: '#FF9FA9', fontSize: 12 },
-  loading: { padding: 25, gap: 13, minHeight: 170 }, loadingLine: { width: '100%', height: 12, borderRadius: 8, backgroundColor: 'rgba(255,255,255,.11)' },
-  empty: { padding: 24, gap: 8 }, emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '800' }, emptyCopy: { color: colors.muted, fontSize: 13 },
+  loading: { gap: 13, minHeight: 95 }, loadingLine: { width: '100%', height: 12, borderRadius: 8, backgroundColor: 'rgba(255,255,255,.11)' },
+  loadingFooter: { minHeight: 78, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 }, loadingStatusText: { color: colors.muted, fontSize: 12 },
+  empty: { padding: 24, gap: 8 }, emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '800' }, emptyCopy: { color: colors.muted, fontSize: 13 }, retry: { color: colors.rose, fontSize: 13, fontWeight: '800', marginTop: 7 },
   chooserLayer: { ...StyleSheet.absoluteFill, zIndex: 20, justifyContent: 'flex-end', alignItems: 'center', backgroundColor: 'rgba(7,4,11,.67)' },
   chooser: { width: '100%', maxHeight: '80%', borderRadius: 25, padding: 19, gap: 9 }, chooserDesktop: { maxWidth: 520, marginBottom: 24 },
   chooserHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }, chooserTitle: { color: colors.text, fontSize: 21, fontWeight: '800' },

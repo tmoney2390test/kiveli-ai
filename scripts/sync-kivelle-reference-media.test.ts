@@ -13,6 +13,14 @@ test('discovers canonical NorthVale location artwork used for media grounding',a
   assert.equal(drift.locationSlug,'the-drift');
 });
 
+test('discovers Calder resident portraits for photo identity references',async()=>{
+  const assets=await discoverAssets();
+  const portrait=assets.find((asset)=>asset.sourceKey==='character:annalise-chen:identity');
+  assert.ok(portrait);
+  assert.equal(portrait.worldSlug,'calders-run');
+  assert.equal(portrait.role,'character_identity');
+});
+
 test('discovers authored Vespormoor locations instead of silently omitting a world',async()=>{
   assert.ok(DIRECT_LOCATION_ARTWORK_WORLDS.includes('vespormoor'));
   const assets=await discoverAssets();
@@ -50,7 +58,7 @@ test('registers the approved Vharadren location batch with the client resolver',
     'ember-throne-hall',
     'shattered-coast',
     'verdant-reach',
-  ])assert.match(moduleSource,new RegExp(`'${slug}':require\\('\\.\\./\\.\\./assets/locations/vharadren/${slug}\\.jpg'\\)`));
+  ])assert.match(moduleSource,new RegExp(`'${slug}':catalogArtwork\\('locations/vharadren/${slug}\\.jpg'\\)`));
 });
 
 test('discovers and registers the complete Crownspire location-art set',async()=>{
@@ -66,7 +74,7 @@ test('discovers and registers the complete Crownspire location-art set',async()=
     'red-ledger-exchange',
   ]){
     assert.ok(keys.has(`location:vharadren:${slug}:canonical`),`${slug} must remain discoverable`);
-    assert.match(moduleSource,new RegExp(`'${slug}':require\\('\\.\\./\\.\\./assets/locations/vharadren/${slug}\\.jpg'\\)`));
+    assert.match(moduleSource,new RegExp(`'${slug}':catalogArtwork\\('locations/vharadren/${slug}\\.jpg'\\)`));
   }
 });
 
@@ -85,9 +93,9 @@ test('discovers and registers the complete Black March location-art set',async()
     'wolfgate-barracks',
   ]){
     assert.ok(keys.has(`location:vharadren:${slug}:canonical`),`${slug} must remain discoverable`);
-    assert.match(moduleSource,new RegExp(`'${slug}':require\\('\\.\\./\\.\\./assets/locations/vharadren/${slug}\\.jpg'\\)`));
+    assert.match(moduleSource,new RegExp(`'${slug}':catalogArtwork\\('locations/vharadren/${slug}\\.jpg'\\)`));
   }
-  const mappedCount=(moduleSource.match(/assets\/locations\/vharadren\//g)??[]).length;
+  const mappedCount=(moduleSource.match(/locations\/vharadren\//g)??[]).length;
   assert.equal(keys.size,mappedCount,'Every published Vharadren reference must also be registered with the client resolver');
 });
 
@@ -105,9 +113,9 @@ test('discovers and registers the complete Ember Isles location-art set',async()
     'wyrmglass-arena',
   ]){
     assert.ok(keys.has(`location:vharadren:${slug}:canonical`),`${slug} must remain discoverable`);
-    assert.match(moduleSource,new RegExp(`'${slug}':require\\('\\.\\./\\.\\./assets/locations/vharadren/${slug}\\.jpg'\\)`));
+    assert.match(moduleSource,new RegExp(`'${slug}':catalogArtwork\\('locations/vharadren/${slug}\\.jpg'\\)`));
   }
-  const mappedCount=(moduleSource.match(/assets\/locations\/vharadren\//g)??[]).length;
+  const mappedCount=(moduleSource.match(/locations\/vharadren\//g)??[]).length;
   assert.equal(keys.size,mappedCount,'Every published Vharadren reference must also be registered with the client resolver');
 });
 
@@ -125,9 +133,9 @@ test('discovers and registers the complete Verdant Reach location-art set',async
     'weeping-archive',
   ]){
     assert.ok(keys.has(`location:vharadren:${slug}:canonical`),`${slug} must remain discoverable`);
-    assert.match(moduleSource,new RegExp(`'${slug}':require\\('\\.\\./\\.\\./assets/locations/vharadren/${slug}\\.jpg'\\)`));
+    assert.match(moduleSource,new RegExp(`'${slug}':catalogArtwork\\('locations/vharadren/${slug}\\.jpg'\\)`));
   }
-  const mappedCount=(moduleSource.match(/assets\/locations\/vharadren\//g)??[]).length;
+  const mappedCount=(moduleSource.match(/locations\/vharadren\//g)??[]).length;
   assert.equal(keys.size,mappedCount,'Every published Vharadren reference must also be registered with the client resolver');
 });
 
@@ -145,9 +153,9 @@ test('discovers and registers the complete Shattered Coast location-art set',asy
     'tidevault-prison',
   ]){
     assert.ok(keys.has(`location:vharadren:${slug}:canonical`),`${slug} must remain discoverable`);
-    assert.match(moduleSource,new RegExp(`'${slug}':require\\('\\.\\./\\.\\./assets/locations/vharadren/${slug}\\.jpg'\\)`));
+    assert.match(moduleSource,new RegExp(`'${slug}':catalogArtwork\\('locations/vharadren/${slug}\\.jpg'\\)`));
   }
-  const mappedCount=(moduleSource.match(/assets\/locations\/vharadren\//g)??[]).length;
+  const mappedCount=(moduleSource.match(/locations\/vharadren\//g)??[]).length;
   assert.equal(keys.size,mappedCount,'Every published Vharadren reference must also be registered with the client resolver');
 });
 
@@ -166,9 +174,9 @@ test('discovers and registers the complete Ashlands location-art set',async()=>{
     'vault-nameless-kings',
   ]){
     assert.ok(keys.has(`location:vharadren:${slug}:canonical`),`${slug} must remain discoverable`);
-    assert.match(moduleSource,new RegExp(`'${slug}':require\\('\\.\\./\\.\\./assets/locations/vharadren/${slug}\\.jpg'\\)`));
+    assert.match(moduleSource,new RegExp(`'${slug}':catalogArtwork\\('locations/vharadren/${slug}\\.jpg'\\)`));
   }
-  const mappedCount=(moduleSource.match(/assets\/locations\/vharadren\//g)??[]).length;
+  const mappedCount=(moduleSource.match(/locations\/vharadren\//g)??[]).length;
   assert.equal(keys.size,51,'The complete Vharadren location set must remain discoverable');
   assert.equal(mappedCount,51,'Every Vharadren location must remain registered with the client resolver');
 });
@@ -277,7 +285,7 @@ test('discovers the complete final Vharadren primary portrait batch',async()=>{
     'character:princess-maris-vaelorian:identity',
     'character:celia-thatch:identity',
   ])assert.ok(keys.has(key),`${key} must remain discoverable`);
-  assert.equal(vharadren.filter((asset)=>asset.variant==='primary').length,52,'Every Vharadren character must have one primary portrait');
+  assert.equal(vharadren.filter((asset)=>asset.variant==='primary').length,72,'Every Vharadren character must have one primary portrait');
 });
 
 test('keeps secondary identities on the same character and private portrait bucket',()=>{

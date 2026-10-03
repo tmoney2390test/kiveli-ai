@@ -4,6 +4,7 @@ import {
   loadConversationMessagePage,
   readConversationMessagePage,
   resetConversationMessageWarmupForTests,
+  clearConversationMessageWarmup,
   writeConversationMessagePage,
 } from './conversationMessageWarmup';
 
@@ -35,6 +36,32 @@ describe('conversation message warmup', () => {
     const loader = vi.fn();
     await expect(loadConversationMessagePage('user-1', 'conversation-1', loader)).resolves.toMatchObject({ messages: [{ id: '1' }] });
     expect(loader).not.toHaveBeenCalled();
+  });
+
+  it('does not repopulate private history after sign-out clears an in-flight warmup', async () => {
+    let finish!: (page: {messages: Message[]; hasMore: boolean}) => void;
+    const loading = loadConversationMessagePage('user-1', 'conversation-1', () => new Promise(resolve => { finish = resolve; }));
+    clearConversationMessageWarmup();
+    finish({messages:[message('1')],hasMore:false});
+    await loading;
+    expect(readConversationMessagePage('user-1','conversation-1')).toBeNull();
+  });
+
+  it('an old completion cannot evict or overwrite the new session warmup', async () => {
+    let finishOld!: (page: {messages: Message[]; hasMore: boolean}) => void;
+    let finishNew!: (page: {messages: Message[]; hasMore: boolean}) => void;
+    const old = loadConversationMessagePage('user-1', 'conversation-1', () => new Promise(resolve => { finishOld = resolve; }));
+    clearConversationMessageWarmup();
+    const current = loadConversationMessagePage('user-1', 'conversation-1', () => new Promise(resolve => { finishNew = resolve; }));
+    finishOld({messages:[message('1')],hasMore:false});
+    await old;
+    const unexpectedLoader = vi.fn();
+    const joined = loadConversationMessagePage('user-1','conversation-1',unexpectedLoader);
+    expect(joined).toBe(current);
+    expect(unexpectedLoader).not.toHaveBeenCalled();
+    finishNew({messages:[message('2')],hasMore:true});
+    await current;
+    expect(readConversationMessagePage('user-1','conversation-1')?.messages.map(row=>row.id)).toEqual(['2']);
   });
 
   it('keeps cached rows isolated by account and conversation', () => {

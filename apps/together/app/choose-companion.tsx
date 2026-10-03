@@ -10,7 +10,9 @@ import { ArrowLeft, Check, ChevronRight, LockKeyhole, Sparkles } from 'lucide-re
 import { isSubscriberEarlyAccessWorld } from '@together/domain/src/world-access';
 import { SpiceBadge } from '../src/components/SpiceBadge';
 import { CompanionGenderToggle } from '../src/components/CompanionGenderToggle';
-import { FrostedSurface, KivelleLogo, LoadingSkeleton, Screen, resolveCharacterPortraitSource } from '../src/components';
+import { FrostedSurface } from '../src/components/FrostedGlass';
+import { KivelleLogo } from '../src/components/KivelleLogo';
+import { LoadingSkeleton, Screen, resolveCharacterPortraitSource } from '../src/components/ui';
 import { worldHeroAsset } from '../src/assets';
 import { bootstrap } from '../src/lib/api';
 import { featuredCompanionsMatchingGender, type FeaturedCompanion, type FeaturedGenderFilter } from '../src/lib/featuredCompanions';

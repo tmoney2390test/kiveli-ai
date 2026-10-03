@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Brain, Check, MessageCircle, Plus } from 'lucide-react-native';
-import { EmptyState, LoadingSkeleton, PageTitle, Screen, resolveCharacterPortraitSource } from '../src/components';
+import { EmptyState, LoadingSkeleton, PageTitle, Screen, resolveCharacterPortraitSource } from '../src/components/ui';
 import { setActiveCompanion } from '../src/lib/api';
 import { responsiveCompanionGrid } from '../src/lib/responsiveCompanionGrid';
 import { recentCompanionDiscoveryHref } from '../src/lib/companionDiscovery';

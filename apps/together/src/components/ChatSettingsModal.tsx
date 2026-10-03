@@ -58,6 +58,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
   const [voicePreviewBusy, setVoicePreviewBusy] = useState(false);
   const [voiceMenuOpen, setVoiceMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [activeTab, setActiveTab] = useState<ChatSettingsTab>('chat');
   const previewEpoch = useRef(0);
   useEffect(() => { previewEpoch.current++; setVoicePreviewBusy(false); return () => { previewEpoch.current++; }; }, [visible, conversation?.id, voicePreset, chatLanguage]);
@@ -108,9 +109,10 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     setVoicePreview(cachedPreview);
     setVoiceMenuOpen(false);
     setActiveTab('chat');
+    setSaveError('');
     if (cachedPreview) voicePlayer.replace(cachedPreview.signedUrl);
     voicePlayer.pause();
-  }, [visible, conversation?.id, character?.id, snapshot?.profile, snapshot?.entitlements?.tier]);
+  }, [visible, conversation?.id]);
 
   useEffect(() => { if (!visible) { voicePlayer.pause(); setVoicePreview(null); } }, [visible, voicePlayer]);
 
@@ -155,14 +157,23 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
     if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);
   };
 
+  const openAccount = () => {
+    if (Platform.OS !== 'web' || !navigateLocalRouteOnWeb('/account')) router.push('/account' as never);
+  };
+
+  const closeIfIdle = () => { if (!saving) onClose(); };
+
   const save = async (afterSave?:()=>void) => {
     if (!conversation || saving) return;
     const cleanTitle = title.trim() || defaultDirectConversationTitle(name);
     setSaving(true);
+    setSaveError('');
+    let proactiveSaved = false;
     try {
       if(proactiveEntitled&&character&&(proactive.frequencyDirty||proactive.quietDirty)){
         if(!demoMode){const result=await invoke<{preferences:Snapshot['notificationPreferences']}>('together-notifications',{action:'companion_preferences',characterInstanceId:character.id,continuityId:character.continuity_id,...proactivePatch(proactive)});if(result.preferences)setCoreState({notificationPreferences:result.preferences});}
         setProactive(current=>({...current,frequencyDirty:false,quietDirty:false,applyAll:false}));
+        proactiveSaved = true;
       }
       const input = { title: cleanTitle, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference,contextPreference,userBubbleColor,companionBubbleColor,...(snapshot?.veniceTest?.available?{veniceTestModel}:{}), ...(voiceEntitled ? { voicePreset } : {}) };
       const updated = demoMode
@@ -173,15 +184,16 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
       onClose();
       afterSave?.();
     } catch (error) {
-      Alert.alert('Could not save chat settings', error instanceof Error ? error.message : 'Please try again.');
+      const detail = error instanceof Error ? error.message : 'Please try again.';
+      setSaveError(proactiveSaved ? `Companion initiative was saved, but the other chat settings were not. ${detail}` : `Changes were not saved. ${detail}`);
     } finally {
       setSaving(false);
     }
   };
 
-  return <Modal transparent visible={visible && Boolean(conversation && character)} animationType="fade" onRequestClose={onClose}>
+  return <Modal transparent visible={visible && Boolean(conversation && character)} animationType="fade" onRequestClose={closeIfIdle}>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalRoot}>
-      <Pressable accessibilityLabel="Close chat settings" onPress={onClose} style={StyleSheet.absoluteFill} />
+      <Pressable accessibilityLabel="Close chat settings" disabled={saving} onPress={closeIfIdle} style={StyleSheet.absoluteFill} />
       <FrostedSurface intensity={92} style={styles.modalCard}>
         <View style={styles.header}>
           <Text style={styles.title}>Chat settings</Text>
@@ -211,6 +223,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
           </SettingSection>
 
           <SettingSection icon={<AlignLeft size={16} color={colors.violet} />} label="Response style">
+            <Text style={styles.sectionHint}>SMS favors short replies. Paragraph allows fuller scenes; important moments may still run longer in either style.</Text>
             <View accessibilityRole="radiogroup" style={styles.styleOptions}>
               {conversationStyleOptions.map((option) => {
                 const active = responseStyle === option.value;
@@ -231,7 +244,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
             </View>
           </SettingSection>
 
-          <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible}/>
+          <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible} onRequireAgeConfirmation={() => void save(openAccount)}/>
 
           <SettingSection icon={<Volume2 size={16} color={colors.violet} />} label="Companion voice">
             {voiceEntitled ? <>
@@ -288,6 +301,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
           {activeTab === 'ai' ? <ChatGenerationSettings veniceTest={snapshot?.veniceTest} veniceTestModel={veniceTestModel} onVeniceTestModelChange={setVeniceTestModel} mode="direct" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} contextPreference={contextPreference} onContextPreferenceChange={setContextPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/> : null}
         </ScrollView>
 
+        {saveError ? <Text accessibilityRole="alert" style={styles.saveError}>{saveError}</Text> : null}
         <View style={styles.footer}>
           <Pressable disabled={saving} onPress={onClose} style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}><Text style={styles.cancelText}>Cancel</Text></Pressable>
           <Pressable disabled={saving} onPress={() => void save()} style={({ pressed }) => [styles.save, saving && styles.disabled, pressed && styles.pressed]}><Text style={styles.saveText}>{saving ? 'Saving…' : 'Save changes'}</Text></Pressable>
@@ -329,6 +343,7 @@ const styles = StyleSheet.create({
   close: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.045)' },
   content: { gap: 24, padding: spacing.lg, paddingBottom: 26 },
   section: { gap: 11 },
+  sectionHint: { color: colors.muted, fontSize: 12, lineHeight: 17 },
   sectionLabel: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   sectionLabelText: { color: colors.text, fontSize: 14, fontWeight: '900' },
   optional: { color: colors.muted, fontSize: 12 },
@@ -379,6 +394,7 @@ const styles = StyleSheet.create({
   toolTitle: { color: colors.text, fontSize: 12, fontWeight: '900' },
   toolBody: { color: colors.muted, fontSize: 9, lineHeight: 14, marginTop: 3 },
   footer: { flexDirection: 'row', gap: 10, padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: 'rgba(17,13,24,.82)' },
+  saveError: { color: colors.danger, fontSize: 12, lineHeight: 17, paddingHorizontal: spacing.lg, paddingVertical: 10, backgroundColor: 'rgba(255,113,129,.08)' },
   cancel: { minHeight: 47, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderBright },
   cancelText: { color: colors.textSecondary, fontSize: 13, fontWeight: '800' },
   save: { minHeight: 47, flex: 1.35, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: '#9D42E4', shadowColor: '#9D42E4', shadowOpacity: .28, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } },

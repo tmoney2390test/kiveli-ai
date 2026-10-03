@@ -7,7 +7,6 @@ import { chatGenerationControlsMode, resolveDialogueRunGenerationProfile } from 
 import { providerGenerationControls } from '../../../packages/together-domain/src/chat-generation.ts';
 import { estimateAiCost, type NormalizedAiUsage } from '../../../packages/together-domain/src/ai-usage.ts';
 import { estimateContextTokens } from '../../../packages/together-domain/src/context-budget.ts';
-import { visibleDialoguePrefix } from '../../../packages/together-domain/src/chat-generation.ts';
 import { parseVeniceChunk, veniceSseData } from '../../../packages/together-domain/src/venice-stream.ts';
 import { recordAiUsage } from './kivelle-ai-usage.ts';
 import { AppError } from './types.ts';
@@ -72,16 +71,17 @@ export async function* streamTestChatCompletion(context: DialogueContext, option
       if (chunk.model) { returnedModel = chunk.model; if (!adapter.modelMatches(model, returnedModel)) throw new Error(`${prefix}_MODEL_MISMATCH`); }
       if (chunk.usage) usage = chunk.usage;
       if (chunk.costUsd !== undefined) providerCostUsd = chunk.costUsd;
-      if (chunk.finishReason) { finishReason = chunk.finishReason; finished = ['stop', 'length'].includes(chunk.finishReason); if (!finished) throw new Error(`${prefix}_FINISH_REJECTED`); }
+      if (chunk.finishReason) { finishReason = chunk.finishReason; finished = chunk.finishReason === 'stop'; if (!finished) throw new Error(chunk.finishReason === 'length' ? `${prefix}_OUTPUT_LIMIT` : `${prefix}_FINISH_REJECTED`); }
       if (chunk.token) {
-        const limited = visibleDialoguePrefix(delivered + chunk.token, profile.visibleTokenBudget);
-        const token = limited.slice(delivered.length);
-        if (limited.length < delivered.length + chunk.token.length) options.visibleOutputTruncated = true;
-        delivered = limited;
-        if (token) { firstTokenLatencyMs ??= Date.now() - started; yield { type: 'token', token }; }
+        // The visible budget guides the model's length; clipping the stream at
+        // that estimate can sever a sentence even when the provider finished.
+        delivered += chunk.token;
+        firstTokenLatencyMs ??= Date.now() - started;
+        yield { type: 'token', token: chunk.token };
       }
     }
     if (!done || !finished || !delivered.trim() || adapter.requireReturnedModel && !returnedModel) throw new Error(`${prefix}_INCOMPLETE_REPLY`);
+    options.deliveredVisibleOutputTokensEstimate = estimateContextTokens(delivered.trim());
     if (usage && providerCostUsd !== undefined) usage.providerCostUsd = providerCostUsd;
     const estimatedCostUsd = estimateAiCost(provider, model, usage ?? upperUsage) ?? undefined;
     const costSource = providerCostUsd !== undefined ? 'provider' : usage ? 'estimated' : 'estimated_upper_bound';

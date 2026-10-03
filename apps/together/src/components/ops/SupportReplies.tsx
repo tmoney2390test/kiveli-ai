@@ -29,7 +29,7 @@ export function SupportReplies(
         { ticketId, message: message.trim() },
         (input) => replyToSupportTicket(input, true),
       );
-      setMessage("");
+      await draft.clear();
       await onSent();
     } catch (caught) {
       setError(

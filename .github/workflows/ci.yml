@@ -1,17 +1,16 @@
 name: Kivelle CI
-
 on:
   push:
-    branches: [main]
-  pull_request:
-
+    branches:
+      - main
+  pull_request: null
 concurrency:
   group: kivelle-ci-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
-  verify:
+  quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -21,89 +20,104 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - uses: denoland/setup-deno@v2
         with:
-          deno-version: v2.x
-      - run: pnpm install --frozen-lockfile
+          deno-version: v2.9.5
+      - run: pnpm architecture:check
+      - run: pnpm format:modules:check
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm artwork:verify
-      - run: pnpm context:test:db
-      - run: pnpm chat-speed:test:db
       - name: Eos editorial continuity and protected content
         run: node --test scripts/eos-meridian-enrichment.test.mjs scripts/eos-meridian-enrichment-db.test.mjs scripts/eos-meridian-public-biographies.test.mjs
-      - run: node scripts/test-message-rewrite-db.mjs
+      - run: node --test scripts/verify-native-release-config.test.mjs
+      - run: pnpm guard:starter-content
+  edge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.5
       - run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-message-rewrite.test.ts
       - name: Explicit fresh-chat regressions
-        run: |
-          node scripts/test-fresh-chat-db.mjs
-          deno test --no-lock --allow-env --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/fresh-chat.test.ts
+        run: deno test --no-lock --allow-env --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/fresh-chat.test.ts
       - name: Photo authorization and charging regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/photo-request-policy.test.ts supabase/functions/_shared/together-media-world.test.ts
       - name: Group photo detail and quality regressions
-        run: >-
-          deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json
-          supabase/functions/_shared/together-media-group-detail.test.ts
-          supabase/functions/_shared/together-group-media.test.ts
-          supabase/functions/_shared/together-media-quality.test.ts
+        run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/together-media-group-detail.test.ts supabase/functions/_shared/together-group-media.test.ts supabase/functions/_shared/together-media-quality.test.ts
       - name: Chat speed regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-chat-speed_test.ts
       - name: Context price regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-context-price_test.ts
       - name: Private chat model experiment regressions
-        run: |
-          deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-venice-test_test.ts supabase/functions/_shared/kivelle-venice-dialogue_test.ts supabase/functions/_shared/kivelle-wavespeed-dialogue_test.ts
-          node scripts/test-venice-chat-db.mjs
+        run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-venice-test_test.ts supabase/functions/_shared/kivelle-venice-dialogue_test.ts supabase/functions/_shared/kivelle-wavespeed-dialogue_test.ts
       - name: Dialogue routing continuity regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-ai-routing.test.ts supabase/functions/_shared/kivelle-routing-history.test.ts
       - name: Apple review recovery regressions
-        run: >-
-          deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json
-          supabase/functions/_shared/kivelle-ai-consent.test.ts
-          supabase/functions/_shared/kivelle-apple-auth.test.ts
-          supabase/functions/_shared/revenuecat.test.ts
-          supabase/functions/_shared/kivelle-account-lifecycle.test.ts
-          supabase/functions/_shared/private-adult-text-policy.test.ts
-          supabase/functions/_shared/web-adult-access.test.ts
-      - run: node scripts/test-apple-review-db.mjs
-      - run: node --test scripts/verify-native-release-config.test.mjs
+        run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-ai-consent.test.ts supabase/functions/_shared/kivelle-apple-auth.test.ts supabase/functions/_shared/revenuecat.test.ts supabase/functions/_shared/kivelle-account-lifecycle.test.ts supabase/functions/_shared/private-adult-text-policy.test.ts supabase/functions/_shared/web-adult-access.test.ts
       - name: Store-only billing policy regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/web-billing-policy.test.ts
       - name: Private profile highlight regressions
         run: deno test --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-profile-showcase.test.ts
-      - run: pnpm guard:starter-content
       - name: Persona identity and retry regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/persona-create.test.ts
       - name: Support portal privacy regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/support-portal.test.ts supabase/functions/_shared/kivelle-support-email.test.ts
       - run: pnpm edge:typecheck
       - name: Scheduled message regressions
-        run: >-
-          deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json
-          supabase/functions/_shared/kivelle-proactive-voice.test.ts
-          supabase/functions/_shared/kivelle-proactive-context.test.ts
-          supabase/functions/_shared/kivelle-proactive-delivery.test.ts
-          supabase/functions/_shared/kivelle-initiative.test.ts
+        run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/kivelle-proactive-voice.test.ts supabase/functions/_shared/kivelle-proactive-context.test.ts supabase/functions/_shared/kivelle-proactive-delivery.test.ts supabase/functions/_shared/kivelle-initiative.test.ts
       - name: Companion schedule pause regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/companion-schedule-pause.test.ts
       - name: Creator portrait recovery regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/together-creator-recovery.test.ts
       - name: Video quality and finalization regressions
-        run: >-
-          deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json
-          supabase/functions/_shared/together-video-quality.test.ts
-          supabase/functions/_shared/together-media-finalization-retry.test.ts
-          supabase/functions/_shared/together-video-inspection.test.ts
-          supabase/functions/_shared/together-video-faststart.test.ts
-          supabase/functions/_shared/kivelle-video-routes.test.ts
-          supabase/functions/_shared/kivelle-video-prices.test.ts
-          supabase/functions/_shared/kivelle-video-admission.test.ts
-      - run: node scripts/test-video-prices-db.mjs
+        run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/together-video-quality.test.ts supabase/functions/_shared/together-media-finalization-retry.test.ts supabase/functions/_shared/together-video-inspection.test.ts supabase/functions/_shared/together-video-faststart.test.ts supabase/functions/_shared/kivelle-video-routes.test.ts supabase/functions/_shared/kivelle-video-prices.test.ts supabase/functions/_shared/kivelle-video-admission.test.ts
+  database:
+    uses: ./.github/workflows/database.yml
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @together/app web:build
         env:
           EXPO_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
           EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      - name: Enforce web performance budget
+        run: pnpm web:budget apps/together/dist-web
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: Native catalog asset budget
         run: |
           pnpm --filter @together/app exec expo export --platform android --platform ios --dump-assetmap --output-dir dist-native-size
@@ -111,3 +125,23 @@ jobs:
         env:
           EXPO_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
           EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+  verify:
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - quality
+      - edge
+      - database
+      - web
+      - native
+    steps:
+      - name: Require every validation job
+        env:
+          RESULTS: ${{ join(needs.*.result, ',') }}
+        run: |
+          if [ "$RESULTS" != "success,success,success,success,success" ]; then
+            echo "Validation jobs did not all pass: $RESULTS"
+            exit 1
+          fi
+permissions:
+  contents: read

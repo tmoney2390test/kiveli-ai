@@ -11,6 +11,16 @@ const message = (input: Partial<Message> & Pick<Message, "id" | "role">): Messag
 });
 
 describe("message reconciliation", () => {
+  it('keeps unchanged history by reference without serializing every old message again', () => {
+    let serializations = 0;
+    const history = Array.from({ length: 500 }, (_, index) => ({
+      ...message({ id: `m-${index}`, role: 'assistant', conversation_sequence: index + 1 }),
+      toJSON() { serializations++; return { id: this.id }; },
+    }));
+    const result = reconcileMessages(history, []);
+    expect(result).toBe(history);
+    expect(serializations).toBe(0);
+  });
   it('preserves joined data when a revision returns a base message row',()=>{
     const original=message({id:'reply',role:'assistant',together_message_reactions:[],provider_metadata:{oldField:true}});
     const revised=message({id:'reply',role:'assistant',content:'Revised',provider_metadata:{rewriteVersion:1}});

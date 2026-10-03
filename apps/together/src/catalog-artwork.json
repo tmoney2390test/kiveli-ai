@@ -5864,6 +5864,21 @@
       "bytes": 21586
     }
   },
+  "characters/calders-run/annalise-chen.jpg": {
+    "sourceHash": "59e1187cf591dab420ba9b5a76d6e6530ba0e7902a651c3712b7a28af35f56cd",
+    "display": {
+      "file": "v1/551fb3a3804149047114b099039330f385c298033b6f8dff31cd4dd36449d93d.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 207334
+    },
+    "thumbnail": {
+      "file": "v1/48903eb89387ea4dcad7223e256608f505e2b824813adb6941ed868f08579717.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 23770
+    }
+  },
   "characters/calders-run/august-renn.jpg": {
     "sourceHash": "e00bd561ceec0409ed8dab70b487fa37a2311cf25799515135384fc49083a118",
     "display": {
@@ -5894,6 +5909,21 @@
       "bytes": 16442
     }
   },
+  "characters/calders-run/belle-sutter.jpg": {
+    "sourceHash": "a53b78a2d7c1f5e8abbc369d2e08122496e12a455b81ba13f807df694117e4df",
+    "display": {
+      "file": "v1/ee9179d4c686a5a019962977032d17115b5d752b10d35bd080f741bdd2f16fc7.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 113238
+    },
+    "thumbnail": {
+      "file": "v1/1138374eb8548f4192c2265ab242b5761d4a224b8d1b07b8fab8707e93d06b9c.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 13206
+    }
+  },
   "characters/calders-run/benjamin-ben-crowell.jpg": {
     "sourceHash": "0fbd6be04ab971560ac6e26f6deca73af4aeab005dac6c0303486548303bf559",
     "display": {
@@ -5922,6 +5952,36 @@
       "width": 288,
       "height": 384,
       "bytes": 15538
+    }
+  },
+  "characters/calders-run/birdie-quade.jpg": {
+    "sourceHash": "09aea30835495790d692f6f3065aca1df580094a1348fd17f0d361d3039c2481",
+    "display": {
+      "file": "v1/936473946c9fbf247eff619df955eae3ec18b6a7c6f1ff27c421e56baa171a38.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 175544
+    },
+    "thumbnail": {
+      "file": "v1/ab312a6175663981b2b172c63f2a03d27015a125a6214c71ca73830d12e83988.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20490
+    }
+  },
+  "characters/calders-run/burke-halden.jpg": {
+    "sourceHash": "c9a598dbd41475b692caa982496c48922288d6bf94c857311b76566d91cef9f5",
+    "display": {
+      "file": "v1/3c2d4b1cad1c6baf8be3461d142e84d025af5eb1789c8ce7a8c5a997feb72a0a.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 145128
+    },
+    "thumbnail": {
+      "file": "v1/5412208835605b7a78b590cb547e099632dc02563319aa1df9dc40d4c546294b.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15656
     }
   },
   "characters/calders-run/caleb-pike.jpg": {
@@ -6014,6 +6074,21 @@
       "bytes": 14310
     }
   },
+  "characters/calders-run/deacon-crowell.jpg": {
+    "sourceHash": "f49579d3daa5e7fd4910f1f4fd8bf5bb4a8c27cbd67c0056fc983465d9a97ab1",
+    "display": {
+      "file": "v1/ea2147adc13d1def8ad13180c0a39b350880ba10b056e41d94dda6a6683f2cc7.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 90782
+    },
+    "thumbnail": {
+      "file": "v1/5e0030499b22b73b57c0b8362b44fdfed83d7a6d8a73ae81488fa2b1af16a80f.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 11180
+    }
+  },
   "characters/calders-run/dr-lucia-salcedo.jpg": {
     "sourceHash": "b3611653bde14678be2ae8528f9ad947e91b66bb92521f18b215e5bbaaf16e7a",
     "display": {
@@ -6074,6 +6149,21 @@
       "bytes": 14894
     }
   },
+  "characters/calders-run/etta-soto.jpg": {
+    "sourceHash": "e539cc281e86aed83ecd4d90a77d515f4af640d8fabea5605ad71a0f59add07b",
+    "display": {
+      "file": "v1/ce9b80ca61b4c331b4a24323364b24bdd223491315493c6705c58e2d4dc70514.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 175106
+    },
+    "thumbnail": {
+      "file": "v1/720b509d7652d93a6bdc73b42e23b2177fca892712f65598306f279390680d0e.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19828
+    }
+  },
   "characters/calders-run/evelyn-eve-mercer.jpg": {
     "sourceHash": "699327640550a4b7ed8a485f41453690164e7677d50d966cf0c5527278ad6f7c",
     "display": {
@@ -6089,6 +6179,21 @@
       "bytes": 13666
     }
   },
+  "characters/calders-run/faye-mercer.jpg": {
+    "sourceHash": "76dc8fe4faff407220884ddda6a13a1a57b521c0cc8e482929f1055fd09289e2",
+    "display": {
+      "file": "v1/bbb1297487a334b7b9ca25c4fd36d7d9ed551afa8c891bc09032b4aebc079830.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 119262
+    },
+    "thumbnail": {
+      "file": "v1/ba28dbfb583eac93bfb1e2683417ed3a39c8231d0cae4b2ceb0a58cdd04b0547.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15544
+    }
+  },
   "characters/calders-run/felix-avery.jpg": {
     "sourceHash": "dd786f0c87b8df2dcf4b85daf44118ad3f66884fe252da2a24eb07346fc074f8",
     "display": {
@@ -6102,6 +6207,21 @@
       "width": 288,
       "height": 384,
       "bytes": 13212
+    }
+  },
+  "characters/calders-run/finn-booker.jpg": {
+    "sourceHash": "81635d69c723a930bef9b26eb0fb8995efad636abae6acfe1dd0ac3fac6c6290",
+    "display": {
+      "file": "v1/e556d4d1870a4d601ad6f5ff7d59952cdac27cd2fe460e1710371f1d4befb8f3.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 144020
+    },
+    "thumbnail": {
+      "file": "v1/b39cb31cff765f3ce31b2e73d15bac364c4e45c9db399a9ab11a45fc52549e4f.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14456
     }
   },
   "characters/calders-run/florence-flora-vale.jpg": {
@@ -6134,6 +6254,21 @@
       "bytes": 16862
     }
   },
+  "characters/calders-run/hank-soto.jpg": {
+    "sourceHash": "fef5a73db1d0a1d63c00f30d9b3f77a1815bdb603a43e8d8ead2d2e5ada8c6d5",
+    "display": {
+      "file": "v1/07ec397665bcfa491676d221832984ca5ea781e237c0aa17b739410be07ec508.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 184724
+    },
+    "thumbnail": {
+      "file": "v1/0f518d7eb8f5b830a7ad241cbcd28f9a9ef6faa03e251940bf24e7c8661b1904.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19976
+    }
+  },
   "characters/calders-run/hazel-whitcomb.jpg": {
     "sourceHash": "0305c578f0b425b13f334162543a55e4f8459407c544dccb31203241e2ad3e6b",
     "display": {
@@ -6147,6 +6282,21 @@
       "width": 288,
       "height": 384,
       "bytes": 17690
+    }
+  },
+  "characters/calders-run/honey-vale.jpg": {
+    "sourceHash": "3a80abdd1e6b0e5d3cffe2bcf3eed92d4fb095fad7529cacb1060ea29b2dc526",
+    "display": {
+      "file": "v1/b47a2499019deb3c6632ef3864ee6e5ccda3fa4375bb0c0bd4280a54594c1bc3.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 146976
+    },
+    "thumbnail": {
+      "file": "v1/6a648f278b5eade820639fda7bfe873bed14ebdfb17949d4a7aa8b35450deed1.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18446
     }
   },
   "characters/calders-run/ines-salcedo.jpg": {
@@ -6192,6 +6342,36 @@
       "width": 288,
       "height": 384,
       "bytes": 17388
+    }
+  },
+  "characters/calders-run/jed-quade.jpg": {
+    "sourceHash": "f256217d5129558713e32316c4eeaf53fd3e82e41b2404362d209bc35d89561b",
+    "display": {
+      "file": "v1/7b9612bf936fcb239451d897363fa418dfb92162837f14753acb2b2265ecfa30.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 137858
+    },
+    "thumbnail": {
+      "file": "v1/86afdb38dcc12f8ea20d91cb2edcb65663e5319b329ecfcd6271c6dfb9844388.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 13150
+    }
+  },
+  "characters/calders-run/josie-duarte.jpg": {
+    "sourceHash": "e4269a0d4cfbbc706863c8039881b9f625fded0ceff941f017c8528ca1528abe",
+    "display": {
+      "file": "v1/9a37278e2bc3a6c0909203a42fa258bc85dea7653c23ed27c068c9723aee386b.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 186536
+    },
+    "thumbnail": {
+      "file": "v1/5291a7d10afca76a089a7268b278bfc953c5c14cc05187e830cc1fe0d0411f71.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20756
     }
   },
   "characters/calders-run/june-dempsey.jpg": {
@@ -6269,6 +6449,21 @@
       "bytes": 20280
     }
   },
+  "characters/calders-run/marigold-vale.jpg": {
+    "sourceHash": "a68545bcbbc83682e441fb5af2c728663d9d697cff4f9e4aef01efe36082dece",
+    "display": {
+      "file": "v1/1ca4e0bed84fa46fe195ce1379860b636019f8b71eca6c20f3008e5ac553cada.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 186942
+    },
+    "thumbnail": {
+      "file": "v1/7c17d67f7ece085a260a5bc02ce6f7faa4229e07039fc45c3704e183eb90f497.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 24088
+    }
+  },
   "characters/calders-run/marisol-duarte.jpg": {
     "sourceHash": "8721093b929c1ac63e2f2a5e148a23ede7c6bbaed8de2348a75bb0fa20f3e4df",
     "display": {
@@ -6312,6 +6507,21 @@
       "width": 288,
       "height": 384,
       "bytes": 17414
+    }
+  },
+  "characters/calders-run/minnie-whitcomb.jpg": {
+    "sourceHash": "8fe967efc796f7ce9acbb3bd56cef7c8c8ad3047e4fd046c7c3196b244b07748",
+    "display": {
+      "file": "v1/46fe8fd60c50a9c2b6fb08f25e858bfbbb866ff3a165f162eb0d75957aa3bfba.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 163618
+    },
+    "thumbnail": {
+      "file": "v1/9c4e5a3a7df1cfd0b5d1e13678e3cad25bbf5caf44b08646a9eedc9bd3884151.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18020
     }
   },
   "characters/calders-run/nathaniel-nate-brooks.jpg": {
@@ -6389,6 +6599,21 @@
       "bytes": 7658
     }
   },
+  "characters/calders-run/rhett-avery.jpg": {
+    "sourceHash": "1577538204217c5e9adb8c654d331493d62d7a4cb8f972dd300fbd4d015fadde",
+    "display": {
+      "file": "v1/3120bfc62a5174b5ec76101ea0fa9664d7be6d02b11ce21aaae4b7b21647280e.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 195686
+    },
+    "thumbnail": {
+      "file": "v1/4aa57b9575d2679abbd92268b3e8d2622f5ee76b6e9e5d892958665b81e8be66.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 22522
+    }
+  },
   "characters/calders-run/rosalie-quinn.jpg": {
     "sourceHash": "0ab7671fc3bf80147318fd9cca273540e01199baabf0d53cc601270a1b7cc69d",
     "display": {
@@ -6402,6 +6627,21 @@
       "width": 288,
       "height": 384,
       "bytes": 16270
+    }
+  },
+  "characters/calders-run/ruby-fenwick.jpg": {
+    "sourceHash": "f9a8d1965ff1c60062a3af1e37d93d5b9cf2e344d0ffda9ae2af01c2a309f21c",
+    "display": {
+      "file": "v1/88a58a5a042be9178dff4a4e76468bf5edb0bbdebd28e07f73dd2321a6a8c5cf.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 173548
+    },
+    "thumbnail": {
+      "file": "v1/edbf78498c2da42fb375b569b50eddcd2dad7c7971beccedcdb5dc64284b461c.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20224
     }
   },
   "characters/calders-run/ruth-freeman.jpg": {
@@ -6509,6 +6749,21 @@
       "bytes": 19970
     }
   },
+  "characters/calders-run/trixie-kincaid.jpg": {
+    "sourceHash": "6ca1157a44917097fda23df90022ba716bfa0077d70ba135647c950e0f57ab42",
+    "display": {
+      "file": "v1/48d10e8398b9a574b31ffe97c7553b4d94642773b7123466dbc9d3b2214bb8d3.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 179170
+    },
+    "thumbnail": {
+      "file": "v1/982bd38379cee4ceb2389f1bc4822e3b607cf46a1ae625f65a69821dc3cf4003.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20522
+    }
+  },
   "characters/calders-run/vera-sutter.jpg": {
     "sourceHash": "69f7b3258215b97473eaea182ad8ae3090344ad15399311a048e5091decbfa36",
     "display": {
@@ -6539,6 +6794,21 @@
       "bytes": 15522
     }
   },
+  "characters/calders-run/violet-wynn.jpg": {
+    "sourceHash": "23ffb2e3901ee1b506af028b91350a32caa684bc362868e09bd37c0081a4092b",
+    "display": {
+      "file": "v1/63ba01c3fe94d1b00cf8e2d39345e98355febfe2834ba8d48dfa3ae7c9a41b1a.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 167124
+    },
+    "thumbnail": {
+      "file": "v1/82c74fbe50a107e3c5b95afcffb7da5419090f88960724f36c89358f93c638e2.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 21888
+    }
+  },
   "characters/calders-run/virginia-gin-maddox.jpg": {
     "sourceHash": "314916549d18e7b068771c0736331e1413a8e4b1188241645ccf9a617af37324",
     "display": {
@@ -6554,6 +6824,36 @@
       "bytes": 16170
     }
   },
+  "characters/calders-run/wes-archer.jpg": {
+    "sourceHash": "35a9a9f2e40c7f8cf06445b042e8c65db61e3370a0272b269021aef3b7544707",
+    "display": {
+      "file": "v1/f0d90486550b1313fcd269902e1207f62534037df1f1c63a23d5f3f4b3375211.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 183656
+    },
+    "thumbnail": {
+      "file": "v1/644e6f3dd4e0cda9514add8fe5260ad2b561b0be043a49cc6c4177db5806b308.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18574
+    }
+  },
+  "characters/calders-run/wren-keene.jpg": {
+    "sourceHash": "16d84d7dcb2c72435df5299eadd81efb069e163f0b344e47847a21d1f039ec6b",
+    "display": {
+      "file": "v1/eaa6de87f5ffe9621b19e0fdfb8e2b7c8b925af9f5bc9924fc8865daa87e3568.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 177848
+    },
+    "thumbnail": {
+      "file": "v1/25a44b91494e5677c3058a91bbc80317012139932a7e58566a8f5c08655e908e.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20842
+    }
+  },
   "characters/eos-meridian/amaya-flores.jpg": {
     "sourceHash": "e0dbb7fdef87f640c2dd0aaa7abfe8d164ee8e2baf4e7c9c736d1e36ccae6ed6",
     "display": {
@@ -6567,6 +6867,21 @@
       "width": 288,
       "height": 384,
       "bytes": 15778
+    }
+  },
+  "characters/eos-meridian/amina-nwosu.jpg": {
+    "sourceHash": "75b14935b5ee7b28c31b0fe1bd635815cb1a650c312276a2a9066e4ee089cf4b",
+    "display": {
+      "file": "v1/91964230d6d0ea7d541ade880221a5a98f481e6467c8419e182a18f392ca33e5.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 160176
+    },
+    "thumbnail": {
+      "file": "v1/51cf001dabd0110eecfc9d1737613a8b4e840599692025bc14631519ea91b256.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 21628
     }
   },
   "characters/eos-meridian/ari-mendoza.jpg": {
@@ -6614,6 +6929,21 @@
       "bytes": 11890
     }
   },
+  "characters/eos-meridian/cassia-navarro.jpg": {
+    "sourceHash": "901d3f19a20cda20eaf59efa5727f3d16d66d02aef402887547670c394cc2915",
+    "display": {
+      "file": "v1/f302b916a59bd3f847d717bea47e279800e5730860db523f99f48fbfc3af2e6e.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 105946
+    },
+    "thumbnail": {
+      "file": "v1/f7fcb1348429c1a4ef2bd7db1e77ccbd42d2a7ff6da48643f6c572f6863909c0.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 13314
+    }
+  },
   "characters/eos-meridian/cassian-vale.jpg": {
     "sourceHash": "b7e7b0fec877b87cb0309c64a195d78386f0244ca3a4507b990854d5f52d6553",
     "display": {
@@ -6659,6 +6989,21 @@
       "bytes": 11526
     }
   },
+  "characters/eos-meridian/cyrus-benali.jpg": {
+    "sourceHash": "20fea72686206aa293a465d5856c3e3b6bd02b1dcfb5770080a5c944a28bc263",
+    "display": {
+      "file": "v1/c35c3256191bb26c74a2b7b6290d13f018fe3b7e61869a072ac173d2790e7d76.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 187626
+    },
+    "thumbnail": {
+      "file": "v1/38e017c79e4ceddee5e0f532c10d43162ca0501888cfc2d40e7cc28941740ca7.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 22614
+    }
+  },
   "characters/eos-meridian/dax-holloway.jpg": {
     "sourceHash": "c36069668002d856279e6de89040e772ad8c470d6995fc580288b6ae195806c8",
     "display": {
@@ -6702,6 +7047,21 @@
       "width": 288,
       "height": 384,
       "bytes": 8756
+    }
+  },
+  "characters/eos-meridian/echo-baptiste.jpg": {
+    "sourceHash": "9052b8ec65a082912edba6449b4794d2ee85238d5f06243033280d2a25c92001",
+    "display": {
+      "file": "v1/f6995c956cf30b205a1e6edfbea05d9c7165517423d7c9ff3c0d4f6b4b4ec672.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 152050
+    },
+    "thumbnail": {
+      "file": "v1/211803a235d384e32a6fa5af842a6eac2997f7b0e2948e603fe217fbc43e8450.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18768
     }
   },
   "characters/eos-meridian/eden-baptiste.jpg": {
@@ -6779,6 +7139,21 @@
       "bytes": 17642
     }
   },
+  "characters/eos-meridian/helix-venn.jpg": {
+    "sourceHash": "85c8d4956558c4c7c02b221a0d0b2bce5d5621f2360e5b5bbec75f11362ac67d",
+    "display": {
+      "file": "v1/21ed79b477c3cd644100455b3ad074bcd61c88680ed9928cd3c510c3350b8683.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 161670
+    },
+    "thumbnail": {
+      "file": "v1/4c82998f61b0736e36dca15e5f01bf58056b73fdc73e8ec91a8829b5f33c8e44.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18718
+    }
+  },
   "characters/eos-meridian/imani-laurent.jpg": {
     "sourceHash": "1a58c08f54346a8d910b6c5adc0ab664c4238f251ce3f68b0f0c083b403fe8e9",
     "display": {
@@ -6792,6 +7167,36 @@
       "width": 288,
       "height": 384,
       "bytes": 19414
+    }
+  },
+  "characters/eos-meridian/indigo-flores.jpg": {
+    "sourceHash": "896bea3ec3ff453f2a6c784d4f044b679da2dea0e49bcec0eb541d87444d1f9c",
+    "display": {
+      "file": "v1/746019cbb401527a63a134138ca7b4e6f7d132290c2424a99908265286fb5c24.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 135136
+    },
+    "thumbnail": {
+      "file": "v1/38ade01e84e94068df21dc52f47c334091fd5ddaa44dcb5be9e239f03356944a.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18752
+    }
+  },
+  "characters/eos-meridian/indira-ward.jpg": {
+    "sourceHash": "0feedd61f0c28c032abc05b7255ff5502f506e3ac8e3c32f5d18aaff51d7872f",
+    "display": {
+      "file": "v1/55adc0e1888cc149992dc0ddd59d0f6876c9d5fa2672b032235da94aab46783d.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 139844
+    },
+    "thumbnail": {
+      "file": "v1/394f5fa42ed05c1119d4ecba71290625a27b279549dc6e47010639b2c31dcc5d.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16634
     }
   },
   "characters/eos-meridian/iris-vale.jpg": {
@@ -6809,6 +7214,21 @@
       "bytes": 17670
     }
   },
+  "characters/eos-meridian/jax-moreau.jpg": {
+    "sourceHash": "4aa0da321c54372d79d7427cf912040a67ea06b200d8c5e920ff0c34f5b7385f",
+    "display": {
+      "file": "v1/045246573c3ea9c42e32883c7baf1642820ef94609aa426eee9707ae9e65ec22.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 138682
+    },
+    "thumbnail": {
+      "file": "v1/9d3d1432805b30cbb421154dce782d514fd3b6c0199924cf7cfcaa82eab5e87b.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 13846
+    }
+  },
   "characters/eos-meridian/jonah-sato.jpg": {
     "sourceHash": "6e250f300f0052814fd8f458d69113788e27e7fb5aa55975653086b0318ee224",
     "display": {
@@ -6822,6 +7242,21 @@
       "width": 288,
       "height": 384,
       "bytes": 15010
+    }
+  },
+  "characters/eos-meridian/joss-lin.jpg": {
+    "sourceHash": "7788ad3b50097a2b4d1acb602261efb4a6d13de7892add900b114b52399fb630",
+    "display": {
+      "file": "v1/4fd7bab2d76408e0debc7f16c2d412fa1006dcac358a8c0a17e451abc12ccf78.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 157264
+    },
+    "thumbnail": {
+      "file": "v1/e416d79da73d3c0103965b36c1fb04370c3ee3f206096e9892f4fa777ebdd90a.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 21702
     }
   },
   "characters/eos-meridian/june-callahan.jpg": {
@@ -6867,6 +7302,21 @@
       "width": 288,
       "height": 384,
       "bytes": 18236
+    }
+  },
+  "characters/eos-meridian/kestrel-reyes.jpg": {
+    "sourceHash": "f44011340ff271530f78c404997be6c059afac2300f574280de3d8b19a034c36",
+    "display": {
+      "file": "v1/d90a6d47cb096fe4e1d19d96d1dd74192ef0d79e06c60445f7ed76d7e9094c9b.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 249074
+    },
+    "thumbnail": {
+      "file": "v1/ee99b60584b409354274cdeee693aeab211dc28538036cac10109c228627afc6.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 27558
     }
   },
   "characters/eos-meridian/leona-baptiste.jpg": {
@@ -6927,6 +7377,21 @@
       "width": 288,
       "height": 384,
       "bytes": 12290
+    }
+  },
+  "characters/eos-meridian/magnus-thorne.jpg": {
+    "sourceHash": "3b992126b50511bf1f227dcd11c62b3009b12429b4b6fede5d5ab0b5ded071d5",
+    "display": {
+      "file": "v1/6e944337bce0ab8ae330ed7a53d0886493afa93b28479bfebdfe9e86b998869a.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 154552
+    },
+    "thumbnail": {
+      "file": "v1/d74133e8103fa4291eb5ae2d8e1de15810da1238530496c899ccec0d243bc140.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16188
     }
   },
   "characters/eos-meridian/malik-orison.jpg": {
@@ -7019,6 +7484,21 @@
       "bytes": 10686
     }
   },
+  "characters/eos-meridian/mireille-arden.jpg": {
+    "sourceHash": "5f8236d1436de8649e8ff455b256db8b1933a80b7525dc1656b74d80cdd07796",
+    "display": {
+      "file": "v1/b8b6ec0750d5a9cfa239a7f6dbc22167cb274f61ac88fa556d83d42a68136c63.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 121216
+    },
+    "thumbnail": {
+      "file": "v1/76937758f8b015936fe3adee486e53da985e956e4221e43f613321e7f2204266.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 13708
+    }
+  },
   "characters/eos-meridian/naomi-varga.jpg": {
     "sourceHash": "7e59ad98e9c2cb0d0371662a8fb8c01c5a9c252bb95e423d8ac1fb2808af47da",
     "display": {
@@ -7047,6 +7527,21 @@
       "width": 288,
       "height": 384,
       "bytes": 17002
+    }
+  },
+  "characters/eos-meridian/niko-adeyemi.jpg": {
+    "sourceHash": "535e4dc3d982a21dbd7b66f4e82117dd3a6be1e60edc8863753a465648cb46ad",
+    "display": {
+      "file": "v1/4be03c669295ddbd5aaf0c0a19b8bc4017f0a172235bffb8cc861fda57b7dc94.webp",
+      "width": 1087,
+      "height": 1447,
+      "bytes": 161776
+    },
+    "thumbnail": {
+      "file": "v1/4b086578f38cf4dff9f4b9dc64192692f8f98a23e5118b01c9550f3512454b0a.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20568
     }
   },
   "characters/eos-meridian/noah-adeyemi.jpg": {
@@ -7079,6 +7574,36 @@
       "bytes": 12496
     }
   },
+  "characters/eos-meridian/oria-venn.jpg": {
+    "sourceHash": "daae298586116cdaa0654436a8ef32031993c7aebc2a06e7a3157843b0349205",
+    "display": {
+      "file": "v1/899f04f915cb470c9e2b207ead731fb0897a8c990ef13a49e7428e74873df004.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 154456
+    },
+    "thumbnail": {
+      "file": "v1/d0a8860ed862541a5d2103d8881d12b6879e1d80f10441e60f319525334c9dc5.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 21500
+    }
+  },
+  "characters/eos-meridian/orin-vale.jpg": {
+    "sourceHash": "181c71baa8b92fe8a4803b014489538aed0b7eb67d155a8aff714aef6808022f",
+    "display": {
+      "file": "v1/d22986cb2bf90d519662f1402e444e4936368e4e69f7a6de13f1be548e698650.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 127018
+    },
+    "thumbnail": {
+      "file": "v1/9bec5fb66a474ae3e965626362552ce3ff32f08ca2662fbe586b284e95d308a7.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 13562
+    }
+  },
   "characters/eos-meridian/owen-calder.jpg": {
     "sourceHash": "1d53f15d11c043426ce74f056a0221928673dbc453bfa3b98766dab6253c0551",
     "display": {
@@ -7109,6 +7634,21 @@
       "bytes": 19478
     }
   },
+  "characters/eos-meridian/prism-cole.jpg": {
+    "sourceHash": "327d56e169c16005f440df5e060b72fe8b6523f6e5441787581eb4645e7ae0a7",
+    "display": {
+      "file": "v1/288ef654fdf379f2460748e2f240717181bf742158350500f4d685579defe9b6.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 147702
+    },
+    "thumbnail": {
+      "file": "v1/3b13231cda7b7e1fcd5536710da9e3e2c37e8810a835f68e3e1bab8622960d61.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16904
+    }
+  },
   "characters/eos-meridian/priya-nwosu.jpg": {
     "sourceHash": "963509cab8d9a83b847230fd353d6b92dd2c41acd12a952cfcc44a827c330634",
     "display": {
@@ -7137,6 +7677,21 @@
       "width": 288,
       "height": 384,
       "bytes": 14490
+    }
+  },
+  "characters/eos-meridian/rook-calder.jpg": {
+    "sourceHash": "251047271e597129230c5625ab0b53266db66d522eb116fcf1dc7a45f36e96c0",
+    "display": {
+      "file": "v1/92f9ddabaefb1bb76fff722739ce6282a1d6c7244dd9b4323930d1b397e7ca02.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 202740
+    },
+    "thumbnail": {
+      "file": "v1/bce7d8a3d8d679ee806eaa8d1fe1a28531ba98f69d34af19d4a82feb0face5c7.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 24156
     }
   },
   "characters/eos-meridian/samira-cole.jpg": {
@@ -7184,6 +7739,21 @@
       "bytes": 17642
     }
   },
+  "characters/eos-meridian/tamara-ro.jpg": {
+    "sourceHash": "900956082de36460bd67e7bdecd069e91bfda79a2736ccbb3c92d2b95cf3ecaf",
+    "display": {
+      "file": "v1/00faec9334fe378f8807230936df66cf55710e17d0728c0852ffcbdf81aeed27.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 153020
+    },
+    "thumbnail": {
+      "file": "v1/d4d955c6e9c009f0714411001325cd3cbbec7b7db92ba9920a71ad9fee30ed1c.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18072
+    }
+  },
   "characters/eos-meridian/theo-vance.jpg": {
     "sourceHash": "b5007616e0a5be5e3c0b81447699ba506bf50b85f74e0b3ff91c1627ec27b5b0",
     "display": {
@@ -7197,6 +7767,21 @@
       "width": 288,
       "height": 384,
       "bytes": 13064
+    }
+  },
+  "characters/eos-meridian/titus-ro.jpg": {
+    "sourceHash": "d01ace00641f3507b17c4d87870d766f7270ff2ebb1dea354f0d5e32c1b51f57",
+    "display": {
+      "file": "v1/80b60358019a4a28bd20c211e52d2d25f93bbc463215745310f9ca6948bf4a53.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 166478
+    },
+    "thumbnail": {
+      "file": "v1/30e304f740f8425f5312adff1957e3566b51d8c9cdbdf625604621130ed21690.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20414
     }
   },
   "characters/eos-meridian/vesper-quinn.jpg": {
@@ -7242,6 +7827,21 @@
       "width": 288,
       "height": 384,
       "bytes": 19024
+    }
+  },
+  "characters/eos-meridian/zara-kwon.jpg": {
+    "sourceHash": "c1868106f9a75634525241169ec7f8f46cc9f8c4f4f63c82fea3715fb35ad520",
+    "display": {
+      "file": "v1/dc0dc3c7be6357ee3a06d78dd463fcd499a29674ce54078542fadc01054d0a41.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 162476
+    },
+    "thumbnail": {
+      "file": "v1/d7eda319c39a89961457e12d7db3fd6d69a78295de68375e8dd14026debe8059.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20346
     }
   },
   "characters/eos-meridian/zoe-mercer.jpg": {
@@ -7319,6 +7919,21 @@
       "bytes": 24138
     }
   },
+  "characters/gilded-coast/calista-fen.jpg": {
+    "sourceHash": "361383cf461b17c058fda9b0bab17204022582d307b7c072b0be158ebfb26d2a",
+    "display": {
+      "file": "v1/f18441997e16f262bf66e70fb46c60894ff2dfdb547f22f7adc92ff3439c1a80.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 128742
+    },
+    "thumbnail": {
+      "file": "v1/e7431e52e406019a1135a7d633261aa48501e8e724fbd397a97b10b5b4c2218c.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16058
+    }
+  },
   "characters/gilded-coast/cassia-bloom.jpg": {
     "sourceHash": "8e8797f0accd9a53525c7a1926ff3db82b4d5e74be022a0759e785fa1a13d344",
     "display": {
@@ -7347,6 +7962,36 @@
       "width": 256,
       "height": 384,
       "bytes": 21216
+    }
+  },
+  "characters/gilded-coast/cormac-bray.jpg": {
+    "sourceHash": "105d2bdd5daab6d8e1a4eeb97769e613855e4c890e785f58121a6aaa75940344",
+    "display": {
+      "file": "v1/ce09f4f8c856da5a517bcaff748ea18387c0c3f369e168b73b9263feffe75b36.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 174294
+    },
+    "thumbnail": {
+      "file": "v1/b60ef52ed685139829e2a36eb7c7f915c54ec71a8eeeaba86661fd8faf20c239.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18306
+    }
+  },
+  "characters/gilded-coast/dax-marin.jpg": {
+    "sourceHash": "24d5bf77de8598a47b0773c475ecd0f3f1ae4e2749caf39ec8e7ed2193c76c01",
+    "display": {
+      "file": "v1/e022af891ae1c53696d3aa85515db6fe1fa30ee295ab163919f1b60450cec562.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 158694
+    },
+    "thumbnail": {
+      "file": "v1/77e4f01af248cc7132bc257e6bfa27b833ccec8d06753a66ca81aa2eaacf54b6.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19276
     }
   },
   "characters/gilded-coast/dorian-pike.jpg": {
@@ -7409,6 +8054,51 @@
       "bytes": 18796
     }
   },
+  "characters/gilded-coast/gideon-holt.jpg": {
+    "sourceHash": "5c779212e303933e1817d1e5572cff99e7391438a28e4e473ed1654712b61637",
+    "display": {
+      "file": "v1/c51cbc451564c610883600e938b857d6827ec222972a288d3a4894011d8c22bb.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 149264
+    },
+    "thumbnail": {
+      "file": "v1/dd49b1cb1e18a64fde4de961f53decf570fe2359f8e0116514f636337a9b1ddd.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16642
+    }
+  },
+  "characters/gilded-coast/harlan-vex.jpg": {
+    "sourceHash": "b3cc591704d0ee8c32932c91541b584e9748704f81c2e6cd06ba7bb91cbb124a",
+    "display": {
+      "file": "v1/22e935d72f6ba96561a6412b4ce926ed66bef1500707fbeadc8ef5018b4e670a.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 127190
+    },
+    "thumbnail": {
+      "file": "v1/fb5e079c02996a063e35082c8a5b4a2a77df6f78c4049bd0f03baa23df7e0404.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15782
+    }
+  },
+  "characters/gilded-coast/helene-dusk.jpg": {
+    "sourceHash": "e31fe6e22a35739d69a3c3a4af4e08d4d107e84e98be74421c7caed1438c8bf9",
+    "display": {
+      "file": "v1/33f87c38096fa9f9027bc5a5de2d28dbde005395370caba6967ebca57696a031.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 208276
+    },
+    "thumbnail": {
+      "file": "v1/f3217d46cabb26261db0c0b510ca75f2ab2f6ea88ba33e383a5c66fce597365b.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 24482
+    }
+  },
   "characters/gilded-coast/hugo-fen.jpg": {
     "sourceHash": "e650eaee086f61eed572fab4e664bd190f5b4331135395f286c9105419d5f109",
     "display": {
@@ -7467,6 +8157,21 @@
       "width": 256,
       "height": 384,
       "bytes": 24166
+    }
+  },
+  "characters/gilded-coast/isolde-wren.jpg": {
+    "sourceHash": "222fae9ecad447f6e8bb7475022974050d3fa6c375ae50229427e048d13e34c6",
+    "display": {
+      "file": "v1/3cc6e7225b493fe8d2fd52f644509810a8d4df77a2027d3881ea842048f35244.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 144924
+    },
+    "thumbnail": {
+      "file": "v1/8622c08097cf7e4b7ad3f9fc50ae0c3fc821d25e17330c81e003362096ff8f52.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19670
     }
   },
   "characters/gilded-coast/javier-ro.jpg": {
@@ -7529,6 +8234,21 @@
       "bytes": 22260
     }
   },
+  "characters/gilded-coast/liora-quell.jpg": {
+    "sourceHash": "a728e8ad5e0790dc1207b791304bc3f2e9290ad65cc4b820d0b606af8b0c318d",
+    "display": {
+      "file": "v1/7fc75ff40bb198c034b85b83e5b6d862789382c667a1b8a4ea1db528b6719af0.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 136018
+    },
+    "thumbnail": {
+      "file": "v1/7b7f5c45f283b8c4f1bca3421f7d3d8e58df4b5dfd67dc3490e6be4f3ed2cfc8.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 17824
+    }
+  },
   "characters/gilded-coast/luca-vane.jpg": {
     "sourceHash": "27e99d40702d3ea71e706f4a5fdaa489e179fa7bbe3101c53b1bbfe6e38d0bfe",
     "display": {
@@ -7587,6 +8307,21 @@
       "width": 384,
       "height": 322,
       "bytes": 26408
+    }
+  },
+  "characters/gilded-coast/maren-hooke.jpg": {
+    "sourceHash": "1fd210d5b9ac47310810408532f4201e1a8448d2c4d8215cf68fb04dd19e5a57",
+    "display": {
+      "file": "v1/c32f9ab29a93543b69b5b50be5ecd9f922805efb3bb11322c668a639d1b95195.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 178074
+    },
+    "thumbnail": {
+      "file": "v1/5a4fe53052e6fe6b4937c944c09dcd8fbfba31064ef31d5171a781673fb73f6e.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19904
     }
   },
   "characters/gilded-coast/mateo-salt.jpg": {
@@ -7664,6 +8399,36 @@
       "bytes": 24286
     }
   },
+  "characters/gilded-coast/nyxa-marin.jpg": {
+    "sourceHash": "0f76d963be2b56526f1768ebfbc207231e333f31eb30859ac58756ec61e64dc8",
+    "display": {
+      "file": "v1/bd503bad1cd2d37938f39b525961e0224d3d632ec7a9bff4e00d4ff35f05fa98.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 146132
+    },
+    "thumbnail": {
+      "file": "v1/be481dc578fa0a068a126de5cb9b8e8f627a214738b78a8fab1131ff63302630.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16984
+    }
+  },
+  "characters/gilded-coast/odile-vane.jpg": {
+    "sourceHash": "a40f16d6d3e6361d93104c8754525890bb709fd12b37227c782efec50ecf06c9",
+    "display": {
+      "file": "v1/a48bdf6ce0b13b1c35abe43f14da7d8c9be6c1b7fc2ab38151db3940b2779655.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 221194
+    },
+    "thumbnail": {
+      "file": "v1/e1dfb31265ae9b70f31915ee83706c5f28ecbd8026429b23748831ceaedaff4d.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 24906
+    }
+  },
   "characters/gilded-coast/oren-gale.jpg": {
     "sourceHash": "45282ee5f64679a8d07996f3de9cbfccf7c5bee3117b43c9c5de60245634274e",
     "display": {
@@ -7677,6 +8442,51 @@
       "width": 256,
       "height": 384,
       "bytes": 21878
+    }
+  },
+  "characters/gilded-coast/osric-kane.jpg": {
+    "sourceHash": "b13b8320f1cb1693d6229b21d7eba31ed51e4f4ff93d7bbfa7055fc28ae89105",
+    "display": {
+      "file": "v1/3e01dc06a37cd0ac37d087fcdef6804f1041dff09d850220af382be9bcc99d90.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 206486
+    },
+    "thumbnail": {
+      "file": "v1/ce7963af23876f4250e5dd0d1007f7dd21fcda22eb7c6fd117f64c928ad084a5.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 23356
+    }
+  },
+  "characters/gilded-coast/petra-cinder.jpg": {
+    "sourceHash": "093163b443490784c344fb3ea6ba2bd308b3906c9784e3bea5a9f5a928ae9a73",
+    "display": {
+      "file": "v1/085ba91dda3b433de8bdc6524bff7d1964afb038f7fbd98201dad5557df2829a.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 185994
+    },
+    "thumbnail": {
+      "file": "v1/748c2c8f3b7f160e404c89ae1d19e7e93d5ebd42c7eb7ba5dc6bb7805ab70c9b.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19994
+    }
+  },
+  "characters/gilded-coast/quinnie-salt.jpg": {
+    "sourceHash": "6758012b63e1cf23ceb3e6d0fad25e4aeb60e23a7767a4147fb883965212d066",
+    "display": {
+      "file": "v1/fcf657f60baeb33ce95e3525eed5252ba959dfb6741805ea51909cf04bc0c558.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 195272
+    },
+    "thumbnail": {
+      "file": "v1/aa98977b5d5fa982dd3fdcdebdf8faab29c655f298b39ac244add4d86897508f.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 25968
     }
   },
   "characters/gilded-coast/rafiq-nadir.jpg": {
@@ -7694,6 +8504,36 @@
       "bytes": 24102
     }
   },
+  "characters/gilded-coast/roxana-brine.jpg": {
+    "sourceHash": "98b8c85be9639f88e71d0715445e445c255784ddf5e8916ea89ab03c4e0557ef",
+    "display": {
+      "file": "v1/c3f4b9c0dffdf801818d8664d8b681693d0b534f3ae4053fbaa10422b29e85e8.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 223896
+    },
+    "thumbnail": {
+      "file": "v1/486a00cbe82dcd8ba6f7fc9f2cb869ef8a3f21d2eb6103902266234d015866df.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 23552
+    }
+  },
+  "characters/gilded-coast/rune-calder.jpg": {
+    "sourceHash": "18237a0fb65c099ef8d0a051ec9f69067fa594d58d86a0fbe7f36355d27cf952",
+    "display": {
+      "file": "v1/7959fd42a8117cfee6add6f069f2b5273ada1fdec64caa393b899ba2fc7ea78d.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 241362
+    },
+    "thumbnail": {
+      "file": "v1/26d81d65371c9f5bf9679a9cd600a2923e74faf5f8ac3c143ca250de2af04de1.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 24056
+    }
+  },
   "characters/gilded-coast/sabine-quill.jpg": {
     "sourceHash": "157323362aae86736f4181b1bc0e99e340b9c07ccdf19aad4bae030dbd1ecc86",
     "display": {
@@ -7707,6 +8547,21 @@
       "width": 320,
       "height": 384,
       "bytes": 25492
+    }
+  },
+  "characters/gilded-coast/sable-rourke.jpg": {
+    "sourceHash": "c1c5b889e1eaab16a60bc7de6516d394e781422a813b34f8b4ef02ebe72c81f9",
+    "display": {
+      "file": "v1/85548f495ca22c896bf9ee9c906743e028862d3d64b9d84c31b95877f7afadef.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 261794
+    },
+    "thumbnail": {
+      "file": "v1/007392c7c79d47c4d5d1e2da9cdfa9b72d1daef53448db263aa6c89a14e0c9c5.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 27848
     }
   },
   "characters/gilded-coast/sami-haddad.jpg": {
@@ -7754,6 +8609,21 @@
       "bytes": 18466
     }
   },
+  "characters/gilded-coast/stellan-rook.jpg": {
+    "sourceHash": "98f6535aad4285d5df0f184c8fa7fd7f343c76b73a36e0d186c584152cb1bf21",
+    "display": {
+      "file": "v1/cfa94e146b242b5cf3c1bdcf69e3bb1adcb79d2751a953d892aeb8344b157c6d.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 173718
+    },
+    "thumbnail": {
+      "file": "v1/a6b3e1df54e7ef55f72773297c9272e7b4eae01413700c79cf5154f7cf0de7fd.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18754
+    }
+  },
   "characters/gilded-coast/talia-wren.jpg": {
     "sourceHash": "1e052c7848242739643145e151a281838894cd3404754c82f66765299e7ef4d6",
     "display": {
@@ -7769,6 +8639,21 @@
       "bytes": 21560
     }
   },
+  "characters/gilded-coast/tessera-pike.jpg": {
+    "sourceHash": "15018809430c17363696871f7db310d01e60f41c7c2ec537a42ff0fec52e0478",
+    "display": {
+      "file": "v1/b800e92cbd30ce603aa4da44926262a11d8ec2d046cd19203c739fc49df66328.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 173296
+    },
+    "thumbnail": {
+      "file": "v1/2ab6e7a9f5eaf66a88644784923293f868616e59833bc4a67bae99127423c699.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 21968
+    }
+  },
   "characters/gilded-coast/tomas-renn.jpg": {
     "sourceHash": "8f3b0127c27b2a0293887606df5d2f9d555a18277f665f935277f091b1c5f005",
     "display": {
@@ -7782,6 +8667,21 @@
       "width": 256,
       "height": 384,
       "bytes": 22936
+    }
+  },
+  "characters/gilded-coast/vesperine-crowe.jpg": {
+    "sourceHash": "bcee67d356eaefd95cd6998b1ce48f5c776c7ecf1f7b6ae4f3b2def4a06714f5",
+    "display": {
+      "file": "v1/958a5dcca2863b3c520184f60a124d4e0711c70be41be87ca54a8edcb110a019.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 192420
+    },
+    "thumbnail": {
+      "file": "v1/f2b64d61f8b4314d3bb15af6615d98f87a89959a2bff7938645e29b309e68072.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20672
     }
   },
   "characters/gilded-coast/yara-nouri.jpg": {
@@ -7814,6 +8714,21 @@
       "bytes": 11310
     }
   },
+  "characters/juniper-city/ash-rahman.jpg": {
+    "sourceHash": "da1983ef308da1492672189a478412ea62707e690b626700a4d44bfce05ee634",
+    "display": {
+      "file": "v1/2aad7c52d7284be68aefe87d7d2fa9e93887cd4af2a93b663298ff58d1ba0a09.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 90084
+    },
+    "thumbnail": {
+      "file": "v1/3fd8ab5f39ce7a8837f95a449ca0503e9b46d54bfd6787cadd262f7305d9a694.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 13102
+    }
+  },
   "characters/juniper-city/avery-ellis.jpg": {
     "sourceHash": "ead1900f826b505b789645303c4cf13b90876b514f587ea730fc63884ab4e82c",
     "display": {
@@ -7842,6 +8757,21 @@
       "width": 307,
       "height": 384,
       "bytes": 17394
+    }
+  },
+  "characters/juniper-city/briggs-donovan.jpg": {
+    "sourceHash": "df67941149bebad2be755ddf420ddceaf2d3b99acfb00425ec7eba6d0f23dfc9",
+    "display": {
+      "file": "v1/38e7140377ccba1d81c13640d8937ff0cafa787d9a9a1e3cd8fbe1cdea2c68b1.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 137598
+    },
+    "thumbnail": {
+      "file": "v1/cf9e381a37b0bd559fc5e1b5e611dfb5c5f4c32e4bb3f956b330f7155d394793.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14218
     }
   },
   "characters/juniper-city/brooke-sullivan.jpg": {
@@ -7889,6 +8819,36 @@
       "bytes": 11474
     }
   },
+  "characters/juniper-city/cass-morrow.jpg": {
+    "sourceHash": "4db2f8d65ed8e0f6ee8fceb5d1a08f8e12c24c9d1fe7a60706953d21b938abd7",
+    "display": {
+      "file": "v1/f7075ca9965d47aef1c209f4f5f216d76f14e2147e1bd35e074289455dcb7dae.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 129310
+    },
+    "thumbnail": {
+      "file": "v1/3b7d216c9ccb1c7ce9f83771c1e3625b8369ea7b55d48af7a7492e0baaded179.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15130
+    }
+  },
+  "characters/juniper-city/celeste-duval.jpg": {
+    "sourceHash": "fe33412693c358aabd95c9ce400625ad36cb77196ac33719341af8e97fa2c7ec",
+    "display": {
+      "file": "v1/62523710911a6b8671b77c8b0a43a70bd2d968bd70e6d07ddb1d03eb3830011d.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 93036
+    },
+    "thumbnail": {
+      "file": "v1/425cea03841913f5f786d41a27157c9e78ff7c2b97d9613f9963ddf6fdb4db67.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 13724
+    }
+  },
   "characters/juniper-city/claire-holloway.jpg": {
     "sourceHash": "5bb71e00b538a0a58bfbf06ce7ad8b2cd1f9b28ae837b1118e7e7144b502f0d3",
     "display": {
@@ -7917,6 +8877,21 @@
       "width": 307,
       "height": 384,
       "bytes": 8272
+    }
+  },
+  "characters/juniper-city/dante-ruiz.jpg": {
+    "sourceHash": "64bb39d0b3033d27935e83b8020380bf03f1898167b09ab19ffee27f6d31fc2d",
+    "display": {
+      "file": "v1/c59052561d6d0c8b485495d7960852a63d105ee8e07cf647069ec275cf275349.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 130988
+    },
+    "thumbnail": {
+      "file": "v1/67f8551207a0f1e41197ef089ff6f1746048e3920ae8cbbdb9cf9d33435723a4.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16738
     }
   },
   "characters/juniper-city/darius-king.jpg": {
@@ -7979,6 +8954,21 @@
       "bytes": 10000
     }
   },
+  "characters/juniper-city/fox-callahan.jpg": {
+    "sourceHash": "26af97ede50789e3cd8b5ea2701a1d72dc435a619b111cf2d84c4a9cbf105d22",
+    "display": {
+      "file": "v1/58b661b5daa73c41ee11218e34b012aec78e0aedb025aa176ce5bdae94fad06d.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 143432
+    },
+    "thumbnail": {
+      "file": "v1/8cb97c5c41e2477720a3f9d7f4da6f638443b77cb31b34ecf52ea8a5c2cc89a0.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 17174
+    }
+  },
   "characters/juniper-city/gabriel-ortiz.jpg": {
     "sourceHash": "70f756468afa824d23cdeef2bc76ee492e2191d277a3ab63167189cff0232878",
     "display": {
@@ -8007,6 +8997,36 @@
       "width": 307,
       "height": 384,
       "bytes": 19212
+    }
+  },
+  "characters/juniper-city/holt-brennan.jpg": {
+    "sourceHash": "092335d4a12e354dd19f0f2475171e796c3cdc4e4353dd8d6e9d15f574982310",
+    "display": {
+      "file": "v1/728f92fd362e41432084cd05968ab977f7b40759074961010490d707c2ab91f6.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 129434
+    },
+    "thumbnail": {
+      "file": "v1/d0ae551e7e05cda3cbd703f444e5de29940f02eb6d12bb241580aeabd15516a2.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14506
+    }
+  },
+  "characters/juniper-city/indigo-voss.jpg": {
+    "sourceHash": "bb46ba5bede01007607ec88ded165f3664c770335d2931af320d93895ead29b5",
+    "display": {
+      "file": "v1/13dc1c6a1efc790a97b7a8afee039205f41f6507528762eab2374a5bae9c09fc.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 136512
+    },
+    "thumbnail": {
+      "file": "v1/62ed8224806409693466c63cc4184be655ed52bb041d569666b04a797fc37ec3.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19648
     }
   },
   "characters/juniper-city/jade-nguyen.jpg": {
@@ -8039,6 +9059,21 @@
       "bytes": 14104
     }
   },
+  "characters/juniper-city/joss-varela.jpg": {
+    "sourceHash": "8a7f7a9b712722186b01dd56bda33179ebc39a789507d5b8173de03e0396c5c7",
+    "display": {
+      "file": "v1/b2d6fb50f1832b5b1c1f05a976f6d1d90ba68bb89f27074745ae951826688b51.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 119232
+    },
+    "thumbnail": {
+      "file": "v1/e87238222e4d150e0fa005210284efe404ad6901ae35f6c1d0a4c6244db15c5f.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14120
+    }
+  },
   "characters/juniper-city/jules-navarro.jpg": {
     "sourceHash": "6afeddda0c50285504f820d9cc29f9fa5cf4182dca57254fe2238cd4c99e4104",
     "display": {
@@ -8067,6 +9102,21 @@
       "width": 307,
       "height": 384,
       "bytes": 10192
+    }
+  },
+  "characters/juniper-city/killian-drake.jpg": {
+    "sourceHash": "7fd54cc59c0cd5fcda07b8100baef6182f24de669bbb95dec6fc7de2ca9c58df",
+    "display": {
+      "file": "v1/135c44437c9fcb6dda82f4c436777ffc9767fa49068df9478e3d3bc3736b4e4a.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 111148
+    },
+    "thumbnail": {
+      "file": "v1/5e9d554b117d6dcfd4d914056ac38ed5af5edc52c6d9a0f17e32bf66a4b2c0c5.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14238
     }
   },
   "characters/juniper-city/leila-rahman.jpg": {
@@ -8127,6 +9177,21 @@
       "width": 307,
       "height": 384,
       "bytes": 14318
+    }
+  },
+  "characters/juniper-city/lumen-park.jpg": {
+    "sourceHash": "251156f31631ca1631477919234528a3989bf63b28b05d4b9e0682d046a30da2",
+    "display": {
+      "file": "v1/aef61a73b65c7709d9fe2dc0c1ac2029148624f1caff075d05c084966ea772fd.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 107864
+    },
+    "thumbnail": {
+      "file": "v1/2dce337bb86c1b8e7b9dd2e843506a104183a9e7fee50c30f5be558144f2506c.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15676
     }
   },
   "characters/juniper-city/malcolm-reed.jpg": {
@@ -8204,6 +9269,21 @@
       "bytes": 18716
     }
   },
+  "characters/juniper-city/nico-graves.jpg": {
+    "sourceHash": "583f85e8caa778c9bff09442f7854ea7a52950f3e02d8047646bc0f81e595c38",
+    "display": {
+      "file": "v1/7297118ca0a4717e1d4db03d2a9a0d249600f88d19981f496cdae96650c09aa6.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 107652
+    },
+    "thumbnail": {
+      "file": "v1/f8eeeb2f6d15af54de18dfbf5fcfd78c25140b258810f7d803082716c6b66ae9.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15502
+    }
+  },
   "characters/juniper-city/noah-williams.jpg": {
     "sourceHash": "982ad793ed6aabf1672e126b138a86ca9fc8f0d4fe7997e84173dea72f58a890",
     "display": {
@@ -8234,6 +9314,21 @@
       "bytes": 11080
     }
   },
+  "characters/juniper-city/petra-solis.jpg": {
+    "sourceHash": "2f59b1028c5ed3236c73e9231ef539b994a26ceec7613153b0e7470e1b753afe",
+    "display": {
+      "file": "v1/840bea9a955c58487dbd3b58867bcdceac3e3941a2d47553ce053c7c6ab19b9d.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 109752
+    },
+    "thumbnail": {
+      "file": "v1/0ba82a58891f974bc1585fe5626f00122b2d9545d46c139d11608367e829098b.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14254
+    }
+  },
   "characters/juniper-city/priya-kapoor.jpg": {
     "sourceHash": "7b9ebbb205a6404a4235e6304e6348c0ed5f3af873a20dbf6ae27384879eaec3",
     "display": {
@@ -8262,6 +9357,66 @@
       "width": 288,
       "height": 384,
       "bytes": 6876
+    }
+  },
+  "characters/juniper-city/rhea-solano.jpg": {
+    "sourceHash": "46b11d6836195feabce01c89e1978ec3405c8fd9aa02bfedb3f53cb7beaf4297",
+    "display": {
+      "file": "v1/43ef9d2ecc37d8eb649fe143f8654d1ff216982dd8a0031a165947ddd5a1d798.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 92148
+    },
+    "thumbnail": {
+      "file": "v1/d59cdcb604f0d6704de4b85fa0e404e51ceb90b57c4419ca0ad57388a487141e.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 12884
+    }
+  },
+  "characters/juniper-city/roman-ibarra.jpg": {
+    "sourceHash": "f285134b26cd01e1140e6e3f8e384ff1c10f976080a81d5fe4cbb63eae742337",
+    "display": {
+      "file": "v1/142ea34c6acee8cad45b770b9881368f4e9df7583d21d15e5c6078c6c7976d3b.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 135932
+    },
+    "thumbnail": {
+      "file": "v1/5604bd7b877fb2fd9829012bbeddc601c339a9c3949b6ece3f1b51ef46d7c06e.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15316
+    }
+  },
+  "characters/juniper-city/roxie-hale.jpg": {
+    "sourceHash": "2b36fdd1e5df9402a693bcb06abb8f2462f6e85067848c32fc0333caf0fd556e",
+    "display": {
+      "file": "v1/636d9da2d4680c55a9b51d7784457a7d588aa0087eeb5c6573a9bf24a33e0515.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 86546
+    },
+    "thumbnail": {
+      "file": "v1/d04a245faf70e1c4b5a3aa4d3e4ef94bd39f59c4b39fbf5b9cae9da7e8bf7f59.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 12246
+    }
+  },
+  "characters/juniper-city/sabine-ortiz.jpg": {
+    "sourceHash": "658902bd1bc46fb24d09c1a9a0e2c28086cb63a6182632c7bc4b9d2e680e9ce6",
+    "display": {
+      "file": "v1/77ed92fd8d32694ea93b06b4e8706def12625e519c4bace794d91fb04c0823ce.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 149748
+    },
+    "thumbnail": {
+      "file": "v1/cbd548a73497e6bbc7298e46a4a0b760a45a41d636d7e4c8729e42ef86c207f5.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19746
     }
   },
   "characters/juniper-city/samira-haddad.jpg": {
@@ -8339,6 +9494,21 @@
       "bytes": 18456
     }
   },
+  "characters/juniper-city/vesper-lang.jpg": {
+    "sourceHash": "d8cc6d2d8b8c825da24a57684e19fdb9e97385bbf8f78d67212db796cd3e4462",
+    "display": {
+      "file": "v1/9d1f8563e2942838cab3e0a6c0bd9a5720a9bd32c974fcd88a0e6ca5fd3f3f74.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 123930
+    },
+    "thumbnail": {
+      "file": "v1/faee6279b673e390a7be6c4d52f52783cb5e748e0e8403af92a89c07ad5a6bb1.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15004
+    }
+  },
   "characters/juniper-city/vincent-hale.jpg": {
     "sourceHash": "179854803340b57c27caca2f2c9d49cf494b9ef233f72d2fb86caa8018feabab",
     "display": {
@@ -8352,6 +9522,36 @@
       "width": 288,
       "height": 384,
       "bytes": 12950
+    }
+  },
+  "characters/juniper-city/wynn-harlan.jpg": {
+    "sourceHash": "7dbbe40c5f529c9027abcdcb501e8c66dfb7a41c7a2e705f51841667621788a4",
+    "display": {
+      "file": "v1/825ca745b6e35f3649b7251d4f9d419ab98fe7199288028db89adb71ad64b435.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 120684
+    },
+    "thumbnail": {
+      "file": "v1/09464e36e3e9fa541f31794e1a726695926c5fe424f900b050b973da20845a93.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 17158
+    }
+  },
+  "characters/juniper-city/yara-mensah.jpg": {
+    "sourceHash": "e82c3c9853a2a0c9a4af7d4d966fdd91bf245614b451abeb131e35fce5088f0a",
+    "display": {
+      "file": "v1/80e6966299775fb8ebbd86d99c58a7f6ac8dcf6125620236fa6aa16790c1a565.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 124054
+    },
+    "thumbnail": {
+      "file": "v1/de5d5cc2e9f9ef3a93cdf5b6bbac8a7a67e5ea8110e777109c098cb21d8934ba.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16888
     }
   },
   "characters/juniper-city/zoe-bennett.jpg": {
@@ -8399,6 +9599,21 @@
       "bytes": 14398
     }
   },
+  "characters/neon-kyo/akemi-noir.jpg": {
+    "sourceHash": "2114c224c0a8af0913b8e4e46b94c3857cc30f273252d0a987c1141627b1f718",
+    "display": {
+      "file": "v1/824c973cbffdefcaec7de2f010076b7d0842e71cb4d9a07ad37d8f5fc62be832.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 112926
+    },
+    "thumbnail": {
+      "file": "v1/9dffbe73ab9841995006ba7448a3a66cbd0bbf5e4b7886ebbae0ceff65228c89.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15712
+    }
+  },
   "characters/neon-kyo/ana-luiza-ribeiro.jpg": {
     "sourceHash": "afd8d05ae09381afc113fe84cbbc2edb9a7cadc1f2fc89803a9d8ed58840f4dc",
     "display": {
@@ -8444,6 +9659,21 @@
       "bytes": 14486
     }
   },
+  "characters/neon-kyo/azami-bell.jpg": {
+    "sourceHash": "f795a3fd8a18cec550b0c5962c588c4cad054fee7a2805cccf5c388572741a30",
+    "display": {
+      "file": "v1/4014150e7bd2a2b492e2678a411228aa9d1b7663b78bbbcb48dff35c0002ac5f.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 165092
+    },
+    "thumbnail": {
+      "file": "v1/e49e58ef78cd9e48ef5706c9bbe21a07293d29d03233a35e113921b2ebdab6a6.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20326
+    }
+  },
   "characters/neon-kyo/chloe-mercier.jpg": {
     "sourceHash": "dd77026e265cf843e31591cf7450cf0615be061ceb1524fe97903ce6445a5b1c",
     "display": {
@@ -8459,6 +9689,21 @@
       "bytes": 18186
     }
   },
+  "characters/neon-kyo/cipher-ren.jpg": {
+    "sourceHash": "ee0b850975c704e5ff1325df85c10a2793b9ac715c756c28b0ee98ddb01f7353",
+    "display": {
+      "file": "v1/d0dbbe202763005f9520a4de15925a2a509a1b53b322a10db5a9f768b12b0e25.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 146812
+    },
+    "thumbnail": {
+      "file": "v1/6e43a1ddae90d9425f3a6fac3174955bb67a454a37ec103c2e8237b0ef2a2fac.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20092
+    }
+  },
   "characters/neon-kyo/daisuke-arata.jpg": {
     "sourceHash": "e6ea0d0584fc99eb5cc76edb3cc57c2f3c0aab9dbe3fc85f98e0769d6f5c980c",
     "display": {
@@ -8472,6 +9717,21 @@
       "width": 256,
       "height": 384,
       "bytes": 6728
+    }
+  },
+  "characters/neon-kyo/draven-kade.jpg": {
+    "sourceHash": "464a75819c5b0c0d0a787322e37d4efa1bd8ebd2ccaae623778f9c7d2bc9f51e",
+    "display": {
+      "file": "v1/b4c2de098b17b556cad54c90214358aaaa8d0f60c293dbee3ef2503173bc6a5a.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 195990
+    },
+    "thumbnail": {
+      "file": "v1/b43b38a21406d8678e63897beeabf37e356af122def41bddbadf15c94b77185f.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 24760
     }
   },
   "characters/neon-kyo/elena-volkov.jpg": {
@@ -8579,6 +9839,36 @@
       "bytes": 13104
     }
   },
+  "characters/neon-kyo/hideo-kwan.jpg": {
+    "sourceHash": "abd11f80a61e4af50229b10d321fbb0ccc7ea66f556a1eb46effa3b156169681",
+    "display": {
+      "file": "v1/f9b811874fff3255ef6a68b4c9d7dacd06f1915eebb442ca1b89c5744a84bec6.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 133680
+    },
+    "thumbnail": {
+      "file": "v1/7b6de5f3c86181a926f7453fde1455b96d85512e8fb7f2c2fbf2ec8ca80a5d54.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15876
+    }
+  },
+  "characters/neon-kyo/inez-shirogane.jpg": {
+    "sourceHash": "5d645faef34c031343d335d53bdf3a43c1c2e77890e86f7c4eea7960b6a4295f",
+    "display": {
+      "file": "v1/328b9964bf5332dd702eb379cd2a11bfaa2ebf7472ae66df3999207e2e7b0910.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 125374
+    },
+    "thumbnail": {
+      "file": "v1/bbfb51723a961c5eaa0ccb1a3024415aecebf7a5bb6f4b71848f771f27bc70f3.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14982
+    }
+  },
   "characters/neon-kyo/iori.jpg": {
     "sourceHash": "64e150c043555e276a4b6c1ed21bfd7ef121bb85f0131539254ed80c7d0c111a",
     "display": {
@@ -8624,6 +9914,21 @@
       "bytes": 14074
     }
   },
+  "characters/neon-kyo/jiro-vance.jpg": {
+    "sourceHash": "5a3920692e8b7e30aec00d7752f87cc9de423345f2d20ee2edb9d288dd60d15a",
+    "display": {
+      "file": "v1/d28ff7d38021b1c993f9cccda7a2ea69fdf4defbc42b009c34bd220200529a8c.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 166834
+    },
+    "thumbnail": {
+      "file": "v1/8bb7deec9e56bc28a6acf306c7ef810a7500da391c98e2d20ebbd04c9a65bd84.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 21040
+    }
+  },
   "characters/neon-kyo/kaito-fujimori.jpg": {
     "sourceHash": "8e713d6e56223901a70abf8c31301ce8726f7f0686bd5439e5ab367f912de16d",
     "display": {
@@ -8652,6 +9957,21 @@
       "width": 256,
       "height": 384,
       "bytes": 11686
+    }
+  },
+  "characters/neon-kyo/kenzo-mori.jpg": {
+    "sourceHash": "799321f6ab42631770c3556ecbc8b836dd991d748fff1eef0eedcaaa7ff0d0c8",
+    "display": {
+      "file": "v1/e904e191c05b6b90857e012d4674c610d1d734f77b0337370a00eaf15bebf906.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 174394
+    },
+    "thumbnail": {
+      "file": "v1/57a1441eca13977735cb17c090fef899499addd0ddb166c4d1f2167e881aa601.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20124
     }
   },
   "characters/neon-kyo/kira-3.jpg": {
@@ -8789,6 +10109,21 @@
       "bytes": 11586
     }
   },
+  "characters/neon-kyo/nami-kwan.jpg": {
+    "sourceHash": "04e48cb9b7ee822db234ae27b5c4b9e4cf73a54808bea6bb48af26095b2da126",
+    "display": {
+      "file": "v1/c8300dc219cdafffd87b8e2026e81a2f6d2995470de2da0b9c3fe0e7d586ac58.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 108104
+    },
+    "thumbnail": {
+      "file": "v1/0d1cf9a8905dcc05a480c060a4adc4de700252595b5f3bdcd6d1424bf18baad9.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15098
+    }
+  },
   "characters/neon-kyo/natsumi-endo.jpg": {
     "sourceHash": "48743002f9524beaf4dc292407b8c22ee52c896928fbe4859b66e3710e60f2de",
     "display": {
@@ -8834,6 +10169,66 @@
       "bytes": 13334
     }
   },
+  "characters/neon-kyo/nova-chen.jpg": {
+    "sourceHash": "46a238c779dd7de5893a0eef3d9f2f89f3d79e95eb6a04c781697fc027cf1d69",
+    "display": {
+      "file": "v1/b7fea105d4354afcdfc0a6bc16ed730b3d87e976c30a21ec38c32a511459a4c9.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 107700
+    },
+    "thumbnail": {
+      "file": "v1/200deb1b09ecd9bba966e1f1e21a982ec6f731e002a21db53a918fc825628070.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15516
+    }
+  },
+  "characters/neon-kyo/nyx-arakawa.jpg": {
+    "sourceHash": "e2446f18621ee12d12158dfae65ed330ba7cadbf1ec34b727d13a5788c4927e5",
+    "display": {
+      "file": "v1/47a07bd36a573b41df32f139f6f9ffc8cb768edf51edf72318a0ee7d86b26eab.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 156540
+    },
+    "thumbnail": {
+      "file": "v1/fb6478d7aed0e3105a58ea4f6c7bc943b3d4b41308569c42e3cbcf907bdb8cc9.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20086
+    }
+  },
+  "characters/neon-kyo/onyx-vale.jpg": {
+    "sourceHash": "0901ed0d4ed6900009db45220ed37fd997e0b380891bef5cfe7461511d41c18f",
+    "display": {
+      "file": "v1/2aebd9c8bfabcee0f76f3ad5b5c65fb9fbc401dbfd3f8d17871e4bca779ab2da.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 107594
+    },
+    "thumbnail": {
+      "file": "v1/f0f8a32df3e182da4e2cdbe92b1801ac7ee337d90660967ee333a7d5a6b7577f.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 13476
+    }
+  },
+  "characters/neon-kyo/pax-ortega.jpg": {
+    "sourceHash": "4be7b97be6d304912071a4846ddca63dcb016a0a3a110ef8756f7ee6fb3cb17e",
+    "display": {
+      "file": "v1/549c04989300b45ebc9ff01ddeb1e9224aa532c048629aad52ae7b218b6efdb7.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 107530
+    },
+    "thumbnail": {
+      "file": "v1/f3b886deb5b95e39f451c38887e5d729f9ac8c2083a8def1f7c59adb99f007f7.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 13450
+    }
+  },
   "characters/neon-kyo/piper-shaw.jpg": {
     "sourceHash": "a5d5fddb6d0e1b8070c94d14f982c1ced66cd8207231276de050d527d52a99c4",
     "display": {
@@ -8847,6 +10242,36 @@
       "width": 288,
       "height": 384,
       "bytes": 17022
+    }
+  },
+  "characters/neon-kyo/rei-voss.jpg": {
+    "sourceHash": "706ac9ed1b754c666afde8bb3b0fc3a173e5c6c99ed9672de5caa38bce94bdb3",
+    "display": {
+      "file": "v1/e20d8d53474a32d2005993b0c291df7ce7d44a46344ebe5dfcf1e00aaedcd3e9.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 113132
+    },
+    "thumbnail": {
+      "file": "v1/4ee497b75e8b38df0ffb303a77d8eeffd534fca77db45ba45852538e456459ee.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 13772
+    }
+  },
+  "characters/neon-kyo/reika-sol.jpg": {
+    "sourceHash": "e3269486b63d2116c97bf95a3cbcff517387196f59d11f342c118361c59aa4c2",
+    "display": {
+      "file": "v1/59c07a1cfcaa387d44a688f972f97e206462d2f8ebaa4e15843dc791dd4468e0.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 135672
+    },
+    "thumbnail": {
+      "file": "v1/1cdcfaf3b1c313bb1e14606f486e723f1020cc51d33bf3cdcc4a279173c2d391.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18274
     }
   },
   "characters/neon-kyo/reina-kuroda.jpg": {
@@ -8907,6 +10332,36 @@
       "width": 307,
       "height": 384,
       "bytes": 14192
+    }
+  },
+  "characters/neon-kyo/ryu-taniguchi.jpg": {
+    "sourceHash": "482fbd62e4fe85917fbc53ca518b36babc13dec0fcfd2160d4fb927269410e8a",
+    "display": {
+      "file": "v1/2309879696d808b094916cf88f0d33ba8aedc08f0878a57d9baacd4d98d17dbf.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 152638
+    },
+    "thumbnail": {
+      "file": "v1/a26b1b8d452f25449173d110377d92c2d3aa1e84524c244818efd88ebc84b7bd.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19004
+    }
+  },
+  "characters/neon-kyo/sable-ito.jpg": {
+    "sourceHash": "2eba83d077f06bdda75f547e39bc3c0ccd642682bb602c1731ea862411e5a91d",
+    "display": {
+      "file": "v1/c9ced3072a8689cb60e5c5c1c8f858e1ee8586601479d2f2879d723858c35933.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 178798
+    },
+    "thumbnail": {
+      "file": "v1/a1ceae7ae5bf10585cfe1c599f2559382f3137d8bbc2ba15fd0b969736f34ae1.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 23288
     }
   },
   "characters/neon-kyo/sol-9.jpg": {
@@ -8984,6 +10439,21 @@
       "bytes": 19206
     }
   },
+  "characters/neon-kyo/veda-mori.jpg": {
+    "sourceHash": "e41a5d58494b2326366c3b6612119ec5c7bc8fe93b6f5ba59731aa7d719859d1",
+    "display": {
+      "file": "v1/a8b25c6ce3289c334518f286d3e3deb237726e81a4f1a9e0ff622e789ab3e35f.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 143924
+    },
+    "thumbnail": {
+      "file": "v1/04d5eff28046ca1d4257d2f444528b1883e9b577e3ca460f06d1f6cfd877fd1e.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16900
+    }
+  },
   "characters/neon-kyo/vittoria-bellandi.jpg": {
     "sourceHash": "15d965eea57f500ff5731cf0f1a33ab87b4d3c8de98a273f0422fb486e5a0208",
     "display": {
@@ -8997,6 +10467,36 @@
       "width": 307,
       "height": 384,
       "bytes": 14044
+    }
+  },
+  "characters/neon-kyo/wren-solari.jpg": {
+    "sourceHash": "3c25e8456225359e1b775f4c25f9d1be604174d595a634f5322c2e1269165470",
+    "display": {
+      "file": "v1/d2a706804a30ef347710a2d1711758049da765ec66edc7ece40c195c656c40ff.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 145420
+    },
+    "thumbnail": {
+      "file": "v1/163fae7148d2ae257dc2f7e0dc096e83ccff33e79a6b284f9253572e0063f5f7.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18460
+    }
+  },
+  "characters/neon-kyo/yoru-nakamura.jpg": {
+    "sourceHash": "730c0031b9b3963be50de687270cb3dad9385269e87d4b1f424c1a3bf126a6da",
+    "display": {
+      "file": "v1/b3e747d241a2a2730d13bb6215d6f458da11fd7bd04297dac847efa28b658246.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 126770
+    },
+    "thumbnail": {
+      "file": "v1/fd0ecd80593d0440e3f42ef3e299ba16d085bd34620db856fb006b3ec1c896f1.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 17114
     }
   },
   "characters/neon-kyo/yumi-kato.jpg": {
@@ -9119,6 +10619,36 @@
       "bytes": 13026
     }
   },
+  "characters/northvale/boone-kade.jpg": {
+    "sourceHash": "3bf0821851662ba7d649bf2629c9efce792a43b4bf48e10d3d9b16751a3c2f59",
+    "display": {
+      "file": "v1/1a074ebf9a0c0cb57fa28fd45355125556044f6cf822081dc5fecc2bbab8757a.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 219758
+    },
+    "thumbnail": {
+      "file": "v1/d3245d84192cf4a9fb568c117ad0b77790c4fbe5c9ca5d59654308a1707f3803.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 24956
+    }
+  },
+  "characters/northvale/briar-mccabe.jpg": {
+    "sourceHash": "e176fa4cda5618ef354f3d7c8662aac74f749b3282daa917ba78ea819e11b69b",
+    "display": {
+      "file": "v1/87c5a63bac01425c9ed6ecdb689e30b04f5a9414627250a393f345914c1f51bc.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 174762
+    },
+    "thumbnail": {
+      "file": "v1/e7abb6f19c68b38c0f5d933f7f2328c9d35223f3bfc03dfe3e46e5b82b662e73.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19038
+    }
+  },
   "characters/northvale/caleb-morgan.jpg": {
     "sourceHash": "ff79e8651de1e38fd51985279d5fc7f15d1e090010656f61d24b9ae81b9fc547",
     "display": {
@@ -9164,6 +10694,21 @@
       "bytes": 8812
     }
   },
+  "characters/northvale/colt-reyes.jpg": {
+    "sourceHash": "f8698fd9b8ed2ee27abe1c7ee54296cb41900b3ad390c203db4aa3ff767cf666",
+    "display": {
+      "file": "v1/4e47af409fcbc089bd5aefc74c354a8de688edb7131a98e23456b52764e8b77c.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 144530
+    },
+    "thumbnail": {
+      "file": "v1/7e98ed8788ea9dfe3534ce80ff3ba6e13ed4b57e27a1d57ef2014e5d7cc21cdb.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20426
+    }
+  },
   "characters/northvale/dalia-farouk.jpg": {
     "sourceHash": "8dacdb2a25d4b18bad1056df36707db6cadd18b90fb13f0ccb40b8f715527b39",
     "display": {
@@ -9177,6 +10722,21 @@
       "width": 288,
       "height": 384,
       "bytes": 10658
+    }
+  },
+  "characters/northvale/dex-morgan.jpg": {
+    "sourceHash": "0e236aadd974c770243262216339372358531eaad23cad6c266b1fc3b99dd416",
+    "display": {
+      "file": "v1/114d9362187b9b4e99331adbbb0321f47ec65dc7d4209f0f17279bf153574371.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 161264
+    },
+    "thumbnail": {
+      "file": "v1/72cb0d4cb79a82dc7907ad5be2362bc9208880d898e310a2c342c34ac2af47a1.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 21066
     }
   },
   "characters/northvale/elena-petrova.jpg": {
@@ -9209,6 +10769,21 @@
       "bytes": 16156
     }
   },
+  "characters/northvale/ember-cruz.jpg": {
+    "sourceHash": "dbd55b8f288a0ab09bf7a8c75e95936ac57c452e317339d43296344303b374db",
+    "display": {
+      "file": "v1/f3efc708f03a015839c9117875651652b665ed654cc60627fb2fc702ee88e6bf.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 153558
+    },
+    "thumbnail": {
+      "file": "v1/b0145c942c42b82f7b21f3c62a1632de391cf4388405325218664a096fd6aa35.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20786
+    }
+  },
   "characters/northvale/evan-cho.jpg": {
     "sourceHash": "7840768caa15211d4cb32fc45462f97efe71aef91c3ae290bad3840bb53f0c63",
     "display": {
@@ -9239,6 +10814,21 @@
       "bytes": 18478
     }
   },
+  "characters/northvale/gage-harlan.jpg": {
+    "sourceHash": "b2e599d245914135c7013f53294ba1cc99f1a9e4fb291f1a8d50d8c45fe6b85f",
+    "display": {
+      "file": "v1/3a5ed90aea45f17b677695d0a36d7c012f2cad70c3ec0f658d775af2d74a2314.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 165928
+    },
+    "thumbnail": {
+      "file": "v1/70b86626d9d0fa2aef5c7cbddbf55e4b06a0d21e54f219ca80092ebbaa5c7a85.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19560
+    }
+  },
   "characters/northvale/graham-pike.jpg": {
     "sourceHash": "9c1409aa26b2cc5107339120cc2254c3bfe36b8d7b1dc388589d3edb4c88640a",
     "display": {
@@ -9254,6 +10844,21 @@
       "bytes": 13390
     }
   },
+  "characters/northvale/hunter-price.jpg": {
+    "sourceHash": "5febdbf5969f8c27743d3228ef0e26d01bb0ed6100245062a993a0e86be5e8ea",
+    "display": {
+      "file": "v1/b3a68dcbd0218036e43469c58c483ffdef1f86a6ce5c17e5b8c73515f05b36f6.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 181300
+    },
+    "thumbnail": {
+      "file": "v1/363c5d98742bffb827eb5d7378c6e288e8397d81af45b64c811fa509b8aab766.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 23808
+    }
+  },
   "characters/northvale/imani-brooks.jpg": {
     "sourceHash": "ffcdb5456611081814e1d1c56654fbad2ff7fd55662ce9d2e1f6f98a526968ff",
     "display": {
@@ -9267,6 +10872,21 @@
       "width": 288,
       "height": 384,
       "bytes": 12846
+    }
+  },
+  "characters/northvale/indie-frost.jpg": {
+    "sourceHash": "2a8363bcd674589822a0ac3273449b42e5ce4fbd61481ccc132df1ab19c9778c",
+    "display": {
+      "file": "v1/ef43a5bca7ee6fe7646e8d1cdb64e93a3455c8e2aa60a7d834fbc9621f508c45.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 166972
+    },
+    "thumbnail": {
+      "file": "v1/ccd6b414057c3ac841ee49b30d23c19ebf70190d4a497ede71be4dc7c46a8105.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 22908
     }
   },
   "characters/northvale/ingrid-solberg.jpg": {
@@ -9297,6 +10917,36 @@
       "width": 288,
       "height": 384,
       "bytes": 11904
+    }
+  },
+  "characters/northvale/juno-hart.jpg": {
+    "sourceHash": "da1a6cd02d5af606d64e4af1ad5d7524ce303b336bb7be96fba5cbe50cb958cb",
+    "display": {
+      "file": "v1/c52f86d229840fc59f6bba415b261e9b9b258746e379fed4c553ea4bf085fc23.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 154196
+    },
+    "thumbnail": {
+      "file": "v1/cbd7529ba33743d26f136019fe8b2c11d5a6e85b64894a1b624b662e9c9aaca5.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19952
+    }
+  },
+  "characters/northvale/kajsa-lind.jpg": {
+    "sourceHash": "41abcef988dc91fc8dfe79a6c2527f00278a658a2cce6b49e190e1f1354fa1d8",
+    "display": {
+      "file": "v1/ea7fd1f086b45e02e2746c26578b0085320cb044190678662de4a7b7b855551e.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 200664
+    },
+    "thumbnail": {
+      "file": "v1/3c1582c5e8e52a9446abfeb9cd674aa5f8b68942534d8f027f4e2d677595a247.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 22592
     }
   },
   "characters/northvale/leila-haddad.jpg": {
@@ -9419,6 +11069,21 @@
       "bytes": 13746
     }
   },
+  "characters/northvale/marlowe-reed.jpg": {
+    "sourceHash": "9c0a9d76bbf525630c1df0a4538631f13a306e012c91c371af51252dacfc1a73",
+    "display": {
+      "file": "v1/1391aa01abe90325a2b140a9a7013e3e71f715d9ffa61d969c7942a43181866a.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 150552
+    },
+    "thumbnail": {
+      "file": "v1/e8375c909e564440996e6dfaccf4cb17815f127ef3e9a2d5ef1e421a8a3b0ca6.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19688
+    }
+  },
   "characters/northvale/mateo-silva.jpg": {
     "sourceHash": "f5f56729bfdc51fcd8209778621d8ad7786588203f86df529c50b7ebc9ab80e1",
     "display": {
@@ -9479,6 +11144,21 @@
       "bytes": 16552
     }
   },
+  "characters/northvale/nash-ibarra.jpg": {
+    "sourceHash": "99cc6a322ed04426cd3c2d2a96a0b03b7aa914fb15e9a578895f2a9d545df63c",
+    "display": {
+      "file": "v1/ea2846776cf6dad305796fb5b3f5ff28ab32b47ac1249b68da09a8a588d5002d.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 130928
+    },
+    "thumbnail": {
+      "file": "v1/656792ec63136263486a8c2ce7d34e2b71c75c74581ca4b7a2fb657f2ace21b7.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 17918
+    }
+  },
   "characters/northvale/nico-alvarez.jpg": {
     "sourceHash": "035bb1b7b158368733a0aa3663516159a3efa4f32f31a949d860e64e99c17b45",
     "display": {
@@ -9494,6 +11174,21 @@
       "bytes": 10376
     }
   },
+  "characters/northvale/noelle-baptiste.jpg": {
+    "sourceHash": "f864b7010f38da0e0392f3adf92590f657e5ee3bd2bf03568cb321eecd5a4b8f",
+    "display": {
+      "file": "v1/b6d8733fe1085fc43f98aed848594c073a1f68ce1ea96eb9f2eb99b96625b082.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 175130
+    },
+    "thumbnail": {
+      "file": "v1/d123660bd5d5c5a3ffd93e518bf2b7f70817f1877b676f65a32ec4c4d54e8b7b.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 23992
+    }
+  },
   "characters/northvale/owen-kearney.jpg": {
     "sourceHash": "93fa63818ec099ede848769ad3b9324c6abf549a87683a5bb7e2947948894ba7",
     "display": {
@@ -9507,6 +11202,21 @@
       "width": 288,
       "height": 384,
       "bytes": 12670
+    }
+  },
+  "characters/northvale/petra-frost.jpg": {
+    "sourceHash": "95ed3fcc24d634f2d4ad5b51109cc04753dba76136c918731fc23b301d31ef7b",
+    "display": {
+      "file": "v1/9587c039691269ac74674237c8729a86622329dea4f014db3fd8bd3963977a54.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 129404
+    },
+    "thumbnail": {
+      "file": "v1/a7a8a97535a5a7069d36337d00182bf3e5e9dfc256ace11c15addaea33688b64.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14660
     }
   },
   "characters/northvale/priya-desai.jpg": {
@@ -9539,6 +11249,21 @@
       "bytes": 15390
     }
   },
+  "characters/northvale/rourke-hale.jpg": {
+    "sourceHash": "d1e0d2d4493be37ee052d5f6409776665a66e1758e6be007571bb14b1d7202dd",
+    "display": {
+      "file": "v1/915ed291f676a4d8fddbd24519abdfe009eaa9db6470b29e7c520328178ed3c8.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 211780
+    },
+    "thumbnail": {
+      "file": "v1/fb0e5f9e8278267ab8f347914c7cb585db949504ea5527462f130999500cd176.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 21078
+    }
+  },
   "characters/northvale/rowan-lee.jpg": {
     "sourceHash": "f4a51596e44ec2d57f3fe6238cdf7ba65c987997e7fb469d83e723c6814d9951",
     "display": {
@@ -9567,6 +11292,21 @@
       "width": 288,
       "height": 384,
       "bytes": 17360
+    }
+  },
+  "characters/northvale/sable-pike.jpg": {
+    "sourceHash": "227449a96fc48c15f1c2bebf2be3122313a491c0a171bcd9dad1a46dae405b38",
+    "display": {
+      "file": "v1/10c19910b5076be2dff8fe2ae234ead1fadee2ac62a2740b3f4d2ba0ceffa781.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 145574
+    },
+    "thumbnail": {
+      "file": "v1/87fc54ce358e4d97bfb4979ddbbc9544da568dd261c778240e3ea7b9d23d12c4.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19190
     }
   },
   "characters/northvale/samir-patel.jpg": {
@@ -9599,6 +11339,21 @@
       "bytes": 12226
     }
   },
+  "characters/northvale/selah-farouk.jpg": {
+    "sourceHash": "29277b85ea8052daf0faeaa742a34512cb45d64922d4ce5bd6cb19221a0f71f8",
+    "display": {
+      "file": "v1/5fdf2651205be87590e20f83fe18f6df68b872db0cab9a73669be7d152756702.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 124484
+    },
+    "thumbnail": {
+      "file": "v1/9f9e287198e847f1b051c662efd3a7a5e0f95e16ab26b26a5e7cd6153124f177.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16808
+    }
+  },
   "characters/northvale/signe-dahl.jpg": {
     "sourceHash": "3ba50c89f405338d6cd8228595f51741d95f0732d7d4d7d17e8b3f2867af27a4",
     "display": {
@@ -9612,6 +11367,21 @@
       "width": 288,
       "height": 384,
       "bytes": 11352
+    }
+  },
+  "characters/northvale/skye-mendoza.jpg": {
+    "sourceHash": "3ea1d159bb19ff14c7b0bb0a5fac4c73b3d2ade0b4738a211452297a1ded81bd",
+    "display": {
+      "file": "v1/ba3bcc5bc5905e44ab1722150d13cdce0b1f8da91ee2f8f1973a9993172775ab.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 140974
+    },
+    "thumbnail": {
+      "file": "v1/972f129b0b62fc1c5fb90c6048b4f80aeff02232476ded9c11ec86087de52962.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18698
     }
   },
   "characters/northvale/sofia-reyes.jpg": {
@@ -9642,6 +11412,21 @@
       "width": 288,
       "height": 384,
       "bytes": 11462
+    }
+  },
+  "characters/northvale/taryn-vale.jpg": {
+    "sourceHash": "501a10b57f34aa5a71d3f94aae98087923a84c6189b509e937082256d3a4e5cc",
+    "display": {
+      "file": "v1/4591a3283a0f001da619ebe8c373bfd6ae79795a68afba0b5e8812e627ec99f0.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 123620
+    },
+    "thumbnail": {
+      "file": "v1/8b6fdd7233fbd1384fbef7e603983522b79536ab55a308a18d6e223479823a6f.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15504
     }
   },
   "characters/northvale/tessa-ward.jpg": {
@@ -9702,6 +11487,21 @@
       "width": 288,
       "height": 384,
       "bytes": 12208
+    }
+  },
+  "characters/northvale/ynez-harlan.jpg": {
+    "sourceHash": "154c19d61c1b5e8e19780d13ca33ebe4b8e4400cfb4d03040b4e3d132dc9fe36",
+    "display": {
+      "file": "v1/23d05a545cd21326b100ad2656d343b113fa2f2e34b920babb69fe6469c8bf02.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 199780
+    },
+    "thumbnail": {
+      "file": "v1/8d2f3ba1c9ce6af8f3da73166fa5121d93c9be537bd70182ff641045b82e2406.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 23684
     }
   },
   "characters/northvale/yusuf-demir.jpg": {
@@ -9779,6 +11579,21 @@
       "bytes": 16460
     }
   },
+  "characters/port-vervelle/amira-soltani.jpg": {
+    "sourceHash": "67826078f12c1a621c19314f8f3279499b51d9c65038bdf66be1bd9fd2679323",
+    "display": {
+      "file": "v1/826de79cd51b05d9af691905fad7aca4c8d2815d21bc8a54952f15c94754376f.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 192596
+    },
+    "thumbnail": {
+      "file": "v1/ab7f94c8ddc354f7e46b936dfc238a39311780d7a9c7eba1b66015df4015f73e.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 24142
+    }
+  },
   "characters/port-vervelle/ana-ribeiro.jpg": {
     "sourceHash": "2c3cbb450f2e052a08534c1b33b527d320ed13f4962c01d43166f42939d8d3c5",
     "display": {
@@ -9824,6 +11639,36 @@
       "bytes": 18682
     }
   },
+  "characters/port-vervelle/carmen-velez.jpg": {
+    "sourceHash": "9fa7064dbeea4a4cfcbccc0797802bc5e4a30599f4685849a2c45365c32a2841",
+    "display": {
+      "file": "v1/2eb25639b4dfc460e774a2656890d1723c47cb4e0fe5dbc62640fbf740972f74.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 132846
+    },
+    "thumbnail": {
+      "file": "v1/27583b25f4b65226333040b9699e9d17cde9a0db77e1f606f122c618bff7f67a.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14624
+    }
+  },
+  "characters/port-vervelle/catalina-ruiz.jpg": {
+    "sourceHash": "dd9feef2f4ea4585bbb34473196695047ec530376e94471dcfd350139d32db77",
+    "display": {
+      "file": "v1/94c5e0f58bec574aeb364ea3fa6972cacf160313a3bc2caae4e8554420f3dc1f.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 136582
+    },
+    "thumbnail": {
+      "file": "v1/763a3e0c90ecee585f1ae083903d96967d36d5017af2da04763cf71fa5332895.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 17210
+    }
+  },
   "characters/port-vervelle/celine-haddad.jpg": {
     "sourceHash": "38f0697aa776f21a28b534b7335866d424b2a6d35d25a6e657c2370d9dcdbdeb",
     "display": {
@@ -9837,6 +11682,21 @@
       "width": 307,
       "height": 384,
       "bytes": 14646
+    }
+  },
+  "characters/port-vervelle/chiara-bellomo.jpg": {
+    "sourceHash": "16fde98480ad8564285a335a938c1dfb9c8ea103d1cb6525b144503b6bd0972f",
+    "display": {
+      "file": "v1/ff596b16af9d8bcc33d0607e8d8fae79a89a57ca7c3317a1089b7e1f2c55c99a.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 196564
+    },
+    "thumbnail": {
+      "file": "v1/3ba0f90d53b892037536f702b475b686ae3567b48d1eab79c1b0060deb858226.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 23832
     }
   },
   "characters/port-vervelle/chiara-vitale.jpg": {
@@ -9929,6 +11789,21 @@
       "bytes": 11626
     }
   },
+  "characters/port-vervelle/enzo-brioni.jpg": {
+    "sourceHash": "99ecb7394670d9614fb595f9714372e87d6d2ad12e41f3d6be1ae694043f82b4",
+    "display": {
+      "file": "v1/9b604ea84b2bfd5a1aa4ff1c5cdb953b5503c34c89bcc0fa7c395af7d5bdf604.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 131862
+    },
+    "thumbnail": {
+      "file": "v1/257a4d24c064ed6a15a6cddf75c0c8b4215c3b396f573cb6764fb3c31fdec034.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15452
+    }
+  },
   "characters/port-vervelle/enzo-moretti.jpg": {
     "sourceHash": "bb44f503245c705fdd03330b112a5e5c9a53157f896c688162ebc66f5ff0ee2a",
     "display": {
@@ -9957,6 +11832,21 @@
       "width": 288,
       "height": 384,
       "bytes": 9104
+    }
+  },
+  "characters/port-vervelle/fiorella-neri.jpg": {
+    "sourceHash": "2d92446945740aeb7443894ce2ae9be81a37a119e5af3c3923c43c225ae1dc11",
+    "display": {
+      "file": "v1/adb7079d95bd38f9133734ede306a4263cf2387693cf6cd08d5808900cc4852e.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 171804
+    },
+    "thumbnail": {
+      "file": "v1/1defba9ebcd1b3ab6700c6c1e8b079a25a6437ac4e1da82e3b836ec3983fe8f1.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 21716
     }
   },
   "characters/port-vervelle/francesca-leone.jpg": {
@@ -10004,6 +11894,21 @@
       "bytes": 9872
     }
   },
+  "characters/port-vervelle/gisele-duras.jpg": {
+    "sourceHash": "06152816b6d26c8c198739c98b16c136f3ae98c28a1bb53a425e81ada6b9a9ef",
+    "display": {
+      "file": "v1/793d11b852465fc86662d1b4558339d6ac8110adcbd64fcd1ca7faaf1d203804.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 106866
+    },
+    "thumbnail": {
+      "file": "v1/c65c3792ce048de1097fee190a05eca01e15ae9f62252612cb0788ca8286c230.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14634
+    }
+  },
   "characters/port-vervelle/giulia-marchetti.jpg": {
     "sourceHash": "c3afb9824374d14ed78f34c41c53a09ba641892438fa43cfa2998249b04cd0ed",
     "display": {
@@ -10019,6 +11924,21 @@
       "bytes": 15816
     }
   },
+  "characters/port-vervelle/hugo-sorrentino.jpg": {
+    "sourceHash": "bb9de0f17228fd1ec3243f3ef194f2799ad9f79de7c9b605761f1835b84e5b00",
+    "display": {
+      "file": "v1/ae4d03095061bc67ca0b0c5e4207444eb05c90c20593080688d689d7b40ac96f.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 110796
+    },
+    "thumbnail": {
+      "file": "v1/adb5ecb00c4f592b651f23babb2ce30d678291b3b61f5a3a48f2e61a9bfbb51b.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14006
+    }
+  },
   "characters/port-vervelle/idris-benali.jpg": {
     "sourceHash": "d1b47c1309581890e43558aa4035470db55d2e836e3f502d53551ea54f911bc8",
     "display": {
@@ -10032,6 +11952,21 @@
       "width": 288,
       "height": 384,
       "bytes": 13782
+    }
+  },
+  "characters/port-vervelle/ines-morel.jpg": {
+    "sourceHash": "e8b34d1d2fbfadd3ac4ca0cf6cfaf3f1a6fae0f706d9107095f11e94818ae6d2",
+    "display": {
+      "file": "v1/db79f10471ce26bf60f4986bcb8fc1ef2e4f276a14dacb7cdfd55c5cbeda41ec.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 187382
+    },
+    "thumbnail": {
+      "file": "v1/00b211bfe4966787e499f0198829d5640bf0d21a7ac975ccb3f469a07f9cb346.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 22688
     }
   },
   "characters/port-vervelle/inez-el-mansouri.jpg": {
@@ -10064,6 +11999,21 @@
       "bytes": 8722
     }
   },
+  "characters/port-vervelle/isadora-vescari.jpg": {
+    "sourceHash": "86779b95091c431560f07dd202183b60b1d1f0455283b283b4e4110565d61a07",
+    "display": {
+      "file": "v1/f36b7d3cc4fb7dba899ce6a8a14fae985d92a66a91ab08b272a28430c46a04eb.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 171714
+    },
+    "thumbnail": {
+      "file": "v1/69cdcc5855d43f530150133dab844630cb8b996f342111bf244e7bcc7dfcf84e.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20688
+    }
+  },
   "characters/port-vervelle/juliette-baptiste.jpg": {
     "sourceHash": "a1c60532e7477c4efa6c92c89118a7e8771c90a79b6d749a99dc8d6c5fba3a05",
     "display": {
@@ -10079,6 +12029,21 @@
       "bytes": 11812
     }
   },
+  "characters/port-vervelle/karim-saadi.jpg": {
+    "sourceHash": "d06605d080932d33e38182e39617915cf345147dc824cf3fbc81c30fbaeeff42",
+    "display": {
+      "file": "v1/6234aefc3beca60febb7253f1b549fe380dcc13935ee344bceb56d182eb0b6c6.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 190244
+    },
+    "thumbnail": {
+      "file": "v1/ae95ff2db1dc129327e43004aba3b027e41cb381447d79d4d8389637fa44254d.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 21386
+    }
+  },
   "characters/port-vervelle/lea-benali.jpg": {
     "sourceHash": "0482e0f9876c5a0589ef9ce3f2795e11a8df76361ddcc4b0295fe7889fde84d5",
     "display": {
@@ -10092,6 +12057,21 @@
       "width": 288,
       "height": 384,
       "bytes": 11928
+    }
+  },
+  "characters/port-vervelle/livia-ferretti.jpg": {
+    "sourceHash": "edf06af80d645c3f427b823f8246185d9d764a1edfc01574a8235898f643b052",
+    "display": {
+      "file": "v1/246305ba96e80ebdae2b88104eec6f6ab658e192fab96e32809dc29c1709712a.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 94092
+    },
+    "thumbnail": {
+      "file": "v1/e34322ef2bd300fc931d9f6e20fd7ec610eb5d38e10aa5b768068792e9eda528.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 13320
     }
   },
   "characters/port-vervelle/livia-santoro.jpg": {
@@ -10214,6 +12194,21 @@
       "bytes": 18392
     }
   },
+  "characters/port-vervelle/matteo-vescari.jpg": {
+    "sourceHash": "f73f3d034f62585f8d8a98d43b179fd62474f05a4ce9a032873294d109fef00f",
+    "display": {
+      "file": "v1/a264d1467a71c913b24e599ca5b4e5aab43bd4f112a21b3627dc49fa75ba37bf.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 162132
+    },
+    "thumbnail": {
+      "file": "v1/2ef27d853a5ed2e0316c1f16524da75fdf1384f00445797dc10ca794e4017094.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20314
+    }
+  },
   "characters/port-vervelle/mia-han-andersson.jpg": {
     "sourceHash": "b45205932ce98a765a0dfaf763261e76012338b295b36ac28cfc6f0f17f27c01",
     "display": {
@@ -10274,6 +12269,51 @@
       "bytes": 10720
     }
   },
+  "characters/port-vervelle/noor-el-sayed.jpg": {
+    "sourceHash": "432d78bde4e772781fe670fd0c413c3442671258be54b76c3325541f31cd8339",
+    "display": {
+      "file": "v1/8472eabe3732af394bb206cef46e52ad289ecde0144e9e267ee0fb8774541ac9.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 156808
+    },
+    "thumbnail": {
+      "file": "v1/ef1a9c93a90d1cb505b18ca3dc86e1409bc317f22c53e8a48572a207f2ce5bcb.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20758
+    }
+  },
+  "characters/port-vervelle/nuria-haddad.jpg": {
+    "sourceHash": "dafb6a62a7d435f8132f72c45e57c7d8851fff29054d92eaaf27707fc2859a30",
+    "display": {
+      "file": "v1/e358631f849cac3561202a2b31256e7bd7ec9f3a245e360559601b5a02022785.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 223930
+    },
+    "thumbnail": {
+      "file": "v1/3e6167cce4cd31d9b65f2a3d9eec2185aebfc65ce6b3ca450f4bab9e6f8d2f23.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 26580
+    }
+  },
+  "characters/port-vervelle/odette-fournier.jpg": {
+    "sourceHash": "fbc3a34aa6d0890c46083a4b15778eddd211c64f8b5ee5360282c62dd44d29dd",
+    "display": {
+      "file": "v1/40eec5e254de98dc03bf0622c1e538c543e9f79609443d64ed8ebc190eb45baf.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 130348
+    },
+    "thumbnail": {
+      "file": "v1/6986a789e200876be35959a5052b15fcffa3aa1e8b74bc7f8160bb101e136bfe.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 17566
+    }
+  },
   "characters/port-vervelle/paloma-vargas.jpg": {
     "sourceHash": "68f776475d83fb7c8293b4945ed5237841d4e169ce0df10489073c69d407b7b7",
     "display": {
@@ -10287,6 +12327,21 @@
       "width": 288,
       "height": 384,
       "bytes": 11784
+    }
+  },
+  "characters/port-vervelle/pascal-diop.jpg": {
+    "sourceHash": "4fbee3f93d798743603f441c267d714489a68ce0c2da0064057af057c1d65edf",
+    "display": {
+      "file": "v1/ee32dc842da244ab49435b2196198470b719e315ab432d1000a8d73289597e76.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 152076
+    },
+    "thumbnail": {
+      "file": "v1/9e6b1818e11ad4c6c8991cf4ef0268b3983807e02b8f766f8394396aa870b51c.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 17426
     }
   },
   "characters/port-vervelle/rafael-silva.jpg": {
@@ -10304,6 +12359,21 @@
       "bytes": 17006
     }
   },
+  "characters/port-vervelle/rafi-benyamin.jpg": {
+    "sourceHash": "3d238c459a57f1bebfdf1200220263b1dc6d0ae84766e34a39d7eeabe530480d",
+    "display": {
+      "file": "v1/349ffc606ddccf896735d31217476f953abe1d4a6ef5105dbd81a6e485fd3d01.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 174294
+    },
+    "thumbnail": {
+      "file": "v1/68cede44bc477c52004b1a3c6e012ba88b545000b2dbbea33b159c91143ea09e.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 23830
+    }
+  },
   "characters/port-vervelle/sara-moretti.jpg": {
     "sourceHash": "1358a2ce12d142d529d0e9f6e8e6caa9a7843f99bb798cf5f840b9102b297d52",
     "display": {
@@ -10317,6 +12387,21 @@
       "width": 288,
       "height": 384,
       "bytes": 12226
+    }
+  },
+  "characters/port-vervelle/serafina-ricci.jpg": {
+    "sourceHash": "5fcffa4282898002b5d98f0b360478acbde1d13746a51134d5859b1125456a6a",
+    "display": {
+      "file": "v1/7b0d3ee0effe26d28d2f5e84f282872b3777b0738ce127428705cb15c9466169.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 77442
+    },
+    "thumbnail": {
+      "file": "v1/e777631aba85767cf70ff92b5ed6c85372f916c1d5df9d852c238ea7fbdc95f2.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 11000
     }
   },
   "characters/port-vervelle/sofia-bellini.jpg": {
@@ -10364,6 +12449,21 @@
       "bytes": 12396
     }
   },
+  "characters/port-vervelle/tomasz-nowak.jpg": {
+    "sourceHash": "3e62138267fbfac314b07c75e374941133654e49762f0aea279c5d4317b96646",
+    "display": {
+      "file": "v1/afdc316b9b79d729fd1159ad6dd4f7d2146d160c0dcd3cc3756c231f75e12901.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 180250
+    },
+    "thumbnail": {
+      "file": "v1/e5bb01a62a1a113eaa9ebcf2dec31aa5fa1b6da3dabb51a13e2c462e09d306ac.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 21038
+    }
+  },
   "characters/port-vervelle/valentina-costa.jpg": {
     "sourceHash": "613dcef5bdbbb7e89fb940f1b95ae4da20f08e6c0b8a509792c1a437b2ac6bfb",
     "display": {
@@ -10409,6 +12509,21 @@
       "bytes": 13062
     }
   },
+  "characters/vespormoor/alaric-crowe.jpg": {
+    "sourceHash": "8fe8c45a5b5c4aa56416949c2c698009efde4942081ee1f5544e6717133a426e",
+    "display": {
+      "file": "v1/f8152af89709e3f2620d775d701175254cb4e051c8460bb51dc1082fb30d3657.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 125142
+    },
+    "thumbnail": {
+      "file": "v1/0e990a7d0434e1a409437dddd66d18267cb7211a2dda1a82152f9f258da79a0b.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 13460
+    }
+  },
   "characters/vespormoor/amara-nwosu.jpg": {
     "sourceHash": "7b5fc8febadf039e72ec8f2789fd6b30e6e7722127be29aa7aaa3c803cae295b",
     "display": {
@@ -10439,6 +12554,36 @@
       "bytes": 12432
     }
   },
+  "characters/vespormoor/briony-fox.jpg": {
+    "sourceHash": "1ecdc0c0ac81d4e789be5170f9a7dfdfe28e79cf326fbb748c2b1b78e245cfd0",
+    "display": {
+      "file": "v1/727792178878f58ae983b0a68881965d7a31877b9f92afacdbdbd1b7bd72af28.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 204778
+    },
+    "thumbnail": {
+      "file": "v1/311a307b180d8ae947cc42343d7dd6795ebcef98b3708981eff5840d4de597c8.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 23912
+    }
+  },
+  "characters/vespormoor/calista-vane.jpg": {
+    "sourceHash": "bba561fb662d4e612dcca212bda384910f55ed7218d724e995dd746124058f4f",
+    "display": {
+      "file": "v1/4665db421763a4781bd8ab8dd3cc02b7bbcce3a50612bd7c58bfa61ffe6fc6cb.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 127906
+    },
+    "thumbnail": {
+      "file": "v1/c3f28ec3cba1f369a2a7b7ab3050d4e56e175d7f290dfbef34890404c52d6c95.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15672
+    }
+  },
   "characters/vespormoor/callum-reid.jpg": {
     "sourceHash": "3fa08008458136e9ca44c71e8a08ccee2b5f9b5b91f8413db6ca91064d882ede",
     "display": {
@@ -10467,6 +12612,36 @@
       "width": 288,
       "height": 384,
       "bytes": 18582
+    }
+  },
+  "characters/vespormoor/canon-ward.jpg": {
+    "sourceHash": "f565f143f407380b3272da32307cc2eeeefe4b6f52eb17413d6fbde9b14ed238",
+    "display": {
+      "file": "v1/c5086b38bd3d50df5783effe532c18d20ce2bda9c3fc671c86fa21e21e3d33f7.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 130140
+    },
+    "thumbnail": {
+      "file": "v1/b88c49f37c698452a792aea5d5b79f80817c68f8cd6da3d888c403c86208a412.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14106
+    }
+  },
+  "characters/vespormoor/caspian-reed.jpg": {
+    "sourceHash": "4181ec19b700b2c63c2a37d83d131e977fb2258981132344550d1f685be146c6",
+    "display": {
+      "file": "v1/f14950a6df44d2368c058087d61c4f4aeb2bab9f6fa97eb8f1f9424a67bcdb28.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 132516
+    },
+    "thumbnail": {
+      "file": "v1/6f521ecb19bb04537565d0cb23ef9e84f90157aa8b4c1931cb017ecf90587dfc.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15586
     }
   },
   "characters/vespormoor/celeste-moreau.jpg": {
@@ -10559,6 +12734,36 @@
       "bytes": 10338
     }
   },
+  "characters/vespormoor/esme-nightingale.jpg": {
+    "sourceHash": "34e5c4d96c612749f04d4bc5ef507b2f6b8b4692f6de31f84c188bd5dcda7c07",
+    "display": {
+      "file": "v1/fa49e7130804fa467a8cb8da19660402aca467832e61daf881589455af7b7bd6.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 124402
+    },
+    "thumbnail": {
+      "file": "v1/a8c541681961a842d22c24639f8b929a3abfb2acb811d9487a389f57b3927f81.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15948
+    }
+  },
+  "characters/vespormoor/evangeline-crowe.jpg": {
+    "sourceHash": "16fcc8bb2fd9b5d36e54a6866f9bf0aea6e1904edae35f8d596d926e42c1545e",
+    "display": {
+      "file": "v1/326126f27e9aa1e943f5c376b0fbd572af5a605ab81da5caaf7d90c84f20d9d9.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 152654
+    },
+    "thumbnail": {
+      "file": "v1/69b324964208ff006ef3ad21ead1249f86f5df637c021a1c6d149356aa2067e9.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19788
+    }
+  },
   "characters/vespormoor/evelyn-harrow.jpg": {
     "sourceHash": "efd31bd46218996a0ea92c0aa86a7402bc197683b7d8768c9c757d21365ca99e",
     "display": {
@@ -10604,6 +12809,21 @@
       "bytes": 9790
     }
   },
+  "characters/vespormoor/gwendolyn-ash.jpg": {
+    "sourceHash": "9006e187262aeb1a60af5eaf250b07bdcdbd68f4fcb3222909b6664303bd1c87",
+    "display": {
+      "file": "v1/0ac2612b56854d865af4fd23111b8384f65bcec008d468a84ed4215de56019d3.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 151856
+    },
+    "thumbnail": {
+      "file": "v1/eff1f43b4daeb2b3074feadc0d4060aaefeddbcd746e11c9b8adde584ec1b22d.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 17834
+    }
+  },
   "characters/vespormoor/hana-watanabe.jpg": {
     "sourceHash": "c2260578950f24ac83333bf053c16a9e5bba858185dfe542fbc2aec9f7f929a8",
     "display": {
@@ -10634,6 +12854,21 @@
       "bytes": 11478
     }
   },
+  "characters/vespormoor/hester-crowe.jpg": {
+    "sourceHash": "3bc23b7ec7be8dd398e8fb05c73d93e1993a89e7f0878fbe1b49ae31d8a998f9",
+    "display": {
+      "file": "v1/35773f0f984b599573b43b3bccb60bd3654d3db2e40bdf3cac9f16def1b3105d.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 123270
+    },
+    "thumbnail": {
+      "file": "v1/1366dd2343fb7f4f34d47556ed9544331399e3dd6a1f1f8d2eea7cfb77990d18.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14996
+    }
+  },
   "characters/vespormoor/isabella-reyes-vespormoor.jpg": {
     "sourceHash": "12208678bfc0e29f63d0da67e2f5bbd5bff908bae4ff4dd198fcfd26bbee4144",
     "display": {
@@ -10647,6 +12882,36 @@
       "width": 288,
       "height": 384,
       "bytes": 9944
+    }
+  },
+  "characters/vespormoor/iskra-dragomir.jpg": {
+    "sourceHash": "dadff12533103f1fb0c7bfcd63fd331b91abc1807ab93ce08be256e984f01afe",
+    "display": {
+      "file": "v1/a209950fdf05914e60f91eb2dc28d69392d495144107de475bb6d7bc7c540740.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 136246
+    },
+    "thumbnail": {
+      "file": "v1/80414cc5e299b38921491b824f780f2bfe6ae00342c7c1e6b2981d31feed885e.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14344
+    }
+  },
+  "characters/vespormoor/isolde-crane.jpg": {
+    "sourceHash": "9df4f1bca9ab183aff3b80de8475ac276c092e000a62fe1373abca6210763fd0",
+    "display": {
+      "file": "v1/ca43d9701773d13405e56ccb9c578585eb7e02fb30f297f880678d9ce28b6f13.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 126104
+    },
+    "thumbnail": {
+      "file": "v1/a50f2dacc9673002c01ed43b198e2585c06c49e47b0e9917a501014b11890d5f.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14688
     }
   },
   "characters/vespormoor/julian-ashcroft.jpg": {
@@ -10859,6 +13124,21 @@
       "bytes": 13354
     }
   },
+  "characters/vespormoor/morrigan-ash.jpg": {
+    "sourceHash": "5a2771c02a1ad8f427b6a1763b1b5158a86caefddb0840a49c234b2b0b701cad",
+    "display": {
+      "file": "v1/b402433a590bb6e1357ce7e7f079dc8629dde93d434be3fc321fe3a06d563ab1.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 150560
+    },
+    "thumbnail": {
+      "file": "v1/76f3b43c77397fe4ae6c554193d27efcd02be9eb0805e77aeb47ab9637bc810c.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16992
+    }
+  },
   "characters/vespormoor/naomi-okafor.jpg": {
     "sourceHash": "99979c6113154a82697ea2ab3f63f902d0a4d1dd62fc1e5086d90ed217b11d30",
     "display": {
@@ -10889,6 +13169,21 @@
       "bytes": 17068
     }
   },
+  "characters/vespormoor/ophelia-graves.jpg": {
+    "sourceHash": "06e7eff43a2eb40a1ffe618ccd9e740897ce1a359be76d7130f41b0552e3db6b",
+    "display": {
+      "file": "v1/d6c4bb46b5f7a9d764029dcc35b368851f5927e919ad5a087ecd8b35e510b8e9.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 158824
+    },
+    "thumbnail": {
+      "file": "v1/32e40559c6368ce3a9d29072d0d23e7091b348b085b2cb205a2c1722c54072f2.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18792
+    }
+  },
   "characters/vespormoor/owen-mercer.jpg": {
     "sourceHash": "e995e93ab0d0ebd15c2ac34bc3c09a41e1cd9a66bb543c9c5dc4c39a8c71c7fc",
     "display": {
@@ -10902,6 +13197,21 @@
       "width": 288,
       "height": 384,
       "bytes": 7470
+    }
+  },
+  "characters/vespormoor/persephone-bell.jpg": {
+    "sourceHash": "b69b4d81c0c0ac903b19a9bc34f55eccab46e89137ae7c8a475d9ee293191487",
+    "display": {
+      "file": "v1/60ceb9b7a8070d42712fda1f78c338cabd35eede4ed64dbccf1c70f7d1977dbf.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 157050
+    },
+    "thumbnail": {
+      "file": "v1/517726d17ec5ba83b12e82491b8a6f45737b6ee98a3742107f141413e0bd3989.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18862
     }
   },
   "characters/vespormoor/priya-raman.jpg": {
@@ -10934,6 +13244,21 @@
       "bytes": 12828
     }
   },
+  "characters/vespormoor/raven-holloway.jpg": {
+    "sourceHash": "429c1baa6bddd5437847656c40123ce64ccf65c8e6203f78d4432a34fb14ca13",
+    "display": {
+      "file": "v1/a1849e2b7fa0955e465c6a7f4dfe2e122a2981bbfb387ae6ebf3776416960928.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 171044
+    },
+    "thumbnail": {
+      "file": "v1/f2ff01f59713e8d205a68a8aea406ac0ce9dc796187506ab94156c83174b2af4.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20910
+    }
+  },
   "characters/vespormoor/ren-takahashi.jpg": {
     "sourceHash": "37f43b21febb2765e8d70060cac10a20d9593fc553a1176725da3c10708364b1",
     "display": {
@@ -10947,6 +13272,21 @@
       "width": 230,
       "height": 384,
       "bytes": 11968
+    }
+  },
+  "characters/vespormoor/rook-vesper.jpg": {
+    "sourceHash": "897d031bb77418342e0ea429929d4729b5ee7708964639c7c4adcc9186eaf00b",
+    "display": {
+      "file": "v1/dcef61ace14078794ef235b716664b0ef7ecdcb7be3ad835bfefb2b285aa2c0b.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 131650
+    },
+    "thumbnail": {
+      "file": "v1/5128232be60494c5557c054b110d59eb3ad037a4b85f8c3499a671f3c87a496c.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 11994
     }
   },
   "characters/vespormoor/rowan-hale.jpg": {
@@ -10979,6 +13319,21 @@
       "bytes": 13308
     }
   },
+  "characters/vespormoor/sebastian-crowe.jpg": {
+    "sourceHash": "ec82ed80a2dcba05ad6464e014d0d254710c5a50070e52669f6a8ccbeef90aae",
+    "display": {
+      "file": "v1/b7d383b5c7e37b383db774a2c5ae38b420a380d976324b5d07c8d3e6aaedabd2.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 153438
+    },
+    "thumbnail": {
+      "file": "v1/df3200925061d99b7e5b1aae21493dc9b590665951c3c92513d1c82dc22c3daf.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18198
+    }
+  },
   "characters/vespormoor/selene-morcant.jpg": {
     "sourceHash": "a140d0e5e2e4d8ddf7e0ba5f0751b6c363ed7e15a9d4eaf14cb56138a8590efb",
     "display": {
@@ -11007,6 +13362,21 @@
       "width": 288,
       "height": 384,
       "bytes": 10780
+    }
+  },
+  "characters/vespormoor/silas-thorn.jpg": {
+    "sourceHash": "30d932c737f40e98c702a2e880c451b89de29adc8e30a705153c6e20f78ac5b1",
+    "display": {
+      "file": "v1/db560647361db42e1dd9acef10d3b500d83796a116b593359e228d483f67fe0f.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 172164
+    },
+    "thumbnail": {
+      "file": "v1/129a67f94b71c5da7a29642ef3f312f29919ebd5b8c64f9dde7a9b171761e710.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 17222
     }
   },
   "characters/vespormoor/sofia-alvarez.jpg": {
@@ -11054,6 +13424,21 @@
       "bytes": 7512
     }
   },
+  "characters/vespormoor/willa-night.jpg": {
+    "sourceHash": "b77393af24b033e5b3ec921bd48b211444525037c7b059b5c7408ffdaa95999a",
+    "display": {
+      "file": "v1/ff95334fa37fa329d860d1c38b4f75313470198785a62bf3deb28cbfb110ea89.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 137542
+    },
+    "thumbnail": {
+      "file": "v1/7e5c7a339ad872d565c1a1917dceb66acf3b3f11d8f0c1b30d72531e116500dc.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 15744
+    }
+  },
   "characters/vespormoor/willow-thorne.jpg": {
     "sourceHash": "734b897e6c6fdf30b28b5b10b023dd40e620904d03ea0730a8a774b23ff2d37b",
     "display": {
@@ -11067,6 +13452,21 @@
       "width": 288,
       "height": 384,
       "bytes": 21752
+    }
+  },
+  "characters/vespormoor/wolfe-brennan.jpg": {
+    "sourceHash": "97b042aef919280b8447848a3be4c03b24ec0b56884b81695f7d673a2e8b7d81",
+    "display": {
+      "file": "v1/692cf49c8cebf164099bfda5c14db055881244d46d5db45077b18a092cd4de33.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 176522
+    },
+    "thumbnail": {
+      "file": "v1/f02b4cba06149a3039d78310c5b50151af5ac18e368da128b5a591567dd89dcf.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 17144
     }
   },
   "characters/vespormoor/zuri-campbell.jpg": {
@@ -11129,6 +13529,36 @@
       "bytes": 17318
     }
   },
+  "characters/vharadren/brannock-forge.jpg": {
+    "sourceHash": "a403417691498812c2e73912453b48c0a490ac98ec410bea83a367f8910162e0",
+    "display": {
+      "file": "v1/aa864065be6c1e43e50ca87b44534e1776113d04a800a3d94082168c801012cb.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 211000
+    },
+    "thumbnail": {
+      "file": "v1/6cdef7d4eee5b4fb5952a6802bd3fd99992d05e6ea657970c911a46805ddfaec.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 21680
+    }
+  },
+  "characters/vharadren/brigid-forge.jpg": {
+    "sourceHash": "c0628099fbd649d4660245f5bc934559095507e511c6f43700f3948da0669f58",
+    "display": {
+      "file": "v1/6015de70d51055267d856b08c32fa7af739f19a1f973314e990c22b21959c4f4.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 249522
+    },
+    "thumbnail": {
+      "file": "v1/d98c5b414e0b9f3e314b49bde5f37e16b3c3a2c4a3166eeb183ca8eb39f5e677.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 26514
+    }
+  },
   "characters/vharadren/brina-forgehand.png": {
     "sourceHash": "43db93aad540f943b81720a258a1a2a818ae8f29cc53e6a5b0a38659127eb09d",
     "display": {
@@ -11174,6 +13604,21 @@
       "bytes": 20150
     }
   },
+  "characters/vharadren/captain-vex-salt.jpg": {
+    "sourceHash": "cd5d168e9d77e79c9e6077bf39e80b48533d3be074ef51918dbd2438187c1c94",
+    "display": {
+      "file": "v1/4021c550d8865d8760bf19db0129deee94dec2505cf44794cb2b7bff277017d9.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 168832
+    },
+    "thumbnail": {
+      "file": "v1/384eb38e1013e8cbc3219135fa7c57527d9f7d74d835b62c62650f046ea9912b.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19004
+    }
+  },
   "characters/vharadren/catrin-brann.png": {
     "sourceHash": "408aa6630fd5f28f88c4848e8e30ab1667b8cb24ff3128cb11c7d3d7afd247e5",
     "display": {
@@ -11217,6 +13662,21 @@
       "width": 288,
       "height": 384,
       "bytes": 18602
+    }
+  },
+  "characters/vharadren/cinder-marrow.jpg": {
+    "sourceHash": "42036c209d38b9e0769ebc61b3d87dd9ecd8facbc132583ce27dbbbe34f17b5d",
+    "display": {
+      "file": "v1/66562dcbc5e32737ee2c1cd66a103c0372d68a9601f19d273e0b5cbae4527670.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 175746
+    },
+    "thumbnail": {
+      "file": "v1/7ba3c1d29eef82aae239ddedbff6df9c591a4c58c52f7c996e180074d043b18e.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20434
     }
   },
   "characters/vharadren/dame-ysabet-rooke.png": {
@@ -11354,6 +13814,36 @@
       "bytes": 16620
     }
   },
+  "characters/vharadren/inquisitor-pellan.jpg": {
+    "sourceHash": "852ddc4c360ba6fc02bc1b4af3c1e59a19ad07ba6eab9c55a6103fe83e103823",
+    "display": {
+      "file": "v1/e933d8f6e7369839b6f74a72bdb3e6f1c81aee5677787516e0a4b7a8c21394f5.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 161508
+    },
+    "thumbnail": {
+      "file": "v1/3402954a45b1b985f6226e154616b41a58ffd9d6989e7ae179b687fd84a4ac82.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16492
+    }
+  },
+  "characters/vharadren/ione-glass.jpg": {
+    "sourceHash": "57cc93bd896ac11c64bad83bac4c6607c0563794a065dbf10d0a03d30fef293c",
+    "display": {
+      "file": "v1/3530ea9fbde96332eebf848063437d20b8515b3bb60f22875d4afe0240f13ff0.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 153132
+    },
+    "thumbnail": {
+      "file": "v1/ab378b7f5833f6d705667f4f74b85fd1d77e81eb1f71c875b7f2c86fec5121d9.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 17982
+    }
+  },
   "characters/vharadren/joren-ash.png": {
     "sourceHash": "1c8a73511887a22e6fd1f37d671e4821c861ae299df65995808482b7fecb0daa",
     "display": {
@@ -11382,6 +13872,21 @@
       "width": 288,
       "height": 384,
       "bytes": 15774
+    }
+  },
+  "characters/vharadren/kaelen-thorn.jpg": {
+    "sourceHash": "f3ce6d98ce5d31ef2f917870a08492b2e44550cca2a7dba1347c821d82deff7b",
+    "display": {
+      "file": "v1/4f52e0a915d99d23ff6b9c1e256f762aa826bcef05fe72654a027fac11389473.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 145344
+    },
+    "thumbnail": {
+      "file": "v1/d3956b88408eb1b4491b7bcaab7d99975af3e5a43801bbbf0f5217ed8af44254.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16028
     }
   },
   "characters/vharadren/king-edric-thornwall.png": {
@@ -11489,6 +13994,21 @@
       "bytes": 18834
     }
   },
+  "characters/vharadren/lysandra-veyl.jpg": {
+    "sourceHash": "6492a7ea3d2b5d8e86de68881725ee9c8b2cb68299be0093b3d901032342014c",
+    "display": {
+      "file": "v1/0cef1eba2dc76fb20ac82e6a6524c7b9f43be3c563bcb4baafa625c1530c48b3.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 133912
+    },
+    "thumbnail": {
+      "file": "v1/f40dcf8a31484fd0d8114efd4fba17aff204ce144873dddd44c6ca50eff89f00.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16828
+    }
+  },
   "characters/vharadren/lyssa-bramble.png": {
     "sourceHash": "95c63ab496e40d2246dc717430d429a16ecdb35e812106b1a4a69e77cf7eaf35",
     "display": {
@@ -11502,6 +14022,21 @@
       "width": 288,
       "height": 384,
       "bytes": 19634
+    }
+  },
+  "characters/vharadren/maera-thorn.jpg": {
+    "sourceHash": "3295f7cddd02d27b1e4d6d62d1bda01dced4d4f9ee99bf91f41eb3d90db0f3d8",
+    "display": {
+      "file": "v1/692148fd5db57d9c089ef10d2770c23b8fc0df6afe4d430f187995c575fe371d.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 123368
+    },
+    "thumbnail": {
+      "file": "v1/28efd91ef12aab4b178b418c33d15c1c9fe3d794ea41ac75ff5b123cbd5982de.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 14686
     }
   },
   "characters/vharadren/maeve-redreed.png": {
@@ -11594,6 +14129,36 @@
       "bytes": 19162
     }
   },
+  "characters/vharadren/nima-hartwood.jpg": {
+    "sourceHash": "c534d0c54e508541be5155388cf2af667749ca011367327c345affdfdf576a34",
+    "display": {
+      "file": "v1/226ec63d7dff2b84367ca1111f72a744ef62f0d9fa8e8cb79b2162cfc43325f0.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 240286
+    },
+    "thumbnail": {
+      "file": "v1/a4bc89db2905340dcb6c4b5ac464e61b7c129888ffb42a5550dfcb32018dac22.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 24522
+    }
+  },
+  "characters/vharadren/oath-sister-calyx.jpg": {
+    "sourceHash": "8f3473ff06be39b7cb68e10c0cb7aa53c0e48273f7ce2ce706cf6c8b943c5ed7",
+    "display": {
+      "file": "v1/af42ab4702701fa2a0c9249bf7cca560faed4f1b019c86a750f28e9fb1e2a5ab.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 115590
+    },
+    "thumbnail": {
+      "file": "v1/a98eb026619d103c9c39ea2a77945b1d71a6db1fa5f774d32dc00a3195f75b0d.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 13898
+    }
+  },
   "characters/vharadren/orla-saye.png": {
     "sourceHash": "7ed21658ce6fa6dd1efe4cb963238cfe8a8e2508a82ee7ef25c0adba210d305d",
     "display": {
@@ -11622,6 +14187,21 @@
       "width": 288,
       "height": 384,
       "bytes": 18754
+    }
+  },
+  "characters/vharadren/priestess-ashara-flame.jpg": {
+    "sourceHash": "e5d6da20038090f5b70880dd369823b78ea8bbf41c4a796f54a195ebfad99dca",
+    "display": {
+      "file": "v1/c08f7989a8c4482e662aa8054743a5e2a39e48e28bb787632f9ebc060d28f932.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 183170
+    },
+    "thumbnail": {
+      "file": "v1/c7905feb10a9551bbfab1e314ec6e5afa295c3ce2a4a838577fb567d05c5e1fe.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19600
     }
   },
   "characters/vharadren/prince-aurel-ravaryn.png": {
@@ -11684,6 +14264,21 @@
       "bytes": 22886
     }
   },
+  "characters/vharadren/pyra-ashscale.jpg": {
+    "sourceHash": "bf07b3f1c12b402b2b8abf715ef027987df3a41a2b2e52b734850d896df88996",
+    "display": {
+      "file": "v1/76e10287e63980366150e0e7009c62f5e5542c0c17aac8a47eaf7ee54cdd0a09.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 179738
+    },
+    "thumbnail": {
+      "file": "v1/6c8e8326cf60bace7df23c648385673e3dd70cf07eef8b0d8df6c9fe2ddb5261.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18202
+    }
+  },
   "characters/vharadren/queen-maerra-vaelorian.png": {
     "sourceHash": "f120edc717ed43f13a2b2c9bfc7af46f996a288e1a97e1fb94fefa8fa9d9f2fe",
     "display": {
@@ -11729,6 +14324,21 @@
       "bytes": 20478
     }
   },
+  "characters/vharadren/riven-crow.jpg": {
+    "sourceHash": "31472df272c8c48a0da502a6ddb61f6b594d7b7aef05607da8183ea046a282c9",
+    "display": {
+      "file": "v1/f02f740a915836c50a781086540b8f96d306ca9c560702b33cca7a9a4d4a164b.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 193756
+    },
+    "thumbnail": {
+      "file": "v1/3aa0c5459f25442e7fca5d2b25911b93505927d9b01369dea7f0d27670999299.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 22800
+    }
+  },
   "characters/vharadren/rorik-pell.png": {
     "sourceHash": "2aa6de8891eff21446372a8dd579c08a697f94fb8ec044bc33c18d8596f10f86",
     "display": {
@@ -11772,6 +14382,21 @@
       "width": 288,
       "height": 384,
       "bytes": 14676
+    }
+  },
+  "characters/vharadren/ser-jareth-iron.jpg": {
+    "sourceHash": "b4cc8e94b136b54d089cee2f311368e24d0a630090857be20ce1bbe135ff3122",
+    "display": {
+      "file": "v1/c6b3f4eb85702a1420c5f6be72efb7e8e3022c783ab0b6cb51c57a93dd840e2d.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 150782
+    },
+    "thumbnail": {
+      "file": "v1/881af4931df2a1733f24043672612effd6d318d4d5ebe3f82cdd7d107de8d2f4.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 16352
     }
   },
   "characters/vharadren/sera-blackvein.png": {
@@ -11849,6 +14474,36 @@
       "bytes": 15314
     }
   },
+  "characters/vharadren/vaelora-silk.jpg": {
+    "sourceHash": "738a6f882a51a4a17305e36276c8fd0abbacaa91f4ebcdb49f8b69bba6f4de40",
+    "display": {
+      "file": "v1/9b21738c270bcdf04c2d1d98dc2d53c5230d596ce517a3d3affbab742ba50421.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 192474
+    },
+    "thumbnail": {
+      "file": "v1/9ef1214be8ef6cdaf11b0cb25e77c2e853d429e7c88b3c7d9cd452c17f3b7a48.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 20674
+    }
+  },
+  "characters/vharadren/velin-silk.jpg": {
+    "sourceHash": "d5a169656ef0b35b1dc6db52f4743f3a2668e156da233ac00e4be468b2ebadd2",
+    "display": {
+      "file": "v1/288490e74fb3cb4cf50a6641071c0b505bb85f3be79a5a56647c014caf482291.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 154760
+    },
+    "thumbnail": {
+      "file": "v1/c14fedecfeb4c605ca608fb17ebf846947f0ac896f4503fbefd304d028b17630.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18620
+    }
+  },
   "characters/vharadren/vespera-saan.png": {
     "sourceHash": "6809cb887f18e1c68c8db4fb6843f34b70f786859dd43236e7e39f8802cbca24",
     "display": {
@@ -11862,6 +14517,51 @@
       "width": 288,
       "height": 384,
       "bytes": 15832
+    }
+  },
+  "characters/vharadren/warden-tide.jpg": {
+    "sourceHash": "38e44973af0696dbe4d3f3228fab0e03501fb5a3a2341690fcc80587dc0312ef",
+    "display": {
+      "file": "v1/74225258cce0c296e5469b86f47a4c1ea5a982e35144622f685d1cbe227911da.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 176496
+    },
+    "thumbnail": {
+      "file": "v1/93081b82393d397d2b563116857e539de03ab31f4e20a363dc6005bc3cc2045e.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 18094
+    }
+  },
+  "characters/vharadren/whisper-saan.jpg": {
+    "sourceHash": "deef08d716676f14af0bde828cf0b099464d007bd23192234d9bb39b2185b9dd",
+    "display": {
+      "file": "v1/2e919375a6f0ceef46ac92eadf0144a4d7b1f96881a058c72ea2fd031f8e12b8.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 157874
+    },
+    "thumbnail": {
+      "file": "v1/6542d1a69c71b048ca366642a87e70a6d11b60945b9d9ab202ee4321882df112.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 19512
+    }
+  },
+  "characters/vharadren/ysolde-lantern.jpg": {
+    "sourceHash": "2384701bcaebe07c2c63211e90e84e0bd8663381d3f9b1cb00ad7ced5a6fb548",
+    "display": {
+      "file": "v1/44caa586f99731a72dea55e294579c54a13b96023685750e7452a08562566203.webp",
+      "width": 1086,
+      "height": 1448,
+      "bytes": 142906
+    },
+    "thumbnail": {
+      "file": "v1/0fe96a281f201b0f99f21c512b3ee20dc29f22b6a8252dab311787693ffbfb54.webp",
+      "width": 288,
+      "height": 384,
+      "bytes": 17672
     }
   },
   "chloe-portrait.jpg": {

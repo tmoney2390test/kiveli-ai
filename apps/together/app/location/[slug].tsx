@@ -5,7 +5,9 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, CalendarDays, Clock3, MapPin, Sparkles } from 'lucide-react-native';
 import { locationImageSource } from '../../src/lib/locationImageSource';
-import { EmptyState, GlassCard, GradientButton, LoadingSkeleton, MediaGallery, PlanningCompanionPicker, Screen, SectionHeader } from '../../src/components';
+import { EmptyState, GlassCard, GradientButton, LoadingSkeleton, Screen, SectionHeader } from '../../src/components/ui';
+import { MediaGallery } from '../../src/components/media/MediaGallery';
+import { PlanningCompanionPicker } from '../../src/components/PlanningCompanionPicker';
 import { colors, radius } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import type { Conversation, PlaceContext } from '../../src/types';

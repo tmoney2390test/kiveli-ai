@@ -43,19 +43,28 @@ still reference them. Authenticated/anonymous app clients cannot modify objects.
 2. Run `pnpm artwork:generate`. This writes the checked-in manifest, local startup
    derivative, compact runtime manifest, and ignored `.codex-temp/catalog-artwork/`
    display copies. Source checksums and upload byte counts stay out of client bundles.
-3. Run `pnpm artwork:verify`, lint, typecheck and tests. CI verifies every source
-   hash and registry mapping and rejects missing/stale entries.
+3. Run `pnpm artwork:verify`, lint, typecheck and tests. With server-only
+   Supabase credentials, run `pnpm portrait:audit` to compare every published
+   selectable canonical character with the actual app portrait registry and
+   catalog manifest. The publisher runs this live audit again before any upload.
+   The `portraitStatus` metadata flag alone is not proof an image exists.
 4. With `SUPABASE_URL` and `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` supplied
    through the authenticated deployment environment, run `pnpm artwork:publish`.
    It creates the dedicated bucket if absent, refuses to expose an existing private
    bucket, never overwrites an object, and fetches/verifies each published checksum.
    Retry is safe. Do not print credentials or put them in EXPO_PUBLIC configuration.
-5. Publish clients only after all current manifest objects verify. Regenerate and
-   publish first when a source changes; old content-hash objects stay available.
+5. For new or changed character portraits, run
+   `node --experimental-strip-types scripts/sync-kivelle-reference-media.ts --characters-only --apply`
+   with the same server-only credentials so photo generation has the canonical
+   identity reference. It covers every published world, including Calder's Run.
+6. Publish clients only after all current manifest objects verify and the
+   character-reference sync completes. Regenerate and publish first when a
+   source changes; old content-hash objects stay available.
 
 Bucket creation is Storage API configuration, not a database schema migration.
-No historical migration reconciliation, reference migration or backend function
-deployment is required. The existing gateway serves the updated web export;
+No historical migration reconciliation or backend function deployment is
+required. New character artwork does require the reference-media sync above.
+The existing gateway serves the updated web export;
 there is no new Worker route or binding.
 
 ## Build and release gates

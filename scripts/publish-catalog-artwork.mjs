@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { bucket, outputPath, sha256, verifyManifest } from './catalog-artwork.mjs';
+import { auditPublishedCharacterPortraits } from './audit-published-character-portraits.mjs';
 
 // No key is accepted from app configuration or written to output. Invoke with
 // existing authenticated release credentials in the process environment.
@@ -10,6 +11,7 @@ if(!url||!key) throw new Error('SUPABASE_URL and a server-only Supabase key are 
 if(new URL(url).hostname!=='mfysnlghlhxxcwnwpxog.supabase.co') throw new Error('Confirm the Kivelli production catalog target before publishing');
 const manifest=await verifyManifest();
 const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+console.log(JSON.stringify(await auditPublishedCharacterPortraits(db)));
 const {data:buckets,error:listError}=await db.storage.listBuckets();
 if(listError)throw new Error(`Cannot inspect catalog bucket: ${listError.message}`);
 const existing=buckets.find(item=>item.id===bucket);

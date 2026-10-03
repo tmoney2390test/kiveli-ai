@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Heart } from 'lucide-react-native';
-import { Body, PageTitle, Screen } from '../src/components';
+import { Body, PageTitle, Screen } from '../src/components/ui';
 import { colors, radius } from '../src/theme';
 
 /** Legacy route retained so old links fail safely without exposing retired controls. */

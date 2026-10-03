@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { router, Tabs } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { Compass, Home, Images, MessageCircle, Plus } from 'lucide-react-native';
@@ -28,6 +28,16 @@ export default function TabsLayout() {
   const messagesInboxHref=web?WEB_MESSAGES_INBOX_HREF:MESSAGES_INBOX_HREF;
   const[webInputFocused,setWebInputFocused]=useState(false);
   const[createOpen,setCreateOpen]=useState(false);
+  const[reduceTransparency,setReduceTransparency]=useState(false);
+  useEffect(()=>{
+    if(Platform.OS!=='ios')return;
+    let mounted=true;
+    void AccessibilityInfo.isReduceTransparencyEnabled().then((enabled)=>{
+      if(mounted)setReduceTransparency(enabled);
+    }).catch(()=>undefined);
+    const listener=AccessibilityInfo.addEventListener('reduceTransparencyChanged',setReduceTransparency);
+    return()=>{mounted=false;listener.remove();};
+  },[]);
   useEffect(()=>snapshot?scheduleCoreRouteWarmup((href)=>router.prefetch(href as never)):undefined,[Boolean(snapshot)]);
   useEffect(()=>{
     if(!web)return;
@@ -44,9 +54,9 @@ export default function TabsLayout() {
     tabBarActiveTintColor: Platform.OS === 'ios' ? '#FFF1F8' : '#FF86AB',
     tabBarInactiveTintColor: '#938996',
     tabBarActiveBackgroundColor: 'transparent',
-    tabBarButton: (props) => <MobileTabButton {...props} />,
+    tabBarButton: (props) => <MobileTabButton {...props} reduceTransparency={reduceTransparency} />,
     tabBarHideOnKeyboard: true,
-    tabBarBackground: () => <FrostedTabBarBackground liquidGlass={iosGlass} />,
+    tabBarBackground: () => <FrostedTabBarBackground liquidGlass={iosGlass && !reduceTransparency} reduceTransparency={reduceTransparency} />,
     tabBarStyle: {
       display: desktop||desktopViewport||webInputFocused ? 'none' : 'flex',
       position: 'absolute',
@@ -58,15 +68,15 @@ export default function TabsLayout() {
       paddingTop: Platform.OS === 'ios' ? 3 : 5,
       paddingBottom: Platform.OS === 'ios' ? 3 : 7,
       backgroundColor: 'transparent',
-      borderTopWidth: 1,
-      borderWidth: 1,
-      borderColor: iosGlass ? 'rgba(255,248,244,.2)' : 'rgba(255,248,244,.11)',
+      borderTopWidth: Platform.OS === 'ios' ? 0 : 1,
+      borderWidth: Platform.OS === 'ios' && iosGlass && !reduceTransparency ? 0 : 1,
+      borderColor: 'rgba(255,248,244,.11)',
       borderRadius: Platform.OS === 'ios' ? 34 : 20,
       borderCurve: 'continuous',
       elevation: 18,
       shadowColor: '#000',
-      shadowOpacity: Platform.OS === 'ios' ? .36 : .45,
-      shadowRadius: Platform.OS === 'ios' ? 22 : 26,
+      shadowOpacity: Platform.OS === 'ios' ? .2 : .45,
+      shadowRadius: Platform.OS === 'ios' ? 16 : 26,
       shadowOffset: { width: 0, height: Platform.OS === 'ios' ? 8 : 13 },
       overflow: 'hidden',
       ...(web ? { position: 'fixed' as never, width: webBarWidth, left: '50%', right: undefined, marginLeft: -webBarWidth / 2, bottom: 'max(8px, env(safe-area-inset-bottom))' as never, backdropFilter: 'blur(30px) saturate(145%)' } : {}),
@@ -82,7 +92,7 @@ export default function TabsLayout() {
       listeners={{tabPress:(event)=>{const href=latestChatHref??messagesInboxHref;prepare(href);event.preventDefault();router.push(href as never);}}}
     />
     <Tabs.Screen name="moments" options={{ title: 'Moments', tabBarIcon: ({ color, size, focused }) => <Images color={color} size={focused ? size + 1 : size} /> }} listeners={{tabPress:()=>prepare('/moments')}} />
-    <Tabs.Screen name="create" options={{ title: 'Create', tabBarIcon: ({ color, size }) => <Plus color={color} size={size + 2} />, tabBarButton: (props) => <MobileTabButton {...props} href={undefined} onPress={(event) => { event.preventDefault(); setCreateOpen(true); }} /> }} listeners={{tabPress:(event)=>{event.preventDefault();setCreateOpen(true);}}} />
+    <Tabs.Screen name="create" options={{ title: 'Create', tabBarIcon: ({ color, size }) => <Plus color={color} size={size + 2} />, tabBarButton: (props) => <MobileTabButton {...props} reduceTransparency={reduceTransparency} href={undefined} onPress={(event) => { event.preventDefault(); setCreateOpen(true); }} /> }} listeners={{tabPress:(event)=>{event.preventDefault();setCreateOpen(true);}}} />
     <Tabs.Screen name="upgrade" options={{ href: null }} />
     <Tabs.Screen name="profile" options={{ href: null }} />
     <Tabs.Screen name="dates" options={{ href: null }} />
@@ -93,14 +103,14 @@ export default function TabsLayout() {
   </>;
 }
 
-function FrostedTabBarBackground({liquidGlass}:{liquidGlass:boolean}) {
+function FrostedTabBarBackground({liquidGlass,reduceTransparency}:{liquidGlass:boolean;reduceTransparency:boolean}) {
   if(liquidGlass)return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-    <IosLiquidGlass colorScheme="dark" glassEffectStyle="regular" tintColor="#342536" style={styles.nativeGlass} />
-    <View style={styles.nativeGlassWash} />
+    <IosLiquidGlass glassEffectStyle="regular" style={styles.nativeGlass} />
   </View>;
+  if(reduceTransparency)return <View pointerEvents="none" style={[StyleSheet.absoluteFill,styles.reducedTransparencyBackground]} />;
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-    <BlurView tint="systemMaterialDark" intensity={78} blurMethod="dimezisBlurViewSdk31Plus" style={[StyleSheet.absoluteFill, styles.glassBlur]} />
-    <View style={styles.glassWash} />
+    <BlurView tint={Platform.OS === 'ios' ? 'systemUltraThinMaterialDark' : 'systemMaterialDark'} intensity={78} blurMethod="dimezisBlurViewSdk31Plus" style={[StyleSheet.absoluteFill, Platform.OS === 'ios' ? styles.iosBlur : styles.glassBlur]} />
+    <View style={Platform.OS === 'ios' ? styles.iosGlassWash : styles.glassWash} />
   </View>;
 }
 
@@ -110,11 +120,18 @@ const styles = StyleSheet.create({
     borderRadius: 34,
     borderCurve: 'continuous',
   },
-  nativeGlassWash: {
+  reducedTransparencyBackground: {
     ...StyleSheet.absoluteFill,
     borderRadius: 34,
     borderCurve: 'continuous',
-    backgroundColor: 'rgba(37,23,43,.1)',
+    backgroundColor: '#251C2B',
+  },
+  iosBlur: {
+    backgroundColor: 'rgba(15,12,21,.08)',
+  },
+  iosGlassWash: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(37,24,44,.07)',
   },
   glassBlur: {
     backgroundColor: 'rgba(15,12,21,.66)',

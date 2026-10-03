@@ -8,7 +8,7 @@ export const styles = StyleSheet.create({
   // section navigation or steal its pointer events while expanded.
   backdropDesktop: { justifyContent: 'center', ...(Platform.OS === 'web' ? ({ position: 'fixed', top: 0, right: 0, bottom: 0, left: DESKTOP_SIDEBAR_EXPANDED_WIDTH, zIndex: 1200, padding: 18 } as never) : {}) },
   modal: { width: '100%', backgroundColor: '#17121E', overflow: 'hidden', borderColor: '#40334F' },
-  modalDesktop: { maxWidth: 1100, borderRadius: 24, borderWidth: 1, shadowColor: '#000', shadowOpacity: .48, shadowRadius: 44, shadowOffset: { width: 0, height: 22 } },
+  modalDesktop: { maxWidth: 820, borderRadius: 24, borderWidth: 1, shadowColor: '#000', shadowOpacity: .48, shadowRadius: 44, shadowOffset: { width: 0, height: 22 } },
   modalMobile: { maxWidth: 460, borderRadius: 24, borderWidth: 1 },
   header: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: '#3B3047' },
   brandMark: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(151,116,171,.085)', borderWidth: 1, borderColor: 'rgba(204,176,221,.18)' },

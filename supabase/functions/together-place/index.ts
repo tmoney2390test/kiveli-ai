@@ -5,6 +5,8 @@ import { json, serve } from '../_shared/http.ts';
 import { AppError } from '../_shared/types.ts';
 import { resolvePlaceContext, resolveWorldAccess } from '../_shared/together-place.ts';
 import { createPersonalPlaceInput, personalPlaceFields as fields, validatePersonalPlaceImage } from '../_shared/personal-place-input.ts';
+import { resolveSubscriptionAccess } from '../_shared/kivelle-subscription.ts';
+import { personalPlaceLimit } from '../../../packages/together-domain/src/personal-place-limits.ts';
 
 const id=z.string().uuid();
 const schema=z.discriminatedUnion('action',[
@@ -24,11 +26,13 @@ serve(async(request,correlationId)=>{
   const body=await parseBody(request,z.union([schema,z.object({locationId:id}).strict()]));
   const input='action'in body?body:{...body,action:'detail' as const};
   if(input.action==='list'){
-    let query=db.from('together_locations').select('*').eq('owner_user_id',user.id).is('archived_at',null).order('created_at',{ascending:false}).limit(50);
+    const accessPromise=resolveSubscriptionAccess(db,user.id);
+    const countPromise=db.from('together_locations').select('id',{count:'exact',head:true}).eq('owner_user_id',user.id).is('archived_at',null);
+    let query=db.from('together_locations').select('*').eq('owner_user_id',user.id).is('archived_at',null).order('created_at',{ascending:false}).limit(100);
     if(input.worldId)query=query.eq('world_id',input.worldId);
-    const{data,error}=await query;
-    if(error)throw new AppError('INTERNAL_ERROR','Your places could not be loaded.',500,true);
-    return json({data:{places:await signedPlaces(db,data??[])},correlationId},200,correlationId);
+    const[placesResult,usageResult,access]=await Promise.all([query,countPromise,accessPromise]);
+    if(placesResult.error||usageResult.error)throw new AppError('INTERNAL_ERROR','Your places could not be loaded.',500,true);
+    return json({data:{places:await signedPlaces(db,placesResult.data??[]),quota:{used:usageResult.count??0,limit:personalPlaceLimit(access.tier)}},correlationId},200,correlationId);
   }
   if(input.action==='create'||input.action==='prepare_create_image'){
     const access=await resolveWorldAccess({db,userId:user.id,worldId:input.worldId});
@@ -40,8 +44,11 @@ serve(async(request,correlationId)=>{
         return json({data:{place:(await signedPlaces(db,[existing]))[0]},correlationId},200,correlationId);
       }
     }
-    const{count}=await db.from('together_locations').select('id',{count:'exact',head:true}).eq('owner_user_id',user.id).is('archived_at',null);
-    if((count??0)>=20)throw new AppError('CONFLICT','You can keep up to 20 personal places. Archive one to add another.',409);
+    const subscription=await resolveSubscriptionAccess(db,user.id);
+    const limit=personalPlaceLimit(subscription.tier);
+    const{count,error:countError}=await db.from('together_locations').select('id',{count:'exact',head:true}).eq('owner_user_id',user.id).is('archived_at',null);
+    if(countError)throw new AppError('INTERNAL_ERROR','Your places could not be counted.',500,true);
+    if((count??0)>=limit)throw placeLimitError(limit);
     if(input.action==='prepare_create_image'){
       const locationId=crypto.randomUUID(),path=`${user.id}/places/${locationId}/${crypto.randomUUID()}.jpg`;
       const{data,error}=await db.storage.from('together-user-media').createSignedUploadUrl(path,{upsert:false});
@@ -54,6 +61,7 @@ serve(async(request,correlationId)=>{
     const category={home:'home',bar:'bar',restaurant:'restaurant',hotel:'hotel',outdoors:'outdoors',other:'social'}[input.kind];
     const place={id:locationId,owner_user_id:user.id,world_id:input.worldId,parent_location_id:input.parentLocationId??null,depth:input.parentLocationId?1:0,name:input.name,slug:`personal-${locationId}`,description:input.description,category,location_type:input.kind==='home'||input.kind==='hotel'?'residence':input.kind==='outdoors'?'outdoor':'venue',hours:input.hours??{open:'00:00',close:'24:00'},custom_image_path:input.image.path,possible_activities:uniqueActivities(input.activities),metadata:{private:true,directoryVisibility:'private',userCreated:true,kind:input.kind},canonical_visual_context:{canonicalPrompt:input.description,indoorOutdoor:input.kind==='outdoors'?'outdoor':input.kind==='other'?'mixed':'indoor'},canonical_lore:{summary:input.description},sort_order:9999};
     const{data,error}=await db.from('together_locations').insert(place).select('*').single();
+    if(error?.code==='23514'&&error.message?.includes('Private place limit reached'))throw placeLimitError(limit);
     if(error||!data)throw new AppError('INTERNAL_ERROR','Your place could not be saved.',500,true);
     const{error:referenceError}=await db.from('together_media_reference_assets').insert({asset_role:'location_canonical',location_id:locationId,source_key:`user-place:${locationId}`,storage_bucket:'together-user-media',storage_path:input.image.path,content_type:'image/jpeg',width:input.image.width,height:input.image.height,byte_size:imageFile.size,revision:1,metadata:{ownerUserId:user.id}});
     if(referenceError){await db.from('together_locations').delete().eq('id',locationId).eq('owner_user_id',user.id);throw new AppError('INTERNAL_ERROR','Your place image could not be saved. Please try again.',500,true);}
@@ -99,6 +107,7 @@ serve(async(request,correlationId)=>{
 });
 
 function uniqueActivities(values:string[]){return [...new Set(values.map((value)=>value.trim()).filter(Boolean))];}
+function placeLimitError(limit:number){return new AppError('PLAN_LIMIT_REACHED',`Your plan includes ${limit} personal places. Archive one or upgrade to create another.`,403,false);}
 async function signedPlaces(db:any,rows:Array<Record<string,any>>){
   const paths=rows.map((row)=>String(row.custom_image_path??'')).filter(Boolean);
   const signed=paths.length?await db.storage.from('together-user-media').createSignedUrls(paths,3600):{data:[]};

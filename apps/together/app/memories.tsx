@@ -6,7 +6,8 @@ import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, 
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowUpDown, Brain, Check, CheckSquare, ChevronDown, LockKeyhole, Plus, Search, ShieldCheck, SlidersHorizontal, X } from 'lucide-react-native';
-import { CharacterAvatar, EmptyState, FrostedSurface, Screen } from '../src/components';
+import { CharacterAvatar, EmptyState, Screen } from '../src/components/ui';
+import { FrostedSurface } from '../src/components/FrostedGlass';
 import { MemoryActionToast, MemoryBulkBar, MemoryDetailSheet, MemoryEditorSheet, MemoryInsightsPanel, MemoryJournalRow, MemoryPrivacySheet } from '../src/components/memory/MemoryCenterPrimitives';
 import { colors, radius, spacing, typography } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';

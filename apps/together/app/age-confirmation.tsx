@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import type { AccountGender } from '@together/domain/src/account-onboarding';
 import { normalizePersonaDisplayName } from '@together/domain/src/account-onboarding';
 import { BirthdateField } from '../src/components/BirthdateField';
-import { Screen } from '../src/components';
+import { Screen } from '../src/components/ui';
 import { confirmAdultAge } from '../src/lib/api';
 import { validBirthdateEntry } from '../src/lib/pendingBirthdate';
 import { resolvePostAuthDestination } from '../src/lib/authRouting';

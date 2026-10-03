@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { Asset } from 'expo-asset';
 import { router as expoRouter } from 'expo-router';
 import { Sparkles } from 'lucide-react-native';
-import { EmptyState, GradientButton, MomentCarousel, Screen, resolveCharacterPortraitSource } from '../../src/components';
+import { EmptyState, GradientButton, MomentCarousel, Screen, resolveCharacterPortraitSource } from '../../src/components/ui';
 import { CinematicCompanionHero } from '../../src/components/home/CinematicCompanionHero';
 import { FeaturedCompanionsSection } from '../../src/components/home/FeaturedCompanionsSection';
 import { HomeHeader } from '../../src/components/home/HomeHeader';
@@ -31,6 +31,7 @@ import { useSurfaceReadyTiming } from '../../src/components/ClientPerformanceBri
 import { useAuth } from '../../src/hooks/useAuth';
 import { writeSessionHeroUri } from '../../src/lib/sessionSnapshotCache';
 import { isWorldCatalogVisible } from '../../../../packages/together-domain/src/world-access';
+import type { WorldPulseV2Event } from '@together/domain/src/world-pulse-v2';
 
 const router = expoRouter as unknown as { push: (href: string) => void };
 
@@ -45,7 +46,7 @@ export default function Home() {
   const lastRecommendationLoadHeight=useRef(0);
   const recommendationRevealTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const [recommendationsRevealing,setRecommendationsRevealing]=useState(false);
-  const [selectedPulseEventId,setSelectedPulseEventId]=useState<string|null>(null);
+  const [selectedPulseEvent,setSelectedPulseEvent]=useState<WorldPulseV2Event|null>(null);
   useEffect(()=>{
     if(recommendationRevealTimer.current)clearTimeout(recommendationRevealTimer.current);
     recommendationRevealTimer.current=null;
@@ -176,13 +177,13 @@ export default function Home() {
     {secondaryWorkReady?<>
       {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Pressable accessibilityRole="button" accessibilityLabel="View all recently shared moments" hitSlop={6} onPress={() => router.push('/(tabs)/moments')} style={({pressed})=>[styles.sectionActionButton,pressed&&styles.sectionActionPressed]}><Text style={styles.sectionAction}>View all →</Text></Pressable></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
       {pulseWorld&&worldPulse?.worldId===pulseWorld.id?(worldPulse.version===2
-        ?<WorldPulseV2Section worldName={pulseWorld.name} events={worldPulse.events} onOpen={(event)=>setSelectedPulseEventId(event.id)} onViewAll={()=>router.push(`/world-pulse?world=${pulseWorld.slug}` as never)}/>
+        ?<WorldPulseV2Section worldName={pulseWorld.name} events={worldPulse.events} onOpen={setSelectedPulseEvent} onViewAll={()=>router.push(`/world-pulse?world=${pulseWorld.slug}` as never)}/>
         :<AroundTownSection worldName={pulseWorld.name} items={worldPulse.items.slice(0,5)} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${pulseWorld.slug}`);router.push(`/(tabs)/explore?world=${pulseWorld.slug}`);}}/>)
         :pulseWorld&&pulseScope&&worldPulsePending?<WorldPulseV2Skeleton worldName={pulseWorld.name}/>
         :pulseWorld&&pulseScope&&worldPulseError?<WorldPulseV2LoadError onRetry={()=>void refetchWorldPulse()}/>:null}
       {selectedWorld ? <FeaturedCompanionsSection initialCount={recommendationBatchSize} totalCount={featuredCompanions.length} revealing={recommendationsRevealing} onRevealMore={()=>revealMoreRecommendations(featuredCompanions.length)} companions={featuredCompanions.slice(0,visibleRecommendationCount)} world={selectedWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onExplore={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/explore?world=${selectedWorld.slug}`); }} onToggleFavorite={toggleFavorite} /> : null}
     </>:<HomeSecondaryLoading/>}
-    <WorldPulseEventModal eventId={selectedPulseEventId} onClose={()=>setSelectedPulseEventId(null)} onNavigate={(href)=>{setSelectedPulseEventId(null);router.push(href);}}/>
+    <WorldPulseEventModal eventId={selectedPulseEvent?.id??null} previewEvent={selectedPulseEvent} onClose={()=>setSelectedPulseEvent(null)} onNavigate={(href)=>{setSelectedPulseEvent(null);router.push(href);}}/>
   </Screen>;
 }
 

@@ -3,6 +3,7 @@ import { mergeReconciledMedia } from './mediaReconciliation';
 import { reconcileMessages } from './messageReconciliation';
 
 export function applyGroupDetailDelta(current:GroupDetail,delta:GroupDetailDelta):GroupDetail{
+  if (current.conversation.id !== delta.conversation.id || olderSnapshot(current, delta)) return current;
   return{
     ...current,
     conversation:{...current.conversation,...delta.conversation},
@@ -15,6 +16,41 @@ export function applyGroupDetailDelta(current:GroupDetail,delta:GroupDetailDelta
     conversationEvents:mergeById(current.conversationEvents,delta.conversationEvents),
     syncedAt:delta.syncedAt,
   };
+}
+
+/** A full refresh contains only the latest message page, not the entire loaded history. */
+export function mergeGroupDetailRefresh(current:GroupDetail|null,next:GroupDetail,removeMessageIds:string[]=[]):GroupDetail{
+  if(!current||current.conversation.id!==next.conversation.id)return next;
+  if(olderSnapshot(current,next))return current;
+  let messages=reconcileMessages(current.messages,next.messages,removeMessageIds);
+  const refreshedIds=new Set(next.messages.map(message=>message.id));
+  let firstRefreshedIndex=messages.findIndex(message=>refreshedIds.has(message.id));
+  if(next.hasMoreMessages&&firstRefreshedIndex>0&&!current.messages.some(message=>refreshedIds.has(message.id))){
+    // More than a page may have arrived while away. Keep a contiguous latest
+    // page so "load older" can fill the gap, instead of silently claiming that
+    // two disconnected windows are complete history. Unsent rows remain visible.
+    messages=messages.filter((message,index)=>index>=firstRefreshedIndex||message.id.startsWith('local-'));
+    firstRefreshedIndex=messages.findIndex(message=>refreshedIds.has(message.id));
+  }
+  const retainedIds=new Set(messages.slice(0,Math.max(0,firstRefreshedIndex)).map(message=>message.id));
+  // Rows omitted from the refreshed page are authoritative removals there.
+  // Only keep assets/reactions belonging to history outside that page. In
+  // particular, do not resurrect dismissed actions or missing active offers.
+  const outsidePage=<T extends {message_id?:string|null}>(rows:T[])=>rows.filter(row=>row.message_id&&retainedIds.has(row.message_id));
+  const oldest=messages[0]?.id;
+  const retainedOlderPage=Boolean(oldest&&!oldest.startsWith('local-')&&oldest===current.messages[0]?.id&&oldest!==next.messages[0]?.id);
+  return{
+    ...next,
+    messages,
+    reactions:mergeById(outsidePage(current.reactions),next.reactions),
+    generatedMedia:mergeMedia(outsidePage(current.generatedMedia),next.generatedMedia),
+    mediaOffers:mergeById(outsidePage(current.mediaOffers),next.mediaOffers),
+    hasMoreMessages:retainedOlderPage?current.hasMoreMessages:next.hasMoreMessages,
+  };
+}
+
+function olderSnapshot(current:{syncedAt?:string},incoming:{syncedAt?:string}):boolean{
+  return Date.parse(incoming.syncedAt??'')<Date.parse(current.syncedAt??'');
 }
 
 export function prependGroupTimelinePage(current:GroupDetail,page:GroupTimelinePage):GroupDetail{

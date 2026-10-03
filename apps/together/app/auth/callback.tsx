@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ErrorState, LoadingSkeleton, Screen } from '../../src/components';
+import { ErrorState, LoadingSkeleton, Screen } from '../../src/components/ui';
 import { supabase } from '../../src/lib/supabase';
 import { useAuth } from '../../src/hooks/useAuth';
 import { resolvePostAuthDestination } from '../../src/lib/authRouting';

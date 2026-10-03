@@ -6,7 +6,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { CircleCheck } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GradientButton } from '../src/components';
+import { GradientButton } from '../src/components/ui';
 import { GoogleMark } from '../src/components/GoogleMark';
 import { AppleMark } from '../src/components/AppleMark';
 import { KivelleLogo } from '../src/components/KivelleLogo';

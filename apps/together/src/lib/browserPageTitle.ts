@@ -10,7 +10,7 @@ const pageLabels: Record<string, string> = {
   '/new-group': 'New Group', '/archived-chats': 'Archived Chats', '/companions': 'Your Companions',
   '/scenarios': 'Scenarios', '/moments': 'Moments', '/dates': 'Plans', '/market': 'Marketplace',
   '/subscription': 'Membership', '/upgrade': 'Membership',
-  '/settings': 'Settings', '/profile': 'Your Profile', '/account': 'Account',
+  '/settings': 'Your Account', '/profile': 'Your Account', '/account': 'Account',
   '/personas': 'Personas & Lives', '/persona-editor': 'Edit Persona',
   '/notifications': 'Notifications', '/privacy': 'Privacy & Safety', '/memories': 'Memories',
   '/conversation-controls': 'Relationship Controls', '/photo-settings': 'Photo Settings',

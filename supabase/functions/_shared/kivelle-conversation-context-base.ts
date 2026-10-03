@@ -20,6 +20,7 @@ import { resolveRelevantWorldPulse } from './kivelle-world-pulse.ts';
 import { worldPulseV2EnabledForWorld } from './kivelle-world-pulse-v2.ts';
 import { loadLinkedWorldPulseForSpeaker, type LinkedWorldPulseSpeakerContext } from './world-pulse-speaker-context.ts';
 import { loadRecentMajorWorldIncidents, type MajorWorldIncidentContext } from './world-pulse-major-context.ts';
+import { loadChatBranchPrefix } from './chat-branch-prefix.ts';
 import { naturalizeCharacterActivity, naturalizeCharacterEventSummary, naturalizeCharacterEventTitle } from '../../../packages/together-domain/src/character-language.ts';
 import type { ChatGenerationPreferences } from '../../../packages/together-domain/src/chat-generation.ts';
 
@@ -134,6 +135,13 @@ export async function buildKivelleConversationContext(input: {
   if(core.error)throw core.error;
   const coreData=(core.data??{}) as Row;
   const profile={data:coreData.profile??null},entitlements={data:coreData.entitlements??null},continuity={data:coreData.continuity??null,error:null},prefs={data:coreData.notificationPreferences??null},relationship={data:coreData.relationship??null,error:null},milestone={data:coreData.milestone??null},patterns={data:Array.isArray(coreData.patterns)?coreData.patterns:[]},residue={data:coreData.residue??null};
+  const branchPrefix=conversation.metadata?.branchId&&(messages.data??[]).length<18
+    ?await loadChatBranchPrefix(db,{userId,conversationId:String(conversation.id),
+      ...(input.beforeConversationSequence!==undefined?{beforeSequence:input.beforeConversationSequence}:{}),
+      limit:18-(messages.data??[]).length}):[];
+  const recentRows=[...(messages.data??[]),...branchPrefix.filter((row:Row)=>
+    input.authorizedWebAdult||(row.visibility_scope==='all'&&
+      (input.authorizedPrivateAdultText?['safe','suggestive','explicit']:['safe','suggestive']).includes(String(row.content_rating))))].slice(0,18);
   if (relationship.error) throw relationship.error;
   if(!relationship.data)throw new Error('relationship_context_missing');
   if(!continuity.data)throw new Error('continuity_context_missing');
@@ -299,8 +307,8 @@ export async function buildKivelleConversationContext(input: {
     location:currentLocation,place,referencedPlaces,placePerspectives,userAttachments,sceneParticipants,worldFacts:[],dialogueOpportunities:[],sceneInteractionBeats:[],
     recentMedia:personalizationEnabled?(media.data??[]).map((item:Row)=>({id:String(item.id),summary:String(item.metadata?.sceneSummary??'A recent shared photo.'),createdAt:String(item.created_at),locationId:item.location_id})):[],
     sharedHistory:history,conversationEpisodes, conversationSummary:input.authorizedPrivateAdultText?String((conversation.canonical_context as Row|undefined)?.summary??conversation.summary??''):String((conversation.safe_context as Row|undefined)?.summary??''), conversationSummaryUpdatedAt:conversation.summary_through??conversation.updated_at??undefined, conversationFocus:resolveConversationFocus(conversation.metadata?.focus as Row|null,plansView,now),
-    recent:(messages.data??[]).filter((item:Row)=>item.provider_metadata?.uiHidden!==true).reverse().map(attributedRecentTurn), userMessage, queryIntent:resolvedIntent,
-    debug:{sources:['persona','continuity','life-engine','schedule','shared-plans','dates','stories','memory','open-threads','social-graph','location','history','conversation-episodes','world-pulse'],limits:{memories:memoryRows.length,threads:memoryPreferences.open_thread===false?0:(threads.data??[]).length,recentMessages:(messages.data??[]).length,history:history.length,conversationEpisodes:conversationEpisodes.length,worldPulse:worldPulse.length,majorWorldIncidents:backgroundMajorIncidents.length,temporalContinuity:temporalContinuity.events.length}},
+    recent:recentRows.filter((item:Row)=>item.provider_metadata?.uiHidden!==true).reverse().map(attributedRecentTurn), userMessage, queryIntent:resolvedIntent,
+    debug:{sources:['persona','continuity','life-engine','schedule','shared-plans','dates','stories','memory','open-threads','social-graph','location','history','conversation-episodes','world-pulse'],limits:{memories:memoryRows.length,threads:memoryPreferences.open_thread===false?0:(threads.data??[]).length,recentMessages:recentRows.length,history:history.length,conversationEpisodes:conversationEpisodes.length,worldPulse:worldPulse.length,majorWorldIncidents:backgroundMajorIncidents.length,temporalContinuity:temporalContinuity.events.length}},
   };
 }
 

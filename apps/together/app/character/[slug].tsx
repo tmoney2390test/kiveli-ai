@@ -6,17 +6,9 @@ import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image as ExpoImage, type ImageContentPosition } from 'expo-image';
 import { ArrowLeft, Brain, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Info as InfoIcon, LockKeyhole, MapPin, ShieldCheck, Sparkles, Users, X } from 'lucide-react-native';
-import {
-  Body,
-  EmptyState,
-  GradientButton,
-  ImageLightbox,
-  MoodBadge,
-  RelationshipBadge,
-  Screen,
-  SpiceBadge,
-  resolveCharacterPortraitSource,
-} from '../../src/components';
+import { Body, EmptyState, GradientButton, MoodBadge, RelationshipBadge, Screen, resolveCharacterPortraitSource } from '../../src/components/ui';
+import { ImageLightbox } from '../../src/components/ImageLightbox';
+import { SpiceBadge } from '../../src/components/SpiceBadge';
 import { DetailPreservingArtwork } from '../../src/components/DetailPreservingArtwork';
 import { characterProfilePhotos } from '../../src/character-profile-assets';
 import { loadCharacterProfileDetails, manageConversation, meetCompanion, openConversation } from '../../src/lib/api';

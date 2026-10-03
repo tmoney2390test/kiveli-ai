@@ -44,6 +44,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
   const worlds=withComingSoonWorlds(snapshot.worlds.filter(isWorldCatalogVisible)).sort(compareWorldSelectorOrder);
   const [selectedWorldId,setSelectedWorldId]=useState(worldId);
   const [places,setPlaces]=useState<Location[]>([]);
+  const [quota,setQuota]=useState<{used:number;limit:number}|null>(null);
   const [editing,setEditing]=useState<Location|null>(null);
   const [formOpen,setFormOpen]=useState(startInCreateMode);
   const [selector,setSelector]=useState<Selector>(null);
@@ -65,18 +66,20 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
   const districts=snapshot.locations.filter((place)=>place.world_id===selectedWorldId&&!place.owner_user_id&&['district','neighborhood'].includes(place.location_type));
   const district=districts.find((place)=>place.id===districtId);
   const visiblePlaces=places.filter((place)=>place.world_id===selectedWorldId);
+  const limitReached=quota!==null&&quota.used>=quota.limit;
   const imageSource=photo?{uri:photo.uri}:locationImageSource(selectedWorld?.slug,editing);
 
-  const startCreate=()=>{
+  const startCreate=(beforeQuotaLoads=false)=>{
+    if(!beforeQuotaLoads&&limitReached){setNotice(`Your plan includes ${quota!.limit} personal places. Archive one or upgrade to create another.`);return;}
     setEditing(null);setName('');setDescription('');setActivities('Talking, relaxing');setKind('home');
     setDistrictId(undefined);setPhoto(null);setHours(defaultPlaceHoursDraft());pendingImage.current=null;setError('');setNotice('');setArchiveConfirm(false);setFormOpen(true);
   };
   useEffect(()=>{
     if(!visible)return;
     let alive=true;
-    setSelectedWorldId(worldId);setFormOpen(false);setSelector(null);setError('');setNotice('');
-    if(startInCreateMode)startCreate();
-    void listPersonalPlaces().then(({places:rows})=>{if(alive){setPlaces(rows);onPlacesChange?.(rows);}})
+    setSelectedWorldId(worldId);setFormOpen(false);setSelector(null);setError('');setNotice('');setQuota(null);
+    if(startInCreateMode)startCreate(true);
+    void listPersonalPlaces().then(({places:rows,quota:nextQuota})=>{if(alive){setPlaces(rows);setQuota(nextQuota);onPlacesChange?.(rows);}})
       .catch((cause)=>{if(alive)setError(cause instanceof Error?cause.message:'Your places could not be loaded.');});
     return()=>{alive=false;};
   },[visible,worldId,startInCreateMode]);
@@ -94,6 +97,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
   };
   const save=async()=>{
     if(saving.current)return;
+    if(!editing&&limitReached){setError(`Your plan includes ${quota!.limit} personal places. Archive one or upgrade to create another.`);return;}
     const parsedActivities=[...new Set(activities.split(',').map((item)=>item.trim()).filter(Boolean))];
     if(name.trim().length<2||description.trim().length<12||!parsedActivities.length){setError('Add a name, a short description, and at least one activity.');return;}
     if(parsedActivities.length>8||parsedActivities.some((activity)=>activity.length<2||activity.length>64)){setError('Add up to eight activities, each between 2 and 64 characters.');return;}
@@ -124,6 +128,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
       useTogether.getState().upsertPersonalPlace(saved);
       const updated=[saved,...places.filter((item)=>item.id!==saved!.id)];
       setPlaces(updated);onPlacesChange?.(updated);setFormOpen(false);
+      if(!editing)setQuota((current)=>current?{...current,used:current.used+1}:current);
       if(!onSelect)onClose();
       else if(saved.world_id===worldId){onSelect(saved,saved.possible_activities[0]??'Talking');onClose();}
       else setNotice(`${saved.name} is ready in ${selectedWorld?.name??'its world'}. Choose a companion there to plan a visit.`);
@@ -135,7 +140,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
   const archive=async()=>{
     if(!editing)return;
     setBusy(true);setError('');
-    try{await archivePersonalPlace(editing.id);useTogether.getState().upsertPersonalPlace({...editing,archived_at:new Date().toISOString()});const updated=places.filter((item)=>item.id!==editing.id);setPlaces(updated);onPlacesChange?.(updated);setFormOpen(false);setNotice(`${editing.name} was archived.`);}
+    try{await archivePersonalPlace(editing.id);useTogether.getState().upsertPersonalPlace({...editing,archived_at:new Date().toISOString()});const updated=places.filter((item)=>item.id!==editing.id);setPlaces(updated);setQuota((current)=>current?{...current,used:Math.max(0,current.used-1)}:current);onPlacesChange?.(updated);setFormOpen(false);setNotice(`${editing.name} was archived.`);}
     catch(cause){setError(cause instanceof Error?cause.message:'Your place could not be archived.');}
     finally{setBusy(false);}
   };
@@ -171,13 +176,16 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
             <View style={styles.field}><Text style={styles.label}>What can happen here?</Text><Text style={styles.fieldHint}>Add things you and your companions can actually do at this place.</Text><TextInput accessibilityLabel="Activities at this place" value={activities} onChangeText={setActivities} maxLength={400} placeholder="Talking, cooking, listening to music" placeholderTextColor={colors.dimmed} style={styles.input}/><Text style={styles.fieldHint}>Separate activities with commas. You can choose one when planning.</Text></View>
 
             <PlaceHoursEditor value={hours} onChange={setHours} disabled={busy}/>
+            {!editing&&limitReached?<View><Text accessibilityRole="alert" style={styles.error}>You have {quota!.used} of {quota!.limit} places across all worlds. Archive one or upgrade to create another.</Text><Pressable accessibilityRole="button" onPress={()=>{setFormOpen(false);setError('');}}><Text style={styles.fieldHint}>View your places</Text></Pressable></View>:null}
             {error?<Text accessibilityRole="alert" style={styles.error}>{error}</Text>:null}
-            <Pressable accessibilityRole="button" disabled={busy} onPress={()=>void save()} style={[styles.primary,busy&&styles.disabled]}>{busy?<ActivityIndicator color="#fff"/>:<><Sparkles size={19} color="#fff"/><Text style={styles.primaryText}>{editing?'Save place':'Create place'}</Text></>}</Pressable>
+            <Pressable accessibilityRole="button" disabled={busy||(!editing&&limitReached)} onPress={()=>void save()} style={[styles.primary,(busy||(!editing&&limitReached))&&styles.disabled]}>{busy?<ActivityIndicator color="#fff"/>:<><Sparkles size={19} color="#fff"/><Text style={styles.primaryText}>{editing?'Save place':'Create place'}</Text></>}</Pressable>
             {editing?<>{archiveConfirm?<View style={styles.archivePrompt}><Text style={styles.archiveText}>Archive {editing.name}? Existing memories and finished plans will remain.</Text><Pressable disabled={busy} onPress={()=>void archive()} style={styles.archive}><Trash2 size={15} color={colors.danger}/><Text style={[styles.archiveText,{color:colors.danger}]}>Confirm archive</Text></Pressable><Pressable onPress={()=>setArchiveConfirm(false)} style={styles.archive}><Text style={styles.archiveText}>Keep place</Text></Pressable></View>:<Pressable disabled={busy} onPress={()=>setArchiveConfirm(true)} style={styles.archive}><Trash2 size={15} color={colors.muted}/><Text style={styles.archiveText}>Archive this place</Text></Pressable>}</>:null}
           </>:<>
             <Pressable accessibilityRole="button" onPress={()=>openSelector('world')} style={styles.listWorld}><Image source={worldHeroAsset(selectedWorld?.slug)} contentFit="cover" style={styles.listWorldImage}/><View style={styles.selectCopy}><Text style={styles.listWorldEyebrow}>WORLD</Text><Text style={styles.selectTitle}>{selectedWorld?.name??'Choose a world'}</Text></View><ChevronDown size={18} color={colors.muted}/></Pressable>
             {notice?<Text style={styles.notice}>{notice}</Text>:null}
-            <Pressable accessibilityRole="button" onPress={startCreate} style={styles.create}><Plus size={20} color="#fff"/><Text style={styles.createText}>Create a place</Text></Pressable>
+            {quota?<Text style={styles.fieldHint}>{quota.used} of {quota.limit} personal places across all worlds</Text>:null}
+            <Pressable accessibilityRole="button" disabled={limitReached} onPress={()=>startCreate()} style={[styles.create,limitReached&&styles.disabled]}><Plus size={20} color="#fff"/><Text style={styles.createText}>Create a place</Text></Pressable>
+            {limitReached?<Text style={styles.fieldHint}>Archive a place or upgrade your plan to add another.</Text>:null}
             {visiblePlaces.map((place)=><View key={place.id} style={styles.placeCard}><View style={styles.placeMain}><Image source={locationImageSource(selectedWorld?.slug,place)} contentFit="cover" style={styles.thumb}/><View style={styles.placeCopy}><Text style={styles.placeName}>{place.name}</Text><Text style={styles.placeDescription} numberOfLines={2}>{place.description}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Edit ${place.name}`} onPress={()=>startEdit(place)} style={styles.edit}><Text style={styles.editText}>Edit</Text></Pressable></View><View style={styles.activityList}>{place.possible_activities.map((activity)=><Pressable key={activity} accessibilityRole="button" disabled={!onSelect||place.world_id!==worldId} onPress={()=>{onSelect?.(place,activity);onClose();}} style={[styles.activityRow,(!onSelect||place.world_id!==worldId)&&styles.selectDisabled]}><Text style={styles.activityText}>{activity}</Text><ChevronRight size={16} color={colors.muted}/></Pressable>)}</View>{place.world_id!==worldId?<Text style={styles.fieldHint}>Open a plan with someone in {selectedWorld?.name??'this world'} to visit here.</Text>:null}</View>)}
             {!visiblePlaces.length?<View style={styles.empty}><MapPin size={24} color={colors.violet}/><Text style={styles.emptyTitle}>No places here yet</Text><Text style={styles.emptyText}>Add a photo, set the hours, and invite companions to your own private place.</Text></View>:null}
             {error?<Text accessibilityRole="alert" style={styles.error}>{error}</Text>:null}

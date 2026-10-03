@@ -53,6 +53,12 @@ importers:
         specifier: ^4.127.1
         version: 4.127.1(@cloudflare/workers-types@5.20260820.1)
 
+  .release-db-check:
+    dependencies:
+      '@electric-sql/pglite':
+        specifier: 0.3.15
+        version: 0.3.15
+
   apps/together:
     dependencies:
       '@edkimmel/expo-audio-stream':
@@ -753,6 +759,9 @@ packages:
   '@egjs/hammerjs@2.0.17':
     resolution: {integrity: sha512-XQsZgjm2EcVUiZQf11UBJQfmZeEmOW8DpI1gsFeln6w0ae0ii4dMQEQ0kjl6DspdWX1aGY1/loyXnP0JS06e/A==}
     engines: {node: '>=0.8.0'}
+
+  '@electric-sql/pglite@0.3.15':
+    resolution: {integrity: sha512-Cj++n1Mekf9ETfdc16TlDi+cDDQF0W7EcbyRHYOAeZdsAe8M/FJg18itDTSwyHfar2WIezawM9o0EKaRGVKygQ==}
 
   '@electric-sql/pglite@0.5.8':
     resolution: {integrity: sha512-n9tsbUOhwx2epK1V0ZG9Ar4SHWUju04dhmzZXiSBXwBoleOvIfals33NAaWgagQVAL4Rbvx/Ptsu3P+pA09f6Q==}
@@ -5201,6 +5210,8 @@ snapshots:
   '@egjs/hammerjs@2.0.17':
     dependencies:
       '@types/hammerjs': 2.0.46
+
+  '@electric-sql/pglite@0.3.15': {}
 
   '@electric-sql/pglite@0.5.8': {}
 

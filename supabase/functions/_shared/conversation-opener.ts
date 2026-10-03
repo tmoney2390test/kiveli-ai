@@ -19,12 +19,13 @@ export async function ensureConversationOpener(input: {
   meeting?: Record<string, unknown>;
 }): Promise<boolean> {
   const { db, userId, conversation, characterInstanceId } = input;
+  const metadata = conversation.metadata as Record<string, unknown> | null;
+  if (metadata?.branchId) return false;
   const conversationId = String(conversation.id);
   const existing = await db.from('together_messages').select('id').eq('conversation_id', conversationId).eq('user_id', userId).limit(1);
   if (existing.error) throw new AppError('INTERNAL_ERROR', 'This conversation could not be opened. Please try again.', 500, true);
   if (existing.data?.length) return false;
 
-  const metadata = conversation.metadata as Record<string, unknown> | null;
   const isFresh = Boolean(metadata?.freshChatRequestId);
   let meeting = input.meeting;
   if (!isFresh && !meeting) {

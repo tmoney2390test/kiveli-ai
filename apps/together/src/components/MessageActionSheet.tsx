@@ -34,8 +34,9 @@ export function MessageActionSheet({
   onClose: () => void;
 }) {
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
   useEffect(() => {
-    if (!visible) setBusyKey(null);
+    if (!visible) { setBusyKey(null); setActionError(''); }
   }, [visible]);
   useEffect(() => {
     if (!visible || Platform.OS !== 'web') return;
@@ -48,13 +49,18 @@ export function MessageActionSheet({
 
   if (!visible) return null;
 
-  const run = (action: MessageActionDefinition) => {
+  const run = async (action: MessageActionDefinition) => {
     if (action.disabled || busyKey) return;
     setBusyKey(action.key);
-    let task: unknown;
-    try { task = action.onPress(); } catch { task = undefined; }
-    onClose();
-    Promise.resolve(task).catch(() => undefined).finally(() => setBusyKey(null));
+    setActionError('');
+    try {
+      await action.onPress();
+      onClose();
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : `${action.label} could not be completed. Please try again.`);
+    } finally {
+      setBusyKey(null);
+    }
   };
 
   return <Modal visible={visible} transparent statusBarTranslucent animationType="fade" onRequestClose={onClose}>
@@ -78,13 +84,14 @@ export function MessageActionSheet({
                 accessibilityLabel={action.label}
                 accessibilityState={{ disabled: action.disabled, selected: action.selected }}
                 disabled={action.disabled || Boolean(busyKey)}
-                onPress={() => run(action)}
+                onPress={() => void run(action)}
                 style={({ pressed }) => [styles.action, action.selected && styles.actionSelected, action.destructive&&styles.actionDestructive, (pressed || busyKey === action.key) && styles.actionPressed, action.disabled && styles.actionDisabled]}
               >
                 <View style={styles.actionIcon}>{busyKey === action.key ? <ActivityIndicator color={colors.rose} size="small"/> : action.icon}</View>
                 <Text numberOfLines={2} style={[styles.actionLabel, action.selected && styles.actionLabelSelected,action.destructive&&styles.actionLabelDestructive]}>{action.label}</Text>
               </Pressable>)}
             </View>
+            {actionError ? <Text accessibilityRole="alert" style={styles.actionError}>{actionError}</Text> : null}
           </FrostedSurface>
           <View style={[styles.preview, userMessage ? styles.userPreview : styles.assistantPreview]}>
             <Text style={styles.previewText} numberOfLines={8}>{message}</Text>
@@ -113,6 +120,7 @@ const styles = StyleSheet.create({
   actionLabel: { color: colors.textSecondary, fontSize: 13, lineHeight: 16, fontWeight: '700', textAlign: 'center' },
   actionLabelSelected: { color: colors.text },
   actionLabelDestructive:{color:colors.danger},
+  actionError: { color: colors.danger, fontSize: 12, lineHeight: 17, marginTop: 12 },
   preview: { maxWidth: 450, borderRadius: radius.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderWidth: 1, borderColor: colors.border },
   assistantPreview: { alignSelf: 'flex-start', backgroundColor: 'rgba(19,17,27,.94)' },
   userPreview: { alignSelf: 'flex-end', backgroundColor: 'rgba(154,35,177,.88)' },

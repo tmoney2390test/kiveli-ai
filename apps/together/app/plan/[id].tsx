@@ -3,7 +3,9 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AlertTriangle, ArrowLeft, CalendarDays, Check, Clock3, MapPin, RotateCcw, Trash2, UserCheck } from 'lucide-react-native';
-import { CharacterAvatar, DateTimeFields, EmptyState, GlassCard, GradientButton, LoadingSkeleton, PlanHistoryPanel, Screen } from '../../src/components';
+import { CharacterAvatar, EmptyState, GlassCard, GradientButton, LoadingSkeleton, Screen } from '../../src/components/ui';
+import { DateTimeFields } from '../../src/components/DateTimeFields';
+import { PlanHistoryPanel } from '../../src/components/PlanHistoryPanel';
 import { colors, radius, spacing } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { managePlan } from '../../src/lib/api';

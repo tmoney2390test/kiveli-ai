@@ -36,7 +36,7 @@ export function reconcileMessages(
   // Repeated focus/realtime reads should not remount unchanged rows or relayout the list.
   for (let index = 0; index < result.length; index++) {
     const previous = current[index], next = result[index];
-    if (previous && next && previous.id === next.id && JSON.stringify(previous) === JSON.stringify(next)) result[index] = previous;
+    if (previous && next && previous !== next && previous.id === next.id && JSON.stringify(previous) === JSON.stringify(next)) result[index] = previous;
   }
   return result.length === current.length && result.every((message, index) => message === current[index]) ? current : result;
 }

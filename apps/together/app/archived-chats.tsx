@@ -2,7 +2,7 @@ import{useCallback,useState}from'react';
 import{Alert,Pressable,StyleSheet,Text,View}from'react-native';
 import{router,useFocusEffect}from'expo-router';
 import{Archive,ArrowLeft,ChevronRight,Undo2,Users}from'lucide-react-native';
-import{CharacterAvatar,EmptyState,LoadingSkeleton,PageTitle,Screen}from'../src/components';
+import { CharacterAvatar, EmptyState, LoadingSkeleton, PageTitle, Screen } from '../src/components/ui';
 import{archiveRetentionLabel}from'../src/lib/chatArchive';
 import{manageConversation}from'../src/lib/api';
 import{confirmAction}from'../src/lib/dialogs';

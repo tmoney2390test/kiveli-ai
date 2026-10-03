@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { LoadingSkeleton } from '../src/components';
+import { LoadingSkeleton } from '../src/components/ui';
 import { activePlanChatHref } from '../src/lib/planNavigation';
 import { useTogether } from '../src/store/useTogether';
 

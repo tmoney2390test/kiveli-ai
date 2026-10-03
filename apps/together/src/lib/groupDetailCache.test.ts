@@ -59,6 +59,32 @@ describe("group detail cache", () => {
     expect(refreshed.conversation.title).toBe("Refreshed group");
   });
 
+  it('keeps cleared Life data out of memory and session storage after a late read', async () => {
+    let finish!: (value: GroupDetail) => void;
+    const pending = prefetchCompleteGroupDetail('user:life-a', 'group-a', () => new Promise(resolve => { finish = resolve; }));
+    cacheCompleteGroupDetail('user:life-b', detail('group-b','Other Life'));
+    clearGroupDetailCache('user:life-a');
+    finish(detail('group-a','Old private group'));
+    await pending;
+    expect(readCachedGroupDetail('user:life-a','group-a')).toBeUndefined();
+    expect(readCachedGroupDetail('user:life-b','group-b')?.complete).toBe(true);
+  });
+
+  it('preserves a new session request when the old request finishes after clearing', async () => {
+    let finishOld!: (value: GroupDetail) => void;
+    let finishNew!: (value: GroupDetail) => void;
+    const old = prefetchCompleteGroupDetail('user:life', 'group', () => new Promise(resolve => { finishOld = resolve; }));
+    clearGroupDetailCache();
+    const current = prefetchCompleteGroupDetail('user:life','group', () => new Promise(resolve => { finishNew = resolve; }));
+    finishOld(detail('group','Old result')); await old;
+    let extraCalls = 0;
+    const joined = prefetchCompleteGroupDetail('user:life','group', () => { extraCalls++; return Promise.resolve(detail('group','Unexpected')); });
+    expect(joined).toBe(current);
+    expect(extraCalls).toBe(0);
+    finishNew(detail('group','Current result')); await current;
+    expect(readCachedGroupDetail('user:life','group')?.detail.conversation.title).toBe('Current result');
+  });
+
   it("makes a rail summary available before the timeline request completes", () => {
     clearGroupDetailCache();
     cacheGroupDetailSummary("life-a", detail("group-a", "Weekend plans"));

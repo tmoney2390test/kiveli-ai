@@ -29,6 +29,7 @@ import { setCompanionSchedulePause } from '../_shared/companion-schedule-pause.t
 import { ensureConversationOpener } from '../_shared/conversation-opener.ts';
 import { openDirectFromWorldPulse } from '../_shared/world-pulse-handoff.ts';
 import { worldPulseV2Enabled } from '../_shared/kivelle-world-pulse-v2.ts';
+import { loadChatBranchPrefix } from '../_shared/chat-branch-prefix.ts';
 
 const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('open_from_world_pulse'), occurrenceId: z.string().uuid(), characterTemplateId: z.string().uuid(), requestId: z.string().uuid() }),
@@ -39,6 +40,7 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('open'), characterInstanceId: z.string().uuid(), limit: z.number().int().min(1).max(60).default(50) }),
   z.object({ action: z.literal('ensure'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('new'), characterInstanceId: z.string().uuid(), expectedConversationId: z.string().uuid().optional(), requestId: z.string().uuid().optional(), confirmation: z.literal('start_fresh_chat').optional() }),
+  z.object({ action: z.literal('branch'), conversationId: z.string().uuid(), anchorMessageId: z.string().uuid(), requestId: z.string().uuid() }),
   z.object({ action: z.literal('archive'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('delete'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('restore'), conversationId: z.string().uuid() }),
@@ -208,7 +210,7 @@ serve(async (request, correlationId) => {
       .order('user_archived_at', { ascending: false })
       .limit(100);
     if (error) throw new AppError('INTERNAL_ERROR', 'Archived chats could not be loaded.', 500, true);
-    const enriched = (data ?? []).map((conversation) => ({ ...projectConversation(conversation,false), message_count: Number(conversation.together_messages?.[0]?.count ?? 0) }));
+    const enriched = (data ?? []).map((conversation) => ({ ...projectConversation(conversation,false), message_count: Number(conversation.together_messages?.[0]?.count ?? 0)+Number(conversation.metadata?.branchPrefixCount??0) }));
     await track(db, user.id, 'conversation_archive_viewed', { conversationCount: enriched.length, purgedCount });
     return json({ data: enriched, correlationId }, 200, correlationId);
   }
@@ -220,12 +222,14 @@ serve(async (request, correlationId) => {
     const fetchLimit=adultTextAuthorized?input.limit+1:Math.min(241,Math.max(input.limit+1,input.limit*4));
     let{data,error}=await db.from('together_messages').select('*,together_conversation_attachments(*),together_message_reactions(*)').eq('user_id',user.id).eq('conversation_id',String(conversation.id)).order('conversation_sequence',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(fetchLimit);
     if(error)throw new AppError('INTERNAL_ERROR','Messages could not be loaded.',500,true);
-    if(!data?.length){
+    if(!data?.length&&!(conversation.metadata as Record<string,unknown>|undefined)?.branchId){
       await ensureConversationOpener({db,userId:user.id,conversation,characterInstanceId:input.characterInstanceId});
       ({data,error}=await db.from('together_messages').select('*,together_conversation_attachments(*),together_message_reactions(*)').eq('user_id',user.id).eq('conversation_id',String(conversation.id)).order('conversation_sequence',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(fetchLimit));
       if(error)throw new AppError('INTERNAL_ERROR','Messages could not be loaded.',500,true);
     }
-    const readAt=performance.now(),raw=(data??[])as Record<string,unknown>[];
+    const branchPrefix=(conversation.metadata as Record<string,unknown>|undefined)?.branchId&&(data??[]).length<fetchLimit
+      ?await loadChatBranchPrefix(db,{userId:user.id,conversationId:String(conversation.id),limit:fetchLimit-(data??[]).length}):[];
+    const readAt=performance.now(),raw=[...(data??[]),...branchPrefix] as Record<string,unknown>[];
     const projected=projectConversationRows(raw,{authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText:adultTextAuthorized});
     const messages=await signProjectedAttachments(db,projected.slice(0,input.limit),adultAccess.authorized_web_adult,{request,access:adultAccess,userId:user.id});
     waitUntil(track(db,user.id,'conversation_opened',{characterInstanceId:input.characterInstanceId,conversationId:conversation.id}));
@@ -334,11 +338,40 @@ serve(async (request, correlationId) => {
     return json({ data: projectConversation(result.conversation,false), correlationId }, 200, correlationId);
   }
 
+  if (input.action === 'branch') {
+    const access=await resolveSubscriptionAccess(db,user.id);
+    if(access.tier==='free')throw new AppError('PLAN_LIMIT_REACHED','Alternate chat paths are available with Kivelle+ or Max.',403);
+    const{data,error}=await db.rpc('kivelle_start_chat_branch',{
+      p_user_id:user.id,p_source_conversation_id:input.conversationId,
+      p_anchor_message_id:input.anchorMessageId,p_request_id:input.requestId,
+    });
+    if(error){
+      const reason=String(error.message??'');
+      if(reason.includes('BRANCH_ACTIVE_SCENE')||reason.includes('BRANCH_ACTIVE_COMMITMENT'))
+        throw new AppError('CONFLICT','Finish the active scene, upcoming plan, Date, or trip with this companion before branching.',409);
+      if(reason.includes('BRANCH_ANCHOR_NOT_LATEST')||reason.includes('BRANCH_REPLY_IN_PROGRESS'))
+        throw new AppError('CONFLICT','Wait for the latest reply, then branch from it.',409,true);
+      if(reason.includes('BRANCH_SOURCE_LIFE_INACTIVE'))
+        throw new AppError('CONFLICT','Switch back to the original Life before branching this chat.',409);
+      if(reason.includes('BRANCH_SUBSCRIPTION_REQUIRED'))
+        throw new AppError('PLAN_LIMIT_REACHED','Alternate chat paths are available with Kivelle+ or Max.',403);
+      if(reason.includes('ACTIVE_CONVERSATION_LIMIT_REACHED'))throw activeConversationLimitError(access.capabilities);
+      if(reason.includes('BRANCH_LIMIT_REACHED'))
+        throw new AppError('PLAN_LIMIT_REACHED','Your plan has reached its alternate-path limit. Delete an old path in Your Lives to start another.',403);
+      if(reason.includes('BRANCH_MEMORY_LIMIT_REACHED')||reason.includes('MEMORY_ACCOUNT_CAP_REACHED'))
+        throw new AppError('CONFLICT','This account has too much saved memory to copy this chat safely right now.',409);
+      if(reason.includes('BRANCH_'))throw new AppError('CONFLICT','This chat could not be branched from that reply. Refresh and try the latest completed reply.',409);
+      throw new AppError('INTERNAL_ERROR','The alternate path could not be created. Please try again.',500,true);
+    }
+    await track(db,user.id,'chat_branch_created',{sourceConversationId:input.conversationId,branchId:data?.branchId,replayed:data?.replayed===true});
+    return json({data,correlationId},200,correlationId);
+  }
+
   if (input.action === 'history') {
     const { data, error } = await db.from('together_conversations').select(CONVERSATION_WITH_MESSAGE_COUNT_SELECT).eq('user_id', user.id).eq('character_instance_id', input.characterInstanceId).is('user_archived_at', null).order('created_at', { ascending: false }).limit(100);
     if (error) throw new AppError('INTERNAL_ERROR', 'Conversation history could not be loaded.', 500, true);
     const adultTextAuthorized=(data?.[0])?await privateTextProjectionAuthorizedForConversation({db,userId:user.id,continuityId:continuity.id,conversation:data[0],access:adultAccess}):false;
-    const enriched = (data ?? []).map((conversation) => ({ ...projectConversation(conversation,false), message_count: Number(conversation.together_messages?.[0]?.count ?? 0) }));
+    const enriched = (data ?? []).map((conversation) => ({ ...projectConversation(conversation,false), message_count: Number(conversation.together_messages?.[0]?.count ?? 0)+Number(conversation.metadata?.branchPrefixCount??0) }));
     await track(db, user.id, 'conversation_history_viewed', { characterInstanceId: input.characterInstanceId });
     return json({ data: enriched, correlationId }, 200, correlationId);
   }
@@ -377,7 +410,11 @@ serve(async (request, correlationId) => {
     const{data,error}=await query;
     if (owned.user_archived_at && conversationArchiveExpired(owned.restore_until, new Date())) throw new AppError('NOT_FOUND', 'That archived chat is no longer available.', 404);
     if (error) throw new AppError('INTERNAL_ERROR', 'Messages could not be loaded.', 500, true);
-    const readAt=performance.now(),raw=(data??[]) as Record<string,unknown>[];
+    const branchPrefix=owned.metadata?.branchId&&(data??[]).length<fetchLimit
+      ?await loadChatBranchPrefix(db,{userId:user.id,conversationId:input.conversationId,
+        ...(input.beforeSequence!==undefined?{beforeSequence:input.beforeSequence}:{}),
+        ...(input.before?{before:input.before}:{}),limit:fetchLimit-(data??[]).length}):[];
+    const readAt=performance.now(),raw=[...(data??[]),...branchPrefix] as Record<string,unknown>[];
     const projected=projectConversationRows(raw,{authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText:adultTextAuthorized});
     const messages=await signProjectedAttachments(db,projected.slice(0,input.limit),adultAccess.authorized_web_adult,{request,access:adultAccess,userId:user.id});
     return timedJson({ data: { messages, hasMore: raw.length===fetchLimit||projected.length>input.limit, conversation: projectConversation(owned,adultTextAuthorized), ...(replyStatus?{replyStatus}:{}) }, correlationId },correlationId,{requestStarted,authenticatedAt,preparedAt,readAt});

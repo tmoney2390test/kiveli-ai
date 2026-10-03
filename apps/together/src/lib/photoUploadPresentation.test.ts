@@ -10,4 +10,7 @@ describe('photo upload presentation',()=>{
   it('makes a failed upload explicitly retryable without discarding the preview',()=>{
     expect(photoUploadPresentation('failed')).toMatchObject({label:'Upload failed',busy:false,retry:true});
   });
+  it('does not invite a retry when the photo was rejected by the content check',()=>{
+    expect(photoUploadPresentation('blocked')).toMatchObject({busy:false,retry:false});
+  });
 });

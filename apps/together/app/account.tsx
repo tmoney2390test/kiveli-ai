@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Check, KeyRound, Mail, ShieldCheck } from 'lucide-react-native';
-import { GradientButton, PageTitle } from '../src/components';
+import { GradientButton, PageTitle } from '../src/components/ui';
 import { colors, radius, spacing, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
 import { authProviderState } from '../src/lib/authProviders';

@@ -66,11 +66,16 @@ export function loadConversationMessagePage(
   const existing = inFlightByScope.get(scope);
   if (existing) return existing;
   const request = loader()
-    .then((result) => writeConversationMessagePage(userId, conversationId, {
-      messages: reconcileMessages(readConversationMessagePage(userId,conversationId)?.messages ?? [], [...result.messages].reverse()),
-      hasMore: result.hasMore,
-    }))
-    .finally(() => inFlightByScope.delete(scope));
+    .then((result) => {
+      // Sign-out can clear the cache while this request is still on the wire.
+      // A new session may even have started another load for the same key.
+      if (inFlightByScope.get(scope) !== request) return { ...result, messages: [...result.messages].reverse() };
+      return writeConversationMessagePage(userId, conversationId, {
+        messages: reconcileMessages(readConversationMessagePage(userId,conversationId)?.messages ?? [], [...result.messages].reverse()),
+        hasMore: result.hasMore,
+      });
+    })
+    .finally(() => { if (inFlightByScope.get(scope) === request) inFlightByScope.delete(scope); });
   inFlightByScope.set(scope, request);
   return request;
 }

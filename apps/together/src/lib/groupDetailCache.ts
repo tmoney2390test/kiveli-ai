@@ -120,10 +120,10 @@ export function prefetchCompleteGroupDetail(
   if (current) return current;
   const request = loader()
     .then((detail) => {
-      cacheCompleteGroupDetail(scope, detail);
+      if (inFlight.get(key) === request) cacheCompleteGroupDetail(scope, detail);
       return detail;
     })
-    .finally(() => inFlight.delete(key));
+    .finally(() => { if (inFlight.get(key) === request) inFlight.delete(key); });
   inFlight.set(key, request);
   return request;
 }

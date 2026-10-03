@@ -36,11 +36,8 @@ import {
   Users,
   X,
 } from "lucide-react-native";
-import {
-  CharacterAvatar,
-  EmptyState,
-  FrostedSurface,
-} from "../../src/components";
+import { CharacterAvatar, EmptyState } from '../../src/components/ui';
+import { FrostedSurface } from '../../src/components/FrostedGlass';
 import { ChatSettingsModal } from "../../src/components/ChatSettingsModal";
 import { loadGroupDetail, manageConversation, manageGroup, setConversationPinned } from "../../src/lib/api";
 import { confirmAction } from "../../src/lib/dialogs";

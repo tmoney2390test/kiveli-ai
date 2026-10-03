@@ -3,7 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 're
 import { router } from 'expo-router';
 import { initiativeLevels, normalizeInitiativeLevel, type InitiativeLevel } from '@together/domain/src/life';
 import { ArrowLeft, Bell, CalendarDays, LockKeyhole, Sparkles } from 'lucide-react-native';
-import { CharacterAvatar, GradientButton, PageTitle, Screen } from '../src/components';
+import { CharacterAvatar, GradientButton, PageTitle, Screen } from '../src/components/ui';
 import { colors, radius } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
 import { invoke } from '../src/lib/api';

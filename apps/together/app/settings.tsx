@@ -1,5 +1,5 @@
 import { styles } from '../src/styles/settingsStyles';
-import { cloneElement, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { cloneElement, useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import {AccountProfilePanel} from '../src/components/AccountProfilePanel';
 import {
   Alert,
@@ -10,7 +10,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -30,9 +29,7 @@ import {
   Heart,
   KeyRound,
   LifeBuoy,
-  LogOut,
   MessageCircle,
-  Search,
   Shield,
   Sparkles,
   UserRound,
@@ -51,38 +48,17 @@ import { manageAccount } from '../src/lib/api';
 import { supabase } from '../src/lib/supabase';
 import { confirmAction, showActionAlert } from '../src/lib/dialogs';
 import { shouldRenderSettingsRoute, shouldUseDesktopSettingsLayout } from '../src/lib/settingsRoute';
-import { startSignOutTransition } from '../src/lib/signOutTransition';
 import { createClientRequestId } from '../src/lib/requestId';
 import {
   settingsCloseTarget,
-  settingsSearchMatches,
   settingsSectionFromParam,
-  type SettingsSection,
 } from '../src/lib/settingsExperience';
-import { LoadingSkeleton } from '../src/components';
-import { ContactSupportModal } from '../src/components/ContactSupportModal';
+import { LoadingSkeleton } from '../src/components/ui';
+import { AccountMenu } from '../src/components/AccountMenu';
 import { ErrorState } from '../src/components/RouteState';
 
 type SaveNotice = { kind: 'success' | 'error'; message: string } | null;
 type Snapshot = NonNullable<ReturnType<typeof useTogether.getState>['snapshot']>;
-type SectionDefinition = {
-  id: SettingsSection;
-  label: string;
-  description: string;
-  searchTerms: string;
-  icon: ReactElement<{ color?: string }>;
-};
-
-const sections: SectionDefinition[] = [
-  { id: 'profile', label: 'Your profile', description: 'Your account photo, highlights, companions, and media.', searchTerms: 'avatar email highlights images videos', icon: <UserRound size={20} /> },
-  { id: 'account', label: 'Account & billing', description: 'Sign-in, subscription, credits, and active devices.', searchTerms: 'email code security payment plan verification', icon: <KeyRound size={20} /> },
-  { id: 'identity', label: 'Personas & Lives', description: 'Manage who companions know in each separate Life.', searchTerms: 'persona identity alternate main life name bio about interests goals', icon: <Sparkles size={20} /> },
-  { id: 'experience', label: 'Chat & media', description: 'Notifications, content, photos, video, voice, and calls.', searchTerms: 'push romance upload generation autoplay audio', icon: <Heart size={20} /> },
-  { id: 'relationships', label: 'Relationships', description: 'Companions, conversations, archives, and memories.', searchTerms: 'chat reset history memory moments', icon: <UsersRound size={20} /> },
-  { id: 'privacy', label: 'Privacy & safety', description: 'Personalization, analytics, data, policies, and deletion.', searchTerms: 'export delete account terms refund community ai disclosure', icon: <Shield size={20} /> },
-  { id: 'support', label: 'Help & support', description: 'Find answers or send the support team a private request.', searchTerms: 'contact report problem ticket', icon: <LifeBuoy size={20} /> },
-];
-
 export default function Settings() {
   const router = useRouter();
   const pathname = usePathname();
@@ -91,47 +67,25 @@ export default function Settings() {
   const insets = useSafeAreaInsets();
   const [webHydrated, setWebHydrated] = useState(Platform.OS !== 'web');
   const desktop = shouldUseDesktopSettingsLayout({ platform: Platform.OS, width, webHydrated });
-  const requestedSection = settingsSectionFromParam(params.section);
-  const [section, setSection] = useState<SettingsSection | null>(requestedSection);
-  const activeSection = section ?? (desktop ? requestedSection ?? 'profile' : null);
-  const scroll = useRef<ScrollView | null>(null);
-  const { snapshot, refresh, clear, setCoreState, error: loadError } = useTogether();
-  const { session, signOut, resendPendingEmailChange, signOutOthers } = useAuth();
+  const activeSection = settingsSectionFromParam(params.section);
+  const { snapshot, refresh, setCoreState, error: loadError } = useTogether();
+  const { session, resendPendingEmailChange, signOutOthers } = useAuth();
   const providerState = authProviderState(session?.user);
   const profile = snapshot?.profile;
   const name = profile?.display_name ?? '';
   const [avatarPath, setAvatarPath] = useState<string | null>(profile?.avatar_path ?? null);
   const [busy, setBusy] = useState(false);
   const [saveNotice, setSaveNotice] = useState<SaveNotice>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [signingOut, setSigningOut] = useState(false);
   const [accountBusy, setAccountBusy] = useState<'resend' | 'sessions' | null>(null);
-  const [supportVisible, setSupportVisible] = useState(false);
   const avatar = useProfileAvatarUrl(avatarPath);
   useEffect(() => { setWebHydrated(true); }, []);
-
-  useEffect(() => {
-    const next = settingsSectionFromParam(params.section);
-    if (next) setSection(next);
-    else if (!desktop) setSection(null);
-  }, [desktop, params.section]);
 
   useEffect(() => {
     setAvatarPath(profile?.avatar_path ?? null);
   }, [profile?.avatar_path]);
 
   const close = () => settingsCloseTarget(router.canGoBack()) === 'back' ? router.back() : router.replace('/home' as never);
-  const selectSection = (next: SettingsSection) => {
-    if (next === activeSection) return;
-    setSection(next);
-    router.setParams({ section: next });
-    scroll.current?.scrollTo({ y: 0, animated: false });
-  };
-  const showOverview = () => {
-    setSection(null);
-    router.setParams({ section: undefined });
-    scroll.current?.scrollTo({ y: 0, animated: false });
-  };
+  const showAccountMenu = () => router.replace('/settings' as never);
   const openRoute = (route: string) => {
     // React Navigation hides the outgoing screen immediately. Release focus
     // first so assistive technology never sees a focused control inside an
@@ -201,26 +155,6 @@ export default function Settings() {
     finally { setBusy(false); }
   };
 
-  const performLogout = async () => {
-    if (signingOut) return;
-    setSigningOut(true);
-    try {
-      await startSignOutTransition({
-        signOut,
-        clearPrivateState: clear,
-        openSignIn: () => router.replace('/auth?mode=signin'),
-      });
-    } catch (error) {
-      showActionAlert('Could not sign out', error instanceof Error ? error.message : 'Please try again.');
-    } finally { setSigningOut(false); }
-  };
-  const logout = () => confirmAction({
-    title: 'Sign out?',
-    message: 'Your relationships and memories will still be here when you return.',
-    confirmLabel: 'Sign out',
-    destructive: true,
-    onConfirm: performLogout,
-  });
   const resendEmailChange = async () => {
     if (accountBusy) return;
     setAccountBusy('resend');
@@ -253,48 +187,37 @@ export default function Settings() {
   const modalHeight = desktop ? Math.min(760, Math.max(520, height - 36)) : Math.min(760, height - insets.top - Math.max(insets.bottom, 12) - 24);
   const browserPath = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.pathname : null;
   if (!shouldRenderSettingsRoute({ platform: Platform.OS, routerPathname: pathname, browserPathname: browserPath })) return null;
+  if (!activeSection) return <AccountMenu visible inline onClose={close} onNavigate={(href) => {
+    if (href.startsWith('/settings?section=')) router.replace(href as never);
+    else router.push(href as never);
+  }} />;
 
   const settingsSurface = <View style={[styles.backdrop, desktop ? styles.backdropDesktop : { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 12) }]} accessibilityViewIsModal={!desktop}>
     <Pressable accessible={false} onPress={close} style={StyleSheet.absoluteFill} />
     <View style={[styles.modal, desktop ? styles.modalDesktop : styles.modalMobile, { height: modalHeight }]}>
       <View style={styles.header}>
-        <View style={styles.brandMark}><Text style={styles.brandInitial}>{(name || 'Y')[0]?.toUpperCase()}</Text></View>
-        <View style={styles.headerCopy}>
-          <Text accessibilityRole="header" style={styles.title}>Settings</Text>
-          <Text numberOfLines={1} style={styles.headerMeta}>{(snapshot?.activePersona?.display_name ?? name) || 'Your Kivelle account'} · {snapshot?.activeContinuity?.title ?? 'Main Life'}</Text>
-        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to your account" onPress={showAccountMenu} hitSlop={6} style={({ pressed }) => [styles.mobileBack, pressed && styles.pressed]}><ArrowLeft size={21} color={colors.text} /></Pressable>
+        <Text accessibilityRole="header" style={[styles.title, { flex: 1 }]}>Your account</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Close settings" onPress={close} hitSlop={6} style={({ pressed }) => [styles.close, pressed && styles.pressed]}><X size={22} color={colors.textSecondary} /></Pressable>
       </View>
 
       <KeyboardAvoidingView style={styles.body} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {desktop ? <View style={styles.sidebar}>
-          <Text style={styles.sidebarEyebrow}>SETTINGS</Text>
-          <View role={'tablist' as never} aria-label="Settings sections" style={styles.sidebarLinks}>{sections.map((item) => <SectionTab key={item.id} item={item} active={activeSection === item.id} onPress={() => selectSection(item.id)} />)}</View>
-          <LogoutButton signingOut={signingOut} onPress={logout} />
-        </View> : null}
-
         <View style={styles.contentColumn}>
-          {!desktop && activeSection ? <View style={styles.mobileSectionHeader}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Back to all settings" onPress={showOverview} hitSlop={6} style={({ pressed }) => [styles.mobileBack, pressed && styles.pressed]}><ArrowLeft size={21} color={colors.text} /></Pressable>
-            <Text numberOfLines={1} style={styles.mobileSectionTitle}>{sections.find((item) => item.id === activeSection)?.label}</Text>
-          </View> : null}
-
           <ScrollView
-            ref={scroll}
             style={styles.main}
             contentContainerStyle={[styles.mainContent, desktop && styles.mainContentDesktop, !desktop && { paddingBottom: 54 }]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {!snapshot ? loadError ? <ErrorState message={loadError} onRetry={() => void refresh({ force: true })} /> : <LoadingSkeleton label="Loading your settings…" /> : activeSection ? <>
+            {!snapshot ? loadError ? <ErrorState message={loadError} onRetry={() => void refresh({ force: true })} /> : <LoadingSkeleton label="Loading your settings…" /> : <>
               {activeSection === 'profile' ? <AccountProfilePanel key={snapshot.activeContinuity?.id ?? 'main'} snapshot={snapshot} avatar={avatar} avatarPath={avatarPath} name={name} busy={busy} notice={saveNotice} email={session?.user.email} onAvatar={chooseAvatarSource} onRemoveAvatar={() => void removeAvatar()} onRoute={openRoute} /> : null}
               {activeSection === 'account' ? <AccountPanel email={session?.user.email} providerLabel={providerState.label} verified={providerState.verifiedEmail} pendingEmail={providerState.pendingEmail} tier={subscriptionLabel(snapshot.entitlements?.tier)} busy={accountBusy} onRoute={openRoute} onResend={() => void resendEmailChange()} onSignOutOthers={confirmOtherSessions} /> : null}
               {activeSection === 'identity' ? <IdentityPanel snapshot={snapshot} onRoute={openRoute} /> : null}
               {activeSection === 'experience' ? <ExperiencePanel snapshot={snapshot} onRoute={openRoute} /> : null}
               {activeSection === 'relationships' ? <RelationshipsPanel snapshot={snapshot} onRoute={openRoute} /> : null}
               {activeSection === 'privacy' ? <PrivacyPanel onRoute={openRoute} onDisclosure={() => showActionAlert('About Kivelle characters', 'Kivelle companions are fictional AI characters. They can remember shared context and simulate a life, but they are not real people and do not have human consciousness.')} /> : null}
-              {activeSection === 'support' ? <SupportPanel onRoute={openRoute} onContact={() => setSupportVisible(true)} /> : null}
-            </> : <SettingsOverview snapshot={snapshot} name={name} verified={providerState.verifiedEmail} tier={subscriptionLabel(snapshot.entitlements?.tier)} query={searchQuery} onQuery={setSearchQuery} onSelect={selectSection} signingOut={signingOut} onLogout={logout} />}
+              {activeSection === 'support' ? <SupportPanel onRoute={openRoute} onContact={() => openRoute('/support')} /> : null}
+            </>}
           </ScrollView>
 
 
@@ -305,34 +228,7 @@ export default function Settings() {
   const settingsModal = desktop
     ? settingsSurface
     : <Modal visible transparent animationType="fade" onRequestClose={close}>{settingsSurface}</Modal>;
-  return <>
-    {settingsModal}
-    <ContactSupportModal visible={supportVisible} email={session?.user.email} onClose={() => setSupportVisible(false)} />
-  </>;
-}
-
-function SectionTab({ item, active, onPress }: { item: SectionDefinition; active: boolean; onPress: () => void }) {
-  return <Pressable nativeID={`settings-section-${item.id}`} accessibilityRole="tab" accessibilityLabel={item.label} accessibilityState={{ selected: active }} aria-selected={active} onPress={onPress} style={({ pressed }) => [styles.sidebarLink, active && styles.sidebarLinkActive, pressed && styles.pressed]}>
-    <View>{cloneElement(item.icon, { color: active ? '#D59AFF' : colors.muted })}</View><Text style={[styles.sidebarLinkText, active && styles.sidebarLinkTextActive]}>{item.label}</Text>
-  </Pressable>;
-}
-
-function SettingsOverview({ snapshot, name, verified, tier, query, onQuery, onSelect, signingOut, onLogout }: { snapshot: Snapshot; name: string; verified: boolean; tier: string; query: string; onQuery: (value: string) => void; onSelect: (section: SettingsSection) => void; signingOut: boolean; onLogout: () => void }) {
-  const statuses: Partial<Record<SettingsSection, string>> = {
-    profile: name || 'Complete profile',
-    account: `${tier} · ${verified ? 'Verified' : 'Verify email'}`,
-    identity: `${snapshot.continuities?.length ?? 1} ${(snapshot.continuities?.length ?? 1) === 1 ? 'Life' : 'Lives'}`,
-    experience: snapshot.notificationPreferences?.push_enabled ? 'Notifications on' : 'Notifications off',
-    relationships: `${snapshot.characters.length} ${snapshot.characters.length === 1 ? 'companion' : 'companions'}`,
-    privacy: snapshot.profile?.privacy_settings?.analytics === false ? 'Analytics off' : 'Analytics on',
-  };
-  const filtered = sections.filter((item) => settingsSearchMatches(query, item.label, item.description, item.searchTerms));
-  return <View style={styles.panel}>
-    <PanelHeading title="All settings" body="Choose an area or search for the control you need." />
-    <View style={styles.searchBox}><Search size={19} color={colors.muted} /><TextInput accessibilityLabel="Search settings" value={query} onChangeText={onQuery} placeholder="Search settings" placeholderTextColor={colors.dimmed} returnKeyType="search" style={styles.searchInput} />{query ? <Pressable accessibilityRole="button" accessibilityLabel="Clear settings search" onPress={() => onQuery('')} hitSlop={8}><X size={18} color={colors.muted} /></Pressable> : null}</View>
-    {filtered.length ? <SettingsGroup>{filtered.map((item) => <SettingsRow key={item.id} icon={item.icon} title={item.label} body={item.description} value={statuses[item.id]} onPress={() => onSelect(item.id)} />)}</SettingsGroup> : <View style={styles.emptySearch}><Search size={24} color={colors.muted} /><Text style={styles.emptySearchTitle}>No settings found</Text><Text style={styles.emptySearchBody}>Try a broader word such as “photo,” “privacy,” or “password.”</Text></View>}
-    <LogoutButton signingOut={signingOut} onPress={onLogout} mobile />
-  </View>;
+  return settingsModal;
 }
 
 function AccountPanel({ email, providerLabel, verified, pendingEmail, tier, busy, onRoute, onResend, onSignOutOthers }: { email?: string; providerLabel: string; verified: boolean; pendingEmail: string | null; tier: string; busy: 'resend' | 'sessions' | null; onRoute: (route: string) => void; onResend: () => void; onSignOutOthers: () => void }) {
@@ -350,9 +246,9 @@ function AccountPanel({ email, providerLabel, verified, pendingEmail, tier, busy
 function IdentityPanel({ snapshot, onRoute }: { snapshot: Snapshot; onRoute: (route: string) => void }) {
   const persona = snapshot.activePersona;
   const life = snapshot.activeContinuity;
-  const lifeCount = snapshot.continuities?.length ?? 1;
+  const lifeCount = snapshot.continuities?.filter((item)=>item.kind!=='branch').length ?? 1;
   return <View style={styles.panel}><PanelHeading title="Personas & Lives" body="A Persona defines who you are. A Life keeps that identity’s relationships and history isolated." />
-    <View style={styles.lifeHero}><View style={styles.lifeAvatar}><Text style={styles.lifeInitial}>{(persona?.display_name ?? snapshot.profile?.display_name ?? 'Y')[0]}</Text></View><View style={{ flex: 1 }}><Text style={styles.summaryKicker}>{life?.kind === 'alternate' ? 'ACTIVE ALTERNATE LIFE' : 'ACTIVE MAIN LIFE'}</Text><Text style={styles.lifeName}>{persona?.display_name ?? snapshot.profile?.display_name ?? 'You'}</Text><Text style={styles.lifeMeta}>{[persona?.occupation, persona?.age].filter(Boolean).join(' · ') || life?.title || 'Main Life'}</Text></View><View style={styles.activePill}><Check size={12} color="#fff" /><Text style={styles.activePillText}>ACTIVE</Text></View></View>
+    <View style={styles.lifeHero}><View style={styles.lifeAvatar}><Text style={styles.lifeInitial}>{(persona?.display_name ?? snapshot.profile?.display_name ?? 'Y')[0]}</Text></View><View style={{ flex: 1 }}><Text style={styles.summaryKicker}>{life?.kind === 'branch' ? 'ACTIVE CHAT PATH' : life?.kind === 'alternate' ? 'ACTIVE ALTERNATE LIFE' : 'ACTIVE MAIN LIFE'}</Text><Text style={styles.lifeName}>{persona?.display_name ?? snapshot.profile?.display_name ?? 'You'}</Text><Text style={styles.lifeMeta}>{[persona?.occupation, persona?.age].filter(Boolean).join(' · ') || life?.title || 'Main Life'}</Text></View><View style={styles.activePill}><Check size={12} color="#fff" /><Text style={styles.activePillText}>ACTIVE</Text></View></View>
     <SettingsGroup><SettingsRow icon={<Sparkles />} title="Manage Personas & Lives" body="Switch identities or create another separate Life." value={`${lifeCount} ${lifeCount === 1 ? 'Life' : 'Lives'}`} onPress={() => onRoute('/personas')} /><SettingsRow icon={<UserRound />} title="Edit active Persona" body="Name, pronouns, occupation, interests, and in-world identity." onPress={() => onRoute(`/persona-editor?persona=${persona?.id ?? ''}`)} /></SettingsGroup>
     <InfoCard title="Why this is separate">Your account is how you sign in. Your Persona is who companions know inside this Life. Switching Personas never relabels an existing relationship.</InfoCard>
   </View>;
@@ -388,10 +284,6 @@ function PrivacyPanel({ onRoute, onDisclosure }: { onRoute: (route: string) => v
 
 function SupportPanel({ onRoute, onContact }: { onRoute: (route: string) => void; onContact: () => void }) {
   return <View style={styles.panel}><PanelHeading title="Help & support" body="Find answers, contact the support team, or review an existing request." /><SettingsGroup><SettingsRow icon={<LifeBuoy />} title="Help center" body="Answers for accounts, conversations, media, billing, privacy, and safety." onPress={() => onRoute('/help')} /><SettingsRow icon={<MessageCircle />} title="Contact support" body="Send a private request to the support team." onPress={onContact} /></SettingsGroup><InfoCard title="For a specific chat message">Use the message menu in chat to report a generated response. Support requests never attach unrelated conversation history.</InfoCard></View>;
-}
-
-function LogoutButton({ signingOut, onPress, mobile = false }: { signingOut: boolean; onPress: () => void; mobile?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel="Sign out" accessibilityState={{ disabled: signingOut }} disabled={signingOut} onPress={onPress} style={({ pressed }) => [styles.logoutButton, mobile && styles.logoutButtonMobile, signingOut && styles.logoutButtonDisabled, pressed && styles.pressed]}><LogOut size={18} color={colors.danger} /><Text style={styles.logoutButtonText}>{signingOut ? 'Signing out…' : 'Sign out'}</Text></Pressable>;
 }
 
 function PanelHeading({ title, body }: { title: string; body: string }) { return <View style={styles.panelHeading}><Text accessibilityRole="header" style={styles.panelTitle}>{title}</Text><Text style={styles.panelBody}>{body}</Text></View>; }

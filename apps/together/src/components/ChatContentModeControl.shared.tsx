@@ -6,14 +6,14 @@ import { colors, radius } from '../theme';
 import type { ChatGenerationChoice } from '../lib/chatGenerationOptions';
 import { ThemedSettingPicker } from './settings/ThemedSettingPicker';
 
-type Props={value:DialogueContentMode;onChange:(value:DialogueContentMode)=>void;disabled:boolean;eligible:boolean};
+type Props={value:DialogueContentMode;onChange:(value:DialogueContentMode)=>void;disabled:boolean;eligible:boolean;onRequireAgeConfirmation:()=>void};
 const baseOptions:ChatGenerationChoice<DialogueContentMode>[]=[
   {value:'standard',label:'Standard',description:''},
   {value:'mature',label:'Mature',description:''},
   {value:'explicit',label:'Explicit',description:''},
 ];
 
-export function ChatContentModeControl({value,onChange,disabled,eligible}:Props){
+export function ChatContentModeControl({value,onChange,disabled,eligible,onRequireAgeConfirmation}:Props){
   const [open,setOpen]=useState(false);
   const selectorRef=useRef<ElementRef<typeof Pressable>>(null);
   const normalized=value==='explicit'?'explicit':value==='standard'?'standard':'mature';
@@ -24,32 +24,32 @@ export function ChatContentModeControl({value,onChange,disabled,eligible}:Props)
       ref={selectorRef}
       testID="conversation-spicyness-setting"
       accessibilityRole="button"
-      accessibilityLabel={`Conversation Spicyness: ${selectedLabel}`}
-      accessibilityHint="Opens the Conversation Spicyness choices"
+      accessibilityLabel={`Conversation spiciness: ${selectedLabel}`}
+      accessibilityHint="Opens the conversation spiciness choices"
       accessibilityState={{expanded:open,disabled}}
       disabled={disabled}
       onPress={()=>setOpen(true)}
       style={({pressed})=>[styles.selector,disabled&&styles.disabled,pressed&&styles.pressed]}
     >
       <View style={styles.icon}><Flame size={18} color={colors.violet}/></View>
-      <Text style={styles.label}>Conversation Spicyness</Text>
+      <Text style={styles.label}>Conversation spiciness</Text>
       <Text style={styles.value}>{selectedLabel}</Text>
       <ChevronRight size={17} color={colors.muted}/>
     </Pressable>
     <ThemedSettingPicker
       visible={open}
-      title="Conversation Spicyness"
+      title="Conversation spiciness"
       choices={options}
       selected={normalized}
       disabled={disabled}
       onSelect={onChange}
-      onLockedSelect={()=>undefined}
+      onLockedSelect={()=>{setOpen(false);onRequireAgeConfirmation();}}
       onClose={()=>setOpen(false)}
       returnFocusRef={selectorRef}
       testIDPrefix="conversation-spicyness-option"
       showChoiceDescriptions={false}
-      lockedRequirement="Confirm your age in account settings first"
-      lockedAccessibilityHint="Confirm your age in account settings before choosing Explicit"
+      lockedRequirement="Confirm your birthdate in Account settings first"
+      lockedAccessibilityHint="Saves your current settings, then opens Account settings to confirm your birthdate"
     />
   </View>;
 }
