@@ -2,6 +2,7 @@ import { batchReplyText } from '../replyStreaming';
 import type { DialogueContextQuote } from '@together/domain/src/chat-context';
 import { supabase, supabasePublishableKey, supabaseUrl } from '../supabase';
 import { Platform } from 'react-native';
+import { nativePlatformHeaders } from './clientPlatform';
 import {
   MESSAGE_CHARACTER_LIMIT,
   messageCharacterLimitError,
@@ -153,6 +154,7 @@ export async function sendDialogue(
         apikey: supabasePublishableKey,
         'Content-Type': 'application/json',
         'x-correlation-id': input.clientRequestId,
+        ...nativePlatformHeaders(),
       },
       body: JSON.stringify({ ...input, streamProtocol: 2 }),
       signal: responseController.signal,
@@ -329,6 +331,7 @@ export async function suggestDialogue(input: {
       Authorization: `Bearer ${await token()}`,
       apikey: supabasePublishableKey,
       'Content-Type': 'application/json',
+      ...nativePlatformHeaders(),
     },
     body: JSON.stringify(input),
     signal,
@@ -369,6 +372,7 @@ export async function sendSceneReaction(
         Authorization: `Bearer ${await token()}`,
         apikey: supabasePublishableKey,
         'Content-Type': 'application/json',
+        ...nativePlatformHeaders(),
       },
       body: JSON.stringify(input),
     });

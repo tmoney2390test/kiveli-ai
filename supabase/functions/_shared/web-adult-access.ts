@@ -5,8 +5,9 @@ import { normalizePrivateAdultTextMode, resolveAdultEligibility, type AdultEligi
 import { AppError } from './types.ts';
 import { paidEntitlementAccepted, resolveBillingSurfacePolicy } from './web-billing-policy.ts';
 import { waitUntil } from './background.ts';
+import { nativeDialogueSurface, privateTextModeForSurface, readIosExplicitDialogueControl } from './ios-explicit-dialogue-control.ts';
 
-export type ClientSurface='web'|'native_or_unknown';
+export type ClientSurface='web'|'ios'|'android'|'native_or_unknown';
 export type AdultAccessContext={
   premium_access:boolean;
   adult_eligible:boolean;
@@ -25,6 +26,11 @@ const COOKIE_NAME='__Host-kivelli_web_session';
 
 export async function resolveAdultAccess(request:Request,user:User,db:SupabaseClient):Promise<AdultAccessContext>{
   const cookieToken=readCookie(request.headers.get('cookie'),COOKIE_NAME);
+  const declaredPlatform=request.headers.get('x-kivelli-client-platform');
+  // A forged web assertion must not bypass the native fail-closed default.
+  const iosControlPromise=declaredPlatform==='android'||request.headers.get('x-kivelli-surface')==='web'
+    ? Promise.resolve({enabled:false,available:false,updatedAt:null})
+    : readIosExplicitDialogueControl(db);
   const webSessionPromise=cookieToken
     ? sha256Hex(cookieToken).then((hash)=>db.from('together_web_adult_sessions').select('id,adult_mode_enabled,expires_at,revoked_at').eq('user_id',user.id).eq('token_hash',hash).is('revoked_at',null).gt('expires_at',new Date().toISOString()).maybeSingle())
     : Promise.resolve({data:null});
@@ -40,15 +46,16 @@ export async function resolveAdultAccess(request:Request,user:User,db:SupabaseCl
     .order('last_seen_at',{ascending:false})
     .limit(1)
     .maybeSingle();
-  const [verifiedWebSurface,subscription,profile,webSessionResult,latestWebSessionResult]=await Promise.all([
+  const [verifiedWebSurface,subscription,profile,webSessionResult,latestWebSessionResult,iosControl]=await Promise.all([
     verifyWebSurfaceAssertion(request,user.id),
     resolveSubscriptionAccess(db,user.id),
     db.from('together_profiles').select('adult_eligible_at,age_verified_at,date_of_birth,private_text_preference,private_text_preference_recorded_at').eq('user_id',user.id).maybeSingle(),
     webSessionPromise,
     latestWebSessionPromise,
+    iosControlPromise,
   ]);
-  const client_surface=verifiedWebSurface?'web':'native_or_unknown';
-  const premium_access=paidEntitlementAccepted(resolveBillingSurfacePolicy(client_surface),subscription.tier,subscription.billing.provider);
+  const client_surface=nativeDialogueSurface(verifiedWebSurface,declaredPlatform);
+  const premium_access=paidEntitlementAccepted(resolveBillingSurfacePolicy(verifiedWebSurface?'web':'native_or_unknown'),subscription.tier,subscription.billing.provider);
   const adult_eligibility=resolveAdultEligibility({adultEligibleAt:profile.data?.adult_eligible_at,ageVerifiedAt:profile.data?.age_verified_at,dateOfBirth:profile.data?.date_of_birth});
   const adult_eligible=adult_eligibility.allowed;
   // This field is retained for compatibility with the access matrix, but now
@@ -72,7 +79,7 @@ export async function resolveAdultAccess(request:Request,user:User,db:SupabaseCl
   // the safe projection; canonical content remains stored and unchanged.
   const adult_generation_enabled=envTrue('WEB_ADULT_MODE_ENABLED')&&Boolean(Deno.env.get('OPENAI_API_KEY')?.trim());
   const authorized_web_adult=adultPipelineAuthorized({client_surface,premium_access,adult_eligible,adult_mode_enabled,global_enabled:adult_generation_enabled});
-  const private_adult_text_mode=normalizePrivateAdultTextMode(Deno.env.get('KIVELLE_PRIVATE_ADULT_TEXT_MODE'));
+  const private_adult_text_mode=privateTextModeForSurface(normalizePrivateAdultTextMode(Deno.env.get('KIVELLE_PRIVATE_ADULT_TEXT_MODE')),client_surface,iosControl.enabled);
   const private_text_preference=['standard','mature','explicit'].includes(String(profile.data?.private_text_preference))?profile.data?.private_text_preference as 'standard'|'mature'|'explicit':null;
   const private_text_preference_recorded=Boolean(private_text_preference&&profile.data?.private_text_preference_recorded_at);
   return{premium_access,adult_eligible,adult_mode_enabled,client_surface,adult_generation_enabled,authorized_web_adult,adult_eligibility,private_adult_text_mode,private_text_preference,private_text_preference_recorded,web_session_id};

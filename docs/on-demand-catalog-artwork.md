@@ -53,6 +53,10 @@ still reference them. Authenticated/anonymous app clients cannot modify objects.
    It creates the dedicated bucket if absent, refuses to expose an existing private
    bucket, never overwrites an object, and fetches/verifies each published checksum.
    Retry is safe. Do not print credentials or put them in EXPO_PUBLIC configuration.
+   After any direct character publication, run `pnpm portrait:audit -- --verify-delivery`.
+   This checks both public display and thumbnail URLs for every published selectable
+   resident. A valid registry entry and manifest alone do not prove that the files
+   were uploaded; block release if either variant is missing.
 5. For new or changed character portraits, run
    `node --experimental-strip-types scripts/sync-kivelle-reference-media.ts --characters-only --apply`
    with the same server-only credentials so photo generation has the canonical

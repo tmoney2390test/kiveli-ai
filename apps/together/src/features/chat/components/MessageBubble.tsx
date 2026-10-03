@@ -26,7 +26,6 @@ import {
   Trash2,
   Undo2,
   Volume2,
-  Wand2,
 } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import { isPhotoOnlyConversationMessage } from '../../../lib/chatMediaPresentation';
@@ -93,7 +92,6 @@ export function MessageBubble({
   canContinue,
   onFavorite,
   onContinue,
-  onSuggest,
   onPlan,
   onPhoto,
   seamlessCompletion,
@@ -142,7 +140,6 @@ export function MessageBubble({
   canContinue: boolean;
   onFavorite: () => void | Promise<void>;
   onContinue: () => void | Promise<void>;
-  onSuggest: () => void | Promise<void>;
   onPlan: () => void;
   onPhoto: () => void;
   seamlessCompletion: boolean;
@@ -291,7 +288,7 @@ export function MessageBubble({
     ...(canBranch
       ? [{
         key: 'branch',
-        label: branchLocked ? 'Alternate paths · Kivelle+' : 'Start alternate path',
+        label: 'Branch',
         icon: branchLocked
           ? <LockKeyhole size={23} color={colors.textSecondary} />
           : <GitBranch size={23} color={colors.rose} />,
@@ -367,14 +364,6 @@ export function MessageBubble({
             label: voice ? 'Voice' : 'Listen',
             icon: <Volume2 size={23} color={voiceEnabled ? colors.textSecondary : colors.muted} />,
             onPress: voiceAction,
-          }]
-          : []),
-        ...(assistant && canContinue
-          ? [{
-            key: 'suggest',
-            label: 'Suggest reply',
-            icon: <Wand2 size={23} color={colors.textSecondary} />,
-            onPress: onSuggest,
           }]
           : []),
         ...(assistant

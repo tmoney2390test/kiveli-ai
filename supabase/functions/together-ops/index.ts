@@ -96,6 +96,7 @@ const schema = z.discriminatedUnion("action", [
   z.object({action:z.literal('reply_to_customer'),ticketId:z.string().uuid(),message:z.string().trim().min(2).max(5000),requestId:z.string().uuid()}),
   z.object({action:z.literal('recover_ticket'),ticketId:z.string().uuid(),requestId:z.string().uuid(),recoveryAction:z.enum(['restore_chat','refresh_delivery','poll_media','reconcile_membership']),targetId:z.string().uuid(),confirmTarget:z.string().uuid(),reason:z.string().trim().min(8).max(500)}),
   z.object({ action: z.literal("dashboard") }),
+  z.object({ action: z.literal("update_ios_explicit_dialogue"), enabled: z.boolean(), expectedEnabled: z.boolean(), reason: z.string().trim().min(8).max(500) }),
   z.object({action:z.literal("video_costs")}),
   z.object({action:z.literal("refresh_video_prices")}),
   z.object({action:z.literal("publish_video_prices"),creditsPerUnit:z.number().min(1).max(10000),minimumCredits:z.number().int().min(1).max(10000),reason:z.string().trim().min(8).max(500)}),
@@ -349,6 +350,22 @@ serve(async (request, correlationId) => {
       200,
       correlationId,
     );
+  }
+  if (input.action === "update_ios_explicit_dialogue") {
+    requireMinimumRole(role, "admin");
+    await enforceRateLimit(db, user.id, "ops_content_control", 12, 3600);
+    const { data, error } = await db.rpc("kivelle_ops_set_ios_explicit_dialogue", {
+      p_actor_user_id: user.id,
+      p_expected_enabled: input.expectedEnabled,
+      p_enabled: input.enabled,
+      p_reason: sanitizeOperationsText(input.reason, 500),
+      p_request_id: correlationId,
+    });
+    if (error) {
+      if (error.message.includes("CONTENT_CONTROL_STALE")) throw new AppError("CONFLICT", "This setting changed. Refresh Ops and try again.", 409);
+      throw new AppError("INTERNAL_ERROR", "The iOS dialogue setting could not be updated.", 500, true);
+    }
+    return json({ data, correlationId }, 200, correlationId);
   }
   if (input.action === "incidents") {
     const { data, error } = await db.from("together_ops_incidents").select("*")

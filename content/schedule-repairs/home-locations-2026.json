@@ -1,0 +1,455 @@
+[
+  {
+    "world": "port-vervelle",
+    "id": "27000000-0000-4000-8000-000000000001",
+    "slug": "porto-vecchio",
+    "name": "Porto Vecchio",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "port-vervelle",
+    "id": "27000000-0000-4000-8000-000000000002",
+    "slug": "piazza-aurelia",
+    "name": "Piazza Aurelia",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "port-vervelle",
+    "id": "27000000-0000-4000-8000-000000000003",
+    "slug": "marina-solana",
+    "name": "Marina Solana",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "port-vervelle",
+    "id": "27000000-0000-4000-8000-000000000010",
+    "slug": "porto-marina",
+    "name": "Porto Marina",
+    "hours": {
+      "open": "05:00",
+      "close": "23:00"
+    },
+    "category": "marina",
+    "locationType": "landmark"
+  },
+  {
+    "world": "neon-kyo",
+    "id": "28000000-0000-4000-8000-000000000001",
+    "slug": "hikari-core",
+    "name": "Hikari Core",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "neon-kyo",
+    "id": "28000000-0000-4000-8000-000000000002",
+    "slug": "shinjira",
+    "name": "Shinjira",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "neon-kyo",
+    "id": "28000000-0000-4000-8000-000000000003",
+    "slug": "aoyama-nine",
+    "name": "Aoyama-9",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "neon-kyo",
+    "id": "28000000-0000-4000-8000-000000000004",
+    "slug": "akiba-undergrid",
+    "name": "Akiba Undergrid",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "neon-kyo",
+    "id": "28000000-0000-4000-8000-000000000005",
+    "slug": "tsuki-blocks",
+    "name": "Tsuki Blocks",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "neon-kyo",
+    "id": "28000000-0000-4000-8000-000000000006",
+    "slug": "old-kyo-the-shade",
+    "name": "Old Kyo / The Shade",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "vespormoor",
+    "id": "29000000-0000-4000-8000-000000000001",
+    "slug": "old-vesper",
+    "name": "Old Vesper",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "vespormoor",
+    "id": "29000000-0000-4000-8000-000000000002",
+    "slug": "vesper-heights",
+    "name": "Vesper Heights",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "vespormoor",
+    "id": "29000000-0000-4000-8000-000000000003",
+    "slug": "lakeward",
+    "name": "Lakeward",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "vespormoor",
+    "id": "29000000-0000-4000-8000-000000000004",
+    "slug": "vespormoor-university",
+    "name": "Vespormoor University",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "vespormoor",
+    "id": "29000000-0000-4000-8000-000000000005",
+    "slug": "thornwood",
+    "name": "Thornwood",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "vespormoor",
+    "id": "29000000-0000-4000-8000-000000000006",
+    "slug": "raven-ward",
+    "name": "Raven Ward",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "juniper-city",
+    "id": "2a000000-0000-4000-8000-000000000001",
+    "slug": "northside",
+    "name": "Northside",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "juniper-city",
+    "id": "2a000000-0000-4000-8000-000000000002",
+    "slug": "marquee-quarter",
+    "name": "Marquee Quarter",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "juniper-city",
+    "id": "2a000000-0000-4000-8000-000000000004",
+    "slug": "riverside",
+    "name": "Riverside",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "juniper-city",
+    "id": "2a000000-0000-4000-8000-000000000005",
+    "slug": "civic-commons",
+    "name": "Civic Commons",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "northvale",
+    "id": "2b000000-0000-4000-8000-000000000001",
+    "slug": "old-vale",
+    "name": "Old Vale",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "northvale",
+    "id": "2b000000-0000-4000-8000-000000000002",
+    "slug": "summit-village",
+    "name": "Summit Village",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "northvale",
+    "id": "2b000000-0000-4000-8000-000000000003",
+    "slug": "timberline-commons",
+    "name": "Timberline Commons",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "northvale",
+    "id": "2b000000-0000-4000-8000-000000000004",
+    "slug": "northvale-mountain",
+    "name": "NorthVale Mountain",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "northvale",
+    "id": "2b000000-0000-4000-8000-000000000005",
+    "slug": "pine-lake",
+    "name": "Pine Lake",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "northvale",
+    "id": "2b000000-0000-4000-8000-000000000006",
+    "slug": "silver-basin",
+    "name": "Silver Basin",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "eos-meridian",
+    "id": "2c000000-0000-4000-8000-000000000001",
+    "slug": "meridian-core",
+    "name": "Meridian Core",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "eos-meridian",
+    "id": "2c000000-0000-4000-8000-000000000002",
+    "slug": "solace-biome",
+    "name": "Solace Biome",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "eos-meridian",
+    "id": "2c000000-0000-4000-8000-000000000003",
+    "slug": "ascension-port",
+    "name": "Ascension Port",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "eos-meridian",
+    "id": "2c000000-0000-4000-8000-000000000004",
+    "slug": "forge-ward",
+    "name": "Forge Ward",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "eos-meridian",
+    "id": "2c000000-0000-4000-8000-000000000005",
+    "slug": "nightglass",
+    "name": "Nightglass",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "eos-meridian",
+    "id": "2c000000-0000-4000-8000-000000000006",
+    "slug": "old-meridian",
+    "name": "Old Meridian",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "vharadren",
+    "id": "2d000000-0000-4000-8000-000000000001",
+    "slug": "crownspire",
+    "name": "Crownspire",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "vharadren",
+    "id": "2d000000-0000-4000-8000-000000000002",
+    "slug": "black-march",
+    "name": "The Black March",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "vharadren",
+    "id": "2d000000-0000-4000-8000-000000000003",
+    "slug": "ember-isles",
+    "name": "The Ember Isles",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "vharadren",
+    "id": "2d000000-0000-4000-8000-000000000004",
+    "slug": "verdant-reach",
+    "name": "The Verdant Reach",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "vharadren",
+    "id": "2d000000-0000-4000-8000-000000000005",
+    "slug": "shattered-coast",
+    "name": "The Shattered Coast",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "vharadren",
+    "id": "2d000000-0000-4000-8000-000000000006",
+    "slug": "ashlands",
+    "name": "The Ashlands",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "gilded-coast",
+    "id": "2e000000-0000-4000-8014-000000000001",
+    "slug": "admiralty-quay",
+    "name": "Admiralty Quay",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "gilded-coast",
+    "id": "2e000000-0000-4000-8014-000000000008",
+    "slug": "gilt-row",
+    "name": "Gilt Row",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "gilded-coast",
+    "id": "2e000000-0000-4000-8014-000000000015",
+    "slug": "ropewalk",
+    "name": "The Ropewalk",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "gilded-coast",
+    "id": "2e000000-0000-4000-8014-000000000022",
+    "slug": "lantern-market",
+    "name": "Lantern Market",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "gilded-coast",
+    "id": "2e000000-0000-4000-8014-000000000029",
+    "slug": "breakwater-point",
+    "name": "Breakwater Point",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "gilded-coast",
+    "id": "2e000000-0000-4000-8014-000000000036",
+    "slug": "outer-cays",
+    "name": "The Outer Cays",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "calders-run",
+    "id": "4331f47a-a84a-5a9c-84bb-29e462d61985",
+    "slug": "river-ward",
+    "name": "River Ward",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "calders-run",
+    "id": "4aa276e2-1323-53a9-b9eb-d8de7cf3547e",
+    "slug": "cinder-bluffs",
+    "name": "Cinder Bluffs",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "calders-run",
+    "id": "604a7a05-0d7e-5ea2-9357-1e9953bf3bd1",
+    "slug": "lantern-row",
+    "name": "Lantern Row",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "calders-run",
+    "id": "8ea973d5-94fe-5c5c-8cb3-84a90abef76e",
+    "slug": "main-street",
+    "name": "Main Street",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "calders-run",
+    "id": "b825b72f-5bd8-5f53-a5a3-e4b862932ae7",
+    "slug": "the-railhead",
+    "name": "The Railhead",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  },
+  {
+    "world": "calders-run",
+    "id": "cff3d4a7-0a30-57e0-ba3f-d74db9b72810",
+    "slug": "cottonwood-valley",
+    "name": "Cottonwood Valley",
+    "hours": null,
+    "category": "district",
+    "locationType": "district"
+  }
+]

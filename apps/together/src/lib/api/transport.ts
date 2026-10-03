@@ -3,6 +3,7 @@ import { supabase, supabasePublishableKey, supabaseUrl } from '../supabase';
 import { clearSessionForApiFailure } from '../authSession';
 import { ensureAiConsent, invalidateAiConsent, needsClientAiConsentCheck } from '../aiConsent';
 import { performanceSurfaces, queueClientPerformance } from './telemetry';
+import { nativePlatformHeaders } from './clientPlatform';
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -84,6 +85,7 @@ export async function invoke<T>(
         apikey: supabasePublishableKey,
         'Content-Type': 'application/json',
         'x-kivelle-timezone': deviceTimezone(),
+        ...nativePlatformHeaders(),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       ...(options.signal ? { signal: options.signal } : {}),

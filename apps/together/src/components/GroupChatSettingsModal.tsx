@@ -12,6 +12,7 @@ import type { ChatTextSize, Conversation, ConversationStyle, DialogueContentMode
 import { FrostedSurface } from './FrostedGlass';
 import { chatLanguageOptions, type ChatLanguagePreference } from '@together/domain/src/chat-language';
 import { ChatContentModeControl } from './ChatContentModeControl';
+import { useIosExplicitDialogueAvailability } from '../hooks/useIosExplicitDialogueAvailability';
 import { ChatGenerationSettings } from './settings/ChatGenerationSettings';
 import { type ChatDynamism, type ReasoningPreference } from '@together/domain/src/chat-generation';
 import { subscriptionHref } from '../lib/subscriptionPresentation';
@@ -33,6 +34,7 @@ type Props = {
 const demoMode = __DEV__ && process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === 'true';
 
 export function GroupChatSettingsModal({ visible, conversation, settings, onClose, onSaved }: Props) {
+  const iosExplicitAvailable = useIosExplicitDialogueAvailability(visible);
   const { snapshot, upsertConversation } = useTogether();
   const [title, setTitle] = useState('');
   const [responseStyle, setResponseStyle] = useState<ConversationStyle>('texting');
@@ -143,7 +145,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
               })}
             </View>
           </Section>
-          <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible} onRequireAgeConfirmation={() => void save(openAccount)}/>
+          <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible} explicitAvailable={iosExplicitAvailable} onRequireAgeConfirmation={() => void save(openAccount)}/>
           <Section icon={<Bell size={16} color={colors.violet} />} label="Notifications">
             <Text style={styles.sectionHint}>Choose which group activity can send a push notification. Messages still appear here when notifications are quiet.</Text>
             <View accessibilityRole="radiogroup" style={styles.columns}>

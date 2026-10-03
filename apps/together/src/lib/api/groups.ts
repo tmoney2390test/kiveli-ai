@@ -11,6 +11,7 @@ import { drainJsonSseEvents } from '../sse';
 import { scheduleForegroundTimeout } from '../webPageLifecycle';
 import { ApiError, invoke, token } from './transport';
 import { queueClientPerformance } from './telemetry';
+import { nativePlatformHeaders } from './clientPlatform';
 export const manageGroup = async <T = GroupDetail>(input: Record<string, unknown>) => {
   await ensureWebAdultSession(await token()).catch(() => undefined);
   return invoke<T>('together-group', input);
@@ -135,6 +136,7 @@ export async function sendGroupDialogue(
         apikey: supabasePublishableKey,
         'Content-Type': 'application/json',
         'x-correlation-id': input.clientRequestId,
+        ...nativePlatformHeaders(),
       },
       body: JSON.stringify({ ...input, streamProtocol: 2 }),
       signal,

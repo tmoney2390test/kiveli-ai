@@ -84,6 +84,7 @@ export type SafetyReportDetail = {
   events: Array<Record<string, unknown>>;
 };
 export type OperationsDashboard = {
+  contentControls: { iosExplicitDialogue: { enabled: boolean; available: boolean; updatedAt: string | null } };
   retention?: {
     attention:boolean; unavailable?:boolean; holds?:number;
     storage?:{objects:Array<{status:string;objects:number;bytes:number}>;lastCheckedAt:string|null}|null;
@@ -274,6 +275,10 @@ export const loadMySupportTickets = () =>
   >("together-ops", { action: "my_tickets" });
 export const loadOperationsDashboard = () =>
   invoke<OperationsDashboard>("together-ops", { action: "dashboard" });
+export const updateIosExplicitDialogue = (enabled: boolean, expectedEnabled: boolean, reason: string) =>
+  invoke<{ enabled: boolean; updatedAt: string; updatedBy: string }>("together-ops", {
+    action: "update_ios_explicit_dialogue", enabled, expectedEnabled, reason,
+  });
 export const updateOperationsWorldStatus = (worldId: string, status: OperationsWorldStatus) =>
   invoke<{ world: Record<string, unknown> }>("together-ops", {
     action: "update_world_status",

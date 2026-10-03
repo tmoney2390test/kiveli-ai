@@ -53,4 +53,5 @@ await Promise.all(Array.from({length:6},async()=>{
     if(++verified%100===0)console.log(`Verified ${verified}/${entries.length} public display assets`);
   }
 }));
+console.log(JSON.stringify(await auditPublishedCharacterPortraits(db,{verifyDelivery:true,baseUrl:url})));
 console.log(JSON.stringify({bucket,uploaded,reused,verified,originalsChanged:false,privateBucketsChanged:false}));

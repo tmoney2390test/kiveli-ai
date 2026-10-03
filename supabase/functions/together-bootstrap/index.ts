@@ -13,6 +13,7 @@ import { loadCharacterProfileDetails } from '../_shared/together-character-profi
 import { resolveWorldAccess } from '../_shared/together-place.ts';
 import { isWorldCatalogVisible } from '../../../packages/together-domain/src/world-access.ts';
 import { ensureConversationOpener } from '../_shared/conversation-opener.ts';
+import { readIosExplicitDialogueControl } from '../_shared/ios-explicit-dialogue-control.ts';
 
 const onboardingSchema = z.object({
   action: z.literal('complete_onboarding').optional(),
@@ -38,6 +39,10 @@ serve(async (request, correlationId) => {
   if (request.method === 'GET') {
     const { user, db } = await authenticated(request);
     const url=new URL(request.url),scope=url.searchParams.get('scope');
+    if(scope==='content_policy'){
+      const control=await readIosExplicitDialogueControl(db);
+      return json({data:{iosExplicitDialogueEnabled:control.enabled},correlationId},200,correlationId);
+    }
     if(scope==='presence'){
       const characterInstanceId=z.string().uuid().safeParse(url.searchParams.get('characterInstanceId'));
       if(!characterInstanceId.success)throw new AppError('VALIDATION_ERROR','Choose a companion to refresh.',400);

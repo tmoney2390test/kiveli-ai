@@ -54,6 +54,7 @@ import {
   updateOperationsAlertRule,
   updateOperationsIncident,
   updateOperationsWorldStatus,
+  updateIosExplicitDialogue,
   updateSafetyReport,
 } from "../src/lib/operations";
 import { useAuth } from "../src/hooks/useAuth";
@@ -68,6 +69,7 @@ type Tab =
   | "users"
   | "alerts"
   | "worlds"
+  | "content"
   | "releases"
   | "audit";
 const tabs: Array<{ key: Tab; label: string }> = [
@@ -80,6 +82,7 @@ const tabs: Array<{ key: Tab; label: string }> = [
   { key: "users", label: "Users" },
   { key: "alerts", label: "Alerts" },
   { key: "worlds", label: "Worlds" },
+  { key: "content", label: "Content" },
   { key: "releases", label: "Releases" },
   { key: "audit", label: "Audit" },
 ];
@@ -279,7 +282,7 @@ export default function Operations() {
     );
   }
   const visibleTabs = tabs.filter((item) =>
-      (!["audit", "worlds", "alerts"].includes(item.key) || data.access.permissions.admin) && (!["support", "users", "safety"].includes(item.key) || data.access.permissions.support)
+      (!["audit", "worlds", "alerts", "content"].includes(item.key) || data.access.permissions.admin) && (!["support", "users", "safety"].includes(item.key) || data.access.permissions.support)
     ),
     compact = width < 840;
   return (
@@ -360,6 +363,7 @@ export default function Operations() {
         {tab === "worlds"
           ? <Worlds worlds={data.worlds} busyKey={busyKey} mutate={mutate} />
           : null}
+        {tab === "content" ? <ContentControls control={data.contentControls?.iosExplicitDialogue} busyKey={busyKey} mutate={mutate} /> : null}
         {tab === "releases" ? <Releases data={data} /> : null}
         {tab === "audit" ? <Audit rows={data.audit} /> : null}
         <Text style={styles.note}>{data.note}</Text>
@@ -1135,6 +1139,56 @@ const worldStatusOptions: Array<{ value: OperationsWorldStatus; label: string; d
   { value: "early_access", label: "Early Access", detail: "Available to Kivelli+ and Max subscribers." },
   { value: "hidden", label: "Hidden", detail: "Removed from discovery; existing conversations keep working." },
 ];
+
+function ContentControls({ control, busyKey, mutate }: {
+  control: { enabled: boolean; available: boolean; updatedAt: string | null } | undefined;
+  busyKey: string;
+  mutate: (key: string, run: () => Promise<unknown>) => Promise<void>;
+}) {
+  const [pending, setPending] = useState<boolean | null>(null);
+  const [reason, setReason] = useState("");
+  const enabled = control?.enabled === true;
+  const available = control?.available === true;
+  const busy = busyKey === "ios-explicit-dialogue";
+  const apply = () => {
+    if (pending === null || reason.trim().length < 8 || busy) return;
+    const next = pending;
+    const note = reason.trim();
+    setPending(null);
+    setReason("");
+    void mutate("ios-explicit-dialogue", () => updateIosExplicitDialogue(next, enabled, note));
+  };
+  return <>
+    <SectionHeader icon={<ShieldCheck color={colors.violet} />} title="Content controls" body="Platform-specific release controls. Changes take effect on the server and appear in the audit trail." />
+    <Panel title="iOS explicit dialogue" hint="Controls explicit sexual text in the official iOS app. Web and Android keep their separate policies.">
+      <View style={styles.worldControl}>
+        <View style={styles.rowBetween}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.recordTitle}>Allow explicit sexual dialogue on iOS</Text>
+            <Text style={styles.recordBody}>Off limits iOS conversations to non-graphic mature content, including replies and chat history display. Existing chat preferences remain saved.</Text>
+            {control?.updatedAt ? <Text style={styles.recordMeta}>Updated {date(control.updatedAt)}</Text> : null}
+          </View>
+          <StatusPill value={!available ? "unavailable" : enabled ? "on" : "off"} />
+        </View>
+        <Pressable accessibilityRole="switch" accessibilityLabel="Allow explicit sexual dialogue on iOS" accessibilityState={{ checked: enabled, disabled: !available || busy }} disabled={!available || busy} onPress={() => setPending(!enabled)} style={[styles.worldStatusChoice, enabled && styles.worldStatusChoiceActive, (!available || busy) && styles.disabled]}>
+          <Text style={[styles.worldStatusChoiceText, enabled && styles.worldStatusChoiceTextActive]}>{enabled ? "On — tap to turn off" : "Off — tap to turn on"}</Text>
+        </Pressable>
+        {!available ? <Text style={styles.muted}>Control unavailable. The iOS server gate remains off.</Text> : null}
+        {pending !== null ? <View style={styles.worldConfirmation}>
+          <View style={{ flex: 1, gap: 8 }}>
+            <Text style={styles.recordTitle}>{pending ? "Enable" : "Disable"} explicit iOS dialogue?</Text>
+            <Text style={styles.recordBody}>{pending ? "Enabling explicit text in the App Store build may change its required age rating or review outcome. Update the App Store listing and review status before enabling." : "The server will stop returning explicit dialogue and hide previously explicit text in the iOS app."}</Text>
+            <TextInput value={reason} onChangeText={setReason} placeholder="Reason for this change (at least 8 characters)" placeholderTextColor={colors.muted} style={styles.input} maxLength={500} accessibilityLabel="Reason for content control change" />
+            <View style={styles.actionRow}>
+              <SmallAction label="Cancel" onPress={() => { setPending(null); setReason(""); }} />
+              <Pressable accessibilityRole="button" disabled={reason.trim().length < 8 || busy} onPress={apply} style={[styles.primary, (reason.trim().length < 8 || busy) && styles.disabled]}><Text style={styles.primaryText}>Apply change</Text></Pressable>
+            </View>
+          </View>
+        </View> : null}
+      </View>
+    </Panel>
+  </>;
+}
 
 function Worlds({ worlds, busyKey, mutate }: {
   worlds: OperationsWorld[];

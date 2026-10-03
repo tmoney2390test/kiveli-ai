@@ -21,6 +21,7 @@ import { chatLanguageOptions, type ChatLanguagePreference } from '@together/doma
 import { subscriptionHref } from '../lib/subscriptionPresentation';
 import { navigateLocalRouteOnWeb } from '../lib/conversationNavigation';
 import { ChatContentModeControl } from './ChatContentModeControl';
+import { useIosExplicitDialogueAvailability } from '../hooks/useIosExplicitDialogueAvailability';
 import { ChatGenerationSettings } from './settings/ChatGenerationSettings';
 import { type ChatDynamism, type ReasoningPreference } from '@together/domain/src/chat-generation';
 import { defaultDirectConversationTitle } from '../lib/conversation';
@@ -38,6 +39,7 @@ type Props = {
 
 const demoMode = __DEV__ && process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === 'true';
 export function ChatSettingsModal({ visible, conversation, character, onClose, onSaved }: Props) {
+  const iosExplicitAvailable = useIosExplicitDialogueAvailability(visible);
   const { snapshot, upsertConversation, setCoreState } = useTogether();
   const [proactive,setProactive]=useState(()=>initialProactiveDraft(snapshot?.notificationPreferences??null,character));
   const proactiveEntitled=Boolean(snapshot?.entitlements?.tier&&snapshot.entitlements.tier!=='free'&&snapshot.entitlements.entitlement_keys?.includes('proactive_messages'));
@@ -244,7 +246,7 @@ export function ChatSettingsModal({ visible, conversation, character, onClose, o
             </View>
           </SettingSection>
 
-          <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible} onRequireAgeConfirmation={() => void save(openAccount)}/>
+          <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible} explicitAvailable={iosExplicitAvailable} onRequireAgeConfirmation={() => void save(openAccount)}/>
 
           <SettingSection icon={<Volume2 size={16} color={colors.violet} />} label="Companion voice">
             {voiceEntitled ? <>

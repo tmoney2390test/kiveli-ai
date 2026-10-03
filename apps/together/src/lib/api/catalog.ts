@@ -8,6 +8,8 @@ import type {
 } from '../../types';
 import { deviceTimezone, invoke } from './transport';
 export const loadSnapshot = () => invoke<Snapshot>('together-bootstrap', undefined, 'GET');
+export const loadIosExplicitDialogueStatus = () =>
+  invoke<{ iosExplicitDialogueEnabled: boolean }>('together-bootstrap?scope=content_policy', undefined, 'GET');
 export const loadExploreCatalog = () =>
   invoke<ExploreCatalogSnapshot>('together-bootstrap?scope=explore', undefined, 'GET');
 export const confirmAdultAge = (input: {
