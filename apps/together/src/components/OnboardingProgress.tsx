@@ -14,12 +14,12 @@ export function OnboardingProgress({ step }: { step: 1 | 2 | 3 | 4 }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, gap: 8, minWidth: 0 },
-  caption: { color: colors.muted, fontSize: 10, letterSpacing: 1, fontWeight: '700' },
+  root: { width: '100%', gap: 8, minWidth: 0 },
+  caption: { color: colors.muted, fontSize: 11, letterSpacing: 1, fontWeight: '700' },
   row: { flexDirection: 'row', gap: 8 },
   item: { flex: 1, minWidth: 0, gap: 7 },
   bar: { height: 4, borderRadius: 2, backgroundColor: colors.borderBright },
   active: { backgroundColor: colors.rose },
-  label: { color: colors.muted, fontSize: 10 },
+  label: { color: colors.muted, fontSize: 11, textAlign: 'center' },
   current: { color: colors.text, fontWeight: '700' },
 });

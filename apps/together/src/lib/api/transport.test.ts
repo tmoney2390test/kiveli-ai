@@ -28,6 +28,7 @@ vi.mock('./telemetry', () => ({
   performanceSurfaces: new Set(['together-plan', 'together-bootstrap']),
   queueClientPerformance: mocks.telemetry,
 }));
+vi.mock('./clientPlatform', () => ({ nativePlatformHeaders: () => ({}) }));
 
 const response = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status });
 const fetchMock = vi.fn<typeof fetch>();

@@ -19,15 +19,16 @@ type PrivacyChoices = { aiDataConsent: { decision: 'accepted' | 'declined' | 'wi
 
 export default function Account() {
   const refresh = useTogether((state) => state.refresh);
-  const { session, updateEmail, resendPendingEmailChange, signOutOthers } = useAuth();
+  const { session, updateEmail, requestPasswordReset, resendPendingEmailChange, signOutOthers } = useAuth();
   const provider = authProviderState(session?.user);
   const [newEmail, setNewEmail] = useState('');
-  const [busy, setBusy] = useState<'privacy' | 'birthdate' | 'email' | 'sessions' | 'resend' | null>(null);
+  const [busy, setBusy] = useState<'privacy' | 'birthdate' | 'email' | 'password' | 'sessions' | 'resend' | null>(null);
   const [birthdateStatus,setBirthdateStatus]=useState<BirthdateStatus|null>(null);
   const [birthdate,setBirthdate]=useState('');
   const [birthdateLoading,setBirthdateLoading]=useState(true);
   const [birthdateNotice,setBirthdateNotice]=useState<Notice>(null);
   const [emailNotice, setEmailNotice] = useState<Notice>(null);
+  const [passwordNotice, setPasswordNotice] = useState<Notice>(null);
   const [privacyChoices, setPrivacyChoices] = useState<PrivacyChoices | null>(null);
   const [privacyPreference, setPrivacyPreference] = useState<TextPreference>('explicit');
   const [privacyNotice, setPrivacyNotice] = useState<Notice>(null);
@@ -98,6 +99,18 @@ export default function Account() {
     finally { setBusy(null); }
   };
 
+  const sendPasswordLink = async () => {
+    const email = session?.user.email;
+    if (!email || !provider.verifiedEmail || busy) return;
+    setBusy('password'); setPasswordNotice(null);
+    try {
+      await requestPasswordReset(email);
+      setPasswordNotice({ kind: 'success', message: `Check ${email} for a secure link to set your password.` });
+    } catch (error) {
+      setPasswordNotice({ kind: 'error', message: error instanceof Error ? error.message : 'The password link could not be sent.' });
+    } finally { setBusy(null); }
+  };
+
   const otherSessions = () => Alert.alert('Sign out other sessions?', 'This device will stay signed in. Every other browser and mobile session will need to sign in again.', [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Sign out other sessions', style: 'destructive', onPress: () => { setBusy('sessions'); void signOutOthers().then(() => Alert.alert('Other sessions signed out', 'This device is still signed in.')).catch((error) => Alert.alert('Could not sign out other sessions', error instanceof Error ? error.message : 'Please try again.')).finally(() => setBusy(null)); } },
@@ -105,7 +118,7 @@ export default function Account() {
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to settings" hitSlop={10} onPress={() => router.canGoBack() ? router.back() : router.replace('/settings?section=account')} style={styles.back}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Account & security</PageTitle></View>
-    <Text style={styles.lead}>Manage your verified email, birthdate, conversation setting, and active sessions.</Text>
+    <Text style={styles.lead}>Manage your verified email, password, birthdate, conversation setting, and active sessions.</Text>
 
     <View style={styles.summary}>
       <View style={styles.summaryIcon}><KeyRound color={colors.violet} /></View><View style={{ flex: 1 }}><Text style={styles.kicker}>{provider.label.toUpperCase()}</Text><Text style={styles.email}>{session?.user.email ?? 'Kivelle account'}</Text><View style={styles.verified}><Check size={13} color={provider.verifiedEmail ? colors.success : colors.warm} /><Text style={{ color: provider.verifiedEmail ? colors.success : colors.warm, fontSize: 12, fontWeight: '800' }}>{provider.verifiedEmail ? 'Verified email' : 'Email verification pending'}</Text></View>{provider.pendingEmail ? <Text style={styles.pending}>Pending change: {provider.pendingEmail}</Text> : null}</View>
@@ -141,6 +154,13 @@ export default function Account() {
       {emailNotice ? <NoticeView notice={emailNotice} /> : null}
       <GradientButton label={busy === 'email' ? 'Updating…' : 'Change email'} disabled={!emailReady || busy !== null} onPress={() => void changeEmail()} />
       {provider.pendingEmail ? <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy !== null }} disabled={busy !== null} onPress={() => void resend()} style={styles.textButton}><Mail size={17} color={colors.rose} /><Text style={styles.textButtonText}>{busy === 'resend' ? 'Sending…' : 'Resend email-change confirmation'}</Text></Pressable> : null}
+    </View>
+
+    <Section title="Password sign-in" body="Create or change a password for this account. We’ll send a secure setup link to your verified email." />
+    <View style={styles.card}>
+      {passwordNotice ? <NoticeView notice={passwordNotice} /> : null}
+      <GradientButton label={busy === 'password' ? 'Sending link…' : 'Email password setup link'} disabled={busy !== null || !session?.user.email || !provider.verifiedEmail} onPress={() => void sendPasswordLink()} />
+      {!provider.verifiedEmail ? <Text style={styles.fieldHint}>Verify your email before setting a password.</Text> : null}
     </View>
 
     <Section title="Sessions" body="Use this if you signed in on a device you no longer control." />

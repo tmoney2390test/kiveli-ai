@@ -8,6 +8,7 @@ test('maps concrete static output to public routes', () => {
   assert.equal(routeFromHtmlPath(dist, resolve(dist, 'index.html')), '/');
   assert.equal(routeFromHtmlPath(dist, resolve(dist, '(tabs)/home.html')), '/home');
   assert.equal(routeFromHtmlPath(dist, resolve(dist, 'character/iris-vale.html')), '/character/iris-vale');
+  assert.equal(routeFromHtmlPath(dist, resolve(dist, 'world-pulse/index.html')), '/world-pulse');
   assert.equal(routeFromHtmlPath(dist, resolve(dist, 'media/[id].html')), null);
   assert.equal(routeFromHtmlPath(dist, resolve(dist, '+not-found.html')), null);
 });
@@ -20,5 +21,6 @@ test('extracts and deduplicates only critical web assets', () => {
 test('rejects route responses that bounce through another page',()=>{
   const headers=new Headers({'content-type':'text/html'});
   assert.equal(routeResponseIssue({ok:true,status:200,url:'https://kivelli.app/explore',redirected:false,headers},'/explore'),null);
+  assert.equal(routeResponseIssue({ok:true,status:200,url:'https://kivelli.app/world-pulse/',redirected:true,headers},'/world-pulse'),null);
   assert.equal(routeResponseIssue({ok:true,status:200,url:'https://kivelli.app/',redirected:true,headers},'/explore'),'unexpected navigation to /');
 });

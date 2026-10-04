@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { access, readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { gildedPack, validateGildedPack } from '../content/gilded-coast/pack.mjs';
+import { gildedPublicBios } from '../content/gilded-coast/public-bios.mjs';
 import { gildedCoastMajorIncidents } from '../content/world-pulse/gilded-coast-major.mjs';
 import { discoverAssets } from './sync-kivelle-reference-media.ts';
+import { renderGildedPublicBioMigration } from './gilded-coast-public-bios.mjs';
 
 const world='gilded-coast';
 const getJson=async(path)=>JSON.parse(await readFile(path,'utf8'));
@@ -17,6 +19,25 @@ test('the adult resident world has a complete social and playable location graph
   assert.ok(gildedPack.characters.every((person)=>person.age>=24));
   assert.ok(gildedPack.storyArcs.every((story)=>story.involved.length>=1&&story.involved.length<=4));
   assert.ok(gildedPack.characters.every((person)=>person.characterBible.firstMeeting?.openingLine));
+});
+
+test('every Gilded Coast public bio describes the resident rather than a story hook',async()=>{
+  const newcomers=(await getJson('content/schedule-repairs/adult-cast-2026.json')).characters
+    .filter((person)=>person.world===world);
+  const slugs=new Set([...gildedPack.characters.map((person)=>person.slug),...newcomers.map((person)=>person.slug)]);
+  assert.equal(slugs.size,56);
+  assert.deepEqual(new Set(Object.keys(gildedPublicBios)),slugs);
+  for(const [slug,bio] of Object.entries(gildedPublicBios)){
+    assert.ok(bio.length>=100&&bio.length<=420,`${slug}: bio length`);
+    assert.doesNotMatch(bio,/\b(?:a client|a patron|a magistrate|a regular) wants\b|\bto be (?:wanted|fucked|held)\b/i,slug);
+  }
+  for(const person of gildedPack.characters){
+    assert.equal(person.biography,gildedPublicBios[person.slug]);
+    assert.equal(person.characterBible.biography,person.biography);
+    assert.ok(person.characterBible.backstory);
+  }
+  const migration=await readFile('supabase/migrations/20261004022902_gilded_coast_public_biographies.sql','utf8');
+  assert.equal(migration,renderGildedPublicBioMigration());
 });
 
 test('every canonical participant and place resolves across both Pulse tiers',async()=>{

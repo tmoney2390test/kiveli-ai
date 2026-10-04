@@ -73,13 +73,13 @@ export const manageInteraction = <
     destinations: InteractionCandidate[];
     characterProposal?: CharacterInteractionProposal;
   },
->(input: Record<string, unknown>) =>
+>(input: Record<string, unknown>, options: { signal?: AbortSignal } = {}) =>
   typeof input.requestId === 'string'
-    ? withIdempotentRetry(() => invoke<T>('together-interaction', input), {
+    ? withIdempotentRetry(() => invoke<T>('together-interaction', input, 'POST', options), {
       attempts: 2,
       delayMs: 180,
     })
-    : invoke<T>('together-interaction', input);
+    : invoke<T>('together-interaction', input, 'POST', options);
 export const enterScene = <T>(input: {
   characterInstanceId: string;
   locationId: string;

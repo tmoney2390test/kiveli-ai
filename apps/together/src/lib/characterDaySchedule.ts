@@ -2,6 +2,7 @@ import { scheduleRunsOnDate } from '@together/domain/src/schedule-rotation';
 import type { CharacterInstance, CharacterScheduleEvent, ScheduleItem, Snapshot } from '../types';
 import { getScheduleEventPresentation, getScheduleHint } from './lifePresentation';
 import { naturalizeCharacterActivity } from '@together/domain/src/character-language';
+import { specificScheduleVariants } from '@together/domain/src/schedule-language';
 
 export type CharacterDayScheduleEntry = {
   id: string;
@@ -119,9 +120,7 @@ function recurringEntry(snapshot: Snapshot, item: ScheduleItem, localMinute: num
 }
 
 function activityForDate(item: ScheduleItem, dateKey: string) {
-  const variants = Array.isArray(item.metadata?.activityVariants)
-    ? item.metadata.activityVariants.filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
-    : [];
+  const variants = specificScheduleVariants(item.metadata?.activityVariants, item.activity);
   if (!variants.length) return naturalizeCharacterActivity(item.activity, { activityKey: metadataActivityKey(item) });
   return naturalizeCharacterActivity(variants[stableIndex(`${item.id}:${dateKey}`, variants.length)] ?? item.activity, { activityKey: metadataActivityKey(item) });
 }

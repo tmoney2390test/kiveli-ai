@@ -35,7 +35,7 @@ export const introduction = <T>(action: 'preview' | 'accept' | 'complete', choic
   invoke<T>('together-introduction', { action, choice });
 export const resolveRelationshipMilestone = (
   milestoneId: string,
-  action: 'accept' | 'defer' | 'stay_friends' | 'talk_it_out' | 'give_space',
+  action: 'accept' | 'defer' | 'dismiss' | 'stay_friends' | 'talk_it_out' | 'give_space',
 ) =>
   invoke<{
     snapshot: Snapshot;

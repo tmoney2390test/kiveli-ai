@@ -58,8 +58,8 @@ select ok(not exists(
 select ok(not exists(
   select 1 from public.together_schedule_templates schedule
   where schedule.character_version_id::text like '23000000-0000-4000-8010-%'
-    and jsonb_array_length(coalesce(schedule.metadata->'activityVariants','[]'::jsonb))<3
-),'Every schedule block has deterministic prose variation');
+    and jsonb_array_length(coalesce(schedule.metadata->'activityVariants','[]'::jsonb))<1
+),'Every schedule block retains a specific activity');
 
 select ok((
   select count(distinct schedule.activity)

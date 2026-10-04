@@ -72,6 +72,7 @@ import { scopedConversationMessages } from '../src/lib/conversation';
 import { resolveChatRoute, type ChatRouteParams } from '../src/lib/chatRoute';
 import { confirmAction } from '../src/lib/dialogs';
 import { FreshChatConfirmation } from '../src/components/FreshChatConfirmation';
+import { BranchChatConfirmation } from '../src/components/BranchChatConfirmation';
 import { defaultPlanTimeFields, parseCustomPlanTime, type PlanOption, type PlanTimingSelection } from '../src/lib/plans';
 import { PlanSelection } from '../src/components/PlanSelection';
 import { ChatSettingsModal } from '../src/components/ChatSettingsModal';
@@ -86,7 +87,7 @@ import { photoOfferForMessage, photoOffersAtTimelineTail, shouldShowPhotoGenerat
 import { latestMediaOfferPreviewUri } from '../src/lib/mediaOfferPresentation';
 import { proposalHeading, sceneActionDividerLabel, sceneActionTimelineEntryFromAction, type SceneActionTimelineEntry } from '../src/lib/interactionPresentation';
 import { createProposalDecisionGuard, reactToSavedProposal } from '../src/lib/proposalDecision';
-import { dialogueFailureMayHavePersisted, dialogueRecoveryShouldContinue, latestUnansweredDialogueRequest, staleDialogueReplayDelay } from '../src/lib/dialogueRecovery';
+import { dialogueFailureMayHavePersisted, dialogueRecoveryShouldContinue, latestUnansweredDialogueRequest, persistedDialogueResponseForRequest, staleDialogueReplayDelay } from '../src/lib/dialogueRecovery';
 import { reconcileMessages } from '../src/lib/messageReconciliation';
 import { endPlanExperience, getPlanExperience, joinCommitment, switchPlanExperience } from '../src/lib/commitments';
 import { activePlanForChat, attendedPlansForLifecycleReconciliation, isPlanLifecycleDividerEvent, joinablePlanForChat, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanConversationAction, shouldShowPlanTimelineEvent } from '../src/lib/planActions';
@@ -101,6 +102,8 @@ import { photoUploadPresentation, type PhotoUploadPhase } from '../src/lib/photo
 import { mediaOfferActionBusy } from '../src/lib/mediaOfferBusy';
 import { chatMediaGalleryItems } from '../src/lib/chatMediaGallery';
 import { isTransientMediaFetchFailure, mediaReconciliationComplete, mergeGeneratedMediaCollections, missingMediaIds } from '../src/lib/mediaReconciliation';
+import { resolveSceneBeforeSend } from '../src/lib/sceneResolveDeadline';
+import { stalledPendingDialogueDelay } from '../src/lib/pendingDialogue';
 import { shouldConsumeComposerEnter, shouldSendComposerOnEnter } from '../src/lib/composerKeyboard';
 import { useAuth } from '../src/hooks/useAuth';
 import { useNetworkStatus } from '../src/providers/NetworkStatusProvider';
@@ -165,6 +168,8 @@ function ChatSession() {
   const showRight = width >= 920;
   const { snapshot, refresh, setSnapshot, setCoreState, updateCompanion, upsertConversation, upsertPlan, upsertMedia, removeMedia, upsertSceneSession, upsertConversationAction, removeConversationAction, applyServerDelta, pendingDialogues, beginPendingDialogue, finishPendingDialogue, consumeDailyMessageAllowance, exhaustDailyMessageAllowance } = useTogether();
   const [branching,setBranching]=useState(false);
+  const [branchCandidateId,setBranchCandidateId]=useState<string|null>(null);
+  const [branchError,setBranchError]=useState('');
   const branchInFlight=useRef(false);
   const branchRequest=useRef<{anchorId:string;requestId:string}|null>(null);
   const{session}=useAuth(),{online,phase:connectionPhase}=useNetworkStatus();
@@ -506,6 +511,28 @@ function ChatSession() {
     if(recovered.status==='recovered')void refresh().catch(()=>undefined);
     return recovered.status==='recovered';
   };
+  useEffect(()=>{
+    if(!conversation?.id||!pendingDialogue)return;
+    const conversationId=conversation.id,requestId=pendingDialogue.clientRequestId,isCurrent=chatScope.capture();
+    const timer=setTimeout(()=>{
+      if(!isCurrent()||useTogether.getState().pendingDialogues[conversationId]?.clientRequestId!==requestId)return;
+      // A request stranded by a suspended tab can outlive both the network
+      // timeout and the server lease. Give its local row a retry action while
+      // reading the authoritative timeline in case the reply actually landed.
+      activeSendRequest.current=null;sendInFlightRef.current=false;setSending(false);setStream('');
+      chatScope.start('reply',true)?.release();
+      finishPendingDialogue(conversationId,requestId);
+      setMessages((current)=>current.map((message)=>message.client_request_id===requestId&&message.id.startsWith('local-')?{...message,delivery_status:'failed'}:message));
+      setError('That reply took too long. Check the latest message or tap to retry.');
+      void manageConversation<ConversationMessagePage>({action:'messages',conversationId,limit:PAGE_SIZE,includeReplyStatus:true}).then((page)=>{
+        if(!isCurrent())return;
+        const canonical=[...page.messages].reverse();
+        setMessages((current)=>reconcileMessages(current,canonical));
+        if(persistedDialogueResponseForRequest(canonical,requestId))setError('');
+      }).catch(()=>undefined);
+    },stalledPendingDialogueDelay(pendingDialogue));
+    return()=>clearTimeout(timer);
+  },[conversation?.id,pendingDialogue?.clientRequestId,pendingDialogue?.startedAt,finishPendingDialogue]);
   const {loadOlder}=useDirectConversationHistory({
     scope:chatScope,history,userId:session?.user.id,conversationId:conversation?.id,
     connectionPhase,pendingRequestId:pendingDialogue?.clientRequestId,
@@ -663,7 +690,7 @@ function ChatSession() {
   const visibleMessageIds=new Set(visibleMessages.map((message)=>message.id));
   const orphanMediaOffers=conversationReady?photoOffersAtTimelineTail(mediaOffers,visibleMessageIds,visibleMessages.map((message)=>message.created_at)):[];
   const isFavorite=(snapshot.favoriteCharacterTemplateIds??[]).includes(character.character_template_id);
-  const milestone = snapshot.relationshipMilestones?.find((item) => item.character_instance_id === character.id);
+  const milestone = snapshot.relationshipMilestones?.find((item) => item.character_instance_id === character.id && item.status === 'pending');
   const prompts = chatContext.prompts;
   const latestPersistedMessage=[...visibleMessages].reverse().find((message)=>!message.id.startsWith('local-'));
   const latestAssistantMessage=latestPersistedMessage?.role==='assistant'&&latestPersistedMessage.delivery_status==='complete'&&latestPersistedMessage.content.trim()&&latestPersistedMessage.content!=='[Photo]'?latestPersistedMessage:null;
@@ -673,19 +700,24 @@ function ChatSession() {
   const alternatePaths=(snapshot.continuities??[]).filter((life)=>life.kind==='branch'&&life.metadata?.sourceConversationId===conversation.id);
   const branchFromLatest=(message:Message)=>{
     if(!subscriberCanBranch){navigateChatSurface(subscriptionHref({intent:'plans',returnTo:subscriptionReturnTo}));return;}
-    if(branching||replyPending||pendingImage||message.id!==latestAssistantMessage?.id)return;
-    confirmAction({title:'Start an alternate path?',message:`Continue from this reply in a separate Life with ${character.together_character_templates.name}. Your original conversation stays intact. Saved memories and relationships at this point are copied into the new path.`,confirmLabel:'Create path',onConfirm:async()=>{
-      if(branchInFlight.current)return;
-      branchInFlight.current=true;
-      setBranching(true);
-      try{
-        if(branchRequest.current?.anchorId!==message.id)branchRequest.current={anchorId:message.id,requestId:createClientRequestId()};
-        const result=await manageConversation<{continuityId:string;conversationId:string;characterInstanceId:string}>({action:'branch',conversationId:conversation.id,anchorMessageId:message.id,requestId:branchRequest.current.requestId});
-        await refresh({force:true});
-        navigateChatSurface(`/chat?character=${encodeURIComponent(result.characterInstanceId)}&conversationId=${encodeURIComponent(result.conversationId)}`,'replace');
-      }catch(caught){Alert.alert('Could not create path',caught instanceof Error?caught.message:'Please try again.');}
-      finally{branchInFlight.current=false;setBranching(false);}
-    }});
+    if(branching)return;
+    setBranchCandidateId(message.id);
+    setBranchError(replyPending||pendingImage?'Wait for the current reply or photo to finish before branching.':message.id!==latestAssistantMessage?.id?'Choose the latest completed reply to start a branch.':'');
+  };
+  const createBranch=async()=>{
+    const anchorId=branchCandidateId;
+    if(!anchorId||branchInFlight.current)return;
+    if(replyPending||pendingImage){setBranchError('Wait for the current reply or photo to finish before branching.');return;}
+    if(anchorId!==latestAssistantMessage?.id){setBranchError('This is no longer the latest reply. Close this window and select the newest reply.');return;}
+    branchInFlight.current=true;setBranching(true);setBranchError('');
+    try{
+      if(branchRequest.current?.anchorId!==anchorId)branchRequest.current={anchorId,requestId:createClientRequestId()};
+      const result=await manageConversation<{continuityId:string;conversationId:string;characterInstanceId:string}>({action:'branch',conversationId:conversation.id,anchorMessageId:anchorId,requestId:branchRequest.current.requestId});
+      await refresh({force:true});
+      setBranchCandidateId(null);
+      navigateChatSurface(`/chat?character=${encodeURIComponent(result.characterInstanceId)}&conversationId=${encodeURIComponent(result.conversationId)}`,'replace');
+    }catch(caught){setBranchError(caught instanceof Error?caught.message:'The alternate path could not be created. Please try again.');}
+    finally{branchInFlight.current=false;setBranching(false);}
   };
   const returnToOriginal=async()=>{
     if(!branchSourceLifeId||!branchSourceConversationId||branching)return;
@@ -973,13 +1005,15 @@ function ChatSession() {
       // react to, while questions and vague ideas remain ordinary chat.
       if(isCoPresent&&!messageAction&&!contextAuthorization.contextQuoteId&&!contextAuthorization.contextCostAuthorization){
         try{
-          const sceneResult=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[];intentMatch?:InteractionCandidate;characterProposal?:CharacterInteractionProposal}>({action:'resolve',characterInstanceId:character.id,conversationId:conversation.id,intentText:text});
+          const sceneResult=await resolveSceneBeforeSend((signal)=>manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[];intentMatch?:InteractionCandidate;characterProposal?:CharacterInteractionProposal}>({action:'resolve',characterInstanceId:character.id,conversationId:conversation.id,intentText:text},{signal}));
           if(!isCurrent())return;
-          markInteractionSceneHydrated(sceneResult.scene);setInteractionScene(sceneResult.scene?.id?sceneResult.scene:null);
-          setInteractionCandidates(sceneResult.interactions??[]);
-          setMovementCandidates(sceneResult.destinations??[]);
-          setCharacterProposal(sceneResult.characterProposal??null);
-          if(sceneResult.intentMatch){const sceneAction=await executeInteraction(sceneResult.intentMatch,'defer_to_current_message');sceneActionId=sceneAction?.id;}
+          if(sceneResult){
+            markInteractionSceneHydrated(sceneResult.scene);setInteractionScene(sceneResult.scene?.id?sceneResult.scene:null);
+            setInteractionCandidates(sceneResult.interactions??[]);
+            setMovementCandidates(sceneResult.destinations??[]);
+            setCharacterProposal(sceneResult.characterProposal??null);
+            if(sceneResult.intentMatch){const sceneAction=await executeInteraction(sceneResult.intentMatch,'defer_to_current_message');sceneActionId=sceneAction?.id;}
+          }
         }catch{/* The sent message is still valid if the scene changed. */}
       }
       if(!isCurrent())return;
@@ -1207,7 +1241,7 @@ function ChatSession() {
     catch(caught){setError(caught instanceof Error?caught.message:`${person.together_character_templates.name} is no longer here.`);}
     finally{setInteractionLoading(false);}
   };
-  const resolveMilestone = async (action:RelationshipMilestone['choices'][number]['id']) => { if(!milestone||resolvingMilestone)return;setResolvingMilestone(true);setError('');try{const result=await resolveRelationshipMilestone(milestone.id,action);setSnapshot(result.snapshot);if(milestone.kind==='first_date_invitation'&&action==='accept')setFeedback({kind:'moment',title:`${milestone.title} unlocked`,body:'Your shared experience is ready in Dates.'});}catch(caught){setError(caught instanceof Error?caught.message:'That choice could not be saved.');}finally{setResolvingMilestone(false);} };
+  const resolveMilestone = async (action:RelationshipMilestone['choices'][number]['id']) => { if(!milestone||resolvingMilestone)return;setResolvingMilestone(true);setError('');try{const result=await resolveRelationshipMilestone(milestone.id,action);setSnapshot(result.snapshot);if(milestone.kind==='first_date_invitation'&&action==='accept')setFeedback({kind:'moment',title:`${milestone.title} unlocked`,body:'Your shared experience is ready in Dates.'});}catch(caught){const message=caught instanceof Error?caught.message:'That choice could not be saved.';if(/already been handled|no longer available/i.test(message)){try{await refresh({force:true});}catch{setError('That moment changed. Please reopen this chat.');}}else setError(message);}finally{setResolvingMilestone(false);} };
   const startNewConversation=()=>{setShowConversationMenu(false);setShowFreshChat(true);};
   const toggleMessageSaved=async(message:Message)=>{
     if(message.id.startsWith('local-'))return;
@@ -1280,6 +1314,7 @@ function ChatSession() {
         <ConnectionBanner sendFailed={messages.some((item)=>item.delivery_status==='failed')} sendScoped={showSendConnectionNotice}/>
         {!showRight&&width>=720?<MobileChatContextCard identityKey={conversation.id} name={character.together_character_templates.name} location={chatContext.scene.location} activity={chatContext.scene.activity} next={chatContext.nextCommitment?{title:chatContext.nextCommitment.title,detail:new Date(chatContext.nextCommitment.startsAt).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'}),onPress:chatContext.nextCommitment.kind==='plan'?()=>navigateChatSurface(`/plan/${chatContext.nextCommitment!.id}`):undefined}:null} memoryCount={snapshot.memoryCounts?.[character.id]??snapshot.memories.filter((item)=>item.character_instance_id===character.id).length} memoryLocked={snapshot.entitlements?.entitlement_keys?.includes('memory_inspector')!==true} onMemory={()=>navigateChatSurface(`/memories?character=${slug}`)} onPlan={activeSharedPlan?undefined:openPlanPicker}/>:null}
         {showFreshChat && session?.user.id ? <FreshChatConfirmation key={`${session.user.id}:${conversation.id}`} userId={session.user.id} characterInstanceId={character.id} conversationId={conversation.id} name={character.together_character_templates.name} onClose={()=>setShowFreshChat(false)} onComplete={()=>{setShowFreshChat(false);void refresh();}} /> : null}
+        {branchCandidateId ? <BranchChatConfirmation name={character.together_character_templates.name} busy={branching} error={branchError} onConfirm={()=>void createBranch()} onClose={()=>{setBranchCandidateId(null);setBranchError('');}} /> : null}
         {showConversationMenu ? <ConversationOverflowMenu
           scheduleControl={<SchedulePauseControl character={character} conversation={conversation} compact/>}
           title={character.together_character_templates.name}
@@ -1384,7 +1419,7 @@ function ChatSession() {
           {conversationReady&&awaitingPhotoOffer&&optimisticPhotoRequest?<ChatPhotoRequestCard offer={optimisticPhotoRequest.offer} previewSource={mediaOfferPreviewSource} preparing busy={false} onAccept={(paymentMethod)=>decideOptimisticPhotoOffer('accept',paymentMethod)} onDecline={()=>decideOptimisticPhotoOffer('decline')} onBuyCredits={()=>navigateChatSurface(creditsSubscriptionHref)}/>:null}
           {conversationReady&&stream ? <StreamingBubble desktop={desktopChat} character={character} content={stream} textStyle={messageTypography} bubbleColor={bubbleColors.companion} reserveVoiceControl={snapshot.profile?.multimodal_preferences?.companionVoiceNotes!==false} /> : null}
           {conversationReady&&replyPending && !stream && !awaitingPhotoOffer && pendingDialogue?.showTyping!==false ? <ChatTypingIndicator name={character.together_character_templates.name} /> : null}
-          {conversationReady&&milestone ? <RelationshipMomentCard milestone={milestone} busy={resolvingMilestone} onChoose={(action)=>void resolveMilestone(action)} /> : null}
+          {conversationReady&&milestone ? <RelationshipMomentCard milestone={milestone} busy={resolvingMilestone} onChoose={(action)=>void resolveMilestone(action)} onDismiss={()=>void resolveMilestone('dismiss')} /> : null}
           {conversationReady&&characterProposal&&!proposalDecisions.isHidden(characterProposal.actionId)?<CharacterProposalCard name={character.together_character_templates.name} proposal={characterProposal} busy={interactionLoading} onAccept={()=>void acceptCharacterProposal()} onDismiss={()=>void dismissCharacterProposal()}/>:null}
           {conversationReady&&feedback ? <StoryFeedback feedback={feedback} onView={() => navigateChatSurface(feedback.kind === 'memory' ? '/memories' : feedback.kind==='plan'? '/dates':'/moments')} onUndo={feedback.kind === 'memory' ? () => void undoMemory() : undefined} onDismiss={() => setFeedback(null)} /> : null}
           {blockedPhoto ? <View accessibilityRole="alert" style={styles.retry}><Text style={styles.retryText}>{blockedPhoto.message}</Text><View style={{flexDirection:'row',gap:24,paddingTop:12}}><Pressable accessibilityRole="button" onPress={()=>{setInput(blockedPhoto.text);currentInput.current=blockedPhoto.text;setBlockedPhoto(null);composerInput.current?.focus();}}><Text style={styles.retryText}>Edit request</Text></Pressable><Pressable accessibilityRole="button" onPress={()=>setBlockedPhoto(null)}><Text style={styles.retryText}>Dismiss</Text></Pressable></View></View> : null}

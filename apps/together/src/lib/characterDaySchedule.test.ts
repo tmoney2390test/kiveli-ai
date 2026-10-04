@@ -46,6 +46,19 @@ describe('character day schedule', () => {
     expect(['Starting slow at home', 'Getting ready for the river shift']).toContain(result.entries[0]?.activity);
   });
 
+  it('shows a specific authored activity when stale schedule variants contain filler', () => {
+    const staleSnapshot = {
+      ...snapshot,
+      scheduleEvents: [],
+      schedules: [{ id: 'clinic', character_version_id: 'maya-v1', day_of_week: 2, start_minute: 540, end_minute: 660,
+        location_id: 'studio', activity: 'Checking patient requests and preparing clinic doses', availability: 'busy', energy_delta: -1,
+        metadata: { scheduleMode: 'authored', activityVariants: ['Making time for a familiar routine', "Following the day's routine at an easy pace"] },
+      }],
+    } as unknown as Snapshot;
+    const result = buildCharacterDaySchedule({ snapshot: staleSnapshot, characterVersionId: 'maya-v1', timezone: 'America/New_York', now: new Date('2026-08-18T14:00:00.000Z') });
+    expect(result.entries[0]?.activity).toBe('Checking patient requests and preparing clinic doses');
+  });
+
   it('renders an on-demand authored routine before the user has met the character', () => {
     const discoveredSnapshot = {
       ...snapshot,

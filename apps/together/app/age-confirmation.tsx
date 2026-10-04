@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import type { AccountGender } from '@together/domain/src/account-onboarding';
 import { normalizePersonaDisplayName } from '@together/domain/src/account-onboarding';
 import { BirthdateField } from '../src/components/BirthdateField';
+import { KivelleLogo } from '../src/components/KivelleLogo';
 import { Screen } from '../src/components/ui';
 import { confirmAdultAge } from '../src/lib/api';
 import { validBirthdateEntry } from '../src/lib/pendingBirthdate';
@@ -68,9 +69,13 @@ export default function AgeConfirmation() {
   return <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS==='ios'?'padding':Platform.OS==='android'?'height':undefined}>
     <Screen contentStyle={[styles.screen,compact&&styles.screenCompact]}>
       <View style={styles.header}>
-        <Pressable accessibilityRole="button" accessibilityLabel={step===1?'Sign out':'Go back'} disabled={busy} onPress={()=>step===1?void leave():(setError(''),setStep(1))} style={({pressed})=>[styles.back,pressed&&styles.pressed]}>
-          {step===1?<LogOut size={21} color={colors.text}/>:<ChevronLeft size={24} color={colors.text}/>}
-        </Pressable>
+        <View style={styles.headerTop}>
+          <Pressable accessibilityRole="button" accessibilityLabel={step===1?'Sign out':'Back to name'} disabled={busy} onPress={()=>step===1?void leave():(setError(''),setStep(1))} style={({pressed})=>[styles.back,pressed&&styles.pressed]}>
+            {step===1?<LogOut size={21} color={colors.text}/>:<ChevronLeft size={24} color={colors.text}/>}
+            <Text style={styles.backLabel}>{step===1?'Sign out':'Back'}</Text>
+          </Pressable>
+          <KivelleLogo height={28}/>
+        </View>
         <OnboardingProgress step={step}/>
       </View>
 
@@ -126,8 +131,10 @@ const styles = StyleSheet.create({
   flex:{flex:1,backgroundColor:colors.background},
   screen:{maxWidth:600,minHeight:'100%',paddingHorizontal:22,paddingTop:24,paddingBottom:28,gap:24},
   screenCompact:{paddingTop:16,paddingBottom:18,gap:18},
-  header:{minHeight:52,flexDirection:'row',alignItems:'center',gap:18},
-  back:{width:48,height:48,borderRadius:24,alignItems:'center',justifyContent:'center',backgroundColor:colors.elevated,borderWidth:1,borderColor:colors.border},
+  header:{gap:14},
+  headerTop:{minHeight:44,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12},
+  back:{minWidth:78,height:44,paddingHorizontal:11,borderRadius:22,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:4,backgroundColor:colors.elevated,borderWidth:1,borderColor:colors.border},
+  backLabel:{color:colors.text,fontSize:13,fontWeight:'700'},
   content:{flex:1,gap:28,paddingTop:22},
   copy:{gap:8},section:{gap:12},
   title:{maxWidth:520,color:colors.text,fontSize:42,lineHeight:48,fontWeight:'800',letterSpacing:-1.2},

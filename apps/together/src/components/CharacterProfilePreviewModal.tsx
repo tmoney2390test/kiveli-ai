@@ -1,5 +1,5 @@
 import { CatalogImage as Image } from './CatalogImage';
-import { ArrowUpRight, Users, X } from 'lucide-react-native';
+import { ArrowUpRight, Check, Users, X } from 'lucide-react-native';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useEffect, useState } from 'react';
 import type { FeaturedCompanion } from '../lib/featuredCompanions';
@@ -14,11 +14,13 @@ export function CharacterProfilePreviewModal({
   onClose,
   onViewProfile,
   onInviteToGroup,
+  onChoose,
 }: {
   companion: FeaturedCompanion | null;
   onClose: () => void;
   onViewProfile?: (companion: FeaturedCompanion) => void;
   onInviteToGroup?: (companion: FeaturedCompanion) => void | Promise<void>;
+  onChoose?: (companion: FeaturedCompanion) => void;
 }) {
   const { width } = useWindowDimensions();
   const [inviteBusy, setInviteBusy] = useState(false);
@@ -61,6 +63,10 @@ export function CharacterProfilePreviewModal({
           {onInviteToGroup ? <Pressable accessibilityRole="button" accessibilityLabel={`Invite ${companion.name} to a group chat`} accessibilityState={{disabled:inviteBusy,busy:inviteBusy}} disabled={inviteBusy} onPress={async()=>{if(inviteBusy)return;setInviteBusy(true);try{await onInviteToGroup(companion);}finally{setInviteBusy(false);}}} style={[styles.profileButton,inviteBusy&&styles.profileButtonBusy]}>
             <Users size={16} color="#fff" />
             <Text style={styles.profileButtonText}>{inviteBusy?'Preparing invite…':'Invite to group chat'}</Text>
+          </Pressable> : null}
+          {onChoose ? <Pressable accessibilityRole="button" accessibilityLabel={`Choose ${companion.name}`} onPress={() => onChoose(companion)} style={styles.profileButton}>
+            <Check size={16} color="#fff" />
+            <Text style={styles.profileButtonText}>Choose {companion.name}</Text>
           </Pressable> : null}
         </ScrollView>
       </FrostedSurface>

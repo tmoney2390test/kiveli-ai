@@ -45,7 +45,7 @@ export default function Auth() {
   const [openingError, setOpeningError] = useState('');
   const [notice, setNotice] = useState('');
   const [nativeAppleAvailable,setNativeAppleAvailable]=useState(Platform.OS!=='ios');
-  const { requestEmailCode, verifyEmailCode, signIn, signInWithSocial, signingOut, socialAuth } = useAuth();
+  const { requestEmailCode, verifyEmailCode, requestPasswordReset, signIn, signInWithSocial, signingOut, socialAuth } = useAuth();
   const refresh = useTogether((state) => state.refresh);
 
   useEffect(()=>{
@@ -138,6 +138,18 @@ export default function Auth() {
     }
   };
 
+  const sendPasswordLink = async () => {
+    const normalizedEmail = normalizeEmailAddress(email);
+    if (!normalizedEmail) { setError('Enter your email address first.'); return; }
+    setBusy(true); setError(''); setNotice('');
+    try {
+      await requestPasswordReset(normalizedEmail);
+      setNotice('If this email has an account, a password setup link is on its way.');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The password link could not be sent.');
+    } finally { setBusy(false); }
+  };
+
   const changeEmail = () => {
     setStage('email');
     setCode('');
@@ -165,7 +177,7 @@ export default function Auth() {
   const shortViewport=!wide&&height<720;
   const safeAreaReserve=Math.max(0,insets.bottom-6);
   const brandFooterReserve=shortViewport?44:58;
-  const mobileFormReserve=(stage==='code'?(shortViewport?354:382):(shortViewport?388:420))+(usingPassword?54:0)+safeAreaReserve+brandFooterReserve;
+  const mobileFormReserve=(stage==='code'?(shortViewport?354:382):(shortViewport?388:420))+(usingPassword?82:0)+safeAreaReserve+brandFooterReserve;
   const mobileHeroHeight=Math.max(80,Math.min(height*.43,height-mobileFormReserve));
   const resendSeconds=emailCodeResendSeconds(resendAvailableAt,clock);
 
@@ -230,6 +242,7 @@ export default function Auth() {
           </Pressable>
 
           {stage==='email'&&!creating?<Pressable accessibilityRole="button" accessibilityLabel={usingPassword?'Use an email code instead':'Use a password instead'} disabled={authBusy} onPress={()=>{setPasswordMode(!passwordMode);setPassword('');setError('');setNotice('');}} hitSlop={10}><Text style={styles.secondary}>{usingPassword?'Use an email code instead':'Use a password instead'}</Text></Pressable>:null}
+          {usingPassword?<Pressable accessibilityRole="button" accessibilityLabel="Set or reset your password" disabled={authBusy} onPress={()=>void sendPasswordLink()} hitSlop={10}><Text style={styles.secondary}>Set or reset your password</Text></Pressable>:null}
 
           {stage==='code'?<View style={styles.codeActions}>
             <Pressable accessibilityRole="button" disabled={authBusy} onPress={changeEmail} hitSlop={10}><Text style={styles.secondary}>Use a different email</Text></Pressable>

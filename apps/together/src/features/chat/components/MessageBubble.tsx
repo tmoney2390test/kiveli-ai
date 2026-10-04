@@ -292,7 +292,12 @@ export function MessageBubble({
         icon: branchLocked
           ? <LockKeyhole size={23} color={colors.textSecondary} />
           : <GitBranch size={23} color={colors.rose} />,
-        onPress: onBranch,
+        // The action sheet is a native Modal. Let it dismiss before opening
+        // the branch confirmation or subscription flow above the chat.
+        onPress: () => {
+          setActionsOpen(false);
+          setTimeout(onBranch, Platform.OS === 'web' ? 0 : 320);
+        },
       }]
       : []),
     ...(message.provider_metadata?.branchPrefix

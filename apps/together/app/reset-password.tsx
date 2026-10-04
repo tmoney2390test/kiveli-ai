@@ -13,8 +13,9 @@ export default function ResetPassword() {
   const params = useLocalSearchParams<{ code?: string; error?: string; error_description?: string }>();
   const { session, updatePassword } = useAuth();
   const processed = useRef(false);
-  const [ready, setReady] = useState(Boolean(session));
+  const [ready, setReady] = useState(Boolean(session) && !params.code);
   const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(() => {
@@ -29,7 +30,7 @@ export default function ResetPassword() {
       setError(authCallbackErrorMessage({ message: params.error_description ?? params.error ?? 'This password reset link could not be used.' }));
       return;
     }
-    if (session) {
+    if (!params.code && session) {
       processed.current = true;
       setReady(true);
       return;
@@ -48,11 +49,14 @@ export default function ResetPassword() {
   }, [params.code, params.error, params.error_description, session]);
 
   const submit = async () => {
+    if (!ready || busy || password.length < 8 || password !== confirmation) return;
     setBusy(true);
     setError('');
     try {
       await updatePassword(password);
-      router.replace('/');
+      setPassword('');
+      setConfirmation('');
+      router.replace('/account');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Password could not be updated.');
     } finally {
@@ -68,9 +72,13 @@ export default function ResetPassword() {
       <TextInput accessibilityLabel="New password" value={password} onChangeText={setPassword} editable={ready} autoComplete="new-password" secureTextEntry={!visible} placeholder="New password" placeholderTextColor={colors.muted} style={styles.input} />
       <Pressable accessibilityLabel={visible ? 'Hide password' : 'Show password'} onPress={() => setVisible(!visible)} style={styles.eye}>{visible ? <EyeOff color={colors.text} /> : <Eye color={colors.text} />}</Pressable>
     </View>
+    <View style={styles.password}>
+      <TextInput accessibilityLabel="Confirm new password" value={confirmation} onChangeText={setConfirmation} editable={ready} autoComplete="new-password" secureTextEntry={!visible} placeholder="Confirm new password" placeholderTextColor={colors.muted} style={styles.input} />
+    </View>
+    {confirmation && password !== confirmation ? <Text style={styles.error}>Passwords do not match.</Text> : null}
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-    <GradientButton label={busy ? 'Updating…' : 'Update password'} disabled={!ready || busy || password.length < 8} onPress={() => void submit()} />
-    <Pressable onPress={() => router.replace('/auth')}><Text style={styles.back}>Back to sign in</Text></Pressable>
+    <GradientButton label={busy ? 'Saving password…' : 'Set password'} disabled={!ready || busy || password.length < 8 || password !== confirmation} onPress={() => void submit()} />
+    <Pressable onPress={() => router.replace('/auth?mode=signin')}><Text style={styles.back}>Back to sign in</Text></Pressable>
   </View></Screen>;
 }
 

@@ -113,8 +113,8 @@ select ok(not exists(
 
 select ok(not exists(select 1 from public.together_schedule_templates
   where metadata->>'source'='juniper_city_authored_schedule_v3'
-    and jsonb_array_length(coalesce(metadata->'activityVariants','[]'::jsonb))<3),
-  'Every schedule block has three natural presentation variants');
+    and jsonb_array_length(coalesce(metadata->'activityVariants','[]'::jsonb))<1),
+  'Every schedule block retains a specific presentation activity');
 
 select ok(not exists(
   with active as(

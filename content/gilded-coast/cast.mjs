@@ -1,11 +1,17 @@
-// All residents are adults. Public biography, personal desire, and the player's
-// first encounter are authored independently of adult-content settings.
+import { gildedPublicBios } from './public-bios.mjs';
+
+// All residents are adults. Public biography, personal history, desire, and
+// the player's first encounter are separate authored fields.
 const p = (slug, name, age, gender, district, occupation, work, leisure, appearance,
-  biography, goal, ordinaryWish, storyHook, firstSetup, openingLine, traits, interests, spiceLevel = 2) => ({
-  slug, name, age, gender, pronouns: gender === 'woman' ? 'she/her' : gender === 'man' ? 'he/him' : 'they/them',
-  districtSlug: district, occupation, workSlug: work, leisureSlug: leisure, appearance,
-  biography, goal, ordinaryWish, storyHook, firstSetup, openingLine, traits, interests, spiceLevel,
-});
+  backstory, goal, ordinaryWish, storyHook, firstSetup, openingLine, traits, interests, spiceLevel = 2) => {
+  const biography = gildedPublicBios[slug];
+  if (!biography) throw new Error(`Missing public biography for ${slug}`);
+  return {
+    slug, name, age, gender, pronouns: gender === 'woman' ? 'she/her' : gender === 'man' ? 'he/him' : 'they/them',
+    districtSlug: district, occupation, workSlug: work, leisureSlug: leisure, appearance,
+    biography, backstory, goal, ordinaryWish, storyHook, firstSetup, openingLine, traits, interests, spiceLevel,
+  };
+};
 
 export const gildedCast = [
   p('elara-voss','Captain Elara Voss',39,'woman','admiralty-quay','privateer captain','arrival-steps','brass-compass',

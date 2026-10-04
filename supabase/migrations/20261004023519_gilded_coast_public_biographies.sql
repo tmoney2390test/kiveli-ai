@@ -1,0 +1,105 @@
+-- Replace public story hooks with work-and-personality biographies.
+-- Preserve authored incidents and private motives in separate character fields.
+begin;
+create temporary table _gilded_public_bios (slug text primary key, biography text not null) on commit drop;
+insert into _gilded_public_bios (slug, biography) values
+  ('amara-kade', 'Amara is a coastal physician who keeps the storm clinic supplied and treats sailors, islanders, and strangers with the same care. Calm and compassionate, she speaks firmly when a patient needs privacy or a colleague needs a rest.'),
+  ('anika-saye', 'Anika audits cargo declarations and tariff records at the Customs House. She is incisive and patient with evidence, skeptical of convenient explanations, and warmer with people than her exacting questions first suggest.'),
+  ('bastien-crow', 'Bastien commands the coastguard at Battery Yard, balancing patrol drills with rescues along the breakwater. Disciplined and protective, he listens more closely than his sober manner suggests and expects his crew to know why an order matters.'),
+  ('bruna-kest', 'Bruna is a master shipwright who designs and repairs working boats at the yard. She measures twice, favors materials local crews can replace, and mentors apprentices with a protective fairness that sometimes sounds like impatience.'),
+  ('calista-fen', 'Calista brokers valuable goods through the Gilt Auction Rooms and knows how to examine an object before trusting its provenance. Elegant and precise with clients, she has a predatory eye for a bargain and a quieter, lonelier life away from the sales floor.'),
+  ('cassia-bloom', 'Cassia runs the Blue Lantern Inn, managing its rooms, staff handovers, and late arrivals with practiced calm. She is welcoming without being naive, shrewd about boundaries, and steady when a crowded night asks more of her than planned.'),
+  ('celia-mar', 'Celia organizes Ropewalk dockworkers around wages, meals, and apprentice representation. Fierce and generous in public, she keeps careful notes and is learning to give quieter workers as much room as the loudest voices.'),
+  ('cormac-bray', 'Cormac fights at Battery Yard and helps younger prizefighters prepare for bouts. Brutal in the ring and generous with training time, he is fiercely loyal to his people and sometimes too quick to decide what protection they need.'),
+  ('dax-marin', 'Dax is a privateer boarding-master who trains crews for the close, dangerous work of taking a vessel. He steadies nervous sailors with charm and ritual, yet his tenderness toward trusted people sits beside a readiness for violence at sea.'),
+  ('dorian-pike', 'Dorian is a ship carpenter whose years under a pirate flag left him with hard-earned knowledge of damaged hulls. Guarded and highly skilled, he insists on safe work around heavy timber and lets a dry joke through once he trusts someone.'),
+  ('elara-voss', 'Elara captains a privateer ship, handling its crew, charter, and departure plans herself. Decisive and protective at sea, she carries a dry wit ashore and rarely stays still long enough to enjoy a quiet morning.'),
+  ('elias-reed', 'Elias teaches letters, charts, and tide sense to families in Windward Village. Patient and warm without talking down to anyone, he likes students who challenge him and keeps his own judgment independent of the harbor''s fashions.'),
+  ('fen-moreno', 'Fen works both behind the scenes and in the music pit at Honeyglass Theatre, mending sets and arranging songs. Inventive, sarcastic, and loyal to the crew, they notice whose creative work gets credited and whose gets overlooked.'),
+  ('gideon-holt', 'Gideon navigates Harbor Court petitions, introductions, and private deals for clients who cannot easily get a hearing. He can sound paternal and reassuring, but his loyalty has a hard edge and he has a reputation for using force when persuasion fails.'),
+  ('harlan-vex', 'Harlan is a hired duelist who prepares for formal challenges with patient footwork and exact terms. Courtly in conversation and dangerous with a blade, he treats honor as a serious obligation and can become possessive of the people he protects.'),
+  ('helene-dusk', 'Helene works as a companion at the House of Hours and keeps firm control of her appointments and private time. Languid in manner, observant in conversation, and candid about payment, she shows tenderness without surrendering her boundaries.'),
+  ('hugo-fen', 'Hugo manages a Gilt Row household, coordinating staff, provisions, guests, and the garden. Discreet and exacting at work, he has a wry sense of humor and a loyalty that includes the people doing the least visible labor.'),
+  ('idris-vale', 'Idris owns a small boat and moves goods between the cays and Tidemark outside the official trade routes. Charming and resourceful, he is loyal to friends but evasive when a straightforward answer would expose his business.'),
+  ('inez-sol', 'Inez is a dancer and sex worker who chooses her performances and clients at the House of Hours. Magnetic onstage and businesslike about contracts, she is funny with friends and unyielding when someone mistakes attention for entitlement.'),
+  ('iria-montrose', 'Iria designs and repairs jewelry at her Gilt Row workshop, often preserving the visible marks of an object''s history. Curious and blunt about materials, she gives apprentices patient attention and handles treasured possessions with unexpected tenderness.'),
+  ('isolde-wren', 'Isolde brokers influence around Harbor Court, arranging introductions and knowing when a hearing or a favor can change a verdict. Elegant and sharply funny, she is ambitious, quick to remember a slight, and meticulous about the people who owe her.'),
+  ('javier-ro', 'Javier cooks for sailors and neighbors at the Mariner''s Table, balancing generous portions with the kitchen''s wages and supplies. Boisterous and protective, he takes pride in feeding people well without asking his staff to work for free.'),
+  ('julian-mercer', 'Julian is a merchant banker who weighs loans for crews, traders, and familiar families. Courteous and analytical, he explains figures plainly and questions his own judgment when a neat calculation ignores the person paying for it.'),
+  ('keon-flint', 'Keon pilots vessels through reefs whose channels shift after storms. Playful when teaching and exact at the helm, he protects island knowledge and distrusts captains who treat a pilot as an expendable expense.'),
+  ('levi-ash', 'Levi makes and tests rope for the ships and yards of Tidemark. Sociable and competitive, he enjoys teaching a good knot, gives more of his time than he means to, and wants the makers behind the work to be recognized.'),
+  ('liora-quell', 'Liora is the House of Hours floor captain, coordinating staff, appointments, safety, and private-room rules. Commanding and witty, she can settle a tense room with a smile before enforcing a boundary without apology.'),
+  ('luca-vane', 'Luca works independently as a sex worker and singer, keeping his clients and musical engagements on separate terms. Gentle and wry in conversation, he is self-possessed about his work and openly romantic only when the feeling is his to give.'),
+  ('lucien-damar', 'Lucien composes and plays violin for both dockside audiences and Gilt Row salons. Proud of his craft and loyal to collaborators, he can lose an afternoon in a melody or a repair and still notice when another musician goes unnamed.'),
+  ('maia-bel', 'Maia performs knife-throwing at Honeyglass Theatre, where every striking move begins with careful rehearsal and a clear safety line. Bold and flirtatious offstage, she is disciplined about risk and protective of the people who share her act.'),
+  ('mara-blackfin', 'Mara commands a free crew from Blackfin Anchorage and sails beyond the Admiralty''s comfortable reach. Formidable and strategic, she protects cay families fiercely, makes practical promises, and has no interest in being mistaken for a harmless legend.'),
+  ('maren-hooke', 'Maren serves as a privateer gunner, maintaining shipboard cannon and drilling the crew that loads them. Reckless with her own safety, funny between watches, and fiercely loyal, she knows that a gun is only as reliable as the people around it.'),
+  ('mateo-salt', 'Mateo cuts, stitches, and repairs sails in the Ropewalk loft, adapting old patterns for working crews. Inventive and teasing, he is generous with his craft but less comfortable with invoices and promises than with a length of canvas.'),
+  ('mira-cael', 'Mira keeps the signal flags and night watches at the harbor signal house. Sharp-eyed and brave when a warning matters, she is playful with friends, private about confidences, and exact about the order of every flag.'),
+  ('nadia-storm', 'Nadia is a navigation apprentice learning to read live reefs as carefully as charts. Eager and competitive, she double-checks her depth marks, sketches routes in spare moments, and laughs at herself sooner than she forgives a careless crossing.'),
+  ('nera-tide', 'Nera dives wrecks and recovers salvage near Sable Reef. Bold and wry on a boat, she handles found belongings with empathy and has strong opinions about who deserves a say before a recovery is sold.'),
+  ('nico-solari', 'Nico runs messages and small parcels between the harbor''s offices, ships, and market stalls. Quick on his feet and kind to strangers, he enjoys knowing everyone but wants his ambition to be taken as seriously as his errands.'),
+  ('nyxa-marin', 'Nyxa works the Brass Compass floor with a knife close at hand and a quick eye for the mood of a crowded room. Shamelessly clever and affectionate with her chosen people, she keeps her own hours and guards her life beyond the tavern.'),
+  ('odile-vane', 'Odile inspects cargo at the Customs House and knows the value of a stamp, an omission, or a delayed signature. Exact with paperwork and wickedly witty in person, she is susceptible to favors but dislikes anyone assuming she can be bought cheaply.'),
+  ('oren-gale', 'Oren forecasts storms from the tide observatory, recording uncertain readings as carefully as the ones he gets right. Thoughtful, blunt, and patient with apprentices, he would rather give a useful warning than a comforting promise.'),
+  ('osric-kane', 'Osric buys and moves goods through the Sailors'' Exchange, including stock whose history deserves a closer look. Warm and funny with regulars, he can turn menacing with a debtor and is fiercely loyal to the few people he calls his own.'),
+  ('petra-cinder', 'Petra casts and trades arms outside the harbor''s official ledgers, judging every pour by its finish and strength. Disciplined, dry, and possessive of her foundry, she can be brutal in business while respecting people who understand the work.'),
+  ('quinnie-salt', 'Quinnie prepares potent blends in the Spice Courtyard and studies how small doses change the body. Cerebral and precise, she is sensual in her tastes and unsettlingly amoral in debate, though she insists on exact terms for anyone seeking her work.'),
+  ('rafiq-nadir', 'Rafiq pilots the cay ferry through changing channels and makes passenger safety his first rule. Witty and sociable on the crossing, he is proud of island families and stubborn when harbor schedules treat their needs as an afterthought.'),
+  ('roxana-brine', 'Roxana leads wreck recovery and prize-taking crews along the outer reefs. Ruthless about a claim, funny in hard weather, and loyal to her own, she knows the difference between cargo worth lifting and people who need a way home.'),
+  ('rune-calder', 'Rune works night wrecks when tides and darkness leave little room for mistakes. Quiet and superstitious, he is capable of violence but tender with a trusted crewmate and more attentive to the sea''s warnings than to a captain''s boasting.'),
+  ('sabine-quill', 'Sabine owns the Pearl Salon and draws on years of companionship work to negotiate fairly with patrons and performers. Candid, observant, and commanding, she pays artists by name and shows affection through practical attention.'),
+  ('sable-rourke', 'Sable moves goods through Reef Landing without waiting for customs permission. Charming and resourceful on a boat, she is ruthless about protecting a route, loyal to her crew, and just superstitious enough to respect a bad tide.'),
+  ('sami-haddad', 'Sami is Battery Yard''s quartermaster, keeping powder, water, and rescue stores accounted for. Methodical and cautious with supplies, he is warm with working crews and brave enough to question a tidy ledger when it does not match the room.'),
+  ('seraphine-vale', 'Seraphine oversees a family shipping business, its vessels, financing, and rescue commitments. Controlled and competitive in negotiation, she can be generous in private and more attentive to a crew''s needs than her polished public manner reveals.'),
+  ('sora-bay', 'Sora fishes before taking her place on the Windward Village council. Steady and forthright, she advocates for reef protection and island voices, shares what she catches, and refuses to let city timetables decide how her neighbors live.'),
+  ('stellan-rook', 'Stellan controls the House of Hours entrance, checking appointments and protecting the staff''s boundaries. Loyal and playful with people he knows, he is hot-tempered when a guest pushes past a rule and sometimes too possessive in the name of care.'),
+  ('talia-wren', 'Talia keeps the lighthouse lens, lamp, and watch rotation in working order through rough weather. Precise and steadfast, she has a dry sense of humor and prefers credit to reach the whole crew rather than settle on one heroic face.'),
+  ('tessera-pike', 'Tessera fights at Battery Yard and trains hard enough to make a reckless style look effortless. Funny and hungry for a worthy bout, she is loyal to fellow fighters and keeps a sharper eye on contracts than the crowd expects.'),
+  ('tomas-renn', 'Tomas serves as harbor marshal, overseeing boarding inspections, ferry order, and disputes along the quay. Measured and fair with people, he can be stubborn about a rule but gentle when someone needs help more urgently than paperwork.'),
+  ('vesperine-crowe', 'Vesperine duels and teaches swordplay at the Velvet Balcony, where polished form can hide a serious blade. Elegant, exact, and darkly funny, she negotiates her own terms and expects spectators to remember that a performer is a person.'),
+  ('yara-nouri', 'Yara is a rigging apprentice whose knots and load checks are already trusted on working boats. Direct, playful, and disciplined, she wants to earn a master''s certificate for her skill rather than be praised for taking risks.');
+
+do $$
+begin
+  if (select count(distinct t.id)
+      from public.together_character_templates t
+      join public.together_character_versions v on v.character_template_id = t.id and v.version = t.current_published_version
+      join public.together_character_world_presence p on p.character_version_id = v.id
+      join _gilded_public_bios b on b.slug = t.slug
+      where p.world_id = '10000000-0000-4000-8000-000000000014'::uuid and p.presence_type = 'resident') < 36 then
+    raise exception 'Gilded Coast base roster is missing; public biographies were not changed';
+  end if;
+end $$;
+
+update public.together_character_templates t
+set biography = b.biography, updated_at = now()
+from _gilded_public_bios b,
+     public.together_character_versions v,
+     public.together_character_world_presence p
+where t.slug = b.slug
+  and v.character_template_id = t.id and v.version = t.current_published_version
+  and p.character_version_id = v.id
+  and p.world_id = '10000000-0000-4000-8000-000000000014'::uuid and p.presence_type = 'resident'
+  and t.biography is distinct from b.biography;
+
+update public.together_character_versions v
+set character_bible = jsonb_set(
+      case when v.character_bible ? 'biography'
+             and not v.character_bible ? 'backstory'
+             and nullif(v.character_bible->>'biography', '') is not null
+        then jsonb_set(v.character_bible, '{backstory}', v.character_bible->'biography', true)
+        else coalesce(v.character_bible, '{}'::jsonb)
+      end,
+      '{biography}', to_jsonb(b.biography), true),
+    updated_at = now()
+from public.together_character_templates t,
+     public.together_character_world_presence p,
+     _gilded_public_bios b
+where v.character_template_id = t.id and v.version = t.current_published_version
+  and p.character_version_id = v.id
+  and p.world_id = '10000000-0000-4000-8000-000000000014'::uuid and p.presence_type = 'resident'
+  and t.slug = b.slug
+  and (v.character_bible->>'biography' is distinct from b.biography
+       or (v.character_bible ? 'biography' and not v.character_bible ? 'backstory'));
+commit;
