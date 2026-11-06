@@ -23,11 +23,11 @@ describe('chat moment picker', () => {
   it('fails the spicy control closed on native surfaces', () => {
     expect(spicyUnavailableCopy('ios')).toEqual({
       title: 'Unavailable on iOS',
-      message: 'Adult photo generation is available on Kivelli.app.',
+      message: 'This app supports non-explicit photos.',
     });
     expect(spicyUnavailableCopy('android')).toEqual({
       title: 'Unavailable on Android',
-      message: 'Adult photo generation is available on Kivelli.app.',
+      message: 'This app supports non-explicit photos.',
     });
     expect(spicyUnavailableCopy('web')).toBeNull();
   });

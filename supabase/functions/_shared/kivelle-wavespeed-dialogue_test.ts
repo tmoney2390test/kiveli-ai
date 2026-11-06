@@ -76,6 +76,18 @@ Deno.test('WaveSpeed streams the exact model, captures terminal usage and releas
   assert(calls.at(-1) === 'kivelle_release_provider_slot');
 }));
 
+Deno.test('WaveSpeed keeps a naturally completed reply intact beyond its style target', () => fixture(async ({ options, context, rows }) => {
+  const completeReply = `${'She pauses to think, then tells you what happened. '.repeat(42)}That is why she came back.`;
+  globalThis.fetch = () => Promise.resolve(new Response(encode([
+    { model: 'deepseek-v4-flash', choices: [{ delta: { content: completeReply }, finish_reason: 'stop' }] },
+    '[DONE]',
+  ])));
+  const events = [];
+  for await (const event of streamWavespeedDialogue(context, options)) events.push(event);
+  assert(events.filter(event => event.type === 'token').map(event => event.token).join('') === completeReply);
+  assert(events.at(-1)?.type === 'complete' && rows[0]?.success);
+}));
+
 Deno.test('WaveSpeed rejects errors, partial replies, missing/different models and invalid finish reasons without retrying', () => fixture(async ({ options, context, rows, calls }) => {
   const cases = [
     new Response('busy', { status: 429 }), new Response(encode([reply])),
@@ -83,6 +95,7 @@ Deno.test('WaveSpeed rejects errors, partial replies, missing/different models a
     new Response(encode([{ ...reply, model: undefined }, '[DONE]'])),
     new Response(encode([{ ...reply, choices: [{ delta: {}, finish_reason: 'stop' }] }, '[DONE]'])),
     new Response(encode([{ ...reply, choices: [{ delta: { content: 'partial' }, finish_reason: 'content_filter' }] }, '[DONE]'])),
+    new Response(encode([{ ...reply, choices: [{ delta: { content: 'unfinished reply' }, finish_reason: 'length' }] }, '[DONE]'])),
     new Response(encode([reply, { error: 'upstream failed' }, '[DONE]'])),
     new Response('data: {"choices":'),
   ];

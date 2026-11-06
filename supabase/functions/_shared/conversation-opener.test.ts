@@ -38,6 +38,12 @@ Deno.test('fresh chats use a reconnection opener, never a first-meeting line', a
   assertEquals(inserted[0].content, "I'm here. What's on your mind?");
 });
 
+Deno.test('a branch reads its copied prefix without creating a duplicate opener', async () => {
+  const { db, inserted } = fakeDb(false);
+  assertEquals(await ensureConversationOpener({ db, userId: 'user', conversation: { id: 'branch', metadata: { branchId: 'branch-1' } }, characterInstanceId: 'character' }), false);
+  assertEquals(inserted.length, 0);
+});
+
 Deno.test('a failed opener insert leaves the request retryable', async () => {
   const { db } = fakeDb(false, true);
   const error = await assertRejects(() => ensureConversationOpener({ db, userId: 'user', conversation: { id: 'chat' }, characterInstanceId: 'character', meeting: { opening_line: 'Hello.' } }), AppError);

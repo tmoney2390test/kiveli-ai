@@ -37,10 +37,26 @@ export function photoOfferForMessage(offers: MediaOffer[], messageId: string): M
     .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0] ?? null;
 }
 
+export function photoOffersForConversation(
+  offers: MediaOffer[],
+  conversationId: string,
+  characterInstanceId: string,
+  continuityId?: string,
+): MediaOffer[] {
+  return offers.filter((offer) =>
+    offer.character_instance_id === characterInstanceId &&
+    (!continuityId || offer.continuity_id === continuityId) &&
+    (offer.conversation_id === conversationId || (offer.source !== 'user_request' && !offer.conversation_id))
+  );
+}
+
 export function photoOffersWithoutVisibleMessages(offers: MediaOffer[], visibleMessageIds: ReadonlySet<string>): MediaOffer[] {
   // Terminal failures stay at their original source message and never collect
   // at the bottom of chat when that message is outside the loaded page.
-  return offers.filter((offer) => offer.status !== 'failed' && (!offer.message_id || !visibleMessageIds.has(offer.message_id)));
+  return offers.filter((offer) =>
+    (offer.status === 'pending' || offer.status === 'accepted') &&
+    (!offer.message_id || !visibleMessageIds.has(offer.message_id))
+  );
 }
 
 /**

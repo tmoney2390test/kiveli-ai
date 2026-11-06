@@ -39,7 +39,11 @@ export async function sendCompanionPush(db:SupabaseClient,input:{userId:string;c
   await deliverPushWork(db,queued);
 }
 
-type PushWork={id:string;user_id:string;push_token_id:string;proactive_message_id:string;attempt_count:number;metadata?:Row;expoPushToken:string};
+type PushWork={id:string;user_id:string;push_token_id:string;proactive_message_id:string|null;attempt_count:number;metadata?:Row;expoPushToken:string};
+
+export function supportReplyPushPayload(to:string,ticketId:string){
+  return {to,title:'Kivelli Support',body:'You have a new reply to your support request.',sound:'default',data:{version:1,route:`/support?ticket=${ticketId}`,ticketId}};
+}
 
 export async function retryPendingPushDeliveries(db:SupabaseClient){
   const now=new Date(),workerId=`life:${crypto.randomUUID()}`;
@@ -57,8 +61,14 @@ export async function retryPendingPushDeliveries(db:SupabaseClient){
     ]);
     const tokenRow=token.data,prefRow=prefs.data,disabled=!tokenRow?.active||!prefRow?.push_enabled||Boolean(deleted.data);
     if(disabled){await finishPush(db,id,'expired','Push eligibility changed before delivery.');continue;}
+    if(delivery.metadata?.kind==='support_reply'){
+      const ticket=await db.from('together_support_tickets').select('customer_read_at').eq('id',delivery.metadata.ticketId).eq('user_id',delivery.user_id).maybeSingle();
+      if(ticket.error){await schedulePushFailure(db,{...delivery,expoPushToken:''} as PushWork,'SUPPORT_LOOKUP_UNAVAILABLE','Support update could not be checked.');continue;}
+      if(!ticket.data||(ticket.data.customer_read_at&&Date.parse(ticket.data.customer_read_at)>=Date.parse(delivery.metadata.replyAt))){await finishPush(db,id,'expired','Support reply already read or removed.');continue;}
+    }
     if(isQuietHours(now,String(prefRow!.quiet_hours_start??'23:00'),String(prefRow!.quiet_hours_end??'08:00'),String(prefRow!.timezone??'UTC'))){
-      await db.from('together_push_deliveries').update({status:'retry',next_attempt_at:new Date(now.getTime()+15*60_000).toISOString(),lease_owner:null,lease_expires_at:null,updated_at:now.toISOString()}).eq('id',id).eq('lease_owner',workerId);continue;
+      // Claiming a quiet-hours item did not attempt delivery. Preserve its retry budget.
+      await db.from('together_push_deliveries').update({status:'retry',attempt_count:Math.max(0,Number(delivery.attempt_count)-1),next_attempt_at:new Date(now.getTime()+15*60_000).toISOString(),lease_owner:null,lease_expires_at:null,updated_at:now.toISOString()}).eq('id',id).eq('lease_owner',workerId);continue;
     }
     work.push({...delivery,expoPushToken:String(tokenRow!.expo_push_token)} as PushWork);
   }
@@ -69,7 +79,7 @@ export async function retryPendingPushDeliveries(db:SupabaseClient){
 async function deliverPushWork(db:SupabaseClient,work:PushWork[]){
   if(!work.length)return;
   try{
-    const response=await fetch('https://exp.host/--/api/v2/push/send',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(work.map((item)=>neutralCompanionPushPayload({to:item.expoPushToken,characterName:String(item.metadata?.characterName??'Kivelle'),route:String(item.metadata?.route??'/chat'),proactiveMessageId:String(item.proactive_message_id)})))});
+    const response=await fetch('https://exp.host/--/api/v2/push/send',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(work.map((item)=>item.metadata?.kind==='support_reply'?supportReplyPushPayload(item.expoPushToken,String(item.metadata.ticketId)):neutralCompanionPushPayload({to:item.expoPushToken,characterName:String(item.metadata?.characterName??'Kivelle'),route:String(item.metadata?.route??'/chat'),proactiveMessageId:String(item.proactive_message_id)})))});
     if(!response.ok){
       const code=response.status===401||response.status===403?'InvalidCredentials':`HTTP_${response.status}`;
       await Promise.all(work.map((item)=>schedulePushFailure(db,item,code,'Push provider request failed.')));return;

@@ -1,9 +1,7 @@
 import { z } from "zod";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { validateUserImage } from "../../../packages/together-domain/src/multimodal.ts";
-import {
-  hasSexualDialogueLanguage,
-  imageDimensions,
-} from "../../../packages/together-domain/src/index.ts";
+import { imageDimensions } from "../../../packages/together-domain/src/index.ts";
 import { chatLanguageFromMessageMetadata, chatLanguagePreferences, chatLanguagePreviewText, normalizeChatLanguage } from "../../../packages/together-domain/src/chat-language.ts";
 import { parseBody } from "../_shared/body.ts";
 import { authenticated, enforceRateLimit } from "../_shared/context.ts";
@@ -26,6 +24,8 @@ import { synchronizedGeneratedPhotoPreferences } from "../_shared/together-photo
 import { AppError } from "../_shared/types.ts";
 import { prepareCompanionSpeech } from "../_shared/voice-performance.ts";
 import { buildVoiceNoteMediaMutation } from "../_shared/voice-note-media.ts";
+import { voiceNoteNeedsAdultAccess } from "../_shared/voice-note-access.ts";
+import { privateTextProjectionAuthorizedForConversation } from "../_shared/private-adult-text-policy.ts";
 import { voiceNotePricing } from "../../../packages/together-domain/src/entitlements.ts";
 import { enforcePhotoSharingEntitlement, refundCredits, resolveSubscriptionState, spendCredits } from "../_shared/kivelle-subscription.ts";
 import {
@@ -262,7 +262,7 @@ serve(async (request, correlationId) => {
     );
     if (attachment.analysis_status === "ready" && attachment.upload_status === "uploaded") {
       if ((attachment.content_rating === "explicit" || attachment.visibility_scope === "web_adult") && !adultAccess.authorized_web_adult) {
-        throw new AppError("FORBIDDEN", "That photo is unavailable in this session.", 403, false);
+        throw new AppError("PROVIDER_CONTENT_BLOCKED", "Explicit photos can be shared only in an eligible adult website session.", 422, false);
       }
       return json({ data: await attachmentPayload(db, attachment), correlationId }, 200, correlationId);
     }
@@ -334,6 +334,9 @@ serve(async (request, correlationId) => {
         safetyIdentifier: await opaqueSafetyIdentifier(user.id),
         allowExplicitAdult: adultAccess.authorized_web_adult,
       });
+      if (result.contentRating === "explicit" && !adultAccess.authorized_web_adult) {
+        throw new AppError("PROVIDER_CONTENT_BLOCKED", "Explicit photos can be shared only in an eligible adult website session.", 422, false);
+      }
       const restricted=result.contentRating === "explicit";
       const { data } = await db.from("together_conversation_attachments")
         .update({
@@ -344,6 +347,7 @@ serve(async (request, correlationId) => {
           analysis_metadata: {
             shortDescription: result.shortDescription,
             notableDetails: result.notableDetails,
+            captionFocus: result.captionFocus,
             visibleText: result.visibleText,
             safetyCategories: result.safetyCategories,
             confidence: result.confidence,
@@ -530,17 +534,14 @@ serve(async (request, correlationId) => {
   if (input.action === "voice_note_quote") {
     if (preferences.companionVoiceNotes === false) throw new AppError("FORBIDDEN", "Voice notes are turned off in Settings.", 403);
     if (!capabilities.experience.voiceNotes) throw new AppError("PLAN_LIMIT_REACHED", "Voice notes are available with Kivelle+.", 403);
-    const { data: message } = await db.from("together_messages").select("id,content,together_conversations!inner(continuity_id)").eq("id", input.messageId).eq("user_id", user.id).eq("role", "assistant").maybeSingle();
-    const conversation = message?.together_conversations as Record<string, unknown> | undefined;
-    if (!message || String(conversation?.continuity_id) !== continuity.id) throw new AppError("NOT_FOUND", "That companion message is unavailable.", 404);
+    const { data: message, error: messageError } = await db.from("together_messages").select("id,content,conversation_id,content_rating,visibility_scope").eq("id", input.messageId).eq("user_id", user.id).eq("role", "assistant").maybeSingle();
+    if (messageError) throw new AppError("INTERNAL_ERROR", "The companion message could not be checked.", 500, true);
+    if (!message) throw new AppError("NOT_FOUND", "That companion message is unavailable.", 404);
+    const { data: conversation, error: conversationError } = await db.from("together_conversations").select("id,kind,character_instance_id").eq("id", message.conversation_id).eq("user_id", user.id).eq("continuity_id", continuity.id).maybeSingle();
+    if (conversationError) throw new AppError("INTERNAL_ERROR", "The conversation could not be checked.", 500, true);
+    if (!conversation) throw new AppError("NOT_FOUND", "That companion message is unavailable in this Life.", 404);
     const canonicalText = String(message.content ?? "").trim();
-    if (hasSexualDialogueLanguage(canonicalText)) {
-      throw new AppError(
-        "FORBIDDEN",
-        "Sexual messages are not available as voice notes.",
-        403,
-      );
-    }
+    if (voiceNoteNeedsAdultAccess(message)) await requireAdultVoiceAccess(db,request,user,continuity.id,conversation);
     const requestKey = `voice-note:${message.id}`;
     const [{ data: duplicate }, subscription] = await Promise.all([
       db.from("together_generated_media").select("id,status").eq("user_id", user.id).eq("request_key", requestKey).maybeSingle(),
@@ -572,20 +573,21 @@ serve(async (request, correlationId) => {
       30,
       3600,
     );
-    const { data: message } = await db.from("together_messages").select(
-      "*,together_conversations!inner(id,continuity_id,character_instance_id,user_id,metadata)",
-    ).eq("id", input.messageId).eq("user_id", user.id).eq("role", "assistant")
+    const { data: message, error: messageError } = await db.from("together_messages").select("*").eq("id", input.messageId).eq("user_id", user.id).eq("role", "assistant")
       .maybeSingle();
-    const conversation = message?.together_conversations as
-      | Record<string, unknown>
-      | undefined;
-    if (!message || String(conversation?.continuity_id) !== continuity.id) {
+    if (messageError) throw new AppError("INTERNAL_ERROR", "The companion message could not be checked.", 500, true);
+    if (!message) {
       throw new AppError(
         "NOT_FOUND",
         "That companion message is unavailable.",
         404,
       );
     }
+    const { data: conversation, error: conversationError } = await db.from("together_conversations")
+      .select("id,kind,continuity_id,character_instance_id,user_id,metadata")
+      .eq("id", message.conversation_id).eq("user_id", user.id).eq("continuity_id", continuity.id).maybeSingle();
+    if (conversationError) throw new AppError("INTERNAL_ERROR", "The conversation could not be checked.", 500, true);
+    if (!conversation) throw new AppError("NOT_FOUND", "That companion message is unavailable in this Life.", 404);
     const canonicalText = String(message.content ?? "").trim();
     if (!canonicalText) {
       throw new AppError(
@@ -594,13 +596,8 @@ serve(async (request, correlationId) => {
         422,
       );
     }
-    if (hasSexualDialogueLanguage(canonicalText)) {
-      throw new AppError(
-        "FORBIDDEN",
-        "Sexual messages are not available as voice notes.",
-        403,
-      );
-    }
+    const restrictedVoice=voiceNoteNeedsAdultAccess(message);
+    const adultVoiceAccess=restrictedVoice?await requireAdultVoiceAccess(db,request,user,continuity.id,conversation):null;
     const characterInstanceId = String(
       message.speaker_character_instance_id ?? message.character_instance_id ??
         conversation?.character_instance_id ?? "",
@@ -612,7 +609,7 @@ serve(async (request, correlationId) => {
       .maybeSingle();
     if (duplicate && duplicate.status !== "failed") {
       return json(
-        { data: await mediaPayload(db, duplicate), correlationId },
+        { data: await mediaPayload(db, duplicate,restrictedVoice?{request,access:adultVoiceAccess!,userId:user.id}:undefined), correlationId },
         200,
         correlationId,
       );
@@ -682,6 +679,7 @@ serve(async (request, correlationId) => {
       requestKey,
       provider: provider.id,
       canonicalText,
+      restricted: restrictedVoice,
       attemptNumber,
       metadata: {
         source: "assistant_message",
@@ -784,7 +782,7 @@ serve(async (request, correlationId) => {
         estimatedCostUsd: result.estimatedCostUsd ?? 0,
       });
       return json(
-        { data: await mediaPayload(db, ready ?? media), correlationId },
+        { data: await mediaPayload(db, ready ?? media,restrictedVoice?{request,access:adultVoiceAccess!,userId:user.id}:undefined), correlationId },
         201,
         correlationId,
       );
@@ -828,7 +826,7 @@ serve(async (request, correlationId) => {
         failureCode,
       });
       return json(
-        { data: await mediaPayload(db, failed ?? media), correlationId },
+        { data: await mediaPayload(db, failed ?? media,restrictedVoice?{request,access:adultVoiceAccess!,userId:user.id}:undefined), correlationId },
         200,
         correlationId,
       );
@@ -843,18 +841,16 @@ serve(async (request, correlationId) => {
   if (!media) {
     throw new AppError("NOT_FOUND", "That media is unavailable.", 404);
   }
-  if (
-    media.media_type === "voice_note" &&
-    hasSexualDialogueLanguage(String(media.canonical_text ?? ""))
-  ) {
-    throw new AppError(
-      "FORBIDDEN",
-      "Sexual messages are not available as voice notes.",
-      403,
-    );
+  let voiceSecurity: { request: Request; access: AdultAccessContext; userId: string } | undefined;
+  if (media.media_type === "voice_note" && voiceNoteNeedsAdultAccess(media)) {
+    const { data: conversation } = await db.from("together_conversations")
+      .select("id,kind,character_instance_id").eq("id", media.conversation_id)
+      .eq("user_id", user.id).eq("continuity_id", continuity.id).maybeSingle();
+    if (!conversation) throw new AppError("NOT_FOUND", "That voice note is unavailable in this Life.", 404);
+    voiceSecurity = { request, access: await requireAdultVoiceAccess(db,request,user,continuity.id,conversation), userId: user.id };
   }
   return json(
-    { data: await mediaPayload(db, media), correlationId },
+    { data: await mediaPayload(db, media,voiceSecurity), correlationId },
     200,
     correlationId,
   );
@@ -1046,13 +1042,26 @@ async function attachmentPayload(
   };
 }
 
-async function mediaPayload(db: any, media: Record<string, any>) {
+async function requireAdultVoiceAccess(db:SupabaseClient,request:Request,user:User,continuityId:string,conversation:Record<string,unknown>):Promise<AdultAccessContext>{
+  const access=await resolveAdultAccess(request,user,db);
+  if(!access.authorized_web_adult||!await privateTextProjectionAuthorizedForConversation({db,userId:user.id,continuityId,conversation,access})){
+    throw new AppError("FORBIDDEN","This voice note is available only in your adult web session.",403);
+  }
+  return access;
+}
+
+async function mediaPayload(db: any, media: Record<string, any>,security?:{request:Request;access:AdultAccessContext;userId:string}) {
   let signedUrl: string | null = null;
   if (media.status === "ready" && media.storage_path) {
-    signedUrl = (await db.storage.from("together-user-media").createSignedUrl(
-      String(media.storage_path),
-      3600,
-    )).data?.signedUrl ?? null;
+    if(media.media_type==="voice_note"&&voiceNoteNeedsAdultAccess(media)){
+      if(!security?.access.authorized_web_adult)throw new AppError("FORBIDDEN","This voice note is available only in your adult web session.",403);
+      signedUrl=await issueAdultAssetUrl({request:security.request,db,access:security.access,userId:security.userId,generatedMediaId:String(media.id)});
+    }else{
+      signedUrl = (await db.storage.from("together-user-media").createSignedUrl(
+        String(media.storage_path),
+        3600,
+      )).data?.signedUrl ?? null;
+    }
   }
   return {
     media: { ...media, signed_url: signedUrl },

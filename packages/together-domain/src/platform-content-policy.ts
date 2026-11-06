@@ -56,6 +56,7 @@ export type PlatformContentReasonCode =
   | 'adult_participants_required'
   | 'prohibited_content'
   | 'private_scope_required'
+  | 'ios_explicit_text_blocked'
   | 'native_explicit_media_blocked'
   | 'explicit_voice_policy_unchanged'
   | 'public_explicit_content_blocked'
@@ -170,6 +171,10 @@ export function resolvePlatformContentPolicy(input: PlatformContentPolicyInput):
   if (!input.userAdultEligibility.allowed) return blocked('adult_eligibility_required', 'mature_nonexplicit');
   if (!input.participantAdultEligibility?.allAdults) return blocked('adult_participants_required', 'mature_nonexplicit');
   if (input.safetyDecision?.allowed !== true) return blocked('prohibited_content', 'mature_nonexplicit');
+  // The iOS product has no explicit-text capability, regardless of remote controls.
+  if (input.capability === 'private_text' && (input.clientSurface === 'ios' || input.clientSurface === 'native_or_unknown')) {
+    return blocked('ios_explicit_text_blocked', 'mature_nonexplicit');
+  }
   if ((input.capability === 'image_generation' || input.capability === 'video_generation') && input.clientSurface !== 'web') {
     return blocked('native_explicit_media_blocked', 'mature_nonexplicit');
   }

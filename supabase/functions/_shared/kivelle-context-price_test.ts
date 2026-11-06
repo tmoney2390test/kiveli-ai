@@ -1,5 +1,5 @@
 const assert=Object.assign((condition:unknown)=>{if(!condition)throw new Error('Assertion failed');},{equal:(a:unknown,b:unknown)=>{if(a!==b)throw new Error(`${a} !== ${b}`);},notEqual:(a:unknown,b:unknown)=>{if(a===b)throw new Error('Expected different values');},ok:(v:unknown)=>{if(!v)throw new Error('Expected truthy value');},throws:(fn:()=>unknown,pattern:RegExp)=>{try{fn();}catch(error){if(pattern.test(String(error)))return;throw error;}throw new Error('Expected failure');}});
-import { contextCredits } from './kivelle-context-price.ts';
+import { assertContextPricingCurrent, contextCredits } from './kivelle-context-price.ts';
 import { contextChargeForUsage } from './kivelle-context-charge.ts';
 import { contextDraftFingerprint } from './kivelle-context-authorization.ts';
 Deno.test('price depends on input, model, output and actual cache use',()=>{
@@ -9,6 +9,10 @@ Deno.test('price depends on input, model, output and actual cache use',()=>{
   assert.ok(contextCredits({...luna,cachedInputTokens:30000})<contextCredits(luna));
   assert.ok(contextCredits({...luna,serviceTier:'priority'})>contextCredits(luna));
   assert.throws(()=>contextCredits({...luna,model:'unpriced-model'}),/pricing is being updated/);
+});
+Deno.test('elapsed calendar date does not disable a priced expanded-context chat',()=>{
+  assertContextPricingCurrent();
+  assert.ok(contextCredits({provider:'wavespeed',model:'deepseek/deepseek-v4-pro',inputTokens:32000,outputTokens:200})>0);
 });
 Deno.test('final settlement never exceeds the displayed maximum and failures cost zero',()=>{
   const payment={quoteId:'quote',replyKey:'reply',preference:'extended_32k',estimatedTokens:32000,paid:true,slot:{speakerId:'speaker',provider:'xai',model:'grok-4.3',inputTokens:32000,maxOutputTokens:2000,maximumCredits:5,paidExpansion:true}};

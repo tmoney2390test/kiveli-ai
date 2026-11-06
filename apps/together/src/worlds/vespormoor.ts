@@ -51,7 +51,7 @@ export const vespormoorWorld:World={
     locationCount:51,
     districtCount:6,
     publicPlaceCount:45,
-    residentCompanionCount:65,
+    residentCompanionCount:45,
     residentRosterVersion:1,
     residentScheduleStatus:'authored_weekly_v1',
     socialGraphStatus:'authored_v1',
@@ -86,7 +86,7 @@ export const vespormoorWorld:World={
   weather_profile:{climate:'cool wet mountain valley',states:['fog','rain','overcast','snow','clear_cold'],outdoorBias:.44},
 };
 
-type VespormoorLocationSeed={index:number;parent?:number;district?:string;name:string;slug:string;description:string;category:string;type:LocationType;activities:string[]};
+type VespormoorLocationSeed={index:number;parent?:number;district?:string;name:string;slug:string;description:string;category:string;type:LocationType;activities:string[];hours?:Location['hours']};
 const vespormoorLocationId=(index:number)=>`29000000-0000-4000-8000-${String(index).padStart(12,'0')}`;
 const vespormoorVisualAvoid=['overt high-fantasy spectacle','visible monsters in ordinary public scenes','graphic horror or gore','modern glass skyline','cyberpunk neon','theme-park Gothic'];
 
@@ -95,7 +95,7 @@ function location(input:VespormoorLocationSeed):Location{
   const districtNode=input.type==='district';
   return{
     id:vespormoorLocationId(input.index),world_id:VESPORMOOR_WORLD_ID,parent_location_id:input.parent?vespormoorLocationId(input.parent):null,
-    name:input.name,slug:input.slug,description:input.description,category:input.category,location_type:input.type,
+    name:input.name,slug:input.slug,description:input.description,category:input.category,location_type:input.type,hours:input.hours,
     possible_activities:input.activities,visual_asset_key:`vespormoor-location-${input.slug}`,sort_order:input.index*10,
     canonical_visual_context:{
       canonicalPrompt:`${input.name}, ${district}, Vespormoor. ${input.description} Grounded Gothic romantic realism in a secluded mountain valley: cool blue-gray mist, rain-dark textures, aged brass, warm candlelight, restrained supernatural tension, and believable lived-in detail.`,
@@ -140,7 +140,7 @@ export const vespormoorLocations:Location[]=[
   location({index:26,parent:3,district:'Lakeward',name:'Whisper Dock',slug:'whisper-dock',description:'A remote wooden dock traditionally used by couples to confess things they cannot say elsewhere.',category:'dock',type:'outdoor',activities:['private conversation','confession','lake watching','romantic date']}),
   location({index:27,parent:3,district:'Lakeward',name:'The Sunken Chapel',slug:'sunken-chapel',description:'A ruined stone structure beneath the lake that becomes partially visible when water levels fall.',category:'ruin',type:'landmark',activities:['ruin viewing','local history','investigation','lake mystery']}),
 
-  location({index:28,parent:4,district:'Vespormoor University',name:'The Grand Hall',slug:'grand-hall',description:'An enormous vaulted gathering hall used for ceremonies, dinners, dances, and major university events.',category:'hall',type:'venue',activities:['ceremonies','formal dinners','dances','university events']}),
+  location({index:28,parent:4,district:'Vespormoor University',name:'The Grand Hall',slug:'grand-hall',hours:{open:'10:00',close:'17:00'},description:'An enormous vaulted gathering hall used for ceremonies, dinners, dances, and major university events.',category:'hall',type:'venue',activities:['ceremonies','formal dinners','dances','university events']}),
   location({index:29,parent:4,district:'Vespormoor University',name:'Blackglass Library',slug:'blackglass-library',description:'A towering multi-level library containing one of the world’s greatest collections of historical and supernatural material.',category:'library',type:'venue',activities:['study','research','rare collections','quiet conversation']}),
   location({index:30,parent:4,district:'Vespormoor University',name:'Vesper Tower',slug:'vesper-tower',description:'The highest tower on campus, providing a panoramic view of Vespormoor and Lake Vesper.',category:'tower',type:'landmark',activities:['panoramic views','tower climb','photography','private conversation']}),
   location({index:31,parent:4,district:'Vespormoor University',name:'The Cloisters',slug:'the-cloisters',description:'Covered gothic walkways surrounding a beautiful secluded courtyard garden.',category:'cloister',type:'landmark',activities:['covered walk','courtyard rest','study','quiet date']}),

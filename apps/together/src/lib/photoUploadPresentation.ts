@@ -1,4 +1,4 @@
-export type PhotoUploadPhase='idle'|'preparing'|'uploading'|'processing'|'sending'|'failed';
+export type PhotoUploadPhase='idle'|'preparing'|'uploading'|'processing'|'sending'|'failed'|'blocked';
 export type PhotoUploadPresentation={label:string;progress:number;busy:boolean;retry:boolean};
 
 const PRESENTATION:Record<PhotoUploadPhase,PhotoUploadPresentation>={
@@ -8,6 +8,7 @@ const PRESENTATION:Record<PhotoUploadPhase,PhotoUploadPresentation>={
   processing:{label:'Checking and understanding photo…',progress:.76,busy:true,retry:false},
   sending:{label:'Sending photo and caption…',progress:.94,busy:true,retry:false},
   failed:{label:'Upload failed',progress:0,busy:false,retry:true},
+  blocked:{label:'Photo can’t be shared here',progress:0,busy:false,retry:false},
 };
 
 export function photoUploadPresentation(phase:PhotoUploadPhase):PhotoUploadPresentation{return PRESENTATION[phase];}

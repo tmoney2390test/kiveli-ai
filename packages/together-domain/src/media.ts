@@ -224,6 +224,7 @@ const NEGATED_VISUAL_REQUEST=/\b(?:don't|do not|doesn't|does not|didn't|did not|
 const REPORTED_VISUAL_WISH=/\b(?:you|she|he|they|we)\s+(?:said|told\s+me|claimed|thought)\b[^.!?]{0,48}\b(?:want|wanted|wish|wished)\s+to\s+see\b/i;
 const USER_OFFERING_MEDIA=/\b(?:i|me)\b[^.!?]{0,32}\b(?:send|sending|show|showing|share|sharing|upload|uploading|attach|attaching|text|message|dm)\b[^.!?]{0,16}\b(?:to\s+)?you\b/i;
 const CLOSE_DETAIL_REQUEST=/\b(?:zoom(?:ed)?\s+in|zoomed[- ]?in|close[- ]?up|tight(?:ly)?\s+(?:cropped|framed)|detail\s+shot)\b/i;
+const EXPLICIT_WIDE_SHOT_REQUEST=/\b(?:full[- ]?body|whole\s+body|head\s+to\s+toe|wide\s+shot|entire\s+(?:body|pose))\b/i;
 const PHOTO_DISCUSSION_OR_MANAGEMENT=/\b(?:remember(?:ing)?\s+(?:the|that|this|your|our)?\s*(?:photo|picture|pic|selfie)|(?:delete|remove|hide|report|rate|dislike|download|save|edit|crop)\s+(?:this|that|the|your|my)?\s*(?:photo|picture|pic|selfie)|why (?:did|didn'?t|won't|isn'?t)[^.!?]{0,36}(?:photo|picture|pic|selfie)|the (?:photo|picture|pic|selfie) (?:you|i|we)|profile (?:photo|picture|pic)|photo (?:settings|generation|generator|quality|button)|talk(?:ing)? about (?:a |the |that |your )?(?:photo|picture|pic|selfie)|do you like (?:photos?|photography)|i (?:sent|shared|showed|took|made|uploaded)\s+(?:a|the|that|this|my)?\s*(?:photo|picture|pic|selfie)|you (?:sent|shared|showed|took|made|uploaded)\s+(?:a|the|that|this|your)?\s*(?:photo|picture|pic|selfie))\b/i;
 const PHOTO_DELIVERY_REJECTION=/\b(?:nice try|not that kind|outside (?:my|the|this character'?s) boundaries|cross that line|not comfortable (?:sending|showing|sharing|with)|(?:can(?:not|'t)|won't|will not|don'?t)\s+(?:send|show|share|take|do|give)|keep (?:it|things|this) (?:clean|playful|fully dressed)|fully dressed(?:\s+(?:photo|picture|pic))?|more teasing than explicit|not doing explicit|can make it (?:playful|teasing) instead)\b/i;
 
@@ -253,9 +254,19 @@ export function photoRequestAllowsHiddenFace(text?:string):boolean{
   const normalized=normalizePhotoIntentText(text??'');
   if(!normalized)return false;
   if(INTENTIONAL_FACE_CONCEALMENT.test(normalized))return true;
+  if(photoRequestNeedsAnatomyCloseup(normalized))return true;
   // Rear lower-anatomy display is a behind-the-subject crop. Requiring a
   // camera-facing identity portrait would fight the approved pose.
   return requestImpliesRearAdultAnatomy(normalized);
+}
+
+/** A detail crop is intentional only when the request names adult anatomy. */
+export function photoRequestNeedsAnatomyCloseup(text?:string):boolean{
+  const normalized=normalizePhotoIntentText(text??'');
+  if(!CLOSE_DETAIL_REQUEST.test(normalized)||EXPLICIT_WIDE_SHOT_REQUEST.test(normalized))return false;
+  const scope=resolveAdultNudityScope(normalized);
+  const categories=analyzeAdultLanguage(normalized).categories;
+  return scope==='specific_anatomy'||scope==='topless'||scope==='bottomless'||categories.some((category)=>['female_genitalia','male_genitalia','buttocks_anus','breasts'].includes(category));
 }
 
 const REQUESTED_POSE_CUES:Array<[RegExp,string]>=[
@@ -355,10 +366,11 @@ export function visibleAdultAnatomyTargetLabels(text?:string):string[]{
   const scope=resolveAdultNudityScope(normalized);
   const rear=requestImpliesRearAdultAnatomy(normalized);
   const frontal=requestImpliesFrontalGenitalVisibility(normalized);
+  const buttOnlyRearView=rear&&/\b(?:butt|buttocks|ass|bare bottom|rear end)\b/i.test(normalized)&&categories.includes('buttocks_anus')&&!categories.includes('female_genitalia')&&!categories.includes('male_genitalia')&&!frontal;
   const labels:string[]=[];
   if(categories.includes('female_genitalia'))labels.push('external vulva and labia');
   else if(categories.includes('male_genitalia'))labels.push('external penis and scrotum');
-  else if(scope==='full_nude'||scope==='bottomless'||rear||frontal)labels.push('complete uncovered external genitalia matching this adult body');
+  else if(!buttOnlyRearView&&(scope==='full_nude'||scope==='bottomless'||rear||frontal))labels.push('complete uncovered external genitalia matching this adult body');
   if(categories.includes('buttocks_anus')||rear)labels.push('buttocks and rear anatomy');
   if(categories.includes('breasts')||scope==='topless')labels.push('breasts and nipples');
   return[...new Set(labels)];
@@ -432,8 +444,8 @@ export function classifyPhotoIntent(text:string):PhotoIntent{
   const requested=Boolean(requestClause),classificationText=normalized.replace(/\bnon\s+explicit\b/gi,''),adult=analyzeAdultLanguage(classificationText),lower=normalized.toLowerCase();
   const subject:PhotoIntent['subject']=/where you are|the view|surroundings|around there|your room|your place|studio|gallery|museum|cafe|café|rooftop|riverwalk|venue|place/.test(lower)||MULTILINGUAL_SCENE.test(normalized)?'location':/outfit|wearing|dressed|clothes|fit check|ootd/.test(lower)?'outfit':/doing|working|activity/.test(lower)?'activity':/date/.test(lower)?'date':requested?'companion':'unknown';
   const environmentOnly=/\b(?:show|send|take|share)\b.{0,36}\b(?:the|your)?\s*(?:view|surroundings|room|gallery|museum|venue|place itself)\b|\bwhat (?:it|the (?:place|room|gallery|museum|venue)) looks like\b/i.test(normalized)||MULTILINGUAL_SCENE.test(normalized);
-  const nudityScope=resolveAdultNudityScope(normalized),closeDetailRequested=CLOSE_DETAIL_REQUEST.test(normalized),anatomyNeedsWideFrame=photoRequestNeedsCompletePose(lower)||MULTILINGUAL_FULL_BODY.test(normalized)||((nudityScope==='full_nude'||nudityScope==='bottomless')&&!closeDetailRequested);
-  const shotPreference:PhotoIntent['shotPreference']=anatomyNeedsWideFrame?'full_body':closeDetailRequested?'portrait':/selfie|mirror pic/.test(lower)||/(?:自撮り|セルフィー|셀카|自拍)/u.test(normalized)?'selfie':/outfit|wearing|dressed|clothes|fit check|ootd|full.?body/.test(lower)?'full_body':/portrait|face|smile|eyes|hair/.test(lower)||MULTILINGUAL_PORTRAIT.test(normalized)?'portrait':environmentOnly?'scene':subject==='location'||subject==='activity'?'candid':undefined;
+  const nudityScope=resolveAdultNudityScope(normalized),closeDetailRequested=CLOSE_DETAIL_REQUEST.test(normalized),anatomyCloseup=photoRequestNeedsAnatomyCloseup(normalized),anatomyNeedsWideFrame=photoRequestNeedsCompletePose(lower)||MULTILINGUAL_FULL_BODY.test(normalized)||((nudityScope==='full_nude'||nudityScope==='bottomless')&&!closeDetailRequested);
+  const shotPreference:PhotoIntent['shotPreference']=anatomyCloseup?'portrait':anatomyNeedsWideFrame?'full_body':closeDetailRequested?'portrait':/selfie|mirror pic/.test(lower)||/(?:自撮り|セルフィー|셀카|自拍)/u.test(normalized)?'selfie':/outfit|wearing|dressed|clothes|fit check|ootd|full.?body/.test(lower)?'full_body':/portrait|face|smile|eyes|hair/.test(lower)||MULTILINGUAL_PORTRAIT.test(normalized)?'portrait':environmentOnly?'scene':subject==='location'||subject==='activity'?'candid':undefined;
   // "Full-body", "body shot", and "chest-up" are framing language, not adult-content
   // signals. Strip an explicit negation before classification so "non-explicit" does
   // not inherit the account's adult media mode merely because it contains that word.
@@ -442,16 +454,10 @@ export function classifyPhotoIntent(text:string):PhotoIntent{
   const requestedContentLevel:MediaLevel|undefined=directBodyExposureRequest||adult.explicit||requested&&MULTILINGUAL_EXPLICIT_VISUAL.test(normalized)?'explicit':/\b(?:suggestive|lingerie|sexy|thirst trap)\b/i.test(contentClassificationText)?'suggestive':/\b(?:romantic|kiss)\b/i.test(contentClassificationText)?'romance':undefined;return{requested,subject,...(shotPreference?{shotPreference}:{}),...(requestedContentLevel?{requestedContentLevel}:{}),confidence:requested?.94:0};
 }
 
-const VISIBLE_CAPTURE_DEVICE_REQUEST=/\b(?:hold(?:ing)?|show(?:ing)?|display(?:ing)?|raise(?:d|ing)?|grip(?:ping)?|include|visible)\b[^.!?]{0,40}\b(?:smart\s*phone|phone|camera|selfie stick)\b|\b(?:smart\s*phone|phone|camera|selfie stick)\b[^.!?]{0,40}\b(?:visible|in (?:the )?(?:frame|shot|mirror)|in (?:your|her|his|their) hand|being held|held up)\b/i;
-
-/** Plain selfie framing never implies that the capture device appears in-frame. */
-export function photoRequestWantsVisibleCaptureDevice(text?:string):boolean{
-  return VISIBLE_CAPTURE_DEVICE_REQUEST.test(normalizePhotoIntentText(text??''));
-}
-
 export function resolvePhotoComposition(input:{source:string;shotType:PhotoShotType;requestText?:string}):PhotoComposition{
   if(input.source==='user_request'){
     const normalizedRequest=normalizePhotoIntentText(input.requestText??'');
+    if(photoRequestNeedsAnatomyCloseup(normalizedRequest))return{shotType:'portrait',aspectRatio:'4:5',framing:'tight close-up centered on the specifically requested adult anatomy; keep that area large, clear, and anatomically connected to its immediate surrounding body; the face, head, and full body may be outside the frame; do not widen into a standing portrait'};
     if(input.shotType==='scene')return{shotType:'scene',aspectRatio:'16:9',framing:'environment-led composition that clearly establishes the exact place while keeping the companion close enough for a crisp, naturally detailed face'};
     if(input.shotType==='full_body'){
       const completePoseIsTheSubject=photoRequestNeedsCompletePose(normalizePhotoIntentText(input.requestText??''));
@@ -460,8 +466,7 @@ export function resolvePhotoComposition(input:{source:string;shotType:PhotoShotT
     if(input.shotType==='portrait'&&CLOSE_DETAIL_REQUEST.test(normalizedRequest)&&hasAdultUpperBodyLanguage(normalizedRequest))return{shotType:'portrait',aspectRatio:'4:5',framing:'tight close-up upper-body detail framing centered on the specifically requested area, with coherent natural anatomy, believable camera distance, and enough of the same adult companion visible to preserve identity; preserve the requested tight detail crop'};
     if(input.shotType==='portrait')return{shotType:'portrait',aspectRatio:'4:5',framing:'chest-up environmental portrait with a large, sharply detailed, naturally proportioned face'};
     if(input.shotType==='candid')return{shotType:'candid',aspectRatio:'4:5',framing:'medium three-quarter environmental portrait; the companion is the clear primary subject, with a large crisp face and enough background to establish the exact activity and location'};
-    const visibleCaptureDevice=photoRequestWantsVisibleCaptureDevice(input.requestText);
-    return{shotType:'selfie',aspectRatio:'4:5',framing:visibleCaptureDevice?'close personal selfie with a large, sharply detailed, recognizable face, a small amount of truthful environmental context, and only the specifically requested phone or camera visible naturally':'close personal front-facing selfie perspective with a large, sharply detailed, recognizable face and a small amount of truthful environmental context; the unseen capture device remains completely outside the image, with no visible phone, camera, selfie stick, phone reflection, or device-holding hand'};
+    return{shotType:'selfie',aspectRatio:'4:5',framing:'close personal front-facing selfie perspective with a large, sharply detailed, recognizable face and a small amount of truthful environmental context; the unseen capture device remains completely outside the image, with no visible phone, camera, selfie stick, phone reflection, or device-holding hand'};
   }
   return{shotType:input.shotType,aspectRatio:input.shotType==='scene'?'16:9':input.shotType==='selfie'||input.shotType==='full_body'?'4:5':'1:1',framing:'grounded framing with useful environmental context'};
 }

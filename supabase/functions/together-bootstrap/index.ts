@@ -38,6 +38,9 @@ serve(async (request, correlationId) => {
   if (request.method === 'GET') {
     const { user, db } = await authenticated(request);
     const url=new URL(request.url),scope=url.searchParams.get('scope');
+    if(scope==='content_policy'){
+      return json({data:{iosExplicitDialogueEnabled:false},correlationId},200,correlationId);
+    }
     if(scope==='presence'){
       const characterInstanceId=z.string().uuid().safeParse(url.searchParams.get('characterInstanceId'));
       if(!characterInstanceId.success)throw new AppError('VALIDATION_ERROR','Choose a companion to refresh.',400);

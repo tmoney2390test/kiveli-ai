@@ -52,4 +52,20 @@ describe('universal character prompt realism',()=>{
     expect(compiled.sections.find(s=>s.key==='WORLD_PULSE')?.included).toBe(false);
     expect(compiled.prompt).not.toContain('The cup can wait.');
   });
+
+  it('grounds ordinary check-ins in a plausible present moment and character profanity',()=>{
+    const source=context('Hana','Research scientist','Finish the grant application.');
+    const compiled=compileCompanionPrompt({
+      ...source,userMessage:'How was your day?',
+      currentScene:{interactionMode:'remote',activity:'Swimming at the pool',location:'The pool',mood:'frustrated',energy:'low'},
+      characterVoice:compileCharacterVoiceCard({
+        bible:{occupation:'Research scientist',voice:{profanity:'rare when frustrated'}},
+        message:'How was your day?',mode:'casual',interactionMode:'remote',
+      }),
+    });
+    expect(compiled.prompt).toContain('answer the question first');
+    expect(compiled.prompt).toContain('rare when frustrated');
+    expect(compiled.prompt).toContain('do not claim to be physically performing an activity');
+    expect(compiled.prompt).toContain('Swimming at the pool');
+  });
 });

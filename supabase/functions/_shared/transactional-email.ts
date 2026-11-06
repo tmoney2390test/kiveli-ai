@@ -2,7 +2,8 @@ export type EmailKind = 'support_new' | 'support_received' | 'support_reply' | '
 
 export function transactionalEmail(kind: EmailKind, payload: Record<string, unknown>) {
   const reference = `Support-${String(Number(payload.ticketNumber) || 0).padStart(5, '0')}`;
-  const supportUrl = 'https://kivelli.app/support';
+  const ticketId=typeof payload.ticketId==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(payload.ticketId)?payload.ticketId:null;
+  const supportUrl = 'https://kivelli.app/support'+(ticketId?`?ticket=${ticketId}`:'');
   if (kind === 'support_new') return {
     subject: `${reference}: New Kivelli support request`,
     text: `A new support request is ready for review: ${reference}.\n\nRead the private request and respond in Kivelli Ops:\nhttps://kivelli.app/ops\n\nReply through the portal to notify the customer.`,

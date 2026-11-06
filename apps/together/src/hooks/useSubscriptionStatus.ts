@@ -1,18 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { manageSubscription } from '../lib/api';
-import type { SubscriptionStatus } from '../lib/subscription';
-
-export const subscriptionStatusQueryKey=['kivelle-subscription-status'] as const;
+import { useAuth } from './useAuth';
+import { subscriptionQueryOptions } from '../lib/subscriptionQuery';
+export { subscriptionStatusQueryKey, subscriptionStatusKey } from '../lib/subscriptionQuery';
 
 export function useSubscriptionStatus(enabled = true) {
+  const { session } = useAuth();
   return useQuery({
-    queryKey: subscriptionStatusQueryKey,
-    queryFn: () => manageSubscription<SubscriptionStatus>(),
-    enabled,
-    staleTime: 60_000,
-    gcTime: 30*60_000,
-    retry: 1,
-    refetchOnMount: 'always',
-    refetchOnReconnect: true,
+    ...subscriptionQueryOptions(session?.user.id),
+    enabled: enabled && Boolean(session?.user.id),
   });
 }

@@ -1,3 +1,4 @@
+import {assertHomePlanWelcome} from '../_shared/character-homes.ts';
 import { contextCostActivation } from '../../../packages/together-domain/src/context-cost-confirmation.ts';
 import { contextPreferences, normalizeContextPreference } from '../../../packages/together-domain/src/chat-context.ts';
 import { validateChatTestSetting } from '../_shared/kivelle-chat-model-test.ts';
@@ -27,8 +28,18 @@ import { chatBubbleColorValues, normalizeChatBubbleColor } from '../../../packag
 import { startConfirmedFreshChat } from '../_shared/fresh-chat.ts';
 import { setCompanionSchedulePause } from '../_shared/companion-schedule-pause.ts';
 import { ensureConversationOpener } from '../_shared/conversation-opener.ts';
+import { openDirectFromWorldPulse } from '../_shared/world-pulse-handoff.ts';
+import { worldPulseV2Enabled } from '../_shared/kivelle-world-pulse-v2.ts';
+import { loadChatBranchPrefix } from '../_shared/chat-branch-prefix.ts';
+import { initialBranchShortcutMetadata } from '../_shared/chat-branch-shortcuts.ts';
+import { restrictedInboxPreview, webAdultInboxPreview } from '../_shared/inbox-web-preview.ts';
+import { manageAccountChats } from '../_shared/chat-management.ts';
 
 const schema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('management'), category: z.enum(['active','archived','branches']).default('active'), offset: z.number().int().min(0).max(100000).default(0), limit: z.number().int().min(1).max(100).default(50) }),
+  z.object({ action: z.literal('archive_many'), conversationIds: z.array(z.string().uuid()).min(1).max(50) }),
+  z.object({ action: z.literal('resume_saved'), conversationId: z.string().uuid() }),
+  z.object({ action: z.literal('open_from_world_pulse'), occurrenceId: z.string().uuid(), characterTemplateId: z.string().uuid(), requestId: z.string().uuid() }),
   z.object({action:z.literal('schedule_pause'),conversationId:z.string().uuid(),paused:z.boolean(),confirmation:z.enum(['pause_schedule','resume_schedule']),expectedPausedAt:z.string().datetime({offset:true}).nullable()}),
   z.object({ action: z.literal('inbox') }),
   z.object({ action: z.literal('inbox_v2'), limit: z.number().int().min(10).max(100).default(40), offset: z.number().int().min(0).max(5000).default(0) }),
@@ -36,10 +47,13 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('open'), characterInstanceId: z.string().uuid(), limit: z.number().int().min(1).max(60).default(50) }),
   z.object({ action: z.literal('ensure'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('new'), characterInstanceId: z.string().uuid(), expectedConversationId: z.string().uuid().optional(), requestId: z.string().uuid().optional(), confirmation: z.literal('start_fresh_chat').optional() }),
+  z.object({ action: z.literal('branch'), conversationId: z.string().uuid(), anchorMessageId: z.string().uuid(), requestId: z.string().uuid(), quickActions: z.array(z.enum(['voice','location','branch','continue','memory','favorite','photo','activity','plan','reply','copy','spice'])).max(6).refine((items) => new Set(items).size === items.length).optional() }),
+  z.object({ action: z.literal('branch_paths'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('archive'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('delete'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('restore'), conversationId: z.string().uuid() }),
   z.object({ action: z.literal('rename'), conversationId: z.string().uuid(), title: z.string().trim().min(1).max(80) }),
+  z.object({ action: z.literal('quick_actions'), conversationId: z.string().uuid(), quickActions: z.array(z.enum(['voice','location','branch','continue','memory','favorite','photo','activity','plan','reply','copy','spice'])).max(6).refine((items) => new Set(items).size === items.length) }),
   z.object({ action: z.literal('settings'), conversationId: z.string().uuid(), title: z.string().trim().max(80).nullable(), responseStyle: z.enum(['texting','paragraph']), textSize: z.enum(['small','medium','large']), contentMode: z.enum(['standard','romance','mature','explicit']).optional(), spiceLevel: z.union([z.literal(1),z.literal(2),z.literal(3)]).optional(), voicePreset: z.enum(['warm','bright','clear','strong','balanced']).nullable().optional(), chatLanguage: z.enum(chatLanguagePreferences).optional(), chatDynamism:z.union([z.literal(0),z.literal(25),z.literal(50),z.literal(75),z.literal(100)]).optional(), reasoningPreference:z.enum(['auto','none','low','medium','high']).optional(), contextPreference:z.enum(contextPreferences).optional(), veniceTestModel:z.enum(chatTestSelections).optional(), userBubbleColor:z.enum(chatBubbleColorValues).optional(), companionBubbleColor:z.enum(chatBubbleColorValues).optional() }),
   z.object({ action: z.literal('history'), characterInstanceId: z.string().uuid() }),
   z.object({ action: z.literal('messages'), conversationId: z.string().uuid(), before: z.string().datetime().optional(), beforeSequence: z.number().int().positive().optional(), anchorMessageId: z.string().uuid().optional(), includeReplyStatus: z.boolean().optional(), limit: z.number().int().min(1).max(60).default(50) }),
@@ -70,6 +84,19 @@ serve(async (request, correlationId) => {
   ]);
   const preparedAt=performance.now();
 
+  if (input.action === 'management' || input.action === 'archive_many' || input.action === 'resume_saved') {
+    return json({data:await manageAccountChats(db,user.id,input),correlationId},200,correlationId);
+  }
+
+  if (input.action === 'open_from_world_pulse') {
+    if (!worldPulseV2Enabled()) throw new AppError('NOT_FOUND', 'World Pulse is unavailable.', 404);
+    const result = await openDirectFromWorldPulse({ db, userId: user.id, continuityId: String(continuity.id),
+      occurrenceId: input.occurrenceId, characterTemplateId: input.characterTemplateId, requestId: input.requestId });
+    await track(db, user.id, 'world_pulse_direct_handoff', { occurrenceId: input.occurrenceId,
+      characterTemplateId: input.characterTemplateId, conversationId: result.conversation.id });
+    return json({ data: result, correlationId }, 200, correlationId);
+  }
+
   if (input.action === 'inbox') {
     const { data, error } = await db.from('together_conversations').select('*').eq('user_id', user.id).eq('continuity_id', continuity.id).is('archived_at', null).in('kind', ['direct', 'first_meeting','group']).order('last_message_at', { ascending: false, nullsFirst: false }).limit(100);
     if (error) throw new AppError('INTERNAL_ERROR', 'Messages could not be loaded.', 500, true);
@@ -89,7 +116,8 @@ serve(async (request, correlationId) => {
     const page = (data ?? []).slice(0, input.limit);
     const conversationIds = page.map((conversation) => String(conversation.id));
     const groupIds = page.filter((conversation) => conversation.kind === 'group').map((conversation) => String(conversation.id));
-    const [participantResult, pendingResult, groupMessageResult] = await Promise.all([
+    const lastMessageTimes = [...new Set(page.map((conversation) => String(conversation.last_message_at ?? '')).filter(Boolean))];
+    const [participantResult, pendingResult, groupMessageResult, latestMetadataResult, webLatestResult] = await Promise.all([
       groupIds.length
         ? db.from('together_conversation_participants').select('*,together_character_instances(*,together_character_templates(*),together_character_versions(portrait_asset_key,visual_identity,personality_config,communication_style,boundaries))').eq('user_id', user.id).eq('continuity_id', continuity.id).in('conversation_id', groupIds).is('left_at', null).order('joined_at')
         : Promise.resolve({ data: [], error: null }),
@@ -99,10 +127,37 @@ serve(async (request, correlationId) => {
       groupIds.length
         ? db.from('together_messages').select('conversation_id,speaker_character_instance_id,character_instance_id,created_at,conversation_sequence,content_rating,visibility_scope').eq('user_id', user.id).in('conversation_id', groupIds).eq('role', 'assistant').order('created_at', { ascending: false }).limit(2000)
         : Promise.resolve({ data: [], error: null }),
+      conversationIds.length && lastMessageTimes.length
+        ? db.from('together_messages').select('id,conversation_id,created_at,role,delivery_status,content_rating,visibility_scope')
+          .eq('user_id', user.id).in('conversation_id', conversationIds).in('created_at', lastMessageTimes)
+          .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(200)
+        : Promise.resolve({ data: [], error: null }),
+      adultAccess.authorized_web_adult && conversationIds.length && lastMessageTimes.length
+        ? db.from('together_messages').select('id,conversation_id,created_at,role,content,delivery_status,together_conversation_attachments(kind)')
+          .eq('user_id', user.id).in('conversation_id', conversationIds).in('created_at', lastMessageTimes)
+          .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(200)
+        : Promise.resolve({ data: [], error: null }),
     ]);
     if (participantResult.error) throw new AppError('INTERNAL_ERROR', 'Group rosters could not be loaded.', 500, true);
     if (pendingResult.error) throw new AppError('INTERNAL_ERROR', 'Message status could not be loaded.', 500, true);
     if (groupMessageResult.error) throw new AppError('INTERNAL_ERROR', 'Group message status could not be loaded.', 500, true);
+    // Preview enrichment is best effort. A transient query error must not make
+    // the entire inbox unavailable; the stored safe projection remains usable.
+    const lastMessageTimeByConversation = new Map(page.map((conversation) => [String(conversation.id), String(conversation.last_message_at ?? '')]));
+    const latestMetadataByConversation = new Map<string, Record<string, any>>();
+    for (const message of latestMetadataResult.data ?? []) {
+      const conversationId = String(message.conversation_id);
+      if (!latestMetadataByConversation.has(conversationId) && String(message.created_at) === lastMessageTimeByConversation.get(conversationId)) {
+        latestMetadataByConversation.set(conversationId, message);
+      }
+    }
+    const webLatestByConversation = new Map<string, Record<string, any>>();
+    for (const message of webLatestResult.data ?? []) {
+      const conversationId = String(message.conversation_id);
+      if (!webLatestByConversation.has(conversationId) && String(message.created_at) === lastMessageTimeByConversation.get(conversationId)) {
+        webLatestByConversation.set(conversationId, message);
+      }
+    }
     const pendingIds = new Set((pendingResult.data ?? []).map((turn) => String(turn.conversation_id)));
     const participantNames = new Map<string, string>();
     for (const participant of participantResult.data ?? []) {
@@ -140,8 +195,10 @@ serve(async (request, correlationId) => {
         ? Boolean(groupUnreadCount)
         : Boolean(conversation.last_assistant_message_at && (!conversation.last_read_at || new Date(conversation.last_assistant_message_at) > new Date(conversation.last_read_at)));
       const lastSpeaker = latestGroupSpeaker.get(conversationId);
+      const safePreview = restrictedInboxPreview(conversation, latestMetadataByConversation.get(conversationId));
+      const currentPreview = webAdultInboxPreview(safePreview, webLatestByConversation.get(conversationId), adultAccess.authorized_web_adult);
       return {
-        ...projectConversation(conversation,false),
+        ...projectConversation(currentPreview,false),
         unread,
         ...(groupUnreadCount !== undefined ? { unread_count: groupUnreadCount } : {}),
         ...(lastSpeaker ? { last_speaker_character_instance_id: lastSpeaker.id, last_speaker_name: lastSpeaker.name } : {}),
@@ -196,7 +253,7 @@ serve(async (request, correlationId) => {
       .order('user_archived_at', { ascending: false })
       .limit(100);
     if (error) throw new AppError('INTERNAL_ERROR', 'Archived chats could not be loaded.', 500, true);
-    const enriched = (data ?? []).map((conversation) => ({ ...projectConversation(conversation,false), message_count: Number(conversation.together_messages?.[0]?.count ?? 0) }));
+    const enriched = (data ?? []).map((conversation) => ({ ...projectConversation(conversation,false), message_count: Number(conversation.together_messages?.[0]?.count ?? 0)+Number(conversation.metadata?.branchPrefixCount??0) }));
     await track(db, user.id, 'conversation_archive_viewed', { conversationCount: enriched.length, purgedCount });
     return json({ data: enriched, correlationId }, 200, correlationId);
   }
@@ -208,12 +265,14 @@ serve(async (request, correlationId) => {
     const fetchLimit=adultTextAuthorized?input.limit+1:Math.min(241,Math.max(input.limit+1,input.limit*4));
     let{data,error}=await db.from('together_messages').select('*,together_conversation_attachments(*),together_message_reactions(*)').eq('user_id',user.id).eq('conversation_id',String(conversation.id)).order('conversation_sequence',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(fetchLimit);
     if(error)throw new AppError('INTERNAL_ERROR','Messages could not be loaded.',500,true);
-    if(!data?.length){
+    if(!data?.length&&!(conversation.metadata as Record<string,unknown>|undefined)?.branchId){
       await ensureConversationOpener({db,userId:user.id,conversation,characterInstanceId:input.characterInstanceId});
       ({data,error}=await db.from('together_messages').select('*,together_conversation_attachments(*),together_message_reactions(*)').eq('user_id',user.id).eq('conversation_id',String(conversation.id)).order('conversation_sequence',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(fetchLimit));
       if(error)throw new AppError('INTERNAL_ERROR','Messages could not be loaded.',500,true);
     }
-    const readAt=performance.now(),raw=(data??[])as Record<string,unknown>[];
+    const branchPrefix=(conversation.metadata as Record<string,unknown>|undefined)?.branchId&&(data??[]).length<fetchLimit
+      ?await loadChatBranchPrefix(db,{userId:user.id,conversationId:String(conversation.id),limit:fetchLimit-(data??[]).length}):[];
+    const readAt=performance.now(),raw=[...(data??[]),...branchPrefix] as Record<string,unknown>[];
     const projected=projectConversationRows(raw,{authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText:adultTextAuthorized});
     const messages=await signProjectedAttachments(db,projected.slice(0,input.limit),adultAccess.authorized_web_adult,{request,access:adultAccess,userId:user.id});
     waitUntil(track(db,user.id,'conversation_opened',{characterInstanceId:input.characterInstanceId,conversationId:conversation.id}));
@@ -278,11 +337,14 @@ serve(async (request, correlationId) => {
 
   if (input.action === 'enter_scene') {
     const now = new Date();
+    const {data:homeDestination}=await db.from('together_locations').select('*').eq('id',input.locationId).maybeSingle();
+    await assertHomePlanWelcome(db,{userId:user.id,location:homeDestination,participantIds:[input.characterInstanceId],conversationId:input.conversationId});
     const place = await resolvePlaceContext({ db, locationId: input.locationId, now, userId: user.id, characterInstanceId: input.characterInstanceId });
     const access = await resolveWorldAccess({ db, userId: user.id, worldId: place.world.id });
     if (access === 'locked' || access === 'available') throw new AppError('WORLD_LOCKED', 'That world is not available for this life yet.', 403);
     const presence = await resolveCompanionPresence({ db, userId: user.id, characterInstanceId: input.characterInstanceId, now, ensure: false });
-    if (!presence || presence.locationId !== place.location.id || presence.interruptibility === 'busy' || presence.interruptibility === 'unavailable') {
+    const atThisHome=Boolean(homeDestination?.character_home_id&&(presence?.placeContext?.location.lore as Record<string,unknown>|undefined)?.homeId===homeDestination.character_home_id);
+    if (!presence || (!atThisHome&&presence.locationId !== place.location.id) || presence.interruptibility === 'busy' || presence.interruptibility === 'unavailable') {
       await track(db, user.id, 'scene_entry_conflict', { characterInstanceId: input.characterInstanceId, locationId: input.locationId });
       throw new AppError('SCENE_NO_LONGER_AVAILABLE', 'They just headed out. You can still message them from here.', 409);
     }
@@ -290,7 +352,7 @@ serve(async (request, correlationId) => {
     const privacy=String(locationRow?.metadata?.privacy??'').toLowerCase();
     const privateLocation=locationRow?.location_type==='residence'||['private','invite_only','invitation'].includes(privacy);
     const earlyRelationship=['stranger','acquaintance'].includes(String(owned?.instance?.relationship_stage??''));
-    if(privateLocation&&earlyRelationship&&!['active_date','active_plan'].includes(presence.source))throw new AppError('SCENE_PRIVATE', 'This is not somewhere you can drop in uninvited yet. You can still message them.', 403);
+    if(privateLocation&&!homeDestination?.owner_user_id&&earlyRelationship&&!['active_date','active_plan'].includes(presence.source))throw new AppError('SCENE_PRIVATE', 'This is not somewhere you can drop in uninvited yet. You can still message them.', 403);
     const conversation = input.conversationId ? await ownedConversation(db, user.id, continuity.id, input.conversationId) : await getActiveConversation(db, user.id, input.characterInstanceId, true);
     if (!conversation) throw new AppError('NOT_FOUND', 'That conversation is unavailable.', 404);
     const entryReason: ActiveConversationScene['entryReason'] = presence.source === 'active_date' ? 'active_date' : presence.source === 'active_plan' ? 'shared_plan' : 'user_drop_in';
@@ -322,11 +384,77 @@ serve(async (request, correlationId) => {
     return json({ data: projectConversation(result.conversation,false), correlationId }, 200, correlationId);
   }
 
+  if (input.action === 'branch') {
+    const access=await resolveSubscriptionAccess(db,user.id);
+    if(access.tier==='free')throw new AppError('PLAN_LIMIT_REACHED','Alternate chat paths are available with Kivelle+ or Max.',403);
+    const{data,error}=await db.rpc('kivelle_start_chat_branch',{
+      p_user_id:user.id,p_source_conversation_id:input.conversationId,
+      p_anchor_message_id:input.anchorMessageId,p_request_id:input.requestId,
+    });
+    if(error){
+      const reason=String(error.message??'');
+      if(reason.includes('BRANCH_ACTIVE_SCENE')||reason.includes('BRANCH_ACTIVE_COMMITMENT'))
+        throw new AppError('CONFLICT','Finish the active scene, upcoming plan, Date, or trip with this companion before branching.',409);
+      if(reason.includes('BRANCH_ANCHOR_NOT_LATEST')||reason.includes('BRANCH_REPLY_IN_PROGRESS'))
+        throw new AppError('CONFLICT','Wait for the latest reply, then branch from it.',409,true);
+      if(reason.includes('BRANCH_SOURCE_LIFE_INACTIVE'))
+        throw new AppError('CONFLICT','Switch back to the original Life before branching this chat.',409);
+      if(reason.includes('BRANCH_SUBSCRIPTION_REQUIRED'))
+        throw new AppError('PLAN_LIMIT_REACHED','Alternate chat paths are available with Kivelle+ or Max.',403);
+      if(reason.includes('ACTIVE_CONVERSATION_LIMIT_REACHED'))throw activeConversationLimitError(access.capabilities);
+      if(reason.includes('BRANCH_LIMIT_REACHED'))
+        throw new AppError('PLAN_LIMIT_REACHED','Your plan has reached its alternate-path limit. Delete an old path in Branch Manager to start another.',403);
+      if(reason.includes('BRANCH_MEMORY_LIMIT_REACHED')||reason.includes('MEMORY_ACCOUNT_CAP_REACHED'))
+        throw new AppError('CONFLICT','This account has too much saved memory to copy this chat safely right now.',409);
+      if(reason.includes('BRANCH_'))throw new AppError('CONFLICT','This chat could not be branched from that reply. Refresh and try the latest completed reply.',409);
+      throw new AppError('INTERNAL_ERROR','The alternate path could not be created. Please try again.',500,true);
+    }
+    // A new path starts with the source chat's shortcuts. Replayed requests
+    // must leave any later customization of that path intact.
+    const branchConversationId=String(data?.conversationId??'');
+    if(branchConversationId){
+      const {data:branchConversation}=await db.from('together_conversations').select('id,metadata').eq('id',branchConversationId).eq('user_id',user.id).maybeSingle();
+      const branchMetadata=(branchConversation?.metadata??{}) as Record<string,unknown>;
+      if(branchConversation&&!Object.prototype.hasOwnProperty.call(branchMetadata,'chatQuickActions')){
+        const {data:sourceConversation}=await db.from('together_conversations').select('metadata').eq('id',input.conversationId).eq('user_id',user.id).maybeSingle();
+        const sourceMetadata=(sourceConversation?.metadata??{}) as Record<string,unknown>;
+        const metadata=initialBranchShortcutMetadata(branchMetadata,sourceMetadata,input.quickActions);
+        if(metadata){
+          const {error:shortcutError}=await db.from('together_conversations').update({metadata}).eq('id',branchConversationId).eq('user_id',user.id);
+          if(shortcutError)throw new AppError('INTERNAL_ERROR','The path was created, but its shortcuts could not be copied. Please try again.',500,true);
+        }
+      }
+    }
+    await track(db,user.id,'chat_branch_created',{sourceConversationId:input.conversationId,branchId:data?.branchId,replayed:data?.replayed===true});
+    return json({data,correlationId},200,correlationId);
+  }
+
+  if (input.action === 'branch_paths') {
+    const current = await ownedConversation(db, user.id, continuity.id, input.conversationId);
+    const rootId = typeof current.metadata?.branchSourceConversationId === 'string'
+      ? current.metadata.branchSourceConversationId : current.id;
+    const { data: branches, error: branchError } = await db.from('together_chat_branches')
+      .select('branch_conversation_id').eq('user_id', user.id).eq('source_conversation_id', rootId).limit(50);
+    if (branchError) throw new AppError('INTERNAL_ERROR', 'Conversation paths could not be loaded.', 500, true);
+    const ids = [rootId, ...(branches ?? []).map((branch) => String(branch.branch_conversation_id))];
+    const { data: conversations, error: conversationError } = await db.from('together_conversations')
+      .select('id,continuity_id,title,last_message_preview,last_message_at')
+      .eq('user_id', user.id).in('id', ids);
+    if (conversationError) throw new AppError('INTERNAL_ERROR', 'Conversation paths could not be loaded.', 500, true);
+    return json({ data: { paths: (conversations ?? []).map((path) => ({
+      continuityId: String(path.continuity_id),
+      conversationId: String(path.id),
+      title: String(path.title ?? ''),
+      preview: String(path.last_message_preview ?? ''),
+      lastUsedAt: path.last_message_at ? String(path.last_message_at) : null,
+    })) }, correlationId }, 200, correlationId);
+  }
+
   if (input.action === 'history') {
     const { data, error } = await db.from('together_conversations').select(CONVERSATION_WITH_MESSAGE_COUNT_SELECT).eq('user_id', user.id).eq('character_instance_id', input.characterInstanceId).is('user_archived_at', null).order('created_at', { ascending: false }).limit(100);
     if (error) throw new AppError('INTERNAL_ERROR', 'Conversation history could not be loaded.', 500, true);
     const adultTextAuthorized=(data?.[0])?await privateTextProjectionAuthorizedForConversation({db,userId:user.id,continuityId:continuity.id,conversation:data[0],access:adultAccess}):false;
-    const enriched = (data ?? []).map((conversation) => ({ ...projectConversation(conversation,false), message_count: Number(conversation.together_messages?.[0]?.count ?? 0) }));
+    const enriched = (data ?? []).map((conversation) => ({ ...projectConversation(conversation,false), message_count: Number(conversation.together_messages?.[0]?.count ?? 0)+Number(conversation.metadata?.branchPrefixCount??0) }));
     await track(db, user.id, 'conversation_history_viewed', { characterInstanceId: input.characterInstanceId });
     return json({ data: enriched, correlationId }, 200, correlationId);
   }
@@ -365,7 +493,11 @@ serve(async (request, correlationId) => {
     const{data,error}=await query;
     if (owned.user_archived_at && conversationArchiveExpired(owned.restore_until, new Date())) throw new AppError('NOT_FOUND', 'That archived chat is no longer available.', 404);
     if (error) throw new AppError('INTERNAL_ERROR', 'Messages could not be loaded.', 500, true);
-    const readAt=performance.now(),raw=(data??[]) as Record<string,unknown>[];
+    const branchPrefix=owned.metadata?.branchId&&(data??[]).length<fetchLimit
+      ?await loadChatBranchPrefix(db,{userId:user.id,conversationId:input.conversationId,
+        ...(input.beforeSequence!==undefined?{beforeSequence:input.beforeSequence}:{}),
+        ...(input.before?{before:input.before}:{}),limit:fetchLimit-(data??[]).length}):[];
+    const readAt=performance.now(),raw=[...(data??[]),...branchPrefix] as Record<string,unknown>[];
     const projected=projectConversationRows(raw,{authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText:adultTextAuthorized});
     const messages=await signProjectedAttachments(db,projected.slice(0,input.limit),adultAccess.authorized_web_adult,{request,access:adultAccess,userId:user.id});
     return timedJson({ data: { messages, hasMore: raw.length===fetchLimit||projected.length>input.limit, conversation: projectConversation(owned,adultTextAuthorized), ...(replyStatus?{replyStatus}:{}) }, correlationId },correlationId,{requestStarted,authenticatedAt,preparedAt,readAt});
@@ -408,6 +540,12 @@ serve(async (request, correlationId) => {
   }
 
   const conversation = await ownedConversation(db, user.id,continuity.id,input.conversationId);
+  if (input.action === 'quick_actions') {
+    const metadata = (conversation.metadata ?? {}) as Record<string, unknown>;
+    const { data, error } = await db.from('together_conversations').update({ metadata: { ...metadata, chatQuickActions: input.quickActions, chatQuickActionsVersion: 3 } }).eq('id', conversation.id).eq('user_id', user.id).eq('continuity_id', continuity.id).select('id').single();
+    if (error || !data) throw new AppError('INTERNAL_ERROR', 'Message shortcuts could not be saved.', 500, true);
+    return json({ data: { quickActions: input.quickActions }, correlationId }, 200, correlationId);
+  }
   if(input.action==='schedule_pause'){
     if(!['direct','first_meeting'].includes(String(conversation.kind))||conversation.archived_at)throw new AppError('CONFLICT','Open the companion’s current direct chat to change their schedule.',409);
     const data=await setCompanionSchedulePause(db,{userId:user.id,continuityId:continuity.id,conversationId:conversation.id,characterInstanceId:String(conversation.character_instance_id),paused:input.paused,confirmation:input.confirmation,expectedPausedAt:input.expectedPausedAt});
@@ -453,7 +591,9 @@ serve(async (request, correlationId) => {
   }
   if (input.action === 'read') {
     const now = new Date().toISOString();
-    await db.from('together_conversations').update({ last_read_at: now }).eq('id', conversation.id).eq('user_id', user.id);
+    const { error } = await db.from('together_conversations').update({ last_read_at: now })
+      .eq('id', conversation.id).eq('user_id', user.id).eq('continuity_id', continuity.id);
+    if (error) throw new AppError('INTERNAL_ERROR', 'Chat read state could not be saved.', 500, true);
     return json({ data: { last_read_at: now }, correlationId }, 200, correlationId);
   }
   if (input.action === 'pin') {

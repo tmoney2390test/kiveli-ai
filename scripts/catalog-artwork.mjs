@@ -16,7 +16,7 @@ export function allowedCatalogPath(path) {
 export async function registryFiles() {
   const src = resolve(root, 'apps/together/src');
   return [resolve(src, 'assets.ts'), resolve(src, 'character-profile-assets.ts'),
-    ...(await Promise.all(['location-assets', 'world-assets'].map(async dir =>
+    ...(await Promise.all(['character-assets', 'location-assets', 'world-assets'].map(async dir =>
       (await readdir(resolve(src, dir))).filter(name => name.endsWith('.ts') && !name.includes('.test.')).map(name => resolve(src, dir, name))))).flat()];
 }
 export async function referencedPaths() {
@@ -30,52 +30,41 @@ export async function referencedPaths() {
   if (!paths.size) throw new Error('No catalog references found');
   return [...paths].sort();
 }
-async function optimizePath(path) {
-  const bytes = await readFile(resolve(root, 'apps/together/assets', path));
-  const variants = {};
-  for (const [variant, dimension, quality] of [['display',1920,86], ['thumbnail',384,80]]) {
-    // Display copies only. Keep original composition, alpha and source files;
-    // auto-orient and remove EXIF (including any location metadata).
-    const {data, info} = await sharp(bytes).rotate().resize({width:dimension,height:dimension,fit:'inside',withoutEnlargement:true}).webp({quality,effort:4}).toBuffer({resolveWithObject:true});
-    const file = `v1/${sha256(data)}.webp`;
-    await mkdir(resolve(outputPath, 'v1'), {recursive:true});
-    await writeFile(resolve(outputPath, file), data);
-    variants[variant]={file,width:info.width,height:info.height,bytes:data.length};
-  }
-  return {sourceHash:sha256(bytes),...variants, originalBytes: bytes.length};
-}
-
-async function generate({missingOnly=false}={}) {
+async function generate() {
   await generateStartup();
   await mkdir(outputPath, {recursive:true});
-  const existing = missingOnly ? JSON.parse(await readFile(manifestPath,'utf8')) : {};
-  const manifest = missingOnly ? {...existing} : {};
-  let originalBytes=0, displayBytes=0, thumbnailBytes=0, done=0, skipped=0;
+  const manifest = {};
+  let originalBytes=0, displayBytes=0, thumbnailBytes=0, done=0;
   for (const path of await referencedPaths()) {
     const bytes = await readFile(resolve(root, 'apps/together/assets', path));
-    const hash = sha256(bytes);
-    if (missingOnly && existing[path]?.sourceHash===hash) {
-      skipped++;
-      originalBytes+=bytes.length;
-      displayBytes+=existing[path].display.bytes;
-      thumbnailBytes+=existing[path].thumbnail.bytes;
-      continue;
+    const variants = {};
+    for (const [variant, dimension, quality] of [['display',1920,86], ['thumbnail',384,80]]) {
+      // Display copies only. Keep original composition, alpha and source files;
+      // auto-orient and remove EXIF (including any location metadata).
+      const {data, info} = await sharp(bytes).rotate().resize({width:dimension,height:dimension,fit:'inside',withoutEnlargement:true}).webp({quality,effort:4}).toBuffer({resolveWithObject:true});
+      const file = `v1/${sha256(data)}.webp`;
+      await mkdir(resolve(outputPath, 'v1'), {recursive:true});
+      await writeFile(resolve(outputPath, file), data);
+      variants[variant]={file,width:info.width,height:info.height,bytes:data.length};
     }
-    const {originalBytes: sourceBytes, ...entry} = await optimizePath(path);
-    manifest[path]=entry;
-    originalBytes+=sourceBytes; displayBytes+=entry.display.bytes; thumbnailBytes+=entry.thumbnail.bytes;
+    manifest[path]={sourceHash:sha256(bytes),...variants};
+    originalBytes+=bytes.length; displayBytes+=variants.display.bytes; thumbnailBytes+=variants.thumbnail.bytes;
     if (++done % 100 === 0) console.log(`Optimized ${done} catalog images`);
   }
-  const ordered = {};
-  for (const path of await referencedPaths()) ordered[path]=manifest[path];
-  await writeFile(manifestPath, JSON.stringify(ordered,null,2)+'\n');
-  await writeFile(runtimePath, JSON.stringify(runtimeManifest(ordered))+'\n');
-  console.log(JSON.stringify({images:done,skipped,originalBytes,displayBytes,thumbnailBytes,missingOnly}));
+  await writeFile(manifestPath, JSON.stringify(manifest,null,2)+'\n');
+  await writeFile(runtimePath, JSON.stringify(runtimeManifest(manifest))+'\n');
+  console.log(JSON.stringify({images:done,originalBytes,displayBytes,thumbnailBytes}));
 }
 function runtimeManifest(manifest) {
-  return Object.fromEntries(Object.entries(manifest).map(([path,entry])=>[path,Object.fromEntries(['display','thumbnail'].map(variant=>{
-    const {file,width,height}=entry[variant];return [variant,{file,width,height}];
-  }))]));
+  // Two immutable SHA-256 filenames dominate the initial web bundle. Store the
+  // same 64 bytes once per row as base64 rather than shipping hex and JSON keys.
+  return Object.fromEntries(Object.entries(manifest).map(([path,{display,thumbnail}])=>{
+    const hashes=[display,thumbnail].map(v=>{
+      const hash=/^v1\/([a-f0-9]{64})\.webp$/.exec(v.file)?.[1];
+      if(!hash)throw Error('Unsupported catalog file: '+v.file);return hash;
+    });
+    return [path,Buffer.from(hashes.join(''),'hex').toString('base64').replace(/=+$/,'')+'.'+[display.width,display.height,thumbnail.width,thumbnail.height].join(',')];
+  }));
 }
 async function generateStartup() {
   const target=resolve(root,'apps/together/assets/startup');
@@ -103,7 +92,5 @@ export async function verifyManifest() {
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   if(process.argv.includes('--verify')) await verifyManifest();
   else if(process.argv.includes('--runtime-only')) await writeFile(runtimePath,JSON.stringify(runtimeManifest(JSON.parse(await readFile(manifestPath,'utf8'))))+'\n');
-  else if(process.argv.includes('--startup-only')) await generateStartup();
-  else if(process.argv.includes('--missing-only')) await generate({missingOnly:true});
-  else await generate();
+  else if(process.argv.includes('--startup-only')) await generateStartup(); else await generate();
 }

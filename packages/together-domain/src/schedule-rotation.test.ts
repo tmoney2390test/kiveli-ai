@@ -41,6 +41,16 @@ describe("rotating companion weeks", () => {
     ).toBe(false);
     expect(scheduleRunsOnDate(metadata, "2026-11-09")).toBe(true);
   });
+  it("alternates a public outing and its home replacement without a gap", () => {
+    const outing = { cycleWeeks: 2, weekIndex: 0, cycleAnchorDate: "2026-10-05" };
+    const home = { cycleWeeks: 2, weekIndex: 1, cycleAnchorDate: "2026-10-05" };
+    for (let day = 0; day < 35; day++) {
+      const date = new Date(Date.UTC(2026, 9, 5 + day)).toISOString().slice(0, 10);
+      const active = [outing, home].filter(block => scheduleRunsOnDate(block, date));
+      expect(active).toHaveLength(1);
+      expect(active[0]?.weekIndex).toBe(Math.floor(day / 7) % 2);
+    }
+  });
   it("handles dates before the anchor and rejects unsupported cycles", () => {
     expect(
       scheduleRunsOnDate({

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Image, type ImageSource } from 'expo-image';
 import { ArrowLeft, Check, ChevronDown, X } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme';
 
 const modalStack: symbol[] = [];
@@ -11,6 +12,9 @@ export const creatorPronouns = ['she/her', 'he/him', 'they/them', 'she/they', 'h
 
 export function CreatorModal({ visible, title, onClose, onDismiss, children, footer, large = false, cardChooser = false }: { visible: boolean; title: string; onClose: () => void; onDismiss?: () => void; children: ReactNode; footer?: ReactNode; large?: boolean; cardChooser?: boolean }) {
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const safeTop = Platform.OS === 'ios' ? insets.top : 0;
+  const safeBottom = Platform.OS === 'ios' ? insets.bottom : 0;
   const close = useRef(onClose); close.current = onClose;
   useEffect(() => {
     if (!visible || Platform.OS !== 'web') return;
@@ -24,9 +28,9 @@ export function CreatorModal({ visible, title, onClose, onDismiss, children, foo
   // another creation sheet on iOS.
   if (!visible && !onDismiss) return null;
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismiss}>
-    <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':Platform.OS==='android'?'height':undefined} style={styles.backdrop}>
+    <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':Platform.OS==='android'?'height':undefined} style={[styles.backdrop, { paddingTop: safeTop + 12, paddingBottom: safeBottom + 12 }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={StyleSheet.absoluteFill} />
-      <View accessibilityViewIsModal style={[styles.modal, cardChooser && styles.cardChooserModal, { width: Math.min(width - 24, large ? 1200 : cardChooser ? 860 : 640), maxHeight: height - 32 }, width < 600 && styles.mobile]}>
+      <View accessibilityViewIsModal style={[styles.modal, cardChooser && styles.cardChooserModal, { width: Math.min(width - (cardChooser && width < 600 ? 32 : 24), large ? 1200 : cardChooser ? 860 : 640), maxHeight: height - safeTop - safeBottom - 24 }, width < 600 && styles.mobile]}>
         <View style={[styles.header, cardChooser && styles.cardChooserHeader]}>{large ? <Pressable accessibilityRole="button" accessibilityLabel="Back to portrait" onPress={onClose} style={styles.close}><ArrowLeft size={23} color={colors.text} /></Pressable> : cardChooser && width >= 600 ? <View style={styles.headerSpacer} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" /> : null}<Text accessibilityRole="header" style={[styles.title, (large || cardChooser) && { textAlign: 'center' }, cardChooser && styles.cardChooserTitle, cardChooser && width < 600 && styles.cardChooserMobileTitle]}>{title}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={styles.close}><X size={23} color={colors.text} /></Pressable></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>{children}{footer?<View style={{gap:12,paddingTop:20}}>{footer}</View>:null}</ScrollView>
       </View>

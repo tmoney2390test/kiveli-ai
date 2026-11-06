@@ -2,6 +2,19 @@ import { catalogArtwork } from '../catalogArtwork';
 import type { ImageSource } from 'expo-image';
 
 export const juniperCityLocationAssets:Record<string,ImageSource>={
+  'alder-central-precinct':catalogArtwork('locations/juniper-city/alder-central-precinct.png'),
+  'alder-elementary-school':catalogArtwork('locations/juniper-city/alder-elementary-school.png'),
+  'alder-lofts':catalogArtwork('locations/juniper-city/alder-lofts.png'),
+  'chloe-loft':catalogArtwork('locations/juniper-city/chloe-loft.png'),
+  'eastgate-flats':catalogArtwork('locations/juniper-city/eastgate-flats.png'),
+  'forgeworks-design-lab':catalogArtwork('locations/juniper-city/forgeworks-design-lab.png'),
+  'juniper-college':catalogArtwork('locations/juniper-city/juniper-college.png'),
+  'juniper-firehouse-14':catalogArtwork('locations/juniper-city/juniper-firehouse-14.png'),
+  'juniper-general-hospital':catalogArtwork('locations/juniper-city/juniper-general-hospital.png'),
+  'mercer-row-law-offices':catalogArtwork('locations/juniper-city/mercer-row-law-offices.png'),
+  'riverline-apartments':catalogArtwork('locations/juniper-city/riverline-apartments.png'),
+  'summit-climbing-hall':catalogArtwork('locations/juniper-city/summit-climbing-hall.png'),
+  'velvet-hour':catalogArtwork('locations/juniper-city/velvet-hour.png'),
   'alder-house':catalogArtwork('locations/juniper-city/alder-house.jpg'),
   'alder-district':catalogArtwork('locations/juniper-city/alder-district.jpg'),
   'civic-commons':catalogArtwork('locations/juniper-city/civic-commons.jpg'),

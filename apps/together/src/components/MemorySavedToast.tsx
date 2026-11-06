@@ -1,20 +1,21 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Brain, Check } from 'lucide-react-native';
+import { Brain, Check, Copy } from 'lucide-react-native';
 import { colors, radius } from '../theme';
 import { FrostedSurface } from './FrostedGlass';
 
 type MemorySavedToastProps = {
   name: string;
   onDismiss: () => void;
+  onView?: () => void;
+  bottomOffset?: number;
 };
 
-export function MemorySavedToast({ name, onDismiss }: MemorySavedToastProps) {
+function TimedToast({ label, onDismiss, onPress, bottomOffset=82, duration=2400, children }: {label:string;onDismiss:()=>void;onPress:()=>void;bottomOffset?:number;duration?:number;children:ReactNode}) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(8)).current;
   const dismissRef = useRef(onDismiss);
   dismissRef.current = onDismiss;
-  const firstName = name.trim().split(/\s+/)[0] || 'Your companion';
 
   useEffect(() => {
     Animated.parallel([
@@ -29,32 +30,26 @@ export function MemorySavedToast({ name, onDismiss }: MemorySavedToastProps) {
       ]).start(({ finished }) => {
         if (finished) dismissRef.current();
       });
-    }, 2400);
+    }, duration);
 
     return () => {
       clearTimeout(timer);
       opacity.stopAnimation();
       translateY.stopAnimation();
     };
-  }, [opacity, translateY]);
+  }, [duration, opacity, translateY]);
 
   return (
-    <View pointerEvents="box-none" style={styles.positioner}>
+    <View pointerEvents="box-none" style={[styles.positioner,{bottom:bottomOffset}]}>
       <Animated.View style={{ opacity, transform: [{ translateY }] }}>
         <Pressable
           accessibilityLiveRegion="polite"
-          accessibilityRole="alert"
-          accessibilityLabel={`${firstName} will remember this`}
-          onPress={onDismiss}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          onPress={onPress}
         >
           <FrostedSurface intensity={88} style={styles.toast}>
-            <View style={styles.icon}>
-              <Brain size={17} color={colors.rose} />
-              <View style={styles.check}>
-                <Check size={8} strokeWidth={3} color="#FFFFFF" />
-              </View>
-            </View>
-            <Text style={styles.text}>{firstName} will remember this</Text>
+            {children}
           </FrostedSurface>
         </Pressable>
       </Animated.View>
@@ -62,13 +57,28 @@ export function MemorySavedToast({ name, onDismiss }: MemorySavedToastProps) {
   );
 }
 
+export function MemorySavedToast({ name, onDismiss, onView, bottomOffset }: MemorySavedToastProps) {
+  const firstName = name.trim().split(/\s+/)[0] || 'Your companion';
+  return <TimedToast label={`${firstName} will remember this. View in Memory Center`} onDismiss={onDismiss} onPress={onView??onDismiss} bottomOffset={bottomOffset}>
+    <View style={styles.icon}><Brain size={17} color={colors.rose}/><View style={styles.check}><Check size={8} strokeWidth={3} color="#FFFFFF"/></View></View>
+    <Text style={styles.text}>{firstName} will remember this · View</Text>
+  </TimedToast>;
+}
+
+export function CopyToast({ onDismiss, bottomOffset }: {onDismiss:()=>void;bottomOffset?:number}) {
+  return <TimedToast label="Copied to clipboard" onDismiss={onDismiss} onPress={onDismiss} bottomOffset={bottomOffset} duration={1600}>
+    <View style={styles.icon}><Copy size={17} color={colors.rose}/></View>
+    <Text style={styles.text}>Copied to clipboard</Text>
+  </TimedToast>;
+}
+
 const styles = StyleSheet.create({
   positioner: {
     position: 'absolute',
     left: 16,
     right: 16,
-    bottom: 82,
-    zIndex: 50,
+    zIndex: 100,
+    elevation: 30,
     alignItems: 'center',
   },
   toast: {

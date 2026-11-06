@@ -1,5 +1,6 @@
 import { assertStringIncludes } from 'jsr:@std/assert@1';
-import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverFinalSfwQualityCandidateWithWarnings, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, hasTerminalAdultOutputSafetyFailure, isCustomCharacterTerminalQualityFailure, isOrdinarySwimwearRequest, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, resolveSwimwearSafetyVerdict, shouldAttemptPaidImageQualityRetry, shouldDeliverFirstImageQualityCandidateWithWarnings, shouldDeliverOfficialAdultImageWithWarnings, shouldDeliverSfwWhenQualityReviewIsUnavailable, shouldRevalidateCompletedQualityRetry, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
+import { adultOutputSafetyFailClosed, authorizedAdultImageSafetyRule, canDeliverFinalSfwQualityCandidateWithWarnings, canDeliverQualityRetryWithWarnings, generatedImagePhotorealismRule, hasTerminalAdultOutputSafetyFailure, isCustomCharacterTerminalQualityFailure, isOrdinarySwimwearRequest, mergeBodyTopologyVerdict, mergeSelfieCaptureDeviceVerdict, rearBodyTopologyQualityRule, requestedAnatomyQualityRule, requestedGenitalAnatomyQualityRule, resolveSwimwearSafetyVerdict, selfieCaptureDeviceQualityRule, shouldAttemptPaidImageQualityRetry, shouldDeliverFirstImageQualityCandidateWithWarnings, shouldDeliverOfficialAdultImageWithWarnings, shouldDeliverSfwWhenQualityReviewIsUnavailable, shouldReviewSelfieCaptureDevice, shouldRevalidateCompletedQualityRetry, shouldRunSingleBodyTopologyReview, shouldSkipGeneratedImageQualityGate } from './together-media-quality.ts';
+import { isBetterAnatomyCandidate, shouldRefineAdultSingleAnatomy } from './together-media-group-detail.ts';
 
 Deno.test('solo adult quality checks do not confuse explicit posing with non-consent',()=>{
   const rule=authorizedAdultImageSafetyRule([{companion:{name:'Elena Petrova',age:27,custom:false}}]);
@@ -44,20 +45,21 @@ Deno.test('custom companions keep the strict visual age presentation gate',()=>{
 
 Deno.test('a second safe candidate may be delivered with composition warnings',()=>{
   if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['pose_mismatch','face_direction_mismatch','world_mismatch']}))throw new Error('safe composition-only drift should be deliverable after the retry');
-  if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['pose_mismatch']},{requiresExactRequestedComposition:true}))throw new Error('an explicit requested pose must not be silently accepted after a retry');
+  if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['pose_mismatch']}))throw new Error('an explicit requested pose concern should be logged without discarding the generated photo');
   if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['pose_mismatch','identity_mismatch']}))throw new Error('identity mismatch should deliver with warnings');
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['multiple_subjects']}))throw new Error('an extra person in a solo photo must remain terminal');
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['subject_count_mismatch']}))throw new Error('a subject-count mismatch must remain terminal');
   if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['adult_safety_violation']}))throw new Error('adult-safety mismatch should deliver with warnings');
-  if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['non_photorealistic','genital_anatomy_error','location_mismatch','time_mismatch']}))throw new Error('realism, anatomy, location, and time mismatches should deliver with warnings');
+  if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['non_photorealistic','genital_anatomy_error','location_mismatch']}))throw new Error('realism, anatomy, and location mismatches should deliver with warnings');
+  if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['time_mismatch']}))throw new Error('wrong capture time should be logged without discarding the generated photo');
   if(canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['ambiguous_age']}))throw new Error('custom-character age failures must remain terminal');
   if(!canDeliverQualityRetryWithWarnings({status:'fail',reasonCodes:['ambiguous_age']},{allowOfficialAgePresentationWarning:true}))throw new Error('official catalog youthful-adult presentation must not stay terminal');
   if(canDeliverQualityRetryWithWarnings({status:'pass',reasonCodes:[]}))throw new Error('passing results do not need warning fallback');
 });
 
-Deno.test('a first candidate may keep realism, identity, anatomy, location, and time drift',()=>{
-  if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['face_too_small','world_mismatch','time_mismatch']},adultAuthorized:false}))throw new Error('a wider SFW scene and setting drift should not fail an otherwise usable paid photo');
-  if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['identity_mismatch','time_mismatch']},adultAuthorized:false}))throw new Error('identity mismatch should deliver with warnings');
+Deno.test('a first candidate is delivered with quality concerns while safety remains blocking',()=>{
+  if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['face_too_small','world_mismatch']},adultAuthorized:false}))throw new Error('a wider SFW scene and setting drift should not fail an otherwise usable paid photo');
+  if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['identity_mismatch','time_mismatch']},adultAuthorized:false}))throw new Error('wrong capture time should remain a backend quality concern');
   if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['world_mismatch']},adultAuthorized:true}))throw new Error('adult location mismatch should deliver with warnings');
   if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['adult_safety_violation','non_photorealistic','requested_anatomy_missing']},adultAuthorized:true}))throw new Error('adult-safety, realism, and anatomy mismatches should deliver with warnings');
   if(!shouldDeliverFirstImageQualityCandidateWithWarnings({verdict:{status:'fail',reasonCodes:['multiple_subjects','face_blur']},adultAuthorized:false}))throw new Error('a completed SFW candidate must not be discarded for non-safety quality defects');
@@ -76,9 +78,10 @@ Deno.test('ordinary opaque swimwear remains SFW even outside an aquatic location
   if(resolveSwimwearSafetyVerdict({status:'fail',reasonCodes:['sexual_content']},safe).status!=='pass')throw new Error('a safe bikini must pass after focused review');
 });
 
-Deno.test('official adult candidates are delivered for visual mismatches including adult-safety flags',()=>{
-  const debugVerdict={status:'fail' as const,reasonCodes:['non_photorealistic','requested_anatomy_missing','identity_mismatch','world_mismatch','time_mismatch','adult_safety_violation']};
+Deno.test('official adult candidates are delivered with visual and capture-time concerns',()=>{
+  const debugVerdict={status:'fail' as const,reasonCodes:['non_photorealistic','requested_anatomy_missing','identity_mismatch','world_mismatch','adult_safety_violation']};
   if(!shouldDeliverOfficialAdultImageWithWarnings({verdict:debugVerdict,adultAuthorized:true,customCharacter:false}))throw new Error('official adult visual and adherence defects should be delivered with warnings');
+  if(!shouldDeliverOfficialAdultImageWithWarnings({verdict:{...debugVerdict,reasonCodes:[...debugVerdict.reasonCodes,'time_mismatch']},adultAuthorized:true,customCharacter:false}))throw new Error('nighttime mismatch should be logged without discarding the generated photo');
   if(shouldDeliverOfficialAdultImageWithWarnings({verdict:debugVerdict,adultAuthorized:true,customCharacter:true}))throw new Error('custom characters use the shared warning path rather than the official debug path');
   if(shouldDeliverOfficialAdultImageWithWarnings({verdict:debugVerdict,adultAuthorized:false,customCharacter:false}))throw new Error('the debugging policy must not affect SFW generation');
   if(hasTerminalAdultOutputSafetyFailure(['adult_safety_violation']))throw new Error('adult_safety_violation must not remain a photo delivery block');
@@ -92,8 +95,9 @@ Deno.test('an unavailable quality reviewer never erases a provider-approved SFW 
   if(shouldDeliverSfwWhenQualityReviewIsUnavailable({adultAuthorized:false,verdict:{status:'fail',reasonCodes:['multiple_subjects']}}))throw new Error('an actual hard verdict must not be treated as a reviewer outage');
 });
 
-Deno.test('a generated SFW candidate is delivered with quality warnings but never a safety violation',()=>{
-  if(!canDeliverFinalSfwQualityCandidateWithWarnings({status:'fail',reasonCodes:['face_low_detail','non_photorealistic','identity_mismatch','time_mismatch']}))throw new Error('subjective SFW misses should not erase the corrected result');
+Deno.test('a generated SFW candidate is delivered with quality warnings including capture time',()=>{
+  if(!canDeliverFinalSfwQualityCandidateWithWarnings({status:'fail',reasonCodes:['face_low_detail','non_photorealistic','identity_mismatch']}))throw new Error('subjective SFW misses should not erase the corrected result');
+  if(!canDeliverFinalSfwQualityCandidateWithWarnings({status:'fail',reasonCodes:['time_mismatch']}))throw new Error('wrong capture time should remain a backend quality concern');
   if(!canDeliverFinalSfwQualityCandidateWithWarnings({status:'fail',reasonCodes:['identity_swap','malformed_hands','duplicate_body_parts','multiple_subjects','embedded_reference']}))throw new Error('non-safety defects should remain visible to the user');
   for(const reason of ['sexual_content','adult_safety_violation','adult_safety_unverified','ambiguous_age']){
     if(canDeliverFinalSfwQualityCandidateWithWarnings({status:'fail',reasonCodes:[reason]}))throw new Error(`${reason} must remain a hard rejection`);
@@ -110,6 +114,18 @@ Deno.test('Venice does not buy a second quality candidate by default',()=>{
   if(shouldAttemptPaidImageQualityRetry({provider:'venice',veniceRetryEnabled:false}))throw new Error('a Venice quality failure must not spend on a second image by default');
   if(!shouldAttemptPaidImageQualityRetry({provider:'venice',veniceRetryEnabled:true}))throw new Error('the server override should permit a deliberate Venice quality retry');
   if(!shouldAttemptPaidImageQualityRetry({provider:'wavespeed',veniceRetryEnabled:false}))throw new Error('the Venice cost control must not change other providers');
+});
+
+Deno.test('a focused selfie review notices phones without losing earlier quality findings',()=>{
+  if(!shouldReviewSelfieCaptureDevice({requestText:'A nude selfie from the current place',shotType:'portrait',subjectCount:1}))throw new Error('adult portrait routing must still inspect a selfie request');
+  if(shouldReviewSelfieCaptureDevice({requestText:'A portrait',shotType:'portrait',subjectCount:1}))throw new Error('ordinary portraits do not need the extra review');
+  if(shouldReviewSelfieCaptureDevice({requestText:'A group selfie',shotType:'portrait',subjectCount:2}))throw new Error('the solo review must not reinterpret group members as bystanders');
+  assertStringIncludes(selfieCaptureDeviceQualityRule(),'visible_capture_device');
+  const merged=mergeSelfieCaptureDeviceVerdict({status:'fail',reasonCodes:['world_mismatch']},{status:'fail',reasonCodes:['visible_capture_device']});
+  if(merged.reasonCodes.join()!=='world_mismatch,visible_capture_device')throw new Error('capture failures must remain visible alongside world failures');
+  if(!shouldDeliverOfficialAdultImageWithWarnings({verdict:merged,adultAuthorized:true,customCharacter:false}))throw new Error('an existing generated adult photo must remain deliverable with warnings');
+  const unavailable=mergeSelfieCaptureDeviceVerdict({status:'unavailable',reasonCodes:[]},{status:'fail',reasonCodes:['visible_capture_device']});
+  if(unavailable.status!=='unavailable')throw new Error('focused visual review must not bypass an unavailable primary safety review');
 });
 
 Deno.test('the SFW quality switch does not bypass custom adult output-safety review',()=>{
@@ -164,4 +180,30 @@ Deno.test('requested genital anatomy receives a dedicated plausibility inspectio
   const implied=requestedGenitalAnatomyQualityRule('Send me a nude photo');
   assertStringIncludes(implied,'uncovered external genitalia matching this adult body');
   if(requestedGenitalAnatomyQualityRule('Send a topless portrait')!=='')throw new Error('non-genital requests should not add a genital inspection');
+});
+
+Deno.test('rear-pose QA detects an extra upper torso without rejecting an ordinary bend',()=>{
+  const instruction=rearBodyTopologyQualityRule();
+  assertStringIncludes(instruction,'second upper torso');
+  assertStringIncludes(instruction,'buttocks incorrectly attached to the front');
+  assertStringIncludes(instruction,'ordinary bend');
+  const first={status:'fail' as const,reasonCodes:['time_mismatch']};
+  const merged=mergeBodyTopologyVerdict(first,{status:'fail',reasonCodes:['torso_distortion','duplicate_body_parts']});
+  if(merged.status!=='fail'||!merged.reasonCodes.includes('time_mismatch')||!merged.reasonCodes.includes('torso_distortion'))throw new Error('geometry findings must supplement existing QA');
+  if(mergeBodyTopologyVerdict(first,{status:'unavailable',reasonCodes:[]})!==first)throw new Error('unavailable second opinion must not erase first review');
+});
+
+Deno.test('single-adult selfie gets a body review even when the general reviewer flags only other defects',()=>{
+  const base={adultAuthorized:true,subjectCount:1,verdict:{status:'fail' as const,reasonCodes:['requested_anatomy_missing','world_mismatch','time_mismatch']}};
+  if(!shouldRunSingleBodyTopologyReview(base))throw new Error('the reported selfie failure must receive the dedicated geometry check');
+  if(shouldRunSingleBodyTopologyReview({...base,subjectCount:2})||shouldRunSingleBodyTopologyReview({...base,adultAuthorized:false})||shouldRunSingleBodyTopologyReview({...base,verdict:{status:'unavailable',reasonCodes:[]}})||shouldRunSingleBodyTopologyReview({...base,verdict:{status:'fail',reasonCodes:['duplicate_body_parts']}}))throw new Error('the extra review must remain scoped and avoid duplicate checks');
+});
+
+Deno.test('single-adult anatomy repair is bounded and never replaces a candidate with another broken body',()=>{
+  const base={adultAuthorized:true,subjectCount:1,provider:'venice',bytes:new Uint8Array([1]),reasonCodes:['duplicate_body_parts'],alreadyAttempted:false,enabled:true};
+  if(!shouldRefineAdultSingleAnatomy(base))throw new Error('a severe one-body defect should qualify');
+  if(shouldRefineAdultSingleAnatomy({...base,alreadyAttempted:true})||shouldRefineAdultSingleAnatomy({...base,reasonCodes:['time_mismatch']})||shouldRefineAdultSingleAnatomy({...base,reasonCodes:['duplicate_body_parts','adult_safety_violation']}))throw new Error('repair must remain bounded to quality-only geometry');
+  const broken={status:'fail' as const,reasonCodes:['duplicate_body_parts','time_mismatch']};
+  if(!isBetterAnatomyCandidate(broken,{status:'fail',reasonCodes:['time_mismatch']}))throw new Error('a repaired body may still carry an unrelated warning');
+  if(isBetterAnatomyCandidate(broken,{status:'fail',reasonCodes:['torso_distortion']})||isBetterAnatomyCandidate(broken,{status:'unavailable',reasonCodes:[]})||isBetterAnatomyCandidate(broken,{status:'fail',reasonCodes:['identity_mismatch']})||isBetterAnatomyCandidate(broken,{status:'fail',reasonCodes:['requested_anatomy_missing']}))throw new Error('a new defect must not replace the original');
 });

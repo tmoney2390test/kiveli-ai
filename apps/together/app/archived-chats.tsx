@@ -2,7 +2,7 @@ import{useCallback,useState}from'react';
 import{Alert,Pressable,StyleSheet,Text,View}from'react-native';
 import{router,useFocusEffect}from'expo-router';
 import{Archive,ArrowLeft,ChevronRight,Undo2,Users}from'lucide-react-native';
-import{CharacterAvatar,EmptyState,LoadingSkeleton,PageTitle,Screen}from'../src/components';
+import { CharacterAvatar, EmptyState, LoadingSkeleton, PageTitle, Screen } from '../src/components/ui';
 import{archiveRetentionLabel}from'../src/lib/chatArchive';
 import{manageConversation}from'../src/lib/api';
 import{confirmAction}from'../src/lib/dialogs';
@@ -26,7 +26,7 @@ export default function ArchivedChats(){
     setError('');
     void manageConversation<ArchivedChat[]>({action:'archived'})
       .then((archived)=>{if(!cancelled)setItems(archived);})
-      .catch((caught)=>{if(!cancelled)setError(caught instanceof Error?caught.message:'Archived chats could not be loaded.');})
+      .catch((caught)=>{if(!cancelled)setError(caught instanceof Error?caught.message:'Recently removed chats could not be loaded.');})
       .finally(()=>{if(!cancelled)setLoading(false);});
     return()=>{cancelled=true;};
   },[reloadKey]);
@@ -55,13 +55,13 @@ export default function ArchivedChats(){
     });
   };
 
-  if(!snapshot)return <EmptyState title="Archived Chats unavailable" body="Reload Kivelle and try again."/>;
+  if(!snapshot)return <EmptyState title="Recently Removed unavailable" body="Reload Kivelle and try again."/>;
   return <Screen contentStyle={styles.content}>
-    <View style={styles.header}><Pressable accessibilityLabel="Back to Settings" onPress={()=>router.canGoBack()?router.back():router.replace('/settings')} style={styles.back}><ArrowLeft color={colors.text}/></Pressable><View style={{flex:1}}><PageTitle>Archived Chats</PageTitle><Text style={styles.subtitle}>Archived chats stay here for 30 days before permanent removal.</Text></View></View>
-    <View style={styles.notice}><Archive color={colors.violet}/><View style={{flex:1}}><Text style={styles.noticeTitle}>Recoverable for 30 days</Text><Text style={styles.noticeCopy}>Archived chats leave Messages and conversation history. Restoring one does not change relationship progress, saved memories, or Moments.</Text></View></View>
+    <View style={styles.header}><Pressable accessibilityLabel="Back to Settings" onPress={()=>router.canGoBack()?router.back():router.replace('/settings')} style={styles.back}><ArrowLeft color={colors.text}/></Pressable><View style={{flex:1}}><PageTitle>Recently Removed</PageTitle><Text style={styles.subtitle}>Recently removed chats stay here for 30 days before permanent removal.</Text></View></View>
+    <View style={styles.notice}><Archive color={colors.violet}/><View style={{flex:1}}><Text style={styles.noticeTitle}>Recoverable for 30 days</Text><Text style={styles.noticeCopy}>Recently removed chats leave Messages and conversation history. Restoring one does not change relationship progress, saved memories, or Moments.</Text></View></View>
     {error?<Pressable onPress={()=>setReloadKey((value)=>value+1)} style={styles.error}><Text style={styles.errorText}>{error}</Text><Text style={styles.retry}>Tap to retry</Text></Pressable>:null}
     {loading&&!items.length?<LoadingSkeleton label="Loading archived chats…"/>:null}
-    {!loading&&!items.length?<EmptyState title="No archived chats" body="Chats you archive will be recoverable here for 30 days."/>:null}
+    {!loading&&!items.length?<EmptyState title="No recently removed chats" body="Chats you remove can be restored here for 30 days."/>:null}
     <View style={styles.list}>{items.map((chat)=>{
       const character=snapshot.characters.find((item)=>item.id===chat.character_instance_id);
       const template=character?.together_character_templates;

@@ -3,7 +3,7 @@ import {AppError} from './types.ts';
 import {fetchRevenueCatSubscriber,normalizeRevenueCatSubscriber,readRevenueCatAdapterConfig,type NormalizedRevenueCatSubscription,type RevenueCatWebhookEvent} from './revenuecat.ts';
 import {grantSubscriptionCreditsForPeriod,resolveSubscriptionAccess,resolveSubscriptionState} from './kivelle-subscription.ts';
 import {track} from './together.ts';
-import {accountDeletionStarted} from './kivelle-deleted-account.ts';
+import {accountDeletionStarted,billingPredatesRecreation} from './kivelle-deleted-account.ts';
 import {revenueCatConfigForUser} from './revenuecat-sandbox.ts';
 type Db=ReturnType<typeof adminClient>;
 type StoredSubscription={provider_customer_id:string|null;provider_subscription_id:string;provider_product_id:string|null;provider_price_id:string|null;plan_key:'kivelle_plus'|'kivelle_max';status:string;billing_interval:'monthly'|'annual';current_period_start:string|null;current_period_end:string|null;trial_end:string|null;cancel_at_period_end:boolean;canceled_at:string|null;access_ends_at:string|null;metadata:Record<string,unknown>|null};
@@ -16,7 +16,7 @@ export async function syncRevenueCatUser(db:Db,userId:string,event:RevenueCatWeb
   finally { await db.from('together_billing_reconciliation_leases').delete().eq('user_id',userId).eq('lease_id',lease); }
 }
 async function reconcileRevenueCatUser(db:Db,userId:string,event:RevenueCatWebhookEvent,config:ReturnType<typeof readRevenueCatAdapterConfig>,secretApiKey:string):Promise<{applied:boolean;verifiedNoPurchase:boolean}>{
-  if(await accountDeletionStarted(db,userId))return {applied:false,verifiedNoPurchase:false};
+  if(await accountDeletionStarted(db,userId)||await billingPredatesRecreation(db,userId,event.event_timestamp_ms))return {applied:false,verifiedNoPurchase:false};
   config=await revenueCatConfigForUser(db,userId,config);
   // The FK-backed entitlement bootstrap proves the custom RevenueCat App User
   // ID belongs to a real Kivelle account before provider state is accepted.
@@ -25,6 +25,7 @@ async function reconcileRevenueCatUser(db:Db,userId:string,event:RevenueCatWebho
   const{data:stored,error}=await db.from('together_billing_subscriptions').select('provider_customer_id,provider_subscription_id,provider_product_id,provider_price_id,plan_key,status,billing_interval,current_period_start,current_period_end,trial_end,cancel_at_period_end,canceled_at,access_ends_at,metadata').eq('user_id',userId).eq('provider','revenuecat');
   if(error)throw new AppError('INTERNAL_ERROR','Stored app-store subscription state could not be loaded.',500,true);
   let applied=false;
+  if(current&&event.type!=='RECONCILE'&&await billingPredatesRecreation(db,userId,current.periodStart))return {applied:false,verifiedNoPurchase:false};
   if(current){
     applied=await writeRevenueCatRow(db,{userId,event,subscriptionId:stableId,current});
     for(const row of(stored??[]) as StoredSubscription[]){

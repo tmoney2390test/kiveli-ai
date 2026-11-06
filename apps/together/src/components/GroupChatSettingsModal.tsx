@@ -1,7 +1,8 @@
 import { normalizeChatTestSelection, type ChatTestSelection } from '@together/domain/src/chat-model-test';
 import { normalizeContextPreference, type ContextPreference } from '@together/domain/src/chat-context';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlignLeft, Bell, Check, ChevronDown, Languages, MessageCircle, Palette, Sparkles, Type, UsersRound, X } from 'lucide-react-native';
 import { manageGroup } from '../lib/api';
 import { chatPreferencesFromConversation, chatTextSizeOptions, resolveChatBubbleColors, resolveChatContentMode, resolveChatLanguage, resolveChatResponseStyle, resolveChatTextSize, withLocalChatSettings } from '../lib/chatSettings';
@@ -12,6 +13,7 @@ import type { ChatTextSize, Conversation, ConversationStyle, DialogueContentMode
 import { FrostedSurface } from './FrostedGlass';
 import { chatLanguageOptions, type ChatLanguagePreference } from '@together/domain/src/chat-language';
 import { ChatContentModeControl } from './ChatContentModeControl';
+import { useIosExplicitDialogueAvailability } from '../hooks/useIosExplicitDialogueAvailability';
 import { ChatGenerationSettings } from './settings/ChatGenerationSettings';
 import { type ChatDynamism, type ReasoningPreference } from '@together/domain/src/chat-generation';
 import { subscriptionHref } from '../lib/subscriptionPresentation';
@@ -33,6 +35,10 @@ type Props = {
 const demoMode = __DEV__ && process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE === 'true';
 
 export function GroupChatSettingsModal({ visible, conversation, settings, onClose, onSaved }: Props) {
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const cardMaxHeight = Math.max(240, Math.min(height * .84, height - insets.top - insets.bottom - 32));
+  const iosExplicitAvailable = useIosExplicitDialogueAvailability(visible);
   const { snapshot, upsertConversation } = useTogether();
   const [title, setTitle] = useState('');
   const [responseStyle, setResponseStyle] = useState<ConversationStyle>('texting');
@@ -50,6 +56,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
   const [energy, setEnergy] = useState<GroupSettings['energy']>('balanced');
   const [notificationMode, setNotificationMode] = useState<GroupSettings['notificationMode']>('all');
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [activeTab, setActiveTab] = useState<ChatSettingsTab>('chat');
   const selectedLanguage = chatLanguageOptions.find((option) => option.value === chatLanguage) ?? chatLanguageOptions[1]!;
   const adultEligible=Boolean((snapshot?.profile as {adult_content_eligible?:boolean}|null|undefined)?.adult_content_eligible);
@@ -71,15 +78,22 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
     setChatLanguage(resolveChatLanguage(conversation));
     setLanguageOpen(false);
     setActiveTab('chat');
+    setSaveError('');
     setResponseMode(settings.responseMode);
     setEnergy(settings.energy);
     setNotificationMode(settings.notificationMode);
-  }, [conversation, settings.energy, settings.notificationMode, settings.responseMode, snapshot?.profile, snapshot?.entitlements?.tier, visible]);
+  }, [conversation?.id, visible]);
 
   const openPlans = () => {
     const href=subscriptionHref({intent:'plans',returnTo:groupConversationWebHref(conversation?.id??'')});
     if(Platform.OS!=='web'||!navigateLocalRouteOnWeb(href))router.push(href as never);
   };
+
+  const openAccount = () => {
+    if (Platform.OS !== 'web' || !navigateLocalRouteOnWeb('/account')) router.push('/account' as never);
+  };
+
+  const closeIfIdle = () => { if (!saving) onClose(); };
 
   const openQuietHours = () => {
     onClose();
@@ -89,7 +103,8 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
   const save = async (afterSave?:()=>void) => {
     if (!conversation || saving) return;
     setSaving(true);
-    const input = { title: title.trim() || null, responseStyle, textSize,contentMode, chatLanguage,chatDynamism,reasoningPreference,contextPreference,userBubbleColor,companionBubbleColor,...(snapshot?.veniceTest?.available?{veniceTestModel}:{}) };
+    setSaveError('');
+    const input = { title: title.trim() || null, responseStyle, textSize,contentMode:Platform.OS==='ios'&&contentMode==='explicit'?'mature':contentMode, chatLanguage,chatDynamism,reasoningPreference,contextPreference,userBubbleColor,companionBubbleColor,...(snapshot?.veniceTest?.available?{veniceTestModel}:{}) };
     try {
       if (demoMode) {
         const updated = withLocalChatSettings(conversation, input);
@@ -104,27 +119,28 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
       onClose();
       afterSave?.();
     } catch (caught) {
-      Alert.alert('Could not save chat settings', caught instanceof Error ? caught.message : 'The group chat settings could not be saved.');
+      setSaveError(`Changes were not saved. ${caught instanceof Error ? caught.message : 'Please try again.'}`);
     } finally {
       setSaving(false);
     }
   };
 
-  return <Modal transparent visible={visible && Boolean(conversation)} animationType="fade" onRequestClose={onClose}>
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalRoot}>
-      <Pressable accessibilityLabel="Close group chat settings" onPress={onClose} style={StyleSheet.absoluteFill} />
-      <FrostedSurface intensity={94} style={styles.card}>
+  return <Modal transparent visible={visible && Boolean(conversation)} animationType="fade" statusBarTranslucent onRequestClose={closeIfIdle}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalRoot, { paddingTop: Math.max(18, insets.top + 8), paddingBottom: Math.max(18, insets.bottom + 8) }]}>
+      <Pressable accessibilityLabel="Close group chat settings" disabled={saving} onPress={closeIfIdle} style={StyleSheet.absoluteFill} />
+      <FrostedSurface intensity={94} style={[styles.card, { maxHeight: cardMaxHeight }]}>
         <View style={styles.header}>
           <Text style={styles.title}>Chat settings</Text>
           <Pressable accessibilityLabel="Close" disabled={saving} onPress={onClose} style={styles.close}><X size={20} color={colors.muted} /></Pressable>
         </View>
         <ChatSettingsTabs value={activeTab} disabled={saving} onChange={(tab) => { setLanguageOpen(false); setActiveTab(tab); }} />
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.settingsScroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {activeTab === 'chat' ? <>
           <Section icon={<UsersRound size={16} color={colors.violet} />} label="Group name">
             <TextInput accessibilityLabel="Group name" value={title} onChangeText={setTitle} editable={!saving} maxLength={80} placeholder="Name this group" placeholderTextColor={colors.dimmed} style={styles.input} />
           </Section>
           <Section icon={<AlignLeft size={16} color={colors.violet} />} label="Response style">
+            <Text style={styles.sectionHint}>SMS favors short replies. Paragraph allows fuller scenes; important moments may still run longer in either style.</Text>
             <View accessibilityRole="radiogroup" style={styles.columns}>
               {conversationStyleOptions.map((option) => {
                 const selected = option.value === responseStyle;
@@ -133,7 +149,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
               })}
             </View>
           </Section>
-          <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible}/>
+          <ChatContentModeControl value={contentMode} onChange={setContentMode} disabled={saving} eligible={adultEligible} explicitAvailable={iosExplicitAvailable} onRequireAgeConfirmation={() => void save(openAccount)}/>
           <Section icon={<Bell size={16} color={colors.violet} />} label="Notifications">
             <Text style={styles.sectionHint}>Choose which group activity can send a push notification. Messages still appear here when notifications are quiet.</Text>
             <View accessibilityRole="radiogroup" style={styles.columns}>
@@ -162,7 +178,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
 
           {activeTab === 'ai' ? <>
           <Section icon={<UsersRound size={16} color={colors.violet} />} label="Who responds">
-            <Text style={styles.sectionHint}>Automatic lets the conversation choose naturally. Choose speaker makes one companion your default; you can still override it beside the composer.</Text>
+            <Text style={styles.sectionHint}>Automatic chooses who replies. Choose speaker lets you pick beside the composer for each message.</Text>
             <View accessibilityRole="radiogroup" style={styles.columns}>
               <Choice label="Automatic" selected={responseMode === 'automatic'} disabled={saving} icon={<Sparkles size={18} color={responseMode === 'automatic' ? colors.violet : colors.muted} />} onPress={() => setResponseMode('automatic')} />
               <Choice label="Choose speaker" selected={responseMode === 'choose_speaker'} disabled={saving} icon={<UsersRound size={18} color={responseMode === 'choose_speaker' ? colors.violet : colors.muted} />} onPress={() => setResponseMode('choose_speaker')} />
@@ -177,6 +193,7 @@ export function GroupChatSettingsModal({ visible, conversation, settings, onClos
           <ChatGenerationSettings veniceTest={snapshot?.veniceTest} veniceTestModel={veniceTestModel} onVeniceTestModelChange={setVeniceTestModel} mode="group" chatDynamism={chatDynamism} reasoningPreference={reasoningPreference} contextPreference={contextPreference} onContextPreferenceChange={setContextPreference} tier={snapshot?.entitlements?.tier} disabled={saving} onChatDynamismChange={setChatDynamism} onReasoningPreferenceChange={setReasoningPreference} onUpgrade={()=>void save(openPlans)}/>
           </> : null}
         </ScrollView>
+        {saveError ? <Text accessibilityRole="alert" style={styles.saveError}>{saveError}</Text> : null}
         <View style={styles.footer}>
           <Pressable disabled={saving} onPress={onClose} style={styles.cancel}><Text style={styles.cancelText}>Cancel</Text></Pressable>
           <Pressable disabled={saving} onPress={() => void save()} style={[styles.save, saving && styles.disabled]}>{saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Save changes</Text>}</Pressable>
@@ -202,8 +219,9 @@ function Choice({ label, selected, disabled, icon, onPress }: { label: string; s
 }
 
 const styles = StyleSheet.create({
-  modalRoot: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 18, backgroundColor: 'rgba(5,4,10,.72)' },
-  card: { width: '100%', maxWidth: 620, maxHeight: '92%', overflow: 'hidden', borderRadius: 24, backgroundColor: 'rgba(28,22,39,.97)', borderWidth: 1, borderColor: 'rgba(203,168,255,.2)' },
+  modalRoot: { flex: 1, zIndex: 100, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 18, backgroundColor: 'rgba(5,4,10,.72)' },
+  card: { width: '100%', maxWidth: 620, flexShrink: 1, overflow: 'hidden', borderRadius: 24, backgroundColor: 'rgba(28,22,39,.97)', borderWidth: 1, borderColor: 'rgba(203,168,255,.2)' },
+  settingsScroll: { flexShrink: 1 },
   header: { minHeight: 67, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
   title: { flex: 1, color: colors.text, fontSize: 23, fontWeight: '900' },
   close: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
@@ -232,6 +250,7 @@ const styles = StyleSheet.create({
   aa: { color: colors.muted, fontSize: 19, fontWeight: '900' },
   divider: { height: 1, backgroundColor: colors.border },
   footer: { flexDirection: 'row', gap: 10, padding: 20, borderTopWidth: 1, borderTopColor: colors.border },
+  saveError: { color: colors.danger, fontSize: 12, lineHeight: 17, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: 'rgba(255,113,129,.08)' },
   cancel: { minHeight: 47, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderBright },
   cancelText: { color: colors.textSecondary, fontSize: 13, fontWeight: '800' },
   save: { minHeight: 47, flex: 1.35, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: '#9D42E4' },

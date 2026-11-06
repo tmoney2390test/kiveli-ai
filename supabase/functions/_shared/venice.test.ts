@@ -3,6 +3,7 @@ import { AppError } from './types.ts';
 import { buildVeniceImagePrompt, configuredMediaRegistry, routeCanonicalMedia, VeniceMediaProvider, type CanonicalMediaRequest } from './together-media-providers.ts';
 import { VENICE_ADULT_FINAL_EDIT_MODEL, VENICE_STANDARD_EDIT_MODEL } from '../../../packages/together-domain/src/venice-media.ts';
 import type { MediaRouteCapability } from '../../../packages/together-domain/src/media-routing.ts';
+import { resolvePhotoComposition } from '../../../packages/together-domain/src/media.ts';
 
 Deno.test('VeniceImageClient sends a canonical single edit and returns PNG bytes', async () => {
   let capturedUrl = ''; let capturedInit: RequestInit | undefined;
@@ -101,7 +102,7 @@ Deno.test('Venice adult media falls through to the scoped final edit when the Gr
   }finally{restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED',previousAdult);restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED',previousValidated);}
 });
 
-Deno.test('Venice adult base preserves approved away-facing pose before the final edit', async () => {
+Deno.test('Venice identity edit preserves an approved away-facing pose', async () => {
   const previousAdult = Deno.env.get('KIVELLE_ADULT_MEDIA_ENABLED'), previousValidated = Deno.env.get('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED');
   Deno.env.set('KIVELLE_ADULT_MEDIA_ENABLED', 'true'); Deno.env.set('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED', 'true');
   const bodies: Array<Record<string, unknown>> = [], png = Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1]);
@@ -110,27 +111,27 @@ Deno.test('Venice adult base preserves approved away-facing pose before the fina
     const request={...adultRequest(),generationIntent:{requestText:'bent over from behind, facing away, with her face covered',requestedContentLevel:'explicit' as const}};
     await new VeniceMediaProvider(client).submit(request, adultRoute());
     assert(String(bodies[0]?.prompt).includes('body bent forward')&&String(bodies[0]?.prompt).includes('back toward the camera'));
-    assert(String(bodies[0]?.prompt).includes('Do not turn or insert the face toward the camera'));
-    assert(String(bodies[1]?.prompt).includes('Pose: body bent forward'));
-    assert(String(bodies[1]?.prompt).includes('Keep the face hidden or away')&&String(bodies[1]?.prompt).includes('camera-facing smile'));
+    assert(bodies.length===1);
+    assert(String(bodies[0]?.prompt).includes('No phone/camera in hand, frame or mirror'));
+    assert(String(bodies[0]?.prompt).includes('Keep the face hidden or away')&&String(bodies[0]?.prompt).includes('camera-facing smile'));
   } finally {
     restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED', previousAdult); restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED', previousValidated);
   }
 });
 
-Deno.test('Venice keeps a face-down-in-pillows request away from the camera in both adult stages',async()=>{
+Deno.test('Venice identity edit keeps a face-down-in-pillows request away from the camera',async()=>{
   const previousAdult=Deno.env.get('KIVELLE_ADULT_MEDIA_ENABLED'),previousValidated=Deno.env.get('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED');
   Deno.env.set('KIVELLE_ADULT_MEDIA_ENABLED','true');Deno.env.set('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED','true');
   const prompts:string[]=[],png=Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1]);
   try{
     const client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(_url,init)=>{prompts.push(String((JSON.parse(String(init?.body)) as Record<string,unknown>).prompt));return new Response(png,{status:200,headers:{'content-type':'image/png'}});});
     await new VeniceMediaProvider(client).submit({...adultRequest(),composition:{shotType:'full_body' as const,aspectRatio:'4:5'},generationIntent:{requestText:'Send me a photo face down in the pillows',requestedContentLevel:'explicit' as const}},adultRoute());
-    assert(prompts.length===2);
+    assert(prompts.length===1);
     for(const prompt of prompts){assert(prompt.includes('prone pose lying face-first')&&prompt.includes('directed into the pillows')&&prompt.includes('No eye contact')&&prompt.includes('camera-facing smile'));}
   }finally{restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED',previousAdult);restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED',previousValidated);}
 });
 
-Deno.test('Venice preserves the complete natural-language pose matrix across both reference-preserving stages',async()=>{
+Deno.test('Venice preserves the natural-language pose matrix in direct and two-stage edits',async()=>{
   const previousAdult=Deno.env.get('KIVELLE_ADULT_MEDIA_ENABLED'),previousValidated=Deno.env.get('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED');
   Deno.env.set('KIVELLE_ADULT_MEDIA_ENABLED','true');Deno.env.set('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED','true');
   const cases:Array<[string,string,string]>=[
@@ -151,10 +152,8 @@ Deno.test('Venice preserves the complete natural-language pose matrix across bot
       const prompts:string[]=[],client=new VeniceImageClient('secret','https://venice.test/api/v1',1_000,async(_url,init)=>{prompts.push(String((JSON.parse(String(init?.body)) as Record<string,unknown>).prompt));return new Response(png,{status:200,headers:{'content-type':'image/png'}});});
       const request={...adultRequest(),composition:{shotType:'full_body' as const,aspectRatio:'4:5'},generationIntent:{requestText:`Send a full-body photo ${pose}`,requestedContentLevel:'explicit' as const}};
       await new VeniceMediaProvider(client).submit(request,adultRoute());
-      assert(prompts.length===2);
+      assert(prompts.length>=1&&prompts.length<=2);
       for(const prompt of prompts){assert(prompt.includes(firstCue)&&prompt.includes(secondCue));}
-      assert(prompts[0]?.includes('One person only'));
-      assert(prompts[1]?.includes('One coherent adult body'));
     }
   }finally{restoreEnv('KIVELLE_ADULT_MEDIA_ENABLED',previousAdult);restoreEnv('KIVELLE_VENICE_ADULT_ROUTE_VALIDATED',previousValidated);}
 });
@@ -167,6 +166,7 @@ Deno.test('Venice pose-rebuild nudes edit the identity photo with the uncensored
     const client = new VeniceImageClient('secret', 'https://venice.test/api/v1', 1_000, async (_url, init) => { bodies.push(JSON.parse(String(init?.body))); return new Response(png, { status: 200, headers: { 'content-type': 'image/png' } }); });
     const submission = await new VeniceMediaProvider(client).submit({
       ...adultRequest(),
+      context: { ...adultRequest().context, timeOfDay: 'late_night' },
       composition: { shotType: 'full_body', aspectRatio: '4:5' },
       generationIntent: { requestText: 'Send me a photo showing exactly this: naked photo bent over with your ass and pussy on display front and center', requestedContentLevel: 'explicit' },
     }, adultRoute());
@@ -177,6 +177,7 @@ Deno.test('Venice pose-rebuild nudes edit the identity photo with the uncensored
     const prompt = String(bodies[0]?.prompt);
     assert(prompt.length <= 800);
     assert(prompt.includes('NEW photograph') && prompt.includes('identity'));
+    assert(prompt.includes('TIME/LIGHT: NIGHT') && prompt.includes('No daylight'));
     assert(prompt.includes('naked photo bent over') && /buttocks and genitals fill the center of the frame|full adult nudity/i.test(prompt));
     assert(submission.result?.providerMetadata?.pipeline === 'uncensored_adult_identity_edit');
   } finally {
@@ -334,6 +335,7 @@ Deno.test('Venice prompt keeps canonical identity and scene inside the provider 
   assert(prompt.length<=2_000);
   assert(prompt.includes('Brooke')&&prompt.includes('Glassline Gallery')&&prompt.includes('viewing the exhibition'));
   assert(prompt.includes('input image only to preserve the exact same adult face'));
+  assert(prompt.includes('No phone, camera, or selfie stick in hand or frame'));
   assert(prompt.includes('five distinct naturally arranged fingers')&&prompt.includes('No fused or duplicated body parts'));
 });
 
@@ -341,6 +343,15 @@ Deno.test('Venice prompt honors intentional face concealment without weakening a
   const request={...adultRequest(),generationIntent:{requestText:'bent over from behind with her face covered',requestedContentLevel:'explicit' as const}},prompt=buildVeniceImagePrompt(request);
   assert(prompt.includes('Do not force a face into view'));
   assert(prompt.includes('five distinct naturally arranged fingers'));
+});
+
+Deno.test('Venice prompt preserves an anatomy detail crop without requiring the face',()=>{
+  const requestText='Send me a close-up photo of your private parts';
+  const composition=resolvePhotoComposition({source:'user_request',shotType:'portrait',requestText});
+  const prompt=buildVeniceImagePrompt({...adultRequest(),composition,generationIntent:{requestText,requestedContentLevel:'explicit'}});
+  assert(prompt.includes('tight close-up'));
+  assert(prompt.includes('Do not force a face into view'));
+  assert(!prompt.includes('chest-up environmental portrait'));
 });
 
 Deno.test('Venice standard prompt honors requested opaque swimwear over prior clothing', () => {

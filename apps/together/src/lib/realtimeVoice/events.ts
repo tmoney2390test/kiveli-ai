@@ -48,7 +48,7 @@ export function xaiForcedGreetingEvent(greeting:string):Record<string,unknown>{r
 };}
 
 function transcript(role:'user'|'assistant',content:unknown,id:unknown):ParsedXaiRealtimeEvent{const text=String(content??'').trim();return text?{kind:'transcript_final',role,content:text,providerEventId:typeof id==='string'&&id?id:undefined}:{kind:'ignored'};}
-function partial(role:'user'|'assistant',content:unknown):ParsedXaiRealtimeEvent{const text=String(content??'').trim();return text?{kind:'transcript_partial',role,content:text}:{kind:'ignored'};}
+function partial(role:'user'|'assistant',content:unknown):ParsedXaiRealtimeEvent{const raw=String(content??''),text=role==='assistant'?raw:raw.trim();return text?{kind:'transcript_partial',role,content:text}:{kind:'ignored'};}
 function safeProviderError(event:Record<string,unknown>):string{
   const error=record(event.error),code=String(error.code??event.code??'').toLowerCase();
   if(code.startsWith('stt_'))return'Essential Voice could not start transcription. Please try again.';

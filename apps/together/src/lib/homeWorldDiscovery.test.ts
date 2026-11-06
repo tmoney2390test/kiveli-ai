@@ -9,20 +9,16 @@ const world=(id:string,releaseWave:number,published=true)=>({
 
 describe('home world discovery',()=>{
   it('never promotes the world containing the active conversation',()=>{
-    expect(homeWorldDiscoveryOptions([world('juniper',1),world('port',7),world('neon',8)],'neon').map((item)=>item.id)).toEqual(['port','juniper','preview-gilded-age']);
+    expect(homeWorldDiscoveryOptions([world('juniper',1),world('port',7),world('neon',8)],'neon').map((item)=>item.id)).toEqual(['port','juniper','preview-gilded-coast']);
   });
 
   it('promotes the newest published alternative first and keeps prepared worlds hidden',()=>{
-    expect(homeWorldDiscoveryOptions([world('juniper',1),world('port',7),world('neon',8),world('vespormoor',9,false)],'juniper').map((item)=>item.id)).toEqual(['neon','port','preview-gilded-age']);
+    expect(homeWorldDiscoveryOptions([world('juniper',1),world('port',7),world('neon',8),world('vespormoor',9,false)],'juniper').map((item)=>item.id)).toEqual(['neon','port','preview-gilded-coast']);
   });
 
   it('keeps an ops-hidden world out of Home discovery while its published row supports existing chats',()=>{
     const hidden={...world('hidden',10),metadata:{releaseWave:10,catalog_status:'hidden'}} as World;
-    expect(homeWorldDiscoveryOptions([world('juniper',1),hidden],'juniper').map((item)=>item.id)).toEqual(['preview-gilded-age']);
-  });
-
-  it('does not keep the Gilded Age preview once The Gilded Coast is live',()=>{
-    expect(homeWorldDiscoveryOptions([world('juniper',1),world('gilded-coast',12)],'juniper').map((item)=>item.id)).toEqual(['gilded-coast']);
+    expect(homeWorldDiscoveryOptions([world('juniper',1),hidden],'juniper').map((item)=>item.id)).toEqual(['preview-gilded-coast']);
   });
 
   it('wraps forward and backward rotation',()=>{

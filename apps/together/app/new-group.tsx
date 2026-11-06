@@ -11,7 +11,8 @@ import {
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Check, ChevronLeft, Lock, Users } from "lucide-react-native";
-import { CharacterAvatar, FrostedSurface } from "../src/components";
+import { CharacterAvatar } from '../src/components/ui';
+import { FrostedSurface } from '../src/components/FrostedGlass';
 import { manageGroup } from "../src/lib/api";
 import { groupWorldOptions } from "../src/lib/groupWorld";
 import { parseGroupPrefillParticipants } from "../src/lib/groupInvite";
@@ -19,6 +20,7 @@ import { useTogether } from "../src/store/useTogether";
 import { colors } from "../src/theme";
 import type { GroupDetail } from "../src/types";
 import { subscriptionHref } from "../src/lib/subscriptionPresentation";
+import { createClientRequestId } from "../src/lib/requestId";
 
 export default function NewGroupScreen() {
   const params = useLocalSearchParams<{ participants?: string | string[]; world?: string | string[] }>(),
@@ -31,6 +33,8 @@ export default function NewGroupScreen() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const appliedPrefill = useRef<string | null>(null);
+  const creating = useRef(false);
+  const createRequest = useRef<{ signature: string; id: string } | null>(null);
   const allowed =
     snapshot?.entitlements?.entitlement_keys?.includes("group_chat") === true;
   const worldOptions = useMemo(
@@ -78,18 +82,24 @@ export default function NewGroupScreen() {
         : current
     );
   const create = async () => {
-    if (selected.length < 2) return;
+    if (selected.length < 2 || creating.current) return;
+    creating.current = true;
     setBusy(true);
     setError("");
     try {
+      const signature = JSON.stringify([activeWorldId, [...selected].sort(), title.trim()]);
+      if (createRequest.current?.signature !== signature) {
+        createRequest.current = { signature, id: createClientRequestId() };
+      }
       const result = await manageGroup<GroupDetail>({
         action: "create",
         characterInstanceIds: selected,
         worldId: activeWorldId,
         title: title.trim() || undefined,
-        requestId: crypto.randomUUID(),
+        requestId: createRequest.current.id,
       });
-      await refresh();
+      createRequest.current = null;
+      void refresh().catch(() => undefined);
       router.replace(
         `/group-chat?id=${encodeURIComponent(result.conversation.id)}` as never,
       );
@@ -100,6 +110,7 @@ export default function NewGroupScreen() {
           : "The group could not be created.",
       );
     } finally {
+      creating.current = false;
       setBusy(false);
     }
   };

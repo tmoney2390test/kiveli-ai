@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Brain, ChevronRight, MessageCircle, RotateCcw, Trash2 } from 'lucide-react-native';
-import { CharacterAvatar, EmptyState, PageTitle, Screen, SectionHeader } from '../src/components';
+import { CharacterAvatar, EmptyState, PageTitle, Screen, SectionHeader } from '../src/components/ui';
 import { colors, radius } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
 import { manageConversation, previewCharacterReset, startOverCharacter } from '../src/lib/api';

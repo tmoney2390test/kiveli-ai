@@ -4,15 +4,18 @@ import { Image } from 'expo-image';
 import { Asset } from 'expo-asset';
 import { router as expoRouter } from 'expo-router';
 import { Sparkles } from 'lucide-react-native';
-import { EmptyState, GradientButton, MomentCarousel, Screen, resolveCharacterPortraitSource } from '../../src/components';
+import { EmptyState, GradientButton, MomentCarousel, Screen, resolveCharacterPortraitSource } from '../../src/components/ui';
 import { CinematicCompanionHero } from '../../src/components/home/CinematicCompanionHero';
 import { FeaturedCompanionsSection } from '../../src/components/home/FeaturedCompanionsSection';
 import { HomeHeader } from '../../src/components/home/HomeHeader';
 import { HomeWorldDiscoveryHero } from '../../src/components/home/HomeWorldDiscoveryHero';
 import { AroundTownSection } from '../../src/components/home/AroundTownSection';
+import { WorldPulseV2LoadError, WorldPulseV2Section, WorldPulseV2Skeleton } from '../../src/components/home/WorldPulseV2Section';
+import { WorldPulseEventModal } from '../../src/components/WorldPulseEventModal';
 import { colors, spacing, typography } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
-import { loadExploreCatalog, markProactiveOpened, setCharacterFavorite, simulate } from '../../src/lib/api';
+import { loadExploreCatalog } from '../../src/lib/api/catalog';
+import { markProactiveOpened, setCharacterFavorite, simulate } from '../../src/lib/api/companions';
 import { buildHomeViewModel, mostRecentHomeCompanion, type HomeTargetAction } from '../../src/lib/homeViewModel';
 import { getHomeWorldScopes } from '../../src/lib/homePresentation';
 import { selectPortraitVersion } from '../../src/lib/selectors';
@@ -29,6 +32,7 @@ import { useSurfaceReadyTiming } from '../../src/components/ClientPerformanceBri
 import { useAuth } from '../../src/hooks/useAuth';
 import { writeSessionHeroUri } from '../../src/lib/sessionSnapshotCache';
 import { isWorldCatalogVisible } from '../../../../packages/together-domain/src/world-access';
+import type { WorldPulseV2Event } from '@together/domain/src/world-pulse-v2';
 
 const router = expoRouter as unknown as { push: (href: string) => void };
 
@@ -43,6 +47,7 @@ export default function Home() {
   const lastRecommendationLoadHeight=useRef(0);
   const recommendationRevealTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const [recommendationsRevealing,setRecommendationsRevealing]=useState(false);
+  const [selectedPulseEvent,setSelectedPulseEvent]=useState<WorldPulseV2Event|null>(null);
   useEffect(()=>{
     if(recommendationRevealTimer.current)clearTimeout(recommendationRevealTimer.current);
     recommendationRevealTimer.current=null;
@@ -108,7 +113,8 @@ export default function Home() {
   const homeCompanionId=homeCompanion?.id;
   const homeModel=snapshot?buildHomeViewModel(snapshot):undefined;
   const pulseWorldId=homeModel?.currentWorld?.id??null;
-  const {data:worldPulse}=useWorldPulse(pulseWorldId,Boolean(snapshot&&pulseWorldId));
+  const pulseScope=session?.user.id&&snapshot?.activeContinuity?.id?`${session.user.id}:${snapshot.activeContinuity.id}`:null;
+  const {data:worldPulse,isPending:worldPulsePending,isError:worldPulseError,refetch:refetchWorldPulse}=useWorldPulse(pulseWorldId,pulseScope,Boolean(snapshot&&pulseWorldId));
 
   const simulationStale=!homeCompanion||Date.now()-new Date(homeCompanion.last_simulated_at).getTime()>2*60000||!(snapshot?.scheduleEvents??[]).some((item)=>item.character_instance_id===homeCompanionId&&new Date(item.ends_at)>new Date());
   useEffect(()=>{if(!secondaryWorkReady||!homeCompanionId||!simulationStale)return;let cancelled=false;void simulate(homeCompanionId).then(()=>cancelled?undefined:refresh({scope:'presence',characterInstanceId:homeCompanionId})).catch(()=>undefined);return()=>{cancelled=true;};},[homeCompanionId,refresh,secondaryWorkReady,simulationStale]);
@@ -171,9 +177,14 @@ export default function Home() {
     </View>
     {secondaryWorkReady?<>
       {model.recentMoments.length ? <View style={styles.moments}><View style={styles.momentsTop}><Text accessibilityRole="header" style={styles.sectionTitle}>Recently shared</Text><Pressable accessibilityRole="button" accessibilityLabel="View all recently shared moments" hitSlop={6} onPress={() => router.push('/(tabs)/moments')} style={({pressed})=>[styles.sectionActionButton,pressed&&styles.sectionActionPressed]}><Text style={styles.sectionAction}>View all →</Text></Pressable></View><MomentCarousel moments={model.recentMoments} characters={[companion]} portraitVersions={{ [companion.id]: portraitVersion }} preserveImageDetails onPress={(moment) => router.push(`/moment/${moment.id}`)} /></View> : null}
-      {pulseWorld&&worldPulse?.worldId===pulseWorld.id?<AroundTownSection worldName={pulseWorld.name} items={worldPulse.items.slice(0,5)} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${pulseWorld.slug}`);router.push(`/(tabs)/explore?world=${pulseWorld.slug}`);}}/>:null}
+      {pulseWorld&&worldPulse?.worldId===pulseWorld.id?(worldPulse.version===2
+        ?<WorldPulseV2Section worldName={pulseWorld.name} events={worldPulse.events} onOpen={setSelectedPulseEvent} onViewAll={()=>router.push(`/world-pulse?world=${pulseWorld.slug}` as never)}/>
+        :<AroundTownSection worldName={pulseWorld.name} items={worldPulse.items.slice(0,5)} onOpen={(item)=>{if(item.locationSlug)return router.push(`/location/${item.locationSlug}?world=${pulseWorld.slug}`);router.push(`/(tabs)/explore?world=${pulseWorld.slug}`);}}/>)
+        :pulseWorld&&pulseScope&&worldPulsePending?<WorldPulseV2Skeleton worldName={pulseWorld.name}/>
+        :pulseWorld&&pulseScope&&worldPulseError?<WorldPulseV2LoadError onRetry={()=>void refetchWorldPulse()}/>:null}
       {selectedWorld ? <FeaturedCompanionsSection initialCount={recommendationBatchSize} totalCount={featuredCompanions.length} revealing={recommendationsRevealing} onRevealMore={()=>revealMoreRecommendations(featuredCompanions.length)} companions={featuredCompanions.slice(0,visibleRecommendationCount)} world={selectedWorld} favoriteIds={snapshot.favoriteCharacterTemplateIds ?? []} onOpen={(item) => router.push(`/character/${item.public_handle ?? item.slug}`)} onExplore={() => { setBrowsedWorldId(selectedWorld.id); router.push(`/(tabs)/explore?world=${selectedWorld.slug}`); }} onToggleFavorite={toggleFavorite} /> : null}
     </>:<HomeSecondaryLoading/>}
+    <WorldPulseEventModal eventId={selectedPulseEvent?.id??null} previewEvent={selectedPulseEvent} onClose={()=>setSelectedPulseEvent(null)} onNavigate={(href)=>{setSelectedPulseEvent(null);router.push(href);}}/>
   </Screen>;
 }
 

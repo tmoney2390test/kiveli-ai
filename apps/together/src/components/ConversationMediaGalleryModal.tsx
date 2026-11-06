@@ -1,10 +1,10 @@
 import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Image } from "expo-image";
+import { MediaImage as Image } from "./MediaImage";
 import { Images, Play, X } from "lucide-react-native";
 import { colors, radius } from "../theme";
 import { chatMediaVideoPreview, type ChatMediaGalleryItem } from "../lib/chatMediaGallery";
 import { VideoMomentThumbnail } from "./VideoMomentThumbnail";
-import { privateStoredImageSource } from "../lib/mediaImageSource";
+import { privateStoredImageSource, privateStoredPreviewSource } from "../lib/mediaImageSource";
 import type { GeneratedMedia } from "../types";
 import { FrostedBackdrop, FrostedSurface } from "./FrostedGlass";
 
@@ -79,10 +79,10 @@ export function ConversationMediaGalleryModal({
             >
               {isVideo ? <>
                 <View style={styles.videoFallback}><Play size={32} color={colors.dimmed}/></View>
-                {posterUri ? <GalleryPhoto uri={posterUri} storagePath={poster?.storage_path}/> : null}
+                {posterUri ? <GalleryPhoto uri={posterUri} previewUri={poster?.preview_url} storagePath={poster?.storage_path}/> : null}
                 {visible && videoPreview.uri ? <VideoMomentThumbnail uri={videoPreview.uri} posterUri={posterUri} contentFit="contain"/> : null}
                 <View style={styles.play}>{pending ? <ActivityIndicator size="small" color="#fff"/> : <Play size={16} color="#fff" fill="#fff"/>}</View>
-              </> : uri ? <GalleryPhoto uri={uri} storagePath={generated?.storage_path ?? attachment?.storage_path}/> : <View style={styles.videoFallback}>{pending ? <ActivityIndicator color={colors.rose}/> : null}</View>}
+              </> : uri ? <GalleryPhoto uri={uri} previewUri={generated?.preview_url ?? attachment?.preview_url} storagePath={generated?.storage_path ?? attachment?.storage_path}/> : <View style={styles.videoFallback}>{pending ? <ActivityIndicator color={colors.rose}/> : null}</View>}
               <View style={styles.shade}/>
               <View style={styles.meta}><Text style={styles.type}>{pending ? "CREATING" : isVideo ? "VIDEO" : "PHOTO"}</Text><Text style={styles.date}>{new Date(item.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}</Text></View>
             </Pressable>;
@@ -93,12 +93,12 @@ export function ConversationMediaGalleryModal({
   </Modal>;
 }
 
-function GalleryPhoto({ uri, storagePath }: { uri: string; storagePath?: string | null }) {
+function GalleryPhoto({ uri, previewUri, storagePath }: { uri: string; previewUri?: string | null; storagePath?: string | null }) {
   const source = privateStoredImageSource(uri, storagePath);
   return <View style={StyleSheet.absoluteFill}>
-    <Image accessible={false} source={source} style={[StyleSheet.absoluteFill, styles.photoBackdrop]} contentFit="cover" contentPosition="center" blurRadius={24} cachePolicy="memory-disk"/>
+    <Image accessible={false} source={source} previewSource={privateStoredPreviewSource(previewUri, storagePath)} style={[StyleSheet.absoluteFill, styles.photoBackdrop]} contentFit="cover" contentPosition="center" blurRadius={24} cachePolicy="memory-disk"/>
     <View pointerEvents="none" style={styles.photoMatte}/>
-    <Image source={source} style={StyleSheet.absoluteFill} contentFit="contain" contentPosition="center" cachePolicy="memory-disk" transition={0}/>
+    <Image source={source} previewSource={privateStoredPreviewSource(previewUri, storagePath)} style={StyleSheet.absoluteFill} contentFit="contain" contentPosition="center" cachePolicy="memory-disk" transition={0}/>
   </View>;
 }
 

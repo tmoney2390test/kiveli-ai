@@ -1,5 +1,5 @@
 import type { StyleProp, ViewStyle } from 'react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { normalizeSpiceLevel, spiceLabel } from '../lib/spice';
 
 export function SpiceBadge({
@@ -13,6 +13,8 @@ export function SpiceBadge({
   compact?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  // Native iOS discovery does not advertise adult-oriented intensity controls.
+  if (Platform.OS === 'ios') return null;
   const normalized = normalizeSpiceLevel(level);
   return <View
     accessible

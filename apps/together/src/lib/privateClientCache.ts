@@ -1,12 +1,14 @@
 import{clearConversationMessageWarmup}from'./conversationMessageWarmup';
 import{clearGroupDetailCache}from'./groupDetailCache';
 import{clearVoicePreviewSessionCache}from'./voicePreviewCache';
+import{clearConversationOfferWarmup}from'./conversationOfferWarmup';
 
 /** Clears account-scoped data and decoded media when the authenticated account changes. */
 export async function clearPrivateClientCaches(){
   clearConversationMessageWarmup();
   clearGroupDetailCache();
   clearVoicePreviewSessionCache();
+  clearConversationOfferWarmup();
   try{
     const{Image}=await import('expo-image');
     await Image.clearMemoryCache();

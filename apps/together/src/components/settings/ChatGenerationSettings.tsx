@@ -66,7 +66,7 @@ const SettingRow=forwardRef<ElementRef<typeof Pressable>,{testID:string;label:st
       <Info size={18} color={colors.violet}/>
     </Pressable>
     <Pressable ref={ref} testID={testID} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} accessibilityHint={`Opens the ${label} choices`} accessibilityState={{disabled}} disabled={disabled} onPress={onPress} style={({pressed})=>[styles.selector,pressed&&styles.pressed]}>
-      <View style={styles.copy}><Text style={styles.label}>{label}</Text></View><Text style={styles.value}>{value}</Text><ChevronRight size={17} color={colors.muted}/>
+      <View style={styles.copy}><Text style={styles.label}>{label}</Text></View><Text numberOfLines={1} ellipsizeMode="tail" style={styles.value}>{value}</Text><ChevronRight size={17} color={colors.muted}/>
     </Pressable>
     <SettingInfoTooltip visible={tooltipVisible} title={label} body={tooltip} onClose={()=>setTooltipVisible(false)} testID={`${testID}-tooltip`}/>
   </View>;
@@ -93,7 +93,7 @@ const styles=StyleSheet.create({
   selector:{flex:1,minWidth:0,minHeight:62,flexDirection:'row',alignItems:'center',gap:10,paddingLeft:3,paddingRight:5},
   copy:{flex:1,minWidth:0},
   label:{color:colors.text,fontSize:13,fontWeight:'900'},
-  value:{color:'#E1B5FF',fontSize:12,fontWeight:'900'},
+  value:{color:'#E1B5FF',fontSize:12,fontWeight:'900',flexShrink:1,maxWidth:'46%'},
   tooltipRoot:{flex:1,alignItems:'center',justifyContent:'center',padding:20,backgroundColor:'rgba(3,2,7,.66)'},
   tooltipCard:{width:'100%',maxWidth:380,padding:17,borderRadius:radius.lg,backgroundColor:'rgba(29,21,40,.99)',borderWidth:1,borderColor:'rgba(199,120,255,.42)'},
   tooltipHeader:{flexDirection:'row',alignItems:'center',gap:9},

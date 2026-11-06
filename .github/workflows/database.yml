@@ -1,15 +1,10 @@
 name: Kivelle Database
-
 on:
-  workflow_dispatch:
-  pull_request:
-  push:
-    branches: [main]
-
+  workflow_call: null
+  workflow_dispatch: null
 concurrency:
   group: kivelle-database-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   verify-database:
     runs-on: ubuntu-latest
@@ -24,6 +19,10 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Verify subscription renewal and chat limits
+        run: pnpm billing:test:db
+      - name: Verify chat management and preserved history
+        run: pnpm chat-management:test:db
       - name: Verify context-pricing database contract
         run: pnpm context:test:db
       - name: Verify chat-speed database contract
@@ -34,12 +33,15 @@ jobs:
         run: node scripts/test-message-rewrite-db.mjs
       - name: Verify companion schedule-pause database contract
         run: node scripts/test-schedule-pause-db.mjs
-
       - name: Verify Apple review recovery database contract
         run: node scripts/test-apple-review-db.mjs
-
       - name: Verify support portal database contract
         run: node scripts/test-support-portal-db.mjs
-
+      - name: Verify support inbox and private screenshot contract
+        run: node scripts/test-support-inbox-db.mjs
       - name: Verify transactional email queue and quota contract
         run: node --test scripts/transactional-email.test.mjs
+      - run: node scripts/test-venice-chat-db.mjs
+      - run: node scripts/test-video-prices-db.mjs
+permissions:
+  contents: read

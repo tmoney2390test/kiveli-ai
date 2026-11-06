@@ -9,7 +9,7 @@ import{enforceMediaQualityRequirements,parseMediaQualityVerdict,type MediaQualit
 import{photoRequestAllowsHiddenFace,resolveAdultNudityScope,resolvePhotoDirection,resolveSpecificAnatomyExposure,visibleAdultAnatomyTargetLabels}from'../../../packages/together-domain/src/media.ts';
 import{completeMediaUsageAttempt,recordMediaUsageAttempt}from'./together-media-usage.ts';
 import{currentAdultMediaJobAuthorized}from'./web-adult-access.ts';
-import{tryAdultGroupDetailRefinement}from'./together-media-group-detail.ts';
+import{tryAdultGroupDetailRefinement,tryAdultSingleAnatomyRefinement}from'./together-media-group-detail.ts';
 import{blockingQualityReasonsForAgePolicy,customCharacterAgeCheckFromMetadata,requiresCustomCharacterAgePresentationCheck}from'./together-media-character.ts';
 
 export type MediaQualityGateResult={action:'accept';result:ProviderCompletedMedia}|{action:'deferred'}|{action:'reject';reasonCodes:string[]};
@@ -62,6 +62,14 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
     const prepared=await prepareQualityInput(db,job,media,result);if(!prepared)return customAdultSafety?{action:'reject',reasonCodes:['adult_safety_unverified']}:{action:'accept',result};
     try{
       assessment=await assessImage(client,prepared.url,faceRequired,nudityScope,specificAnatomyExposure,requestText,requestedDirection?.source==='requested'?requestedDirection:null,subjects??[],canonical?.context.worldContainment,canonical?.referenceImages??[],captureLighting?.qualityInstruction,adultAuthorized,anonymousAdultPartner);
+      if(shouldReviewSelfieCaptureDevice({requestText,shotType:canonical?.composition.shotType,subjectCount:subjects?.length??1})){
+        const capture=await assessWithVisionFallback(client,{imageUrl:prepared.url,prompt:selfieCaptureDeviceQualityRule()});
+        assessment={...assessment,verdict:mergeSelfieCaptureDeviceVerdict(assessment.verdict,capture.verdict)};
+      }
+      if(shouldRunSingleBodyTopologyReview({adultAuthorized,subjectCount:subjects?.length??1,verdict:assessment.verdict})){
+        const topology=await assessWithVisionFallback(client,{imageUrl:prepared.url,prompt:rearBodyTopologyQualityRule()});
+        assessment={...assessment,verdict:mergeBodyTopologyVerdict(assessment.verdict,topology.verdict)};
+      }
       if(!adultAuthorized&&isOrdinarySwimwearRequest(requestText)&&assessment.verdict.reasonCodes.includes('sexual_content')){
         const swimwearReview=await assessWithVisionFallback(client,{imageUrl:prepared.url,prompt:SWIMWEAR_SAFETY_REVIEW_PROMPT});
         assessment={...assessment,verdict:resolveSwimwearSafetyVerdict(assessment.verdict,swimwearReview.verdict)};
@@ -86,6 +94,19 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   if(isCustomCharacterTerminalQualityFailure(verdict.reasonCodes,customAgeCheck))return{action:'reject',reasonCodes:verdict.reasonCodes};
   if(adultAuthorized&&customAgeCheck&&hasTerminalAdultOutputSafetyFailure(verdict.reasonCodes))return{action:'reject',reasonCodes:verdict.reasonCodes};
   if(adultAuthorized&&canonical&&result.bytes){
+    const refinedSingle=await tryAdultSingleAnatomyRefinement({db,job,media,original:result,request:{...canonical,mediaType:'image'},firstVerdict:verdict,providerMetadata,assess:async(candidate)=>{
+      const client=configuredVeniceClient(),prepared=await prepareQualityInput(db,job,media,candidate);
+      if(!client||!prepared)return{status:'unavailable',reasonCodes:[]};
+      try{
+        const checked=await assessImage(client,prepared.url,faceRequired,nudityScope,specificAnatomyExposure,requestText,requestedDirection?.source==='requested'?requestedDirection:null,subjects??[],canonical.context.worldContainment,canonical.referenceImages,captureLighting?.qualityInstruction,adultAuthorized,anonymousAdultPartner);
+        const capture=shouldReviewSelfieCaptureDevice({requestText,shotType:canonical.composition.shotType,subjectCount:subjects?.length??1})?await assessWithVisionFallback(client,{imageUrl:prepared.url,prompt:selfieCaptureDeviceQualityRule()}):null;
+        const topology=shouldRunSingleBodyTopologyReview({adultAuthorized,subjectCount:subjects?.length??1,verdict:checked.verdict})?await assessWithVisionFallback(client,{imageUrl:prepared.url,prompt:rearBodyTopologyQualityRule()}):null;
+        if(topology?.verdict.status==='unavailable')return{status:'unavailable',reasonCodes:[]};
+        const captureVerdict=capture?mergeSelfieCaptureDeviceVerdict(checked.verdict,capture.verdict):checked.verdict;
+        return enforceMediaQualityRequirements(topology?mergeBodyTopologyVerdict(captureVerdict,topology.verdict):captureVerdict,requirements);
+      }finally{if(prepared.temporary)await db.storage.from('together-user-media').remove([prepared.temporary]);}
+    }});
+    if(refinedSingle)return{action:'accept',result:refinedSingle};
     const refined=await tryAdultGroupDetailRefinement({db,job,media,original:result,request:{...canonical,mediaType:'image'},firstVerdict:verdict,providerMetadata,allowWarningImprovement:shouldDeliverOfficialAdultImageWithWarnings({verdict,adultAuthorized,customCharacter:customAgeCheck}),assess:async(candidate)=>{
       const client=configuredVeniceClient(),prepared=await prepareQualityInput(db,job,media,candidate);
       if(!client||!prepared)return{status:'unavailable',reasonCodes:[]};
@@ -118,15 +139,12 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   const retryCount=Number(providerMetadata.qualityRetryCount??0);
   if(retryCount>=1){
     // After the provider has already produced a second candidate, do not turn
-    // harmless composition drift into a permanently failed user request. The
-    // hard gates above (adult safety/age) and the non-adherence reasons below
-    // still fail closed. This returns the best safe candidate only when QA's
-    // remaining concerns are direction or setting preferences.
-    const requiresExactRequestedComposition=adultAuthorized&&specificAnatomyExposure==='uncovered'&&requestedDirection?.source==='requested';
+    // harmless visual or composition drift into a permanently failed request.
+    // The hard age and content gates above still fail closed.
     const correctedCandidate={status:'fail' as const,reasonCodes:blockingReasons};
     const deliverCorrectedCandidate=!adultAuthorized
       ?canDeliverFinalSfwQualityCandidateWithWarnings(correctedCandidate)
-      :canDeliverQualityRetryWithWarnings(correctedCandidate,{requiresExactRequestedComposition,allowOfficialAgePresentationWarning:!customAgeCheck});
+      :canDeliverQualityRetryWithWarnings(correctedCandidate,{allowOfficialAgePresentationWarning:!customAgeCheck});
     if((!customAgeCheck&&blockingReasons.length===0)||deliverCorrectedCandidate){
       await db.from('together_media_provider_jobs').update({provider_metadata:{...providerMetadata,qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes},updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id));
       await track(db,String(media.user_id),'media_quality_retry_delivered_with_warnings',{mediaId:media.id,reasonCodes:verdict.reasonCodes});
@@ -140,6 +158,8 @@ export async function gateGeneratedImageQuality(db:SupabaseClient,job:Record<str
   // quality requirement. The user-facing charge is released by the normal
   // terminal-failure path, and operators can explicitly opt back into a paid
   // second candidate if provider economics change.
+  // Safety failures may still need a bounded retry. Quality-only concerns,
+  // including capture time, are delivered above and recorded on the job.
   if(!shouldAttemptPaidImageQualityRetry({provider:String(job.provider??''),veniceRetryEnabled:envEnabled('KIVELLE_VENICE_QUALITY_RETRY_ENABLED',false)}))return{action:'reject',reasonCodes:blockingReasons};
 
   const now=new Date().toISOString();
@@ -199,7 +219,7 @@ async function assessImage(client:VeniceImageClient,imageUrl:string,faceRequired
     const referenceImageUrls=[...identityReferenceUrls,...(environmentReferenceUrl?[environmentReferenceUrl]:[])].slice(0,3);
     const visual=worldContainment?.worldVisualContext??{};
     const worldRule=worldContainment?`WORLD CONTAINMENT IS REQUIRED. The output must visibly belong only to ${worldContainment.worldName}${worldContainment.locationName?` at ${worldContainment.locationName}`:''}. Canonical world: ${worldContainment.worldDescription??''}. Visual signature: ${JSON.stringify({setting:visual.setting,architecture:visual.architecture,climate:visual.climate,recurringElements:visual.recurringElements??visual.recurring_elements})}. Forbidden/drift cues: ${JSON.stringify(visual.avoid??[])}. Fail world_mismatch if it depicts another Kivelle world or an environment incompatible with this world. Fail location_mismatch if it materially contradicts the exact location or its supplied environment reference. Fail earth_leakage when a non-Earth world is replaced by an ordinary terrestrial city, resort, house, pool, skyline, weather, signage, architecture, landscape, or open atmosphere.`:'';
-    const qualityPrompt=`Quality-control this ${group?'two-person':'single'} generated companion photo. ${generatedImagePhotorealismRule()} ${faceRule} ${nudityRule} ${anatomyRule} ${directionRule} ${worldRule} ${timeRule??''} Return exactly PASS when it is suitable for delivery. Otherwise return FAIL followed only by comma-separated codes from: face_distortion, face_blur, face_low_detail, face_too_small, duplicate_features, malformed_hands, digit_error, limb_distortion, joint_distortion, torso_distortion, body_proportion_error, duplicate_body_parts, anatomy_low_detail, genital_anatomy_error, non_photorealistic, requested_anatomy_missing, pose_mismatch, face_direction_mismatch, embedded_reference, rendered_text, multiple_subjects, subject_count_mismatch, identity_mismatch, identity_swap, sexual_content, adult_safety_violation, ambiguous_age, world_mismatch, location_mismatch, earth_leakage, time_mismatch. Fail face_low_detail when a required visible face is mushy or synthetic. Inspect all visible bodies. Fail anatomy_low_detail when any visible chest, pelvic, genital, buttock, or other body region looks doll-like, mannequin-like, plastic, unnaturally smooth, blank, featureless, or synthetic rather than complete natural adult anatomy. Fail genital_anatomy_error when visible external genital structures are fused, duplicated, detached, misplaced, impossible, unnaturally protruding, incorrectly integrated with the pelvis, or otherwise biologically implausible. Also fail malformed hands, digit errors, impossible limbs or joints, melted torsos, duplicate body parts, rendered references, text, or prohibited content. ${group?'Treat exactly the two selected people as intended, not as multiple_subjects.':'Fail multiple_subjects for an unintended additional person.'}`;
+    const qualityPrompt=`Quality-control this ${group?'two-person':'single'} generated companion photo. ${generatedImagePhotorealismRule()} ${faceRule} ${nudityRule} ${anatomyRule} ${directionRule} ${worldRule} ${timeRule??''} Return exactly PASS when it is suitable for delivery. Otherwise return FAIL followed only by comma-separated codes from: face_distortion, face_blur, face_low_detail, face_too_small, duplicate_features, malformed_hands, digit_error, limb_distortion, joint_distortion, torso_distortion, body_proportion_error, duplicate_body_parts, anatomy_low_detail, genital_anatomy_error, non_photorealistic, requested_anatomy_missing, pose_mismatch, face_direction_mismatch, visible_capture_device, embedded_reference, rendered_text, multiple_subjects, subject_count_mismatch, identity_mismatch, identity_swap, sexual_content, adult_safety_violation, ambiguous_age, world_mismatch, location_mismatch, earth_leakage, time_mismatch. Fail visible_capture_device when a phone, camera, or selfie stick is held or visible in the frame or a reflection. Fail face_low_detail when a required visible face is mushy or synthetic. Inspect all visible bodies. Fail torso_distortion and duplicate_body_parts if an extra head, shoulders, chest, or upper torso appears attached to the back, hips, or buttocks, even when the face is hidden. A rear-view body must still have one continuous spine and one connected torso. Fail anatomy_low_detail when any visible chest, pelvic, genital, buttock, or other body region looks doll-like, mannequin-like, plastic, unnaturally smooth, blank, featureless, or synthetic rather than complete natural adult anatomy. Fail genital_anatomy_error when visible external genital structures are fused, duplicated, detached, misplaced, impossible, unnaturally protruding, incorrectly integrated with the pelvis, or otherwise biologically implausible. Also fail malformed hands, digit errors, impossible limbs or joints, melted torsos, duplicate body parts, rendered references, text, or prohibited content. ${group?'Treat exactly the two selected people as intended, not as multiple_subjects.':'Fail multiple_subjects for an unintended additional person.'}`;
     const base=await assessWithVisionFallback(client,{imageUrl,referenceImageUrls,prompt:qualityPrompt});
     const verdict=base.verdict;
     const genitalRule=adultAuthorized&&specificAnatomyExposure==='uncovered'?requestedGenitalAnatomyQualityRule(requestText):'';
@@ -242,6 +262,7 @@ export function authorizedAdultImageSafetyRule(subjects:Array<{companion:{name:s
 
 const DELIVERABLE_QUALITY_WARNINGS=new Set([
   'face_too_small','pose_mismatch','face_direction_mismatch',
+  'visible_capture_device',
   'world_mismatch','location_mismatch','earth_leakage','world_unverified','time_mismatch',
   'adult_safety_violation',
   'non_photorealistic',
@@ -291,10 +312,38 @@ export function requestedGenitalAnatomyQualityRule(requestText:string|undefined)
   return`Image 1 is a generated fictional-adult photograph. Inspect ${target} only for requested visibility, photographic detail, and biological plausibility; explicit adult anatomy itself is allowed and is not a reason to reject. Return PASS only when every requested structure is clearly visible, naturally proportioned, correctly placed, and coherently integrated with the surrounding pelvis and body. Return FAIL genital_anatomy_error when a requested structure is fused, duplicated, detached, misplaced, impossible, unnaturally protruding, incorrectly oriented, incorrectly integrated, rendered as a seam or generic slit, or otherwise anatomically implausible. Return FAIL requested_anatomy_missing when it is absent, covered, cropped, obscured, or too small to judge. Return FAIL anatomy_low_detail when it is blank, doll-like, plastic, melted, airbrushed, or featureless. Output only PASS or FAIL followed by those exact codes.`;
 }
 
+export function rearBodyTopologyQualityRule():string{
+  return 'Inspect only the body geometry in this generated single-adult photograph. The subject may be nude, taking a selfie, bent over, or photographed from behind; those alone are allowed. Trace the head, shoulders, chest, spine, waist, hips, arms, and legs as one continuous adult body. Look especially for a second upper torso or shoulders growing from the back or buttocks, buttocks incorrectly attached to the front of the pelvis beneath a forward-facing chest, duplicated head or chest, disconnected waist, fused limbs, or impossible joint placement. Return FAIL torso_distortion, duplicate_body_parts, limb_distortion, joint_distortion, or body_proportion_error for actual visible defects. Do not infer a defect from an ordinary bend, foreshortening, hidden face, or occlusion. Return exactly PASS if the body is coherent, otherwise FAIL followed only by those codes.';
+}
+
+export function shouldReviewSelfieCaptureDevice(input:{requestText?:string;shotType?:string;subjectCount:number}):boolean{
+  return input.subjectCount===1&&(input.shotType==='selfie'||/\bselfie\b/i.test(input.requestText??''));
+}
+
+export function selfieCaptureDeviceQualityRule():string{
+  return 'Inspect this generated single-person photograph for a visible capture device. Return FAIL visible_capture_device if a phone, smartphone, camera, selfie stick, device-holding hand, or its reflection appears anywhere in the image. Return FAIL multiple_subjects if another person appears in the background. Ordinary room fixtures and an empty hand are allowed. Return exactly PASS if neither defect is visible; otherwise return FAIL followed only by visible_capture_device and/or multiple_subjects.';
+}
+
+export function mergeSelfieCaptureDeviceVerdict(first:MediaQualityVerdict,capture:MediaQualityVerdict):MediaQualityVerdict{
+  if(first.status==='unavailable')return first;
+  if(capture.status!=='fail')return first;
+  const reasons=capture.reasonCodes.filter((reason)=>reason==='visible_capture_device'||reason==='multiple_subjects');
+  return reasons.length?{status:'fail',reasonCodes:[...new Set([...first.reasonCodes,...reasons])]}:first;
+}
+
+export function shouldRunSingleBodyTopologyReview(input:{adultAuthorized:boolean;subjectCount:number;verdict:MediaQualityVerdict}):boolean{
+  return input.adultAuthorized&&input.subjectCount===1&&input.verdict.status!=='unavailable'&&!input.verdict.reasonCodes.some((reason)=>['torso_distortion','duplicate_body_parts','limb_distortion','joint_distortion','body_proportion_error','multiple_subjects','subject_count_mismatch'].includes(reason));
+}
+
+export function mergeBodyTopologyVerdict(first:MediaQualityVerdict,topology:MediaQualityVerdict):MediaQualityVerdict{
+  if(topology.status!=='fail')return first;
+  const reasons=topology.reasonCodes.filter((reason)=>['torso_distortion','duplicate_body_parts','limb_distortion','joint_distortion','body_proportion_error'].includes(reason));
+  return reasons.length?{status:'fail',reasonCodes:[...new Set([...first.reasonCodes,...reasons])]}:first;
+}
+
 export function generatedImagePhotorealismRule():string{return'PHOTOREALISM IS REQUIRED. The output must be indistinguishable from a real camera photograph, with natural skin pores and imperfections, individual hair, plausible optics, light, depth of field, and sensor response. Fail non_photorealistic for anime, cartoons, paintings, illustrations, 2D/3D renders, CGI, game art, stylized animation, dolls, mannequins, wax figures, plastic or heavily airbrushed skin, oversized illustrated eyes, or any clearly synthetic visual style.';}
 
-export function canDeliverQualityRetryWithWarnings(verdict:MediaQualityVerdict,input:{requiresExactRequestedComposition?:boolean;allowOfficialAgePresentationWarning?:boolean}={}):boolean{
-  if(input.requiresExactRequestedComposition&&verdict.reasonCodes.some((reason)=>reason==='pose_mismatch'||reason==='face_direction_mismatch'))return false;
+export function canDeliverQualityRetryWithWarnings(verdict:MediaQualityVerdict,input:{allowOfficialAgePresentationWarning?:boolean}={}):boolean{
   return verdict.status==='fail'&&verdict.reasonCodes.length>0&&verdict.reasonCodes.every((reason)=>DELIVERABLE_QUALITY_WARNINGS.has(reason)||(input.allowOfficialAgePresentationWarning===true&&reason==='ambiguous_age'));
 }
 

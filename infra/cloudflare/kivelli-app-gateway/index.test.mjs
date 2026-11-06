@@ -139,3 +139,31 @@ test('strips forged surface headers and replaces them with a server signature', 
     assert.notEqual(forwarded.headers.get('x-kivelli-surface-signature'),'forged');
   }finally{globalThis.fetch=originalFetch;}
 });
+
+test('caches only successful signed user images in the private browser cache', { concurrency: false }, async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response('pixels', { headers: { 'content-type': 'image/jpeg' } });
+  try {
+    const image = await worker.fetch(new Request('https://kivelli.app/supabase/storage/v1/object/sign/together-user-media/user/photo.jpg?token=signed'), {});
+    assert.equal(image.headers.get('cache-control'), 'private, max-age=900');
+    const api = await worker.fetch(new Request('https://kivelli.app/supabase/rest/v1/together_profiles'), {});
+    assert.equal(api.headers.get('cache-control'), 'no-store');
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+
+test('preview caching never includes grant endpoints, errors, videos, or writes', { concurrency: false }, async () => {
+  const originalFetch = globalThis.fetch;
+  const preview = 'https://kivelli.app/supabase/storage/v1/render/image/sign/together-user-media/user/photo.jpg?token=signed';
+  try {
+    globalThis.fetch = async () => new Response('pixels', { headers: { 'content-type': 'image/webp' } });
+    assert.equal((await worker.fetch(new Request(preview), {})).headers.get('cache-control'), 'private, max-age=900');
+    assert.equal((await worker.fetch(new Request(preview, { method: 'HEAD' }), {})).headers.get('cache-control'), 'private, max-age=900');
+    assert.equal((await worker.fetch(new Request(preview, { method: 'POST' }), {})).headers.get('cache-control'), 'no-store');
+    assert.equal((await worker.fetch(new Request('https://kivelli.app/supabase/functions/v1/together-adult-asset?grant=test&variant=preview'), {})).headers.get('cache-control'), 'no-store');
+    globalThis.fetch = async () => new Response('expired', { status: 403, headers: { 'content-type': 'image/webp' } });
+    assert.equal((await worker.fetch(new Request(preview), {})).headers.get('cache-control'), 'no-store');
+    globalThis.fetch = async () => new Response('video', { headers: { 'content-type': 'video/mp4' } });
+    assert.equal((await worker.fetch(new Request(preview), {})).headers.get('cache-control'), 'no-store');
+  } finally { globalThis.fetch = originalFetch; }
+});

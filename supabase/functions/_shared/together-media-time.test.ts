@@ -15,7 +15,19 @@ Deno.test("an outdoor request at 10 PM requires a visibly nighttime photograph",
   assertEquals(lighting.source, "canonical_clock");
   assertStringIncludes(lighting.instruction, "OUTDOOR NIGHT REQUIRED");
   assertStringIncludes(lighting.instruction, "No daylight");
+  assertStringIncludes(lighting.compactInstruction, "Ignore reference-image daylight");
   assertStringIncludes(lighting.qualityInstruction, "FAIL time_mismatch");
+});
+
+Deno.test("7 PM through 4:59 AM is night in the user's local clock", () => {
+  for (const localTime of ["19:00", "20:59", "23:59", "00:00", "04:59"]) {
+    const lighting = resolveMediaCaptureLighting({ localTime, timezone: "America/New_York" });
+    assertEquals(lighting.effectiveDaypart, "night");
+    assertEquals(lighting.source, "canonical_clock");
+    assertStringIncludes(lighting.compactInstruction, "No daylight");
+  }
+  assertEquals(resolveMediaCaptureLighting({ localTime: "18:59" }).effectiveDaypart, "evening");
+  assertEquals(resolveMediaCaptureLighting({ localTime: "05:00" }).effectiveDaypart, "dawn");
 });
 
 Deno.test("a nighttime interior stays readable while exterior cues remain dark", () => {
@@ -63,4 +75,17 @@ Deno.test("sunset remains a distinct explicit capture time", () => {
   assertEquals(lighting.effectiveDaypart, "dusk");
   assertEquals(lighting.source, "explicit_request");
   assertStringIncludes(lighting.instruction, "DUSK REQUIRED");
+});
+
+Deno.test("Eos local night keeps its tidally locked sky instead of Earth darkness", () => {
+  const lighting = resolveMediaCaptureLighting({
+    worldSlug: "eos-meridian",
+    localTime: "21:38",
+    indoorOutdoor: "outdoor",
+  });
+  assertEquals(lighting.effectiveDaypart, "night");
+  assertStringIncludes(lighting.compactInstruction, "canonical copper twilight");
+  assertStringIncludes(lighting.qualityInstruction, "Do not fail time_mismatch merely because the local clock says night");
+  assert(!lighting.instruction.includes("dark night sky"));
+  assertStringIncludes(lighting.qualityInstruction, "Earth-like blue daytime sky");
 });

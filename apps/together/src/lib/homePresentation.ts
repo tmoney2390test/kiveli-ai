@@ -11,6 +11,7 @@ export type CompanionMediaItem = {
   type: 'image' | 'video' | 'gif';
   url: string;
   thumbnailUrl?: string;
+  previewUrl?: string;
   cacheKey?: string;
   title: string;
   subtitle: string;
@@ -39,8 +40,8 @@ export function getCurrentScenePresentation(model: HomeViewModel): CurrentSceneP
   const name = model.companion.together_character_templates.name;
   const togetherNow = /^together now/i.test(model.hero.notice ?? '');
   const activity = model.hero.statusLine.split('·').at(-1)?.trim() || naturalizeCharacterActivity(model.companion.current_activity,{occupation:model.companion.together_character_templates.occupation});
-  const location = model.currentLocation?.name ?? model.currentWorld?.name ?? 'Their world';
-  const atHome = model.currentLocation?.location_type === 'residence';
+  const location = model.atHome ? 'Home' : model.currentLocation?.name ?? model.currentWorld?.name ?? 'Their world';
+  const atHome = model.atHome;
   const heading = togetherNow
     ? `You're with ${name} right now`
     : atHome
@@ -108,7 +109,7 @@ export function getCompanionMedia(snapshot: Snapshot, companionId: string): Comp
       const event = item.life_event_id ? snapshot.lifeEvents.find((entry) => entry.id === item.life_event_id) : undefined;
       const date = item.date_session_id ? snapshot.dates.find((entry) => entry.id === item.date_session_id) : undefined;
       const location = item.location_id ? snapshot.locations.find((entry) => entry.id === item.location_id) : undefined;
-      const parent = item.parent_media_id ? snapshot.generatedMedia?.find((entry) => entry.id === item.parent_media_id && entry.media_type === 'image' && entry.status === 'ready' && Boolean(entry.signed_url)) : undefined;
+      const parent = item.media_type === 'video' && item.parent_media_id ? snapshot.generatedMedia?.find((entry) => entry.id === item.parent_media_id && entry.media_type === 'image' && entry.status === 'ready' && Boolean(entry.signed_url)) : undefined;
       const metadata = item.metadata ?? {};
       const locked = metadata.locked === true || metadata.visibility === 'private_locked';
       const thumbnailUrl = item.media_type === 'image' ? item.signed_url : parent?.signed_url ?? undefined;
@@ -117,6 +118,7 @@ export function getCompanionMedia(snapshot: Snapshot, companionId: string): Comp
         type: item.media_type,
         url: item.signed_url,
         thumbnailUrl,
+        previewUrl: (parent ?? item).preview_url ?? undefined,
         cacheKey: generatedMediaCacheKey(parent ?? item),
         title: String(metadata.title ?? moment?.title ?? (event?naturalizeCharacterEventTitle(event.title,event.event_type):undefined) ?? date?.together_date_templates.name ?? (location ? `At ${location.name}` : 'A moment from today')),
         subtitle: location?.name ?? String(metadata.context ?? 'From your shared world'),

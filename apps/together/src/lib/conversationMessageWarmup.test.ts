@@ -4,6 +4,10 @@ import {
   loadConversationMessagePage,
   readConversationMessagePage,
   resetConversationMessageWarmupForTests,
+  clearConversationMessageWarmup,
+  conversationMessageCacheGeneration,
+  conversationPageNeedsLatest,
+  mergeConversationMessagePage,
   writeConversationMessagePage,
 } from './conversationMessageWarmup';
 
@@ -37,6 +41,38 @@ describe('conversation message warmup', () => {
     expect(loader).not.toHaveBeenCalled();
   });
 
+  it('detects an inbox reply newer than the warmed timeline', () => {
+    writeConversationMessagePage('user-1', 'conversation-1', { messages: [message('1')], hasMore: false });
+    expect(conversationPageNeedsLatest('user-1', 'conversation-1', '2026-09-02T00:00:02.000Z')).toBe(true);
+    expect(conversationPageNeedsLatest('user-1', 'conversation-1', '2026-09-02T00:00:01.000Z')).toBe(false);
+  });
+
+  it('does not repopulate private history after sign-out clears an in-flight warmup', async () => {
+    let finish!: (page: {messages: Message[]; hasMore: boolean}) => void;
+    const loading = loadConversationMessagePage('user-1', 'conversation-1', () => new Promise(resolve => { finish = resolve; }));
+    clearConversationMessageWarmup();
+    finish({messages:[message('1')],hasMore:false});
+    await loading;
+    expect(readConversationMessagePage('user-1','conversation-1')).toBeNull();
+  });
+
+  it('an old completion cannot evict or overwrite the new session warmup', async () => {
+    let finishOld!: (page: {messages: Message[]; hasMore: boolean}) => void;
+    let finishNew!: (page: {messages: Message[]; hasMore: boolean}) => void;
+    const old = loadConversationMessagePage('user-1', 'conversation-1', () => new Promise(resolve => { finishOld = resolve; }));
+    clearConversationMessageWarmup();
+    const current = loadConversationMessagePage('user-1', 'conversation-1', () => new Promise(resolve => { finishNew = resolve; }));
+    finishOld({messages:[message('1')],hasMore:false});
+    await old;
+    const unexpectedLoader = vi.fn();
+    const joined = loadConversationMessagePage('user-1','conversation-1',unexpectedLoader);
+    expect(joined).toBe(current);
+    expect(unexpectedLoader).not.toHaveBeenCalled();
+    finishNew({messages:[message('2')],hasMore:true});
+    await current;
+    expect(readConversationMessagePage('user-1','conversation-1')?.messages.map(row=>row.id)).toEqual(['2']);
+  });
+
   it('keeps cached rows isolated by account and conversation', () => {
     writeConversationMessagePage('user-1', 'conversation-1', { messages: [message('1'), message('2', 'another')], hasMore: false });
     expect(readConversationMessagePage('user-1', 'conversation-1')?.messages.map((item) => item.id)).toEqual(['1']);
@@ -50,6 +86,23 @@ describe('conversation message warmup', () => {
     }
     expect(readConversationMessagePage('user-1','conversation-1')?.messages[0]?.id).toBe('1');
     expect(readConversationMessagePage('user-1','conversation-20')?.messages[0]?.id).toBe('20');
+  });
+
+  it('puts a background reply into the warm page before navigation and deduplicates the server read', async () => {
+    const generation=conversationMessageCacheGeneration();
+    writeConversationMessagePage('user-1','conversation-1',{messages:[message('1')],hasMore:true});
+    const reply=message('2');
+    mergeConversationMessagePage('user-1','conversation-1',[reply],generation);
+    expect(readConversationMessagePage('user-1','conversation-1')?.messages.map((item)=>item.id)).toEqual(['1','2']);
+    const page=await loadConversationMessagePage('user-1','conversation-1',()=>Promise.resolve({messages:[reply,message('1')],hasMore:true}),{maxAgeMs:-1});
+    expect(page.messages.map((item)=>item.id)).toEqual(['1','2']);
+  });
+
+  it('rejects a completed old stream after sign-out clears the cache', () => {
+    const generation=conversationMessageCacheGeneration();
+    clearConversationMessageWarmup();
+    expect(mergeConversationMessagePage('user-1','conversation-1',[message('1')],generation)).toBeNull();
+    expect(readConversationMessagePage('user-1','conversation-1')).toBeNull();
   });
 });
 

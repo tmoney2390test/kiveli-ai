@@ -1,6 +1,8 @@
 import {supportRecoveryContext,recoveryError} from '../_shared/support-recovery.ts';
 import {recoverSupportMembership} from '../_shared/support-membership-recovery.ts';
 import {customerSupportDetail,replySupport,supportReplies} from '../_shared/support-portal.ts';
+import {supportAttachmentAction,supportTicketAttachments} from '../_shared/support-attachments.ts';
+import {supportInbox,supportUnread} from '../_shared/support-inbox.ts';
 import { monitorVideoPrices, videoCostsDashboard } from '../_shared/kivelle-video-prices.ts';
 import { waitUntil } from '../_shared/background.ts';
 import { z } from "zod";
@@ -72,7 +74,7 @@ const schema = z.discriminatedUnion("action", [
     })).min(1).max(25),
   }),
   z.object({
-    action: z.literal("create_support_ticket"),
+    action: z.literal("create_support_ticket"), expectedUserId:z.string().uuid().optional(),
     requestId: z.string().uuid().optional(),
     category: z.enum([
       "bug",
@@ -87,15 +89,22 @@ const schema = z.discriminatedUnion("action", [
     correlationId: z.string().max(128).optional(),
     conversationId: z.string().uuid().optional(),
     mediaId: z.string().uuid().optional(),
+    messageId: z.string().uuid().optional(),
+    errorCode: z.string().regex(/^[A-Z0-9_:-]{1,100}$/).optional(),
+    attachmentIds: z.array(z.string().uuid()).max(3).default([]),
     purchaseReference: z.string().trim().max(120).optional(),
     diagnostics: z.object({platform:z.string().max(30),appVersion:z.string().max(40),buildId:z.string().max(120).optional(),topic:z.enum(['purchase','conversation','media','login']).optional()}).optional(),
   }),
-  z.object({ action: z.literal("my_tickets") }),
-  z.object({action:z.literal('my_ticket_detail'),ticketId:z.string().uuid()}),
-  z.object({action:z.literal('reply_support_ticket'),ticketId:z.string().uuid(),message:z.string().trim().min(2).max(5000),requestId:z.string().uuid()}),
-  z.object({action:z.literal('reply_to_customer'),ticketId:z.string().uuid(),message:z.string().trim().min(2).max(5000),requestId:z.string().uuid()}),
+  z.object({ action: z.literal("my_tickets"),expectedUserId:z.string().uuid().optional(),filter:z.enum(['all','open','resolved']).optional(),search:z.string().trim().max(160).optional(),beforeAt:z.string().datetime({offset:true}).optional(),beforeId:z.string().uuid().optional() }),
+  z.object({action:z.literal('support_unread'),expectedUserId:z.string().uuid().optional()}),
+  z.object({action:z.literal('support_mark_read'),expectedUserId:z.string().uuid().optional(),ticketId:z.string().uuid(),through:z.string().datetime({offset:true})}),
+  z.object({action:z.literal('support_attachment'),expectedUserId:z.string().uuid().optional(),operation:z.enum(['prepare','confirm','remove','list']),id:z.string().uuid().optional(),ids:z.array(z.string().uuid()).max(3).optional(),byteSize:z.number().int().min(1).max(5242880).optional(),width:z.number().int().min(1).max(2048).optional(),height:z.number().int().min(1).max(2048).optional()}),
+  z.object({action:z.literal('my_ticket_detail'),expectedUserId:z.string().uuid().optional(),ticketId:z.string().uuid()}),
+  z.object({action:z.literal('reply_support_ticket'),expectedUserId:z.string().uuid().optional(),ticketId:z.string().uuid(),message:z.string().trim().min(2).max(5000),requestId:z.string().uuid(),attachmentIds:z.array(z.string().uuid()).max(3).default([])}),
+  z.object({action:z.literal('reply_to_customer'),expectedUserId:z.string().uuid().optional(),ticketId:z.string().uuid(),message:z.string().trim().min(2).max(5000),requestId:z.string().uuid(),attachmentIds:z.array(z.string().uuid()).max(3).default([])}),
   z.object({action:z.literal('recover_ticket'),ticketId:z.string().uuid(),requestId:z.string().uuid(),recoveryAction:z.enum(['restore_chat','refresh_delivery','poll_media','reconcile_membership']),targetId:z.string().uuid(),confirmTarget:z.string().uuid(),reason:z.string().trim().min(8).max(500)}),
   z.object({ action: z.literal("dashboard") }),
+  z.object({ action: z.literal("update_ios_explicit_dialogue"), enabled: z.boolean(), expectedEnabled: z.boolean(), reason: z.string().trim().min(8).max(500) }),
   z.object({action:z.literal("video_costs")}),
   z.object({action:z.literal("refresh_video_prices")}),
   z.object({action:z.literal("publish_video_prices"),creditsPerUnit:z.number().min(1).max(10000),minimumCredits:z.number().int().min(1).max(10000),reason:z.string().trim().min(8).max(500)}),
@@ -186,6 +195,7 @@ const schema = z.discriminatedUnion("action", [
 serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request),
     input = await parseBody(request, schema);
+  if('expectedUserId' in input && input.expectedUserId && input.expectedUserId!==user.id)throw new AppError('CONFLICT','Your account changed. Reopen Support to continue.',409);
   if (input.action === "report_client_error") {
     await enforceRateLimit(db, user.id, "client_error_report", 30, 3600);
     const messageSafe = sanitizeOperationsText(input.messageSafe, 600),
@@ -278,38 +288,30 @@ serve(async (request, correlationId) => {
     const existing = await db.from('together_support_tickets').select('id').eq('user_id',user.id).eq('request_id',requestId).maybeSingle();
     if (existing.error) throw new AppError('INTERNAL_ERROR','Your support request could not be checked.',500,true);
     if (!existing.data) await enforceRateLimit(db,user.id,'support_ticket',8,86400);
-    const {data,error}=await db.rpc('kivelle_create_support_ticket',{
+    const {data,error}=await db.rpc('kivelli_create_support_request',{
       p_user_id:user.id,p_request_id:requestId,p_category:input.category,p_subject:input.subject,p_message:input.message,
       p_correlation_id:input.correlationId??correlationId,p_conversation_id:input.conversationId??null,
-      p_metadata:{...(input.mediaId?{mediaId:input.mediaId}:{}),...(input.purchaseReference?{purchaseReference:input.purchaseReference}:{}),...(input.diagnostics?{diagnostics:input.diagnostics}:{})},
+      p_metadata:{...(input.mediaId?{mediaId:input.mediaId}:{}),...(input.messageId?{messageId:input.messageId}:{}),...(input.errorCode?{errorCode:input.errorCode}:{}),...(input.purchaseReference?{purchaseReference:input.purchaseReference}:{}),...(input.diagnostics?{diagnostics:input.diagnostics}:{})},
+      p_attachment_ids:input.attachmentIds,
     });
     if(error){
       if(error.message.includes('SUPPORT_REQUEST_CONFLICT'))throw new AppError('CONFLICT','This request was already submitted with different details.',409);
       if(error.message.includes('SUPPORT_TARGET_UNAVAILABLE'))throw new AppError('NOT_FOUND','That request or conversation is unavailable for this account.',404);
+      if(error.message.includes('SUPPORT_ATTACHMENT'))throw new AppError('VALIDATION_ERROR','A screenshot is no longer available. Remove it and attach it again.',400);
       throw new AppError('INTERNAL_ERROR','Your request could not be confirmed. Retry to check the same request.',500,true);
     }
     return json({data,correlationId},existing.data?200:201,correlationId);
   }
   if (input.action === "my_tickets") {
-    const { data, error } = await db.from("together_support_tickets").select(
-      "id,ticket_number,category,subject,status,priority,created_at,updated_at",
-    ).eq("user_id", user.id).order("created_at", { ascending: false }).limit(
-      30,
-    );
-    if (error) {
-      throw new AppError(
-        "INTERNAL_ERROR",
-        "Support requests could not be loaded.",
-        500,
-        true,
-      );
-    }
-    return json(
-      { data: { tickets: data ?? [] }, correlationId },
-      200,
-      correlationId,
-    );
+    return json({data:await supportInbox(db,user.id,input),correlationId},200,correlationId);
   }
+  if(input.action==='support_unread')return json({data:await supportUnread(db,user.id),correlationId},200,correlationId);
+  if(input.action==='support_mark_read'){
+    const result=await db.rpc('kivelli_read_support_request',{p_user_id:user.id,p_ticket_id:input.ticketId,p_through:input.through});
+    if(result.error)throw new AppError('INTERNAL_ERROR','Read status could not be saved.',500,true);
+    return json({data:{saved:true},correlationId},200,correlationId);
+  }
+  if(input.action==='support_attachment')return json({data:await supportAttachmentAction(db,user.id,input),correlationId},200,correlationId);
 
   if(input.action==='my_ticket_detail')return json({data:await customerSupportDetail(db,user.id,input.ticketId),correlationId},200,correlationId);
   if(input.action==='reply_support_ticket'||input.action==='reply_to_customer'){
@@ -349,6 +351,22 @@ serve(async (request, correlationId) => {
       200,
       correlationId,
     );
+  }
+  if (input.action === "update_ios_explicit_dialogue") {
+    requireMinimumRole(role, "admin");
+    await enforceRateLimit(db, user.id, "ops_content_control", 12, 3600);
+    const { data, error } = await db.rpc("kivelle_ops_set_ios_explicit_dialogue", {
+      p_actor_user_id: user.id,
+      p_expected_enabled: input.expectedEnabled,
+      p_enabled: input.enabled,
+      p_reason: sanitizeOperationsText(input.reason, 500),
+      p_request_id: correlationId,
+    });
+    if (error) {
+      if (error.message.includes("CONTENT_CONTROL_STALE")) throw new AppError("CONFLICT", "This setting changed. Refresh Ops and try again.", 409);
+      throw new AppError("INTERNAL_ERROR", "The iOS dialogue setting could not be updated.", 500, true);
+    }
+    return json({ data, correlationId }, 200, correlationId);
   }
   if (input.action === "incidents") {
     const { data, error } = await db.from("together_ops_incidents").select("*")
@@ -437,7 +455,7 @@ serve(async (request, correlationId) => {
     });
     return json(
       {
-        data: { ticket: ticket.data, events: events.data ?? [], replies:await supportReplies(db,input.ticketId), recovery:await supportRecoveryContext(db,input.ticketId) },
+        data: { ticket: ticket.data, events: events.data ?? [], replies:await supportReplies(db,input.ticketId), attachments:await supportTicketAttachments(db,input.ticketId), recovery:await supportRecoveryContext(db,input.ticketId) },
         correlationId,
       },
       200,

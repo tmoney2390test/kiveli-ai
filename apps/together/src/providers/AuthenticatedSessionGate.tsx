@@ -1,4 +1,5 @@
-import { onboardingRouteRedirect } from '../lib/onboardingNavigation';
+import { DeletedAccountState } from '../components/DeletedAccountState';
+import { completedOnboardingChatHref, onboardingRouteRedirect } from '../lib/onboardingNavigation';
 import { useEffect, useMemo, useRef, type PropsWithChildren } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { router, usePathname } from 'expo-router';
@@ -17,7 +18,7 @@ import { readSessionHeroUri, readSessionSnapshot, writeSessionSnapshot } from '.
 import { authenticatedRoutePathname, consumeWebEntryHref, initialWebEntryHref, shouldConsumeWebEntry } from '../lib/webEntryRoute';
 import { mostRecentlyUsedConversation } from '../lib/conversation';
 import { prefetchConversationMessagePage } from '../lib/conversationMessageWarmup';
-import { manageConversation } from '../lib/api';
+import { manageConversation } from '../lib/api/conversations';
 import { hasCompletedStartupInThisTab, markStartupCompleteInThisTab } from '../lib/startupLoadingSession';
 import { prefetchProfileAvatarUrl } from '../hooks/useProfileAvatarUrl';
 
@@ -33,8 +34,9 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
     capturedEntryHref,
   });
   const { session }=useAuth();
-  const { snapshot, loading, error, refresh, setSnapshot, clear } = useTogether(useShallow((state) => ({ snapshot: state.snapshot, loading: state.loading, error: state.error, refresh: state.refresh, setSnapshot: state.setSnapshot, clear: state.clear })));
+  const { snapshot, loading, error, errorCode, refresh, setSnapshot, clear } = useTogether(useShallow((state) => ({ snapshot: state.snapshot, loading: state.loading, error: state.error, errorCode: state.errorCode, refresh: state.refresh, setSnapshot: state.setSnapshot, clear: state.clear })));
   const recentConversationId = useMemo(() => mostRecentlyUsedConversation((snapshot?.conversations ?? []).filter((conversation) => conversation.kind !== 'group'))?.id, [snapshot?.conversations]);
+  const completedChatHref = useMemo(() => snapshot ? completedOnboardingChatHref(snapshot) : null, [snapshot]);
   const redirectTarget = useRef<string | null>(null);
   const hydrationUserId=useRef<string|null>(null);
   const initialEntryComplete=useRef(hasCompletedStartupInThisTab());
@@ -113,7 +115,7 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!snapshot || snapshotOwnerMismatch || publicPath) return;
     const stage = resolveKivelleAccountStage(snapshot.profile);
-    const target = onboardingRouteRedirect(stage, pathname);
+    const target = onboardingRouteRedirect(stage, pathname, completedChatHref);
     if (!target) {
       redirectTarget.current = null;
       return;
@@ -123,7 +125,7 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
       if (Platform.OS === 'web') consumeWebEntryHref();
       router.replace(target as never);
     }
-  }, [pathname, publicPath, snapshot,snapshotOwnerMismatch]);
+  }, [pathname, publicPath, snapshot, completedChatHref, snapshotOwnerMismatch]);
 
   if(snapshotOwnerMismatch){
     return <View style={styles.blocker}><RouteLoadingState pathname={pathname} label="Switching accounts…" /></View>;
@@ -132,14 +134,14 @@ export function AuthenticatedSessionGate({ children }: PropsWithChildren) {
   let blocker = null;
   if (!snapshot && !publicPath) {
     blocker = error
-      ? <ErrorState message={error} onRetry={() => void refresh()} />
+      ? errorCode==='ACCOUNT_DELETED'?<DeletedAccountState/>:<ErrorState message={error} onRetry={() => void refresh()} />
       : initialEntryComplete.current ? <RouteLoadingState pathname={pathname} /> : <StartupLoadingState />;
   } else if (snapshot && pathname === '/' && !initialEntryComplete.current) {
     // Keep one startup presentation through the root-to-home handoff.
     blocker = <StartupLoadingState />;
   } else if (snapshot && !publicPath) {
     const stage = resolveKivelleAccountStage(snapshot.profile);
-    if (onboardingRouteRedirect(stage, pathname)) {
+    if (onboardingRouteRedirect(stage, pathname, completedChatHref)) {
       blocker = <RouteLoadingState pathname={pathname} label={stage === 'age_confirmation' ? 'Opening age confirmation…' : stage === 'onboarding' ? 'Preparing your first meeting…' : undefined} />;
     }
   }

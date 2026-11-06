@@ -9,8 +9,9 @@ export const GROUP_STANDARD_MAX_REPLIES=3;
 export const GROUP_LET_TALK_MAX_REPLIES=5;
 export const GROUP_STANDARD_VISIBLE_OUTPUT_CHARACTERS=6_000;
 export const GROUP_LET_TALK_VISIBLE_OUTPUT_CHARACTERS=10_000;
-export const GROUP_STANDARD_PROVIDER_OPERATIONS=10;
-export const GROUP_LET_TALK_PROVIDER_OPERATIONS=16;
+// Reserve one generation and one final moderation call for a rejected reply.
+export const GROUP_STANDARD_PROVIDER_OPERATIONS=12;
+export const GROUP_LET_TALK_PROVIDER_OPERATIONS=18;
 
 export type GroupTurnBudget={
   maxReplies:number;

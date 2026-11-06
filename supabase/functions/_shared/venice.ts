@@ -151,10 +151,10 @@ export class VeniceImageClient {
   }
 }
 
-export function configuredVeniceClient(): VeniceImageClient | null {
+export function configuredVeniceClient(timeoutMs = 90_000): VeniceImageClient | null {
   if (!envBoolean('KIVELLE_VENICE_ENABLED')) return null;
   const key = Deno.env.get('VENICE_API_KEY');
-  return key ? new VeniceImageClient(key, Deno.env.get('KIVELLE_VENICE_API_BASE') ?? VENICE_IMAGE_API_BASE) : null;
+  return key ? new VeniceImageClient(key, Deno.env.get('KIVELLE_VENICE_API_BASE') ?? VENICE_IMAGE_API_BASE, timeoutMs) : null;
 }
 
 async function providerError(response: Response): Promise<AppError> {

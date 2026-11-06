@@ -3,12 +3,13 @@ import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 're
 import { router } from 'expo-router';
 import { initiativeLevels, normalizeInitiativeLevel, type InitiativeLevel } from '@together/domain/src/life';
 import { ArrowLeft, Bell, CalendarDays, LockKeyhole, Sparkles } from 'lucide-react-native';
-import { CharacterAvatar, GradientButton, PageTitle, Screen } from '../src/components';
+import { CharacterAvatar, GradientButton, PageTitle, Screen } from '../src/components/ui';
 import { colors, radius } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
 import { invoke } from '../src/lib/api';
 import { deactivatePushNotifications, registerPushNotifications } from '../src/lib/pushNotifications';
 import { subscriptionHref } from '../src/lib/subscriptionPresentation';
+import { SupportUpdates } from '../src/features/support/SupportUpdates';
 
 const times=[{value:'21:00',label:'9 PM'},{value:'22:00',label:'10 PM'},{value:'23:00',label:'11 PM'},{value:'00:00',label:'Midnight'},{value:'07:00',label:'7 AM'},{value:'08:00',label:'8 AM'},{value:'09:00',label:'9 AM'}];
 const initiativeCopy:Record<InitiativeLevel,string>={off:'Only messages you start.',occasional:'A light check-in now and then.',natural:'Believable updates around their life.',frequent:'More openings and follow-ups.'};
@@ -32,6 +33,7 @@ export default function Notifications(){
 
   return <Screen contentStyle={styles.screen}>
     <View style={styles.header}><Pressable accessibilityLabel="Go back" onPress={()=>router.canGoBack()?router.back():router.replace('/settings')}><ArrowLeft color={colors.text}/></Pressable><PageTitle>Notifications & initiative</PageTitle></View>
+    <SupportUpdates/>
     <Text style={styles.lead}>Choose when companions can reach out and whether Kivelle may alert this device.</Text>
     <Toggle icon={<Bell color={colors.rose}/>} title="Device notifications" body="Show Kivelle messages outside the app." value={push} set={setPush}/>
 

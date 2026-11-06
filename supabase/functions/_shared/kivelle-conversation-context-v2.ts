@@ -16,6 +16,9 @@ import {
   collectStandingMemoryTexts,
   compileRelationshipStance,
   compileResponseBrief,
+  preserveCharacterEmotionalPosture,
+  resolveCharacterEmotionalReality,
+  type CharacterEmotionalReality,
   type KivelleCapabilities,
   normalizeCharacterUserView,
   type PromptInteractionQuality,
@@ -40,7 +43,19 @@ import { runKivelleDirector } from "./kivelle-director.ts";
 import { mergePrivateCharacterPromptContext } from "./kivelle-character-private-context.ts";
 
 type Row = Record<string, any>;
+
+/** The same published appearance that anchors portraits must inform self-description. */
+export function canonicalCharacterAppearance(version: Row | null | undefined): string | null {
+  const value = version?.visual_identity?.canonicalDescription ??
+    version?.appearance_config?.canonicalDescription ??
+    version?.appearance_config?.description;
+  if (typeof value !== 'string') return null;
+  const description = value.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return description ? description.slice(0, 400) : null;
+}
+
 export type TieredConversationContext = BaseContext & {
+  characterEmotion?: CharacterEmotionalReality;
   speakerPrivateContextOwnerId?: string;
   characterVoiceOwnerId?: string;
   sceneSpeakerDirective?: { characterInstanceId: string; name: string };
@@ -208,7 +223,7 @@ export async function buildTieredKivelleConversationContext(
       nestedVersion
         ? Promise.resolve({ data: nestedVersion, error: null })
         : input.db.from("together_character_versions").select(
-          "pronouns,interests,character_bible,life_config,relationship_config,personality_config",
+          "pronouns,interests,character_bible,life_config,relationship_config,personality_config,visual_identity,appearance_config",
         ).eq("id", input.instance.character_version_id).maybeSingle(),
       loadConversationCommitments(input.db, {
         userId: input.userId,
@@ -256,6 +271,7 @@ export async function buildTieredKivelleConversationContext(
   const characterBible=mergePrivateCharacterPromptContext(version?.character_bible??{},privateCharacterProfile,input.authorizedPrivateAdultText===true);
   const effectiveCharacter = {
     ...base.character,
+    canonicalAppearance: canonicalCharacterAppearance(version),
     spice_level: spiceLevel,
     pronouns: version?.pronouns ?? base.character?.pronouns ??
       base.character?.discovery_metadata?.pronouns ?? null,
@@ -324,11 +340,21 @@ export async function buildTieredKivelleConversationContext(
     String(Deno.env.get("KIVELLE_CONVERSATIONAL_HANDOFFS_ENABLED") ?? "true")
       .toLowerCase() !== "false";
   const scenePressure=assessScenePressure({message:input.userMessage,recentTurns:recent,interactionMode:String(base.currentScene?.interactionMode??'remote')});
+  const characterEmotion=String(Deno.env.get('KIVELLE_CHARACTER_EMOTION_ENABLED')??'true').toLowerCase()==='false'
+    ?undefined
+    :resolveCharacterEmotionalReality({
+      mood:base.currentScene?.mood,
+      energy:base.currentScene?.energy,
+      residue:base.emotionalResidue,
+      relationshipConflict:Number(base.relationship?.conflict??0),
+      activeMajorConflict:Boolean(base.relationship?.active_major_conflict),
+    });
   const baseBrief = compileResponseBrief({
     pressure:scenePressure,
     message: input.userMessage,
     interactionQuality,
     relationshipStance,
+    characterEmotion,
     ...(responseIntent ? { responseIntent } : {}),
     ...(eligibleOpenThread ? { eligibleOpenThread } : {}),
     nextCommitment: nextCommitment?.title ?? base.upcomingCommitments[0]?.title,
@@ -349,6 +375,7 @@ export async function buildTieredKivelleConversationContext(
       character: effectiveCharacter,
       relationshipStance,
       characterGoals,
+      characterEmotion,
       recent,
       userMessage: input.userMessage,
     },
@@ -368,13 +395,15 @@ export async function buildTieredKivelleConversationContext(
       ...(input.correlationId ? { correlationId: input.correlationId } : {}),
     },
   });
+  const responseBrief=preserveCharacterEmotionalPosture(director.brief,characterEmotion);
   const characterVoice = compileCharacterVoiceCard({
     bible: characterBible,
     pressure:scenePressure,
     characterName: String(base.character?.name ?? ""),
     occupation: String(base.character?.occupation ?? ""),
     message: input.userMessage,
-    mode: director.brief.mode,
+    mode: responseBrief.mode,
+    emotionalReality:characterEmotion,
     relationshipStage: String(
       base.relationship?.relationship_stage ?? base.relationship?.stage ??
         "stranger",
@@ -446,10 +475,11 @@ export async function buildTieredKivelleConversationContext(
     sharedHistory,
     relationshipStance,
     characterGoals,
+    characterEmotion,
     relationshipReflection: reflection ?? compiled,
     characterUserView,
     characterVoice,
-    responseBrief: director.brief,
+    responseBrief,
     scenePressure,
     interactionQuality,
     antiRepetition,

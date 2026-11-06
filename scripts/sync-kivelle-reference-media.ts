@@ -4,6 +4,7 @@ import{readFile,readdir}from'node:fs/promises';
 import{extname,join,parse}from'node:path';
 import{pathToFileURL}from'node:url';
 import{locations as eosMeridianLocations}from'./eos-meridian-content.mjs';
+import{gildedCoastLocations}from'../apps/together/src/worlds/gilded-coast.ts';
 
 const root=process.cwd(),apply=process.argv.includes('--apply'),charactersOnly=process.argv.includes('--characters-only'),locationsOnly=process.argv.includes('--locations-only'),worldSlugFilter=process.argv.find((argument)=>argument.startsWith('--world='))?.slice('--world='.length),bucket='kivelle-reference-media';
 export const CHARACTER_REFERENCE_BUCKET='kivelle-character-reference';
@@ -33,10 +34,16 @@ async function main(){
     const revision=Number(existing?.revision??0)+1,storageTarget=defaultStorageTarget(asset,sha256,extension),storageBucket=String(reusable?.storage_bucket??storageTarget.bucket),storagePath=String(reusable?.storage_path??storageTarget.path);
     if(!apply){console.log(`[dry-run] ${asset.sourceKey} -> ${storagePath}${reusable?' (reuse)':''}`);summary.uploaded+=1;if(reusable)summary.reusedStorage+=1;else summary.storageUploads+=1;continue;}
     if(!reusable){const{error:uploadError}=await db.storage.from(storageBucket).upload(storagePath,bytes,{contentType,upsert:false,cacheControl:'31536000'});if(uploadError&&!/already exists/i.test(uploadError.message))throw uploadError;summary.storageUploads+=1;}else summary.reusedStorage+=1;
-    if(existing?.id)await db.from('together_media_reference_assets').update({active:false,updated_at:new Date().toISOString()}).eq('id',existing.id);
     const dimensions=imageDimensions(bytes,contentType);
     const{error:insertError}=await db.from('together_media_reference_assets').insert({asset_role:asset.role,source_key:asset.sourceKey,storage_bucket:storageBucket,storage_path:storagePath,content_type:contentType,byte_size:bytes.byteLength,sha256,revision,active:true,...dimensions,...scope,metadata:{syncedBy:'sync-kivelle-reference-media',sourcePath:asset.path.replace(root,'').replaceAll('\\','/'),storageReused:Boolean(reusable)}});
     if(insertError)throw insertError;
+    // Keep the previous reference usable until the new revision is persisted.
+    // Consumers order active references by revision, so this handoff is safe
+    // even while the old row is being retired.
+    if(existing?.id){
+      const{error:retireError}=await db.from('together_media_reference_assets').update({active:false,updated_at:new Date().toISOString()}).eq('id',existing.id);
+      if(retireError)throw retireError;
+    }
     summary.uploaded+=1;
   }
   console.log(JSON.stringify({...summary,mode:apply?'apply':'dry-run'}));
@@ -58,10 +65,18 @@ export async function discoverAssets():Promise<Asset[]>{
   }
   const eosDirectory=join(root,'apps','together','assets','locations','eos-meridian'),eosDistrictByIndex=new Map(eosMeridianLocations.filter((location)=>!location.parentIndex).map((location)=>[location.index,location.slug]));
   for(const location of eosMeridianLocations){const districtSlug=location.parentIndex?eosDistrictByIndex.get(location.parentIndex):location.slug;if(!districtSlug)throw new Error(`Missing Eos district artwork mapping for ${location.slug}.`);output.push({sourceKey:`location:eos-meridian:${location.slug}:canonical`,role:'location_canonical',path:join(eosDirectory,`${districtSlug}.jpg`),worldSlug:'eos-meridian',locationSlug:location.slug});}
+  const gildedDirectory=join(root,'apps','together','assets','locations','gilded-coast');
+  const gildedArt=new Set((await readdir(gildedDirectory)).filter((name)=>/\.(?:jpe?g|png|webp)$/i.test(name)));
+  for(const location of gildedCoastLocations){
+    const file=['png','jpg','jpeg','webp'].map((ext)=>`${location.slug}.${ext}`).find((name)=>gildedArt.has(name));
+    if(!file)throw new Error(`Missing distinct Gilded Coast artwork for ${location.slug}.`);
+    output.push({sourceKey:`location:gilded-coast:${location.slug}:canonical`,role:'location_canonical',path:join(gildedDirectory,file),worldSlug:'gilded-coast',locationSlug:location.slug});
+  }
   output.push({sourceKey:'world:neon-kyo:canonical',role:'world_canonical',path:join(root,'apps','together','assets','worlds','neon-kyo','neon-kyo-hero.png'),worldSlug:'neon-kyo'});
   output.push({sourceKey:'world:northvale:canonical',role:'world_canonical',path:join(root,'apps','together','assets','worlds','northvale','northvale-hero.png'),worldSlug:'northvale'});
   output.push({sourceKey:'world:eos-meridian:canonical',role:'world_canonical',path:join(root,'apps','together','assets','worlds','eos-meridian','eos-meridian-hero.jpg'),worldSlug:'eos-meridian'});
-  for(const worldSlug of['juniper-city','port-vervelle','neon-kyo','vespormoor','northvale','eos-meridian','vharadren']){const characterDirectory=join(root,'apps','together','assets','characters',worldSlug);for(const name of(await readdir(characterDirectory)).filter((item)=>/\.(jpe?g|png|webp)$/i.test(item))){const identity=parseCharacterAssetName(name);output.push({sourceKey:`character:${identity.characterSlug}:identity${identity.variant==='primary'?'':`:${identity.variant}`}`,role:'character_identity',path:join(characterDirectory,name),worldSlug,characterSlug:identity.characterSlug,variant:identity.variant});}}
+  output.push({sourceKey:'world:gilded-coast:canonical',role:'world_canonical',path:join(root,'apps','together','assets','worlds','gilded-coast','gilded-coast-hero.jpg'),worldSlug:'gilded-coast'});
+  for(const worldSlug of['juniper-city','port-vervelle','neon-kyo','vespormoor','northvale','eos-meridian','vharadren','gilded-coast','calders-run']){const characterDirectory=join(root,'apps','together','assets','characters',worldSlug);for(const name of(await readdir(characterDirectory)).filter((item)=>/\.(jpe?g|png|webp)$/i.test(item))){const identity=parseCharacterAssetName(name);output.push({sourceKey:`character:${identity.characterSlug}:identity${identity.variant==='primary'?'':`:${identity.variant}`}`,role:'character_identity',path:join(characterDirectory,name),worldSlug,characterSlug:identity.characterSlug,variant:identity.variant});}}
   output.push({sourceKey:'character:avery:identity',role:'character_identity',path:join(root,'apps','together','assets','characters','juniper-city','avery-ellis.jpg'),worldSlug:'juniper-city',characterSlug:'avery'});
   for(const characterSlug of['maya','chloe','alex']){const path=join(root,'apps','together','assets',`${characterSlug}-portrait.png`);output.push({sourceKey:`character:${characterSlug}:identity`,role:'character_identity',path,characterSlug});}
   return output;

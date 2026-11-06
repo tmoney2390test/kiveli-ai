@@ -22,6 +22,7 @@ describe('chat plan presentation', () => {
   it('replaces plan creation with change and end settings while a plan is active', () => {
     expect(conversationPlanMenuItems(false)).toEqual([{key:'createPlan',label:'Plan something'}]);
     expect(conversationPlanMenuItems(true)).toEqual([
+      {key:'activity',label:'Do an Activity'},
       {key:'changePlan',label:'Change plan'},
       {key:'endPlan',label:'End plan',danger:true},
     ]);
@@ -77,6 +78,11 @@ describe('chat plan presentation', () => {
   it('collapses switch completion into the plan changed event', () => {
     expect(shouldShowPlanTimelineEvent({ event_type: 'plan_completed', metadata: { switchedToPlanId: 'plan-2' } })).toBe(false);
     expect(shouldShowPlanTimelineEvent({ event_type: 'plan_switched', metadata: { previousPlanId: 'plan-1' } })).toBe(true);
+  });
+
+  it('does not insert missed-plan or repair notes into the chat timeline', () => {
+    expect(shouldShowPlanTimelineEvent({ event_type: 'plan_missed' })).toBe(false);
+    expect(shouldShowPlanTimelineEvent({ event_type: 'plan_repaired' })).toBe(false);
   });
 
   it('keeps one scheduled and one started divider while deduplicating repeated starts', () => {

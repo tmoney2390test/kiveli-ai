@@ -47,8 +47,8 @@ serve(async (request, correlationId) => {
   const { user, db } = await authenticated(request);
   const adultAccess = await resolveAdultAccess(request, user, db);
   const input = await parseBody(request, schema);
-  const actionLimit = input.action === 'export_request' ? 4 : input.action === 'export_status' || input.action === 'privacy_choices_status' || input.action === 'profile_highlights' ? 120 : input.action === 'delete' ? 3 : input.action === 'birthdate_update' ? 5 : 20;
-  await enforceRateLimit(db, user.id, `together_account_${input.action}`, actionLimit, 3600);
+  const actionLimit = input.action === 'export_request' ? 4 : input.action === 'export_status' || input.action === 'privacy_choices_status' || input.action === 'profile_highlights' || input.action === 'delete_preview' ? 120 : input.action === 'delete' ? 10 : input.action === 'birthdate_update' ? 5 : 20;
+  await enforceRateLimit(db, user.id, `together_account_${input.action}`, actionLimit, input.action === 'delete' ? 600 : 3600);
 
   if(input.action==='apple_credential'){
     await captureAppleCredential(db,user,input);
@@ -226,7 +226,7 @@ serve(async (request, correlationId) => {
 
   const access = await resolveSubscriptionAccess(db, user.id);
   const billingPlan = accountDeletionBillingPlan(access.billing);
-  if (input.action === 'delete_preview') return json({ data: { canDelete: billingPlan.canDelete, billingAction: billingPlan.action, providerLabel: billingPlan.providerLabel, message: billingPlan.message, requiresRecentAuthentication: true,appleManualRevocation:user.identities?.some(identity=>identity.provider==='apple')? 'https://support.apple.com/en-us/102571':null }, correlationId }, 200, correlationId);
+  if (input.action === 'delete_preview') return json({ data: { canDelete: billingPlan.canDelete, billingAction: billingPlan.action, providerLabel: billingPlan.providerLabel, message: billingPlan.message, requiresRecentAuthentication: !hasRecentAccountAuthentication(user.last_sign_in_at),appleManualRevocation:user.identities?.some(identity=>identity.provider==='apple')? 'https://support.apple.com/en-us/102571':null }, correlationId }, 200, correlationId);
 
   if (!hasRecentAccountAuthentication(user.last_sign_in_at)) throw new AppError('AUTH_REQUIRED', 'For your security, sign in again before deleting your account.', 401);
   if (!billingPlan.canDelete) throw new AppError('CONFLICT', billingPlan.message, 409);
@@ -377,8 +377,8 @@ async function rollbackStagedDeletionCleanup(db: SupabaseClient, staged: { exist
 }
 
 async function ownedStorageManifest(db: SupabaseClient, userId: string): Promise<Array<{ bucket: string; path: string }>> {
-  const [generated, attachments, creatorAssets, templates, profile, personas, exports] = await Promise.all([db.from('together_generated_media').select('storage_path').eq('user_id', userId).not('storage_path', 'is', null), db.from('together_conversation_attachments').select('storage_path').eq('user_id', userId).not('storage_path', 'is', null), db.from('together_creator_assets').select('storage_path').eq('user_id', userId).not('storage_path', 'is', null), db.from('together_character_templates').select('id,together_character_versions(id)').eq('creator_id', userId), db.from('together_profiles').select('avatar_path').eq('user_id', userId).maybeSingle(), db.from('together_user_personas').select('appearance_config').eq('user_id', userId), db.from('together_account_exports').select('storage_bucket,storage_path').eq('user_id', userId).not('storage_path', 'is', null)]);
-  const sourceError = [generated, attachments, creatorAssets, templates, profile, personas, exports].find((result) => result.error)?.error;
+  const [generated, attachments, creatorAssets, templates, profile, personas, exports, supportAttachments] = await Promise.all([db.from('together_generated_media').select('storage_path').eq('user_id', userId).not('storage_path', 'is', null), db.from('together_conversation_attachments').select('storage_path').eq('user_id', userId).not('storage_path', 'is', null), db.from('together_creator_assets').select('storage_path').eq('user_id', userId).not('storage_path', 'is', null), db.from('together_character_templates').select('id,together_character_versions(id)').eq('creator_id', userId), db.from('together_profiles').select('avatar_path').eq('user_id', userId).maybeSingle(), db.from('together_user_personas').select('appearance_config').eq('user_id', userId), db.from('together_account_exports').select('storage_bucket,storage_path').eq('user_id', userId).not('storage_path', 'is', null),db.from('together_support_attachments').select('storage_path').eq('user_id',userId)]);
+  const sourceError = [generated, attachments, creatorAssets, templates, profile, personas, exports,supportAttachments].find((result) => result.error)?.error;
   if (sourceError) throw new AppError('INTERNAL_ERROR', 'Your private media inventory could not be completed. Nothing was deleted.', 500, true);
   const versionIds = (templates.data ?? []).flatMap((template) => Array.isArray(template.together_character_versions) ? template.together_character_versions.map((version: Record<string, unknown>) => String(version.id)) : []);
   const [references, profiles] = versionIds.length ? await Promise.all([db.from('together_media_reference_assets').select('storage_bucket,storage_path').in('character_version_id', versionIds), db.from('together_character_media_profiles').select('model_storage_bucket,model_storage_path,metadata').in('character_version_id', versionIds)]) : [{ data: [] }, { data: [] }];
@@ -387,6 +387,7 @@ async function ownedStorageManifest(db: SupabaseClient, userId: string): Promise
   const add = (bucket: unknown, path: unknown) => { if (typeof bucket === 'string' && bucket && typeof path === 'string' && path) byKey.set(`${bucket}:${path}`, { bucket, path }); };
   for (const row of generated.data ?? []) add('together-user-media', row.storage_path);
   for (const row of attachments.data ?? []) add('together-user-media', row.storage_path);
+  for(const row of supportAttachments.data??[])add('kivelli-support-attachments',row.storage_path);
   for (const row of creatorAssets.data ?? []) add('kivelle-character-reference', row.storage_path);
   add('together-user-media', profile.data?.avatar_path);
   for (const row of personas.data ?? []) add('together-user-media', record(row.appearance_config).avatarPath);

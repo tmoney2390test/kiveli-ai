@@ -1,6 +1,6 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
-import { invoke } from "./api";
+import { invoke } from "./api/transport";
 import type { SupportDiagnostics } from "./supportRecovery";
 
 export type SupportCategory =
@@ -84,6 +84,7 @@ export type SafetyReportDetail = {
   events: Array<Record<string, unknown>>;
 };
 export type OperationsDashboard = {
+  contentControls: { iosExplicitDialogue: { enabled: boolean; available: boolean; updatedAt: string | null } };
   retention?: {
     attention:boolean; unavailable?:boolean; holds?:number;
     storage?:{objects:Array<{status:string;objects:number;bytes:number}>;lastCheckedAt:string|null}|null;
@@ -244,6 +245,9 @@ export const createSupportTicket = (
     correlationId?: string;
     conversationId?: string;
     mediaId?: string;
+    messageId?: string;
+    errorCode?: string;
+    attachmentIds?: string[];
     purchaseReference?: string;
     diagnostics?: SupportDiagnostics;
   },
@@ -255,7 +259,8 @@ export const createSupportTicket = (
     "together-ops",
     { action: "create_support_ticket", ...input },
   );
-export const loadMySupportTickets = () =>
+export type SupportCursor={beforeAt:string;beforeId:string};
+export const loadMySupportTickets = (options:{filter?:'all'|'open'|'resolved';search?:string;expectedUserId?:string}&Partial<SupportCursor>={}) =>
   invoke<
     {
       tickets: Array<
@@ -268,12 +273,20 @@ export const loadMySupportTickets = () =>
           priority: string;
           created_at: string;
           updated_at: string;
+          unread:boolean;
+          last_support_reply_at:string|null;
         }
       >;
+      counts:{open:number;resolved:number;unread:number};
+      nextCursor:SupportCursor|null;
     }
-  >("together-ops", { action: "my_tickets" });
+  >("together-ops", { action: "my_tickets",...options });
 export const loadOperationsDashboard = () =>
   invoke<OperationsDashboard>("together-ops", { action: "dashboard" });
+export const updateIosExplicitDialogue = (enabled: boolean, expectedEnabled: boolean, reason: string) =>
+  invoke<{ enabled: boolean; updatedAt: string; updatedBy: string }>("together-ops", {
+    action: "update_ios_explicit_dialogue", enabled, expectedEnabled, reason,
+  });
 export const updateOperationsWorldStatus = (worldId: string, status: OperationsWorldStatus) =>
   invoke<{ world: Record<string, unknown> }>("together-ops", {
     action: "update_world_status",
@@ -282,7 +295,7 @@ export const updateOperationsWorldStatus = (worldId: string, status: OperationsW
   });
 export const loadSupportTicket = (ticketId: string) =>
   invoke<
-    { ticket: Record<string, unknown>; events: Array<Record<string, unknown>>; replies:SupportReply[]; recovery?: SupportRecoveryContext }
+    { ticket: Record<string, unknown>; events: Array<Record<string, unknown>>; replies:SupportReply[]; attachments:SupportAttachment[]; recovery?: SupportRecoveryContext }
   >("together-ops", { action: "ticket_detail", ticketId });
 export const loadSafetyReports = (status?: SafetyReport["status"]) =>
   invoke<{ reports: SafetyReport[] }>("together-ops", {
@@ -419,6 +432,9 @@ export type SupportRecoveryContext={
   purchaseReference:string|null;
 };
 export const recoverSupportTicket=(input:{ticketId:string;requestId:string;recoveryAction:'restore_chat'|'refresh_delivery'|'poll_media'|'reconcile_membership';targetId:string;confirmTarget:string;reason:string})=>invoke<{status:string;message:string}>('together-ops',{action:'recover_ticket',...input});
-export type CustomerSupportDetail={ticket:{id:string;ticket_number:number;category:SupportCategory;subject:string;message:string;status:string;created_at:string;updated_at:string};replies:SupportReply[]};
-export const loadMySupportTicket=(ticketId:string)=>invoke<CustomerSupportDetail>('together-ops',{action:'my_ticket_detail',ticketId});
-export const replyToSupportTicket=(input:{ticketId:string;message:string;requestId:string},asSupport=false)=>invoke<{replyId:string}>('together-ops',{action:asSupport?'reply_to_customer':'reply_support_ticket',...input});
+export type SupportAttachment={id:string;status:'pending'|'ready';width:number;height:number;url:string|null;replyId:string|null};
+export type CustomerSupportDetail={ticket:{id:string;ticket_number:number;category:SupportCategory;subject:string;message:string;status:string;created_at:string;updated_at:string;last_support_reply_at:string|null};replies:SupportReply[];attachments:SupportAttachment[]};
+export const loadMySupportTicket=(ticketId:string,expectedUserId?:string)=>invoke<CustomerSupportDetail>('together-ops',{action:'my_ticket_detail',ticketId,expectedUserId});
+export const replyToSupportTicket=(input:{ticketId:string;message:string;requestId:string;attachmentIds?:string[]},asSupport=false)=>invoke<{replyId:string}>('together-ops',{action:asSupport?'reply_to_customer':'reply_support_ticket',...input});
+export const markSupportRead=(ticketId:string,through:string,expectedUserId?:string)=>invoke('together-ops',{action:'support_mark_read',ticketId,through,expectedUserId});
+export const loadSupportUnread=()=>invoke<{count:number;tickets:Array<{id:string;ticket_number:number;subject:string;last_support_reply_at:string}>}>('together-ops',{action:'support_unread'});

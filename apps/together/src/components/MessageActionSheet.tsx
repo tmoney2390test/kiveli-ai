@@ -34,8 +34,9 @@ export function MessageActionSheet({
   onClose: () => void;
 }) {
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
   useEffect(() => {
-    if (!visible) setBusyKey(null);
+    if (!visible) { setBusyKey(null); setActionError(''); }
   }, [visible]);
   useEffect(() => {
     if (!visible || Platform.OS !== 'web') return;
@@ -48,13 +49,18 @@ export function MessageActionSheet({
 
   if (!visible) return null;
 
-  const run = (action: MessageActionDefinition) => {
+  const run = async (action: MessageActionDefinition) => {
     if (action.disabled || busyKey) return;
     setBusyKey(action.key);
-    let task: unknown;
-    try { task = action.onPress(); } catch { task = undefined; }
-    onClose();
-    Promise.resolve(task).catch(() => undefined).finally(() => setBusyKey(null));
+    setActionError('');
+    try {
+      await action.onPress();
+      onClose();
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : `${action.label} could not be completed. Please try again.`);
+    } finally {
+      setBusyKey(null);
+    }
   };
 
   return <Modal visible={visible} transparent statusBarTranslucent animationType="fade" onRequestClose={onClose}>
@@ -71,20 +77,21 @@ export function MessageActionSheet({
             </Pressable>
             <Text style={styles.date}>{new Date(sentAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</Text>
             <Text style={styles.sender}>{userMessage ? 'Sent by you' : `Sent by ${senderName}`}</Text>
-            <View style={styles.grid}>
+            <View style={messageActionTileStyles.grid}>
               {actions.map((action) => <Pressable
                 key={action.key}
                 accessibilityRole="button"
                 accessibilityLabel={action.label}
                 accessibilityState={{ disabled: action.disabled, selected: action.selected }}
                 disabled={action.disabled || Boolean(busyKey)}
-                onPress={() => run(action)}
-                style={({ pressed }) => [styles.action, action.selected && styles.actionSelected, action.destructive&&styles.actionDestructive, (pressed || busyKey === action.key) && styles.actionPressed, action.disabled && styles.actionDisabled]}
+                onPress={() => void run(action)}
+                style={({ pressed }) => [messageActionTileStyles.action, action.selected && (action.key === 'memory' ? styles.rememberedAction : messageActionTileStyles.actionSelected), action.destructive&&styles.actionDestructive, (pressed || busyKey === action.key) && styles.actionPressed, action.disabled && messageActionTileStyles.actionDisabled]}
               >
-                <View style={styles.actionIcon}>{busyKey === action.key ? <ActivityIndicator color={colors.rose} size="small"/> : action.icon}</View>
-                <Text numberOfLines={2} style={[styles.actionLabel, action.selected && styles.actionLabelSelected,action.destructive&&styles.actionLabelDestructive]}>{action.label}</Text>
+                <View style={messageActionTileStyles.actionIcon}>{busyKey === action.key ? <ActivityIndicator color={colors.rose} size="small"/> : action.icon}</View>
+                <Text numberOfLines={2} style={[messageActionTileStyles.actionLabel, action.selected && (action.key === 'memory' ? styles.rememberedLabel : messageActionTileStyles.actionLabelSelected),action.destructive&&styles.actionLabelDestructive]}>{action.label}</Text>
               </Pressable>)}
             </View>
+            {actionError ? <Text accessibilityRole="alert" style={styles.actionError}>{actionError}</Text> : null}
           </FrostedSurface>
           <View style={[styles.preview, userMessage ? styles.userPreview : styles.assistantPreview]}>
             <Text style={styles.previewText} numberOfLines={8}>{message}</Text>
@@ -103,18 +110,25 @@ const styles = StyleSheet.create({
   close: { position: 'absolute', right: 16, top: 14, zIndex: 2, width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
   date: { color: colors.text, fontSize: 13, fontWeight: '800', textAlign: 'center', paddingRight: 28 },
   sender: { color: colors.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 5, marginBottom: spacing.md },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  action: { width: '22%', minWidth: 70, minHeight: 92, flexGrow: 1, flexBasis: 70, borderRadius: radius.md, borderWidth: 1, borderColor: 'rgba(255,255,255,.12)', backgroundColor: 'rgba(14,12,20,.34)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, paddingVertical: 12 },
-  actionSelected: { borderColor: 'rgba(216,62,234,.58)', backgroundColor: 'rgba(116,36,128,.26)' },
   actionDestructive:{borderColor:'rgba(255,113,129,.25)',backgroundColor:'rgba(255,113,129,.055)'},
+  rememberedAction:{borderColor:'rgba(155,99,215,.58)',backgroundColor:'rgba(155,99,215,.16)'},
+  rememberedLabel:{color:'#D8B6FA'},
   actionPressed: { opacity: .72, transform: [{ scale: .98 }] },
-  actionDisabled: { opacity: .38 },
-  actionIcon: { height: 30, alignItems: 'center', justifyContent: 'center' },
-  actionLabel: { color: colors.textSecondary, fontSize: 13, lineHeight: 16, fontWeight: '700', textAlign: 'center' },
-  actionLabelSelected: { color: colors.text },
   actionLabelDestructive:{color:colors.danger},
+  actionError: { color: colors.danger, fontSize: 12, lineHeight: 17, marginTop: 12 },
   preview: { maxWidth: 450, borderRadius: radius.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderWidth: 1, borderColor: colors.border },
   assistantPreview: { alignSelf: 'flex-start', backgroundColor: 'rgba(19,17,27,.94)' },
   userPreview: { alignSelf: 'flex-end', backgroundColor: 'rgba(154,35,177,.88)' },
   previewText: { color: colors.text, fontSize: 16, lineHeight: 22 },
+});
+
+// The shortcut picker and message action sheet use the same tile geometry.
+export const messageActionTileStyles = StyleSheet.create({
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  action: { width: '22%', minWidth: 70, minHeight: 92, flexGrow: 1, flexBasis: 70, borderRadius: radius.md, borderWidth: 1, borderColor: 'rgba(255,255,255,.12)', backgroundColor: 'rgba(14,12,20,.34)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, paddingVertical: 12 },
+  actionSelected: { borderColor: 'rgba(216,62,234,.58)', backgroundColor: 'rgba(116,36,128,.26)' },
+  actionDisabled: { opacity: .38 },
+  actionIcon: { height: 30, alignItems: 'center', justifyContent: 'center' },
+  actionLabel: { color: colors.textSecondary, fontSize: 13, lineHeight: 16, fontWeight: '700', textAlign: 'center' },
+  actionLabelSelected: { color: colors.text },
 });

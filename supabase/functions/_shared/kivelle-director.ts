@@ -5,6 +5,7 @@ import { directorRequest } from './kivelle-director-request.ts';
 import { shouldUseDirector, type DirectorPolicy, type PromptInteractionQuality, type ResponseBrief } from '../../../packages/together-domain/src/index.ts';
 import { normalizeResponsesUsage } from '../../../packages/together-domain/src/ai-usage.ts';
 import { recordAiUsage, type AiUsageScope } from './kivelle-ai-usage.ts';
+import type { CharacterEmotionalReality } from '../../../packages/together-domain/src/character-emotion.ts';
 
 type DirectorContext={
   character?:Record<string,unknown>;
@@ -12,6 +13,7 @@ type DirectorContext={
   relationshipStance?:Record<string,unknown>;
   characterGoals?:Record<string,unknown>;
   currentScene?:Record<string,unknown>;
+  characterEmotion?:CharacterEmotionalReality;
   activeStory?:Record<string,unknown>|null;
   openThreads?:Array<Record<string,unknown>>;
   upcomingCommitments?:Array<Record<string,unknown>>;
@@ -108,6 +110,10 @@ ${JSON.stringify(context.characterGoals??{})}
 
 CURRENT SCENE
 ${JSON.stringify(context.currentScene??{})}
+
+CHARACTER EMOTION
+${JSON.stringify(context.characterEmotion??null)}
+This is the companion's established state, separate from the user's message. An external bad day is not a grievance against the user. Do not erase unresolved tension or demand instant forgiveness.
 
 ACTIVE STORY
 ${JSON.stringify(context.activeStory??null)}

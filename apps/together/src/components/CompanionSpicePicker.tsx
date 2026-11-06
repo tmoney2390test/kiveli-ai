@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Check, ChevronDown, Flame } from 'lucide-react-native';
 import { CreatorModal } from './CreatorPicker';
 import { colors, radius } from '../theme';
@@ -12,6 +12,7 @@ const choices: Array<{ value: CompanionSpiceFilter; label: string }> = [
 
 export function CompanionSpicePicker({ value, onChange }: { value: CompanionSpiceFilter; onChange: (value: CompanionSpiceFilter) => void }) {
   const [open, setOpen] = useState(false);
+  if (Platform.OS === 'ios') return null;
   const label = choices.find((choice) => choice.value === value)!.label;
   return <View>
     <Pressable accessibilityRole="button" accessibilityLabel={`Spiciness: ${label}`} aria-expanded={open} accessibilityState={{ expanded: open }} onPress={() => setOpen(true)} style={styles.trigger}><Flame size={16} color={colors.rose} /><Text style={styles.label}>{label}</Text><ChevronDown size={14} color={colors.muted} /></Pressable>

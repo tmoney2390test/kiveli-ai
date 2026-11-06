@@ -1,0 +1,1802 @@
+[
+  {
+    "homeId": "d7d945ba-5995-40f8-ba7e-1f27c569fce5",
+    "slug": "admiral-nyra-greymere",
+    "world": "vharadren",
+    "name": "Nyra’s harbor quarters",
+    "residenceType": "private residence",
+    "description": "Nyra sleeps in a built-in bunk under the beams of her harbor quarters. A brass compass keeps the chart flat on her table, and the storm glass has a spot on the deep stone sill. Her concertina fits neatly under the bunk.",
+    "details": [
+      "A rolled sea chart weighted with a brass compass lies on the table.",
+      "A storm glass in a wooden stand stands on the windowsill.",
+      "A small concertina case rests beside the bunk."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Check the storm glass",
+      "Play a sea shanty on the concertina"
+    ],
+    "windowOutlook": "slit window view of black volcanic cliffs and the harbor below",
+    "interiorStyle": "stone-walled cabin with dark timber beams, a low bunk with faded blue canvas, one brass lantern on a hook, a single stool, and salt-stained floorboards",
+    "draftModel": "grok-4.3",
+    "ownerName": "Admiral Nyra Greymere"
+  },
+  {
+    "homeId": "86b51f57-994f-4444-8431-d4a5f5877b8d",
+    "slug": "asha-ren",
+    "world": "vharadren",
+    "name": "Asha's private quarters",
+    "residenceType": "private residence",
+    "description": "A canvas-walled chamber stands inside a larger tent in the Ashlands camp. A low cot with a patched blanket occupies the center, and a crate serves as both seat and surface. Faint ash drifts in when the flap opens.",
+    "details": [
+      "A tied bundle of handwritten political scrolls rests on the crate.",
+      "A blunt practice sword leans against the tent pole.",
+      "A small blackened cook pot sits on a trivet near the entrance."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Read from the political scrolls",
+      "Hum an old lullaby together"
+    ],
+    "windowOutlook": "open flap view of glassed ground and distant refugee tents",
+    "interiorStyle": "canvas tent interior with earth-toned wool blankets, a low wooden crate, one oil lantern hung from the center pole, and a rolled reed mat on the packed dirt floor",
+    "draftModel": "grok-4.3",
+    "ownerName": "Asha Renn, the Cinder Saint"
+  },
+  {
+    "homeId": "eec7474e-f329-4c78-b894-88de1c118e27",
+    "slug": "bastian-crow",
+    "world": "vharadren",
+    "name": "Bastian's private quarters",
+    "residenceType": "private residence",
+    "description": "A timber room above the shipyard office on the Shattered Coast holds a sturdy bed and a work table. Half-finished hull drawings cover the surface. Rain taps steadily on the roof shingles.",
+    "details": [
+      "A half-built model ship with carved wooden ribs sits on the table.",
+      "A leather-bound book of old love poetry lies open on the bed.",
+      "A brass weather vane model and small barometer rest on a shelf."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Read from the book of poetry",
+      "Fit a new piece on the model ship"
+    ],
+    "windowOutlook": "small dormer window view of storm-battered rooftops and the gray sea",
+    "interiorStyle": "wood-paneled room with exposed beams, a wide plank table, a simple rope bed with gray wool cover, one oil lamp, and stacked crates along the wall",
+    "draftModel": "grok-4.3",
+    "ownerName": "Bastian Crow"
+  },
+  {
+    "homeId": "660eed78-912b-48e6-b9ae-47d0cfbdfcfd",
+    "slug": "brannock-forge",
+    "world": "vharadren",
+    "name": "Brannock's quarters",
+    "residenceType": "private Vharadren quarters",
+    "description": "A low-ceilinged stone room sits behind a reinforced door in the Black March barracks. A narrow bed with a thick wool mattress takes up one wall, and a scarred table holds a dented tin plate. The air smells of coal dust and cooled metal.",
+    "details": [
+      "A pair of weighted iron dice rests in a leather pouch on the table.",
+      "A whetstone and oil cloth lie beside a short fighting blade on the floor.",
+      "A heavy wool cloak hangs from a peg near the door for cold night walks."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a game with the iron dice",
+      "Sketch a new design for a dice cup"
+    ],
+    "windowOutlook": "narrow view of snow-dusted mine roads and rising furnace smoke",
+    "interiorStyle": "small rectangular room with dark stone walls, black iron bed frame, one oil lamp on a wall hook, rough plank table, and a single wooden chair with a torn cushion",
+    "draftModel": "grok-4.3",
+    "ownerName": "Brannock Forge"
+  },
+  {
+    "homeId": "b6493804-0389-4c93-b6a4-72fc8e22ee88",
+    "slug": "brigid-forge",
+    "world": "vharadren",
+    "name": "Brigid's Room",
+    "residenceType": "private Vharadren quarters",
+    "description": "Brigid keeps a narrow room off the foundry barracks in the Black March. A small chest holds spare clothes and a tankard sits on the single stool. The bed takes up most of the floor space.",
+    "details": [
+      "A dented iron tankard rests on the stool.",
+      "A coiled length of fight rope lies under the bed.",
+      "A half-empty jug of grog stands in the corner."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Practice knots with the fight rope",
+      "Split the jug of grog"
+    ],
+    "windowOutlook": "A low window looking out at the soot-stained yard and the distant mine road.",
+    "interiorStyle": "Tiny rectangular room with charcoal-stained plank walls and a single ember-orange blanket on the bed. A simple wooden chest sits at the foot of the bed and the floor shows heavy wear.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Brigid Forge"
+  },
+  {
+    "homeId": "7e9448b4-dadf-4315-b2e2-37194c6b1ac2",
+    "slug": "brina-forgehand",
+    "world": "vharadren",
+    "name": "Brina's Quarters",
+    "residenceType": "private residence",
+    "description": "Brina keeps a compact room above the foundry offices in the Black March. A sturdy table holds a few small mechanical toys and a jug of spiced cider. A bed with a thick charcoal blanket fills the remaining space.",
+    "details": [
+      "A set of small brass gears and springs lies scattered on the table.",
+      "A leather-bound book of folk ballads sits open on the bench.",
+      "A pair of worn arm-wrestling straps hangs from a peg."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Assemble the brass mechanical toy",
+      "Sing a verse from the folk ballad book"
+    ],
+    "windowOutlook": "A second-floor view across the snow-dusted rooftops toward the iron fortress walls.",
+    "interiorStyle": "Rectangular room with black iron beams and storm-blue painted shutters. Verdant green cushions cover the bench and a bone-ivory wool rug lies beside the bed.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Brina Forgehand"
+  },
+  {
+    "homeId": "739ef176-7132-4b2f-b255-95cfbcf9e4f4",
+    "slug": "brother-aldren",
+    "world": "vharadren",
+    "name": "Aldren's Quarters",
+    "residenceType": "private residence",
+    "description": "Aldren keeps a modest room behind the sanctuary in the Verdant Reach. A plain table holds a few carved wooden icons and a leather-bound book. A straw mattress rests on a low frame near the hearth.",
+    "details": [
+      "A half-finished wooden icon of a flame rests on the work table.",
+      "A small stack of road-worn prayer beads sits in a clay bowl.",
+      "A worn staff leans against the corner."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Carve details into the wooden icon",
+      "Read from the leather-bound book"
+    ],
+    "windowOutlook": "A ground-floor view of the green forest edge and a dirt path leading toward the sanctuary garden.",
+    "interiorStyle": "Small square room with pale bone-ivory plaster walls and a simple plank floor. A deep crimson wool curtain covers the single window and a low stool stands beside the table.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Brother Aldren"
+  },
+  {
+    "homeId": "1ae926df-a271-4475-9d3b-a109cb02b9ca",
+    "slug": "captain-seraphine-vale",
+    "world": "vharadren",
+    "name": "Seraphine's Quarters",
+    "residenceType": "private residence",
+    "description": "Seraphine keeps a single room above a warehouse loft in the Shattered Coast. A broad table holds rolled maps and a few pieces of jewelry scattered across the surface. A narrow bed sits against the far wall beneath a rack of practice swords.",
+    "details": [
+      "A rolled navigation chart shows faded ink routes along the coast.",
+      "A small concertina rests on a stool near the window.",
+      "A silver pendant with a broken seal lies beside a stack of coins."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Trace a route on the navigation chart",
+      "Hum a shanty on the concertina"
+    ],
+    "windowOutlook": "A narrow view of the storm-lashed harbor piers and anchored ships below.",
+    "interiorStyle": "Low-ceilinged loft with dark oak beams, charcoal walls, and a single storm-blue wool blanket on the bed. Worn leather trunks line one wall and a tarnished brass lantern hangs from a hook.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Captain Seraphine Vale"
+  },
+  {
+    "homeId": "398f4696-2f80-4c19-b303-3e34e3413ed3",
+    "slug": "captain-vex-salt",
+    "world": "vharadren",
+    "name": "Vex Salt's Private Room",
+    "residenceType": "private Vharadren quarters",
+    "description": "A small room with thick walls and one high window sits above the docks. A narrow bed, a sturdy chair, and a shelf of rolled charts fill most of the space. Salt crystals edge the sill from wind-blown spray.",
+    "details": [
+      "A half-empty clay jug of dark wine stands on the floor beside the chair.",
+      "A rolled chart weighted at the corners with smooth gray stones lies open on the table.",
+      "A shallow wooden dish holds coarse white salt next to a small knife for portioning."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Compare two sections of the old chart",
+      "Taste and discuss the wine"
+    ],
+    "windowOutlook": "Gray waves breaking against ruined stone piers with a line of wrecked hulls visible at low tide.",
+    "interiorStyle": "Rectangular room with smoke-stained plaster walls, a single shuttered window, a rope-strung bed with a gray wool blanket, a rough plank table, and one straight-backed chair with worn leather seat.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Captain Vex Salt"
+  },
+  {
+    "homeId": "72fe0a31-d797-4d81-a8a3-d70a1801b5d2",
+    "slug": "catrin-brann",
+    "world": "vharadren",
+    "name": "Catrin Brann's Private Quarters",
+    "residenceType": "private residence",
+    "description": "A narrow upper room in the Red Reeds house contains Catrin's bed and personal items. A fiddle case leans against the wall near a low stool. The air carries a faint trace of woodsmoke and leather.",
+    "details": [
+      "A well-used fiddle rests on the stool with a bow laid across its strings.",
+      "A small iron pot and spoon sit on a brick beside the hearth with a bag of dried herbs nearby.",
+      "A folded sheet of paper covered in handwritten verses lies under the bed frame."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a tune on the fiddle",
+      "Cook a simple camp dish over the brick hearth"
+    ],
+    "windowOutlook": "Snow-covered roofs of the military camp with smoke rising from cook fires and iron fences beyond.",
+    "interiorStyle": "Small timber-framed room with whitewashed plank walls, a low slanted ceiling, a straw-filled bed with a brown wool cover, a single stool, and a corner hearth of stacked bricks.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Catrin Brann"
+  },
+  {
+    "homeId": "0607059c-9a2c-43ff-a100-5d0253699166",
+    "slug": "celessa-vane",
+    "world": "vharadren",
+    "name": "Celessa's Private Quarters",
+    "residenceType": "private residence",
+    "description": "A compact stone-walled room above the salt fleet docks holds Celessa's living space. Dark crimson hangings cover one wall while a low table holds her blending supplies. The floor shows scuff marks from repeated footwork.",
+    "details": [
+      "A row of small glass vials with stoppers sits on the low table, each holding a different colored liquid.",
+      "A short throwing knife rests point-first in a scarred wooden block mounted on the far wall.",
+      "A stack of folded parchment sheets covered in handwritten script lies beside a quill and ink pot."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Blend two perfume samples",
+      "Guess a fragrance with your eyes closed"
+    ],
+    "windowOutlook": "Black volcanic cliffs dropping into dark water with distant ship masts visible through the narrow opening.",
+    "interiorStyle": "Low-ceilinged room with rough black stone walls, a single narrow bed covered by a deep crimson wool blanket, a battered oak table with two stools, and iron wall hooks holding folded cloth.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Celessa Vane"
+  },
+  {
+    "homeId": "e532a9d9-88fc-422d-93ed-a119a18959ac",
+    "slug": "celia-thatch",
+    "world": "vharadren",
+    "name": "Celia’s the Thatch Family Garret",
+    "residenceType": "family residence and bakery garret",
+    "description": "A low-ceilinged room above the bake oven holds two narrow beds and a table. Flour dust covers the floorboards near the hatch. An empty wooden peg remains fixed beside the door.",
+    "details": [
+      "A thick ledger book with ink-stained pages sits open on the table beside a charcoal stick.",
+      "A wooden cooling rack holds several round loaves wrapped in cloth.",
+      "A clay pot with a small rosemary plant stands on the windowsill."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Turn the ledger figures into a number puzzle",
+      "Trade verses of an old marching song"
+    ],
+    "windowOutlook": "Steep stone steps leading upward between tall buildings with market stalls visible far below.",
+    "interiorStyle": "Cramped garret with exposed beams, smoke-darkened pine boards, two rope beds with patched quilts, a small square table, and a ladder hatch in the floor.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Celia Thatch"
+  },
+  {
+    "homeId": "180e0d06-7463-4f45-813b-d1f457e5e614",
+    "slug": "cinder-marrow",
+    "world": "vharadren",
+    "name": "Cinder's Private Room",
+    "residenceType": "private Vharadren quarters",
+    "description": "Cinder keeps a compact room in the Ashlands near the infirmary. A low table holds a kettle and a few cups. The space stays plain and functional for rest between shifts.",
+    "details": [
+      "A dented iron kettle sits on a small brazier for making tea after long nights.",
+      "A wooden box holds dried herbs and bandages she uses to restock her kit.",
+      "A battered songbook with handwritten notes lies on the chest beside the bed."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Brew a pot of tea together",
+      "Sing an old song from the book"
+    ],
+    "windowOutlook": "Ash drifts past a narrow slit window that looks out over refugee tents and broken glass fields.",
+    "interiorStyle": "A single small room with stone walls, a narrow bed against one side, a low wooden table in the center, a plain chest at the foot of the bed, and a single brazier for light and heat.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Cinder Marrow"
+  },
+  {
+    "homeId": "a16c4e7f-38e5-4ff6-bb9b-27253e5d096a",
+    "slug": "dame-ysabet-rooke",
+    "world": "vharadren",
+    "name": "Ysabet's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Ysabet keeps a private room in the Crownspire barracks. A practice sword rack stands near the door and a saddle rests on a stand. The bed is made with military precision.",
+    "details": [
+      "A practice sword and whetstone sit on a rack beside the door.",
+      "A leather saddle with brass fittings rests on a wooden stand.",
+      "A small tin holds street food wrappers from the market below."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Sketch a design for a saddle guard",
+      "Trace a favorite riding trail from memory"
+    ],
+    "windowOutlook": "The window looks down on the execution square and the lower city streets.",
+    "interiorStyle": "A narrow room with stone walls, a single bed against the back wall, a sword rack by the door, a saddle stand in one corner, and a small table with a stool.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Dame Ysabet Rooke"
+  },
+  {
+    "homeId": "385cc761-272d-464c-b9c4-ad96f22e1c34",
+    "slug": "delphine-lantern",
+    "world": "vharadren",
+    "name": "Delphine's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Delphine keeps private quarters above the Lantern Rooms on the Shattered Coast. The main space holds a sturdy table for maps and a sideboard for simple cooking. A chess set sits ready on a low bench.",
+    "details": [
+      "A rolled map of coastal routes lies on the table with pins marking safe passages.",
+      "A small shelf holds glass bottles of perfume and oils she mixes herself.",
+      "A wooden chessboard with carved pieces stands on a bench near the hearth."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Study the coastal map together",
+      "Play a game of chess"
+    ],
+    "windowOutlook": "The window overlooks the harbor docks and storm-battered shipyards below the cliff.",
+    "interiorStyle": "A medium-sized room with dark wood paneling, a central table covered in cloth, a sideboard against one wall, a bench with the chess set, and a small hearth in the corner.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Delphine Lantern"
+  },
+  {
+    "homeId": "d71552f5-0cac-4bb1-be32-98226e973459",
+    "slug": "duchess-aveline-edevane",
+    "world": "vharadren",
+    "name": "Aveline's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Aveline keeps private quarters in Hartwood Hall. A broad table holds seed samples and soil charts. A small oven sits ready for bread making near the hearth.",
+    "details": [
+      "A wooden tray holds small jars of seeds and dried roots from the fields.",
+      "A worn book on root magic lies open on a side table.",
+      "A simple oven and mixing bowl stand beside the hearth for baking."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Plan a kitchen garden from the seed samples",
+      "Knead a loaf of bread together"
+    ],
+    "windowOutlook": "The window looks over the green fields and forest edge of the Verdant Reach.",
+    "interiorStyle": "A spacious room with timber beams, a large central table for work, a hearth with a small oven, a side table for books, and woven rugs on the floor.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Duchess Aveline Edevane"
+  },
+  {
+    "homeId": "3991e1f6-d583-4103-8dfd-61c947814aff",
+    "slug": "duchess-mirelle-greymere",
+    "world": "vharadren",
+    "name": "Mirelle's Private Quarters",
+    "residenceType": "private residence",
+    "description": "The quarters sit on the second floor of a half-flooded wing in the drowned crown palace. A heavy oak door opens into a single main room with a low table and two chairs. Tide charts and folded maps cover the surface while a narrow bed stands against the far wall.",
+    "details": [
+      "A brass astrolabe rests on the table beside a stack of rolled charts.",
+      "A lacquered mask with crimson ribbons hangs from a hook near the door.",
+      "A small cedar chest holds pamphlets printed with sharp political verses."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Trace routes on the sea chart",
+      "Read from the satirical pamphlets"
+    ],
+    "windowOutlook": "Waves break against the lower walls of the palace, with broken towers visible across the inlet.",
+    "interiorStyle": "Black iron beams support a vaulted ceiling above dark wood paneling. Crimson wool hangings cover two walls, and a single oil lamp hangs over the central table.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Duchess Mirelle Greymere"
+  },
+  {
+    "homeId": "7087f939-52c6-441b-8818-b17780103f66",
+    "slug": "freya-hart",
+    "world": "vharadren",
+    "name": "Freya's Private Quarters",
+    "residenceType": "private residence",
+    "description": "The room is a timber-walled chamber inside the green hart lodge. A low bed and a storage chest take up one side. A bow rack and quiver stand near the door.",
+    "details": [
+      "A well-oiled longbow leans against the wall beside a quiver of fletched arrows.",
+      "A leather flask of strong cider rests on the chest lid.",
+      "A small whetstone and oil cloth lie next to a pair of worn boots."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Compare two styles of arrow fletching",
+      "Plan a woodland walk for a clear morning"
+    ],
+    "windowOutlook": "Trees press close to the window, their branches moving against the sky above the forest path.",
+    "interiorStyle": "Dark-stained pine boards form the walls and floor. A low bed with a green wool blanket faces a simple chest, with a single iron hook holding a cloak.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Freya Hart"
+  },
+  {
+    "homeId": "68502461-5afc-4851-b5a5-ac65d91b02a1",
+    "slug": "garrick-holt",
+    "world": "vharadren",
+    "name": "Garrick's Private Quarters",
+    "residenceType": "private residence",
+    "description": "The quarters are a single ground-floor room behind the lantern gallows. A narrow cot and a scarred worktable stand against opposite walls. Tools and small wooden blocks occupy the table surface.",
+    "details": [
+      "A half-finished wooden figure of a bird rests on the worktable.",
+      "A row of paper lanterns hangs from a cord along the ceiling beam.",
+      "A small kettle and tin of dried leaves sit on a corner shelf."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Carve a small detail on the wooden figure",
+      "Light one of the paper lanterns"
+    ],
+    "windowOutlook": "The view shows the alley behind the gallows and the stone arch of an old bone tunnel entrance.",
+    "interiorStyle": "Rough plank walls are stained dark from smoke. A low cot with a brown blanket faces a heavy worktable lit by a single tallow candle.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Garrick Holt"
+  },
+  {
+    "homeId": "5c91c734-016c-45f0-91b1-dcfac1b4c2af",
+    "slug": "high-flame-elowen-orison",
+    "world": "vharadren",
+    "name": "Elowen's Private Quarters",
+    "residenceType": "private residence",
+    "description": "The room occupies a narrow tower cell above the basilica library. A simple bed and writing desk fill most of the space. Shelves along one wall hold bound volumes and small clay vessels.",
+    "details": [
+      "A set of copper bells of varying sizes sits on the desk.",
+      "A worn leather-bound book of sacred script lies open on a stand.",
+      "A clay jar of dried herbs rests beside a tin cup."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Ring the small bells in sequence",
+      "Compare passages in the sacred book"
+    ],
+    "windowOutlook": "The window looks down on the stepped market terraces and the distant execution square.",
+    "interiorStyle": "Stone walls are whitewashed to shoulder height. A single narrow bed with a gray wool blanket sits beneath a small desk of dark oak, lit by a wall sconce.",
+    "draftModel": "grok-4.3",
+    "ownerName": "High Flame Elowen Orison"
+  },
+  {
+    "homeId": "424ef52f-bf48-4c2d-88e4-9f4b114ebd36",
+    "slug": "idris-salt",
+    "world": "vharadren",
+    "name": "Idris's Tide Room",
+    "residenceType": "private residence",
+    "description": "Idris keeps a narrow room above the shipyards where the tide can be heard against the pilings. The space is kept orderly because he returns at odd hours. A single shelf holds the few things he actually uses.",
+    "details": [
+      "A tide table notebook with handwritten corrections lies open on the table.",
+      "A half-finished wood carving of a small boat rests beside a sharp knife.",
+      "A set of oiled leather rowing gloves hangs from a peg near the door."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Update the tide table entries together",
+      "Work on the wood carving with the knife"
+    ],
+    "windowOutlook": "Rain-slicked docks and the dark outline of a prison barge at anchor",
+    "interiorStyle": "Salt-stained plank walls, a narrow bunk with faded red canvas, a single oil lamp, and a small bench holding carving tools and a stack of legal parchments.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Idris Salt"
+  },
+  {
+    "homeId": "2012d5c1-68d7-491c-9c12-af6c2cde75e3",
+    "slug": "ilyra-ashscale",
+    "world": "vharadren",
+    "name": "Ilyra's Cliffside Room",
+    "residenceType": "private residence",
+    "description": "Ilyra keeps a compact room built into black volcanic rock above the caldera. A narrow window looks out over steam vents and distant dragon towers. The space holds only what she uses after long shifts at the hatchery.",
+    "details": [
+      "A stack of charcoal sketches showing dragon wing joints lies on a low table.",
+      "A coil of thick rope with iron hooks rests beside the door for cliff descents.",
+      "A clay bowl of dried spiced fruit sits on a shelf next to a small bone flute."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Compare new wing sketches by the window",
+      "Tune the bone flute and listen to quiet music"
+    ],
+    "windowOutlook": "Steam rising from black cliffs with a single dragon tower on the horizon",
+    "interiorStyle": "Rough stone walls blackened by ash, a low wooden cot with a coarse wool blanket in storm blue, a single iron brazier for light, and a scarred work table holding drawing tools.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Ilyra Ashscale"
+  },
+  {
+    "homeId": "f425ef9e-4918-4d89-8a51-74d9567d64d0",
+    "slug": "inquisitor-pellan",
+    "world": "vharadren",
+    "name": "Pellan's Ember Room",
+    "residenceType": "private Vharadren quarters",
+    "description": "Pellan keeps a modest room inside the basilica's outer ring where the stone still holds warmth from the fires below. The space contains only what he needs between duties. A single cloak hook and a low bench are the main furnishings.",
+    "details": [
+      "A small flask of dark wine rests on the bench near a tin cup.",
+      "A worn book of liturgy with a red ribbon marker lies beside the flask.",
+      "A charred fragment of old wood from a long-dead fire sits on a shelf."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Read a passage from the liturgy book aloud",
+      "Examine the charred wood fragment and discuss its origin"
+    ],
+    "windowOutlook": "Volcanic steam drifting past the basilica's outer buttresses",
+    "interiorStyle": "Thick stone walls with visible scorch marks, a single narrow cot with a charcoal-gray blanket, a low iron brazier, and a simple bench holding the wine flask and book.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Inquisitor Pellan"
+  },
+  {
+    "homeId": "d86a2a9d-fdd6-413d-8c7a-98479b9757ed",
+    "slug": "ione-glass",
+    "world": "vharadren",
+    "name": "Ione's Glass Room",
+    "residenceType": "private Vharadren quarters",
+    "description": "Ione keeps a small room behind the arena's outer wall where the glassed ground still shows faint cracks. The space is used only for sleep and the occasional late meal. Everything inside is practical and easy to leave behind.",
+    "details": [
+      "A set of colored glass beads in a shallow dish catches the lamplight.",
+      "A half-empty bottle of local wine stands on the floor beside the bed.",
+      "A pair of worn boots with sand still in the soles sits by the threshold."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Make a pattern with the glass beads",
+      "Play a guessing game over a cup of wine"
+    ],
+    "windowOutlook": "Flat expanse of cracked glass stretching toward low refugee tents",
+    "interiorStyle": "Plain mud-brick walls with one small shuttered window, a straw mattress on a rope frame, a single clay lamp, and a wooden stool holding a folded blanket and the bead dish.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Ione Glass"
+  },
+  {
+    "homeId": "1041b7f1-c9a4-4bc7-adac-1c2388f9115d",
+    "slug": "joren-ash",
+    "world": "vharadren",
+    "name": "Joren's Ashlands Quarters",
+    "residenceType": "private residence",
+    "description": "Joren keeps a single room inside a half-standing waystation wall. A low table holds rolled maps and a small cooking pot. The floor is packed earth with a thin straw pallet against one side.",
+    "details": [
+      "A leather map case with frayed straps rests beside the table.",
+      "A wooden dice cup sits on a flat stone near the pallet.",
+      "A soot-blackened kettle hangs from an iron hook over a small fire ring."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Trace a route across the maps",
+      "Play a round of dice"
+    ],
+    "windowOutlook": "A cracked opening looks out over stretches of fused glass and distant ash plumes.",
+    "interiorStyle": "A narrow rectangular space with stone walls blackened at the base, a single shuttered window, and a low plank table on uneven legs.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Joren Ash"
+  },
+  {
+    "homeId": "81f52e6a-6220-46db-a901-fed80da27679",
+    "slug": "kael-dravos",
+    "world": "vharadren",
+    "name": "Kael's Ember Isles Quarters",
+    "residenceType": "private residence",
+    "description": "Kael keeps a low-ceilinged room above the docks. A wide table holds charts and a bottle of rum. A hammock is strung between two wall posts.",
+    "details": [
+      "A brass-bound sea chest sits under the table.",
+      "A set of throwing knives in a leather roll lies on the table.",
+      "A stained map of the isles is pinned to one wall."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Study the sea charts",
+      "Practice knife throws at a target block"
+    ],
+    "windowOutlook": "A square window frames black cliffs and the smoking cone of a nearby volcano.",
+    "interiorStyle": "Rectangular room with rough plank walls, a low table of driftwood, and a hammock of heavy canvas.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Kael Dravos"
+  },
+  {
+    "homeId": "3eb8b247-016d-424f-8694-1ee9ab31888c",
+    "slug": "kaelen-thorn",
+    "world": "vharadren",
+    "name": "Kaelen's Black March Room",
+    "residenceType": "private Vharadren quarters",
+    "description": "Kaelen keeps a compact room off a barracks corridor. A narrow bed stands against the inner wall. A small chest and a plain wooden chair occupy the remaining space.",
+    "details": [
+      "A stack of folded letters tied with cord lies on the chest lid.",
+      "A whetstone and short blade rest on a folded cloth beside the chair.",
+      "A clay jug of wine stands on the floor near the bed."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Read an old letter aloud",
+      "Sharpen the blade together"
+    ],
+    "windowOutlook": "A high slit window shows falling snow across iron rooftops and a distant watchtower.",
+    "interiorStyle": "Small square chamber with dark plank walls, a single iron sconce, and a low bed covered by a coarse gray blanket.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Kaelen Thorn"
+  },
+  {
+    "homeId": "518081fe-33c7-45a3-8680-7ec4688971e8",
+    "slug": "king-edric-thornwall",
+    "world": "vharadren",
+    "name": "Edric's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Edric keeps a modest set of rooms behind the keep's main hall. A broad table holds campaign maps and a carved chess set. A simple cot and a heavy chair sit near the hearth.",
+    "details": [
+      "A leather tube of rolled maps leans against the table leg.",
+      "A carved wooden chessboard with worn pieces rests on the table.",
+      "A battered iron kettle sits on the hearth stones."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Study the campaign maps",
+      "Play a game of chess"
+    ],
+    "windowOutlook": "A tall narrow window overlooks the snow-covered parade ground and the outer fortress wall.",
+    "interiorStyle": "Rectangular room with thick stone walls, a central table of dark oak, and a small hearth with a single iron grate.",
+    "draftModel": "grok-4.3",
+    "ownerName": "King Edric Thornwall"
+  },
+  {
+    "homeId": "34c7e54c-b945-4ba0-b6b3-56771d02e56d",
+    "slug": "lady-isolde-morcant",
+    "world": "vharadren",
+    "name": "Lady Isolde Morcant's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Lady Isolde Morcant keeps a private residence in Crownspire. The room contains a writing desk covered in ledgers, a narrow wardrobe, and a low bench. Shelves hold rows of sealed ink jars and bound scrolls.",
+    "details": [
+      "A lacquered box of rare colored inks sits on the desk with a brass seal stamp.",
+      "A stack of genealogical charts tied with red ribbon rests against the wall.",
+      "A set of small brass weights for contract puzzles is arranged on a felt mat."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Guess the weight of two contract seals",
+      "Trace a family rivalry on the charts"
+    ],
+    "windowOutlook": "A tall slit window looks across the stepped rooftops toward the central dragonbone spire.",
+    "interiorStyle": "A compact stone-walled chamber with deep crimson hangings, a black iron bed frame, a polished desk of dark wood, and shelves lined with wax-sealed scrolls.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Lady Isolde Morcant"
+  },
+  {
+    "homeId": "7d0cf542-5f64-49fc-9d1a-ebb5bf93b170",
+    "slug": "lady-rowena-thornwall",
+    "world": "vharadren",
+    "name": "Lady Rowena Thornwall's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Lady Rowena Thornwall keeps a private residence in the Black March. The room holds a sturdy bed, a map table, and a perch for messenger ravens. A rack of rolled road charts leans against the wall.",
+    "details": [
+      "A leather tube of road engineering plans lies on the map table with charcoal sticks.",
+      "A stack of military memoirs bound in oilcloth sits on a low shelf.",
+      "A small iron kettle for woodsmoke tea rests on the hearth with a tin of dried leaves."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Trace a supply route on the road charts",
+      "Brew and taste woodsmoke tea from the kettle"
+    ],
+    "windowOutlook": "A square window looks out over the snow-covered mine road and iron fence line.",
+    "interiorStyle": "A rectangular chamber with soot-darkened stone walls, a heavy oak bed with a gray wool cover, a scarred map table, and an iron brazier in the corner.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Lady Rowena Thornwall"
+  },
+  {
+    "homeId": "42d298c0-fcda-41dd-9116-7a872557c13f",
+    "slug": "liora-saintless",
+    "world": "vharadren",
+    "name": "Liora Saintless's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Liora Saintless keeps a private residence in the Ashlands. The room features a wide bed with layered blankets, a small table for wine cups, and a chest of folded linens. A rack holds carved ritual tools and a ledger of names.",
+    "details": [
+      "A set of carved wooden ritual masks hangs on pegs above the chest.",
+      "A clay jug of local wine and two plain cups sit on the low table.",
+      "A bound book of chosen names with fresh ink entries rests beside a quill."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Try a new wine from the jug",
+      "Examine a ritual mask and discuss its design"
+    ],
+    "windowOutlook": "A small shuttered window faces the ash-streaked yard and distant refugee tents.",
+    "interiorStyle": "A square room with smoke-stained plaster walls, a low pine bed covered in patched wool, a rough plank table, and iron hooks holding cloth bundles.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Liora Saintless"
+  },
+  {
+    "homeId": "096b0280-5511-4e4f-86e4-d18011fd8edf",
+    "slug": "lord-cassian-greymere",
+    "world": "vharadren",
+    "name": "Lord Cassian Greymere's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Lord Cassian Greymere keeps a private residence in the Shattered Coast. The main room holds a narrow bed, a writing table, and a stand for practice blades. Stacks of rolled treaties sit beside a chest of antique coins.",
+    "details": [
+      "A polished fencing blade rests on wall hooks beside a whetstone.",
+      "A leather-bound book of opera scores lies open on the table with a quill nearby.",
+      "A small wooden tray holds rows of stamped antique coins sorted by reign."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Review a fencing sequence with the practice blade",
+      "Compare two antique coins under the lamp"
+    ],
+    "windowOutlook": "A narrow window overlooks the storm-battered harbor and broken stone piers below.",
+    "interiorStyle": "A single low-ceilinged room with dark timber walls, a charcoal-gray wool blanket on the bed, iron lantern hooks, and a scarred oak table holding parchment and ink.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Lord Cassian Greymere"
+  },
+  {
+    "homeId": "e168eb5b-18aa-4ae9-b9cb-1d5e8cb03ec4",
+    "slug": "lord-halric-thornwall",
+    "world": "vharadren",
+    "name": "Lord Halric Thornwall's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Halric maintains a private chamber inside Wolfgate Barracks. A polished table holds a leather-bound book and a falconry glove. A narrow bed stands against the stone wall.",
+    "details": [
+      "A worn volume of northern war poetry rests open on the table beside a quill.",
+      "A thick leather falconry glove with talon marks lies folded next to the book.",
+      "A short dueling blade in a plain scabbard hangs from a wall hook."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Read a passage from the war poetry book",
+      "Examine the falconry glove and discuss its use"
+    ],
+    "windowOutlook": "A high narrow window shows the snow-dusted parade ground and distant iron palisade.",
+    "interiorStyle": "Dark stone walls rise to a vaulted timber ceiling. A small iron brazier glows near the table. The floor is covered by a single dark crimson rug showing heavy boot wear.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Lord Halric Thornwall"
+  },
+  {
+    "homeId": "633649b6-68dd-4f36-ac50-57147e07b367",
+    "slug": "lord-rowan-edevane",
+    "world": "vharadren",
+    "name": "Lord Rowan Edevane's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Rowan's quarters sit within a timber longhouse at the forest edge. A wide worktable displays rolled maps and carving tools. A simple bed frame occupies the far corner.",
+    "details": [
+      "Several detailed maps of border trails are spread across the table, corners held by smooth stones.",
+      "A half-carved wooden staff leans against the bench, its surface marked with fresh cuts.",
+      "A set of iron forestry shears hangs on a wall peg beside coiled rope."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Trace routes on the border maps",
+      "Work on the carved staff with the tools"
+    ],
+    "windowOutlook": "Two small windows face a clearing where tall pines meet the hall's outer wall.",
+    "interiorStyle": "Heavy oak beams support a thatched roof over packed dirt floors. A central stone hearth casts light across the worktable. Thick wool hangings in storm blue and bone ivory cover the walls.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Lord Rowan Edevane"
+  },
+  {
+    "homeId": "05a3055c-bea9-4ca4-9bd0-a10a7b47fc8a",
+    "slug": "lysandra-veyl",
+    "world": "vharadren",
+    "name": "Lysandra Veyl's Private Room",
+    "residenceType": "private Vharadren quarters",
+    "description": "Lysandra keeps a compact room on an upper tier of Crownspire. A narrow bed sits against one wall beside a sturdy oak chest. A small table holds a clay jug and two cups near the hearth.",
+    "details": [
+      "A dented silver flask rests on the table, its surface scratched from frequent handling.",
+      "Folded lengths of deep red silk lie across the chest lid, edges frayed from wear.",
+      "A small wooden box lined with velvet holds several old rings and a broken chain."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Pour wine from the silver flask",
+      "Examine the old rings from the box"
+    ],
+    "windowOutlook": "A narrow slit overlooks the stepped roofs and torchlit streets two tiers below.",
+    "interiorStyle": "Rough stone walls blackened by soot frame a low timber ceiling. The floor is packed earth covered by a single woven rush mat. A plain iron brazier provides the main light beside the bed.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Lysandra Veyl"
+  },
+  {
+    "homeId": "3ef53b4e-d7ab-4929-b45b-eb56201d1035",
+    "slug": "lyssa-bramble",
+    "world": "vharadren",
+    "name": "Lyssa Bramble's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Lyssa's quarters occupy a single room above a root cellar in the Verdant Reach. A low table holds a battered lute and several clay stoppered jars. A narrow cot stands near the back wall.",
+    "details": [
+      "A half-finished sheet of parchment with inked verses lies weighted by a river stone on the table.",
+      "A row of small stoppered jars holds dark liquid samples from recent batches.",
+      "A leather travel satchel hangs from a peg, its straps mended with coarse thread."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Test a new verse on the lute together",
+      "Sample two jars from the latest brew"
+    ],
+    "windowOutlook": "A single shuttered opening looks onto a narrow lane bordered by dense green undergrowth.",
+    "interiorStyle": "Thick plank walls show axe marks and old smoke stains. A central fire pit with a hanging kettle dominates the space. Worn wool blankets cover the cot and a low bench holds extra jars.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Lyssa Bramble"
+  },
+  {
+    "homeId": "1b26489c-50c6-49e5-8c0b-7cf280c4e3c8",
+    "slug": "maera-thorn",
+    "world": "vharadren",
+    "name": "Maera's Private Room",
+    "residenceType": "private Vharadren quarters",
+    "description": "A small stone-walled room sits above a side corridor in Thornwall Keep. A narrow bed stands against one wall with a wool blanket folded at the foot. A table holds a stack of folded letters and a whetstone beside a short blade.",
+    "details": [
+      "A rolled map of the northern passes lies weighted by a brass ink pot on the table.",
+      "A dark bottle of local wine rests on a shelf next to two plain cups.",
+      "A leather sheath and spare dagger sit on a low stool near the door."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Plan a journey on the old map",
+      "Find a safer crossing for the same route"
+    ],
+    "windowOutlook": "Narrow slit overlooking the snow-dusted training yard and distant mine road.",
+    "interiorStyle": "Rough gray stone walls with a single iron brazier casting dim light, a low wooden table, one straight chair, and a chest at the bed's end covered by a charcoal wool throw.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Maera Thorn"
+  },
+  {
+    "homeId": "bf0b479b-7513-489d-8c4b-4bbfb4309764",
+    "slug": "maeve-redreed",
+    "world": "vharadren",
+    "name": "Maeve's Private Quarters",
+    "residenceType": "private residence",
+    "description": "A modest upper room in House Red Reeds sits behind a locked door. A wide bed with a deep red coverlet takes most of the space, and a small table holds a fiddle case and a stack of folded papers. A basin and pitcher stand on a side shelf.",
+    "details": [
+      "A well-used fiddle rests in its case on the table beside a bow.",
+      "A small wooden box contains dried herbs and a mortar.",
+      "A pair of leather gloves for sparring hangs from a wall hook."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a tune on the fiddle",
+      "Mix a batch of herbal salve"
+    ],
+    "windowOutlook": "Single window looking over the barracks roof and the wind-cut road below.",
+    "interiorStyle": "Warm red and charcoal fabrics on a sturdy bed frame, dark wood paneling, a low table with two stools, and a woven rug covering the plank floor.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Maeve Redreed"
+  },
+  {
+    "homeId": "385962fa-47fd-4946-8485-c5609c906842",
+    "slug": "malrec-vale",
+    "world": "vharadren",
+    "name": "Malrec's Private Quarters",
+    "residenceType": "private residence",
+    "description": "A compact timber-and-stone room stands at the edge of Cinder Camp. A narrow cot occupies one corner while a plank table holds parchment sheets and a small wooden chess set. A single high window lets in gray daylight.",
+    "details": [
+      "A set of charcoal sticks and a stack of blank ledgers rest on the table.",
+      "A wooden chessboard with worn pieces sits ready for play.",
+      "A clay jug of plain wine stands beside two mismatched cups."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a game of chess",
+      "Try a chess problem with just five pieces"
+    ],
+    "windowOutlook": "Small opening facing the ash-streaked camp yard and distant glassed ridge.",
+    "interiorStyle": "Dark-stained plank walls, a low cot with a faded gray blanket, a rough table with two stools, and a wall peg holding a spare cloak.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Malrec Vale"
+  },
+  {
+    "homeId": "f899bc5d-cd90-49e8-a2ca-85082421785a",
+    "slug": "mara-sable",
+    "world": "vharadren",
+    "name": "Mara's Private Quarters",
+    "residenceType": "private residence",
+    "description": "A stone room built into the side of a black cliff on the Ember Isles holds a narrow bed and a work table. A clay pot of soil with young plants sits near the window, and a set of bound medical notes rests beside a brass coffee pot.",
+    "details": [
+      "A set of wrapped bandages and a small jar of salve sit on the table.",
+      "A wooden practice staff leans against the wall next to a pair of gloves.",
+      "A clay coffee pot and two cups rest on a low shelf."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Pot a cutting from the windowsill plants",
+      "Make a drawing of the new leaves"
+    ],
+    "windowOutlook": "Thick window facing the volcanic harbor and salt fleet masts below.",
+    "interiorStyle": "Dark volcanic stone walls, a low cot with a storm-blue blanket, a heavy plank table with one bench, and a wall rack holding a few tools and a cloak.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Mara Sable"
+  },
+  {
+    "homeId": "ded804e7-75f7-4a9a-a7a6-13c8fe16f755",
+    "slug": "nerys-rowanleaf",
+    "world": "vharadren",
+    "name": "Nerys’s rowanleaf Quarters",
+    "residenceType": "private residence",
+    "description": "Nerys rents a small upper room in a timber house in the Verdant Reach. A writing desk under the window holds her current papers. A narrow bed and a chest fill the remaining space.",
+    "details": [
+      "A leather folder of pressed flowers lies open on the desk.",
+      "A stack of hand-drawn maps of lost villages sits in the chest.",
+      "A small wooden flute rests on the windowsill."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Match pressed flowers to their written notes",
+      "Play a short tune on the flute together"
+    ],
+    "windowOutlook": "Tree branches brushing the glass and a glimpse of the archive roof below.",
+    "interiorStyle": "Dark-stained timber walls, a faded blue curtain over the bed, a braided rush rug, and a single oil lamp on the desk.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Nerys Rowanleaf"
+  },
+  {
+    "homeId": "50138f3e-927e-4111-84e2-ff5ddab8d60f",
+    "slug": "nessa-honeybell-marrow",
+    "world": "vharadren",
+    "name": "Nessa’s honeybell Room",
+    "residenceType": "private residence",
+    "description": "Nessa’s quarters sit on an upper floor of the pleasure house in Crownspire. A narrow bed with silk covers fills one corner. A low table and a standing mirror occupy the opposite wall.",
+    "details": [
+      "Small glass vials of mixed perfumes line a wooden tray on the table.",
+      "A length of crimson oath ribbon hangs from a wall peg.",
+      "A shallow basin of scented water rests on a low stool."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Mix two new perfume blends",
+      "Practice ribbon knots on the table"
+    ],
+    "windowOutlook": "A narrow view down the stone steps toward the lower city terraces.",
+    "interiorStyle": "Plaster walls painted deep wine red, a worn patterned rug, brass fittings on the table, and a single tall candle holder.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Nessa “Honeybell” Marrow"
+  },
+  {
+    "homeId": "319ec6a5-d5da-4437-82ab-6d82c6946c51",
+    "slug": "nia-chainbreaker",
+    "world": "vharadren",
+    "name": "Nia’s chainbreaker Quarters",
+    "residenceType": "private residence",
+    "description": "Nia keeps a single room above the market stalls in the Ashlands. A wide workbench takes the best light near the door. The rest of the space holds a low bed, a trunk, and a bench for visitors.",
+    "details": [
+      "A heavy iron hammer with a wrapped grip rests on the workbench.",
+      "A rolled leather mat marked with chalk lines leans against the wall.",
+      "A stack of iron identity rings sits in a wooden bowl on the bench."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Design a keepsake from a spare iron ring",
+      "Try a balance game on the practice mat"
+    ],
+    "windowOutlook": "Ash-covered roofs and distant glassed fields visible through a narrow shuttered opening.",
+    "interiorStyle": "Rough plank walls blackened by soot, a packed earth floor, a single oil lamp on a hook, and a faded red wool blanket on the bed.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Nia Chainbreaker"
+  },
+  {
+    "homeId": "da38e66c-594f-4c20-a5d2-392090b439c6",
+    "slug": "nima-hartwood",
+    "world": "vharadren",
+    "name": "Nima’s hartwood Room",
+    "residenceType": "private Vharadren quarters",
+    "description": "Nima keeps a compact room near the sanctuary in the Verdant Reach. A wide bed with a thick quilt stands against the back wall. A small hearth and a low table take the center.",
+    "details": [
+      "A clay jug of local wine sits on the table beside two cups.",
+      "A bundle of dried roots tied with twine hangs near the hearth.",
+      "A wooden bowl holds several old carved bone tokens."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Taste the current wine batch",
+      "Start a new cutting in a little pot"
+    ],
+    "windowOutlook": "Green canopy and a dirt path leading toward the forest edge.",
+    "interiorStyle": "Stone walls with visible mortar, a rush mat on the floor, a heavy wool blanket in brown and green, and a simple wooden chair by the fire.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Nima Hartwood"
+  },
+  {
+    "homeId": "2e581e83-4df9-49e6-bbeb-e84a0937c1df",
+    "slug": "oath-sister-calyx",
+    "world": "vharadren",
+    "name": "Calyx's private quarters",
+    "residenceType": "private Vharadren quarters",
+    "description": "Oath-Sister Calyx keeps a narrow room in Crownspire near the lower temple levels. A small chest holds folded silk ribbons. A wooden stool sits beside a wall shelf holding two clay cups.",
+    "details": [
+      "A stack of colored silk ribbons lies inside an open wooden chest.",
+      "A half-empty wine skin rests on the floor next to the stool.",
+      "A bone stylus and wax tablet sit on the shelf beside the cups."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Braid two silk ribbons into a bookmark",
+      "Trade riddles on the wax tablet"
+    ],
+    "windowOutlook": "A steep drop to lower palace rooftops with a sliver of the execution square visible at the edge.",
+    "interiorStyle": "A tight rectangular room of pale gray stone with a single narrow window, a low bed covered in faded blue cloth, and a braided rush mat on the floor.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Oath-Sister Calyx"
+  },
+  {
+    "homeId": "e0bb8c33-3e2e-4e15-9517-713ab711b64d",
+    "slug": "orla-saye",
+    "world": "vharadren",
+    "name": "Orla's private quarters",
+    "residenceType": "private residence",
+    "description": "Orla Saye keeps a small room inside the lighthouse base on The Shattered Coast. A wooden table holds a stack of woodcut prints. A narrow bed stands under a shuttered window.",
+    "details": [
+      "A brass spyglass rests on the table beside the prints.",
+      "A bundle of dried herbs tied with string hangs from a ceiling hook.",
+      "A set of carved wooden migration markers sits in a shallow bowl."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Look through the brass spyglass",
+      "Sort the woodcut prints on the table"
+    ],
+    "windowOutlook": "Stormy gray sea with a line of jagged rocks and a few seabirds riding the wind.",
+    "interiorStyle": "A compact round room of weathered stone with a single shuttered window, a low bed with a brown wool cover, and a scarred wooden table pushed against the wall.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Orla Saye"
+  },
+  {
+    "homeId": "6cd212ef-f46d-46ee-bc1a-7c6528730d8d",
+    "slug": "petra-glass",
+    "world": "vharadren",
+    "name": "Petra's private quarters",
+    "residenceType": "private residence",
+    "description": "Petra Glass keeps a small room in a refugee camp shelter in The Ashlands. A battered pack leans against one wall. A low cot holds a patched blanket.",
+    "details": [
+      "A cracked glass shard wrapped in cloth sits on a wooden crate.",
+      "A deck of worn cards lies next to a small knife on the crate.",
+      "A coil of rope hangs from a peg near the door."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Practice a card trick on the crate",
+      "Examine the wrapped glass shard"
+    ],
+    "windowOutlook": "A stretch of cracked glassed ground leading to a line of low tents and a distant ruined wall.",
+    "interiorStyle": "A single square room of salvaged planks and packed earth with a low cot against one wall, a rough wooden crate as table, and a gray wool blanket draped over the pack.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Petra Glass"
+  },
+  {
+    "homeId": "03c24b34-aa55-47e0-97ac-bce97b8a36a0",
+    "slug": "priestess-ashara-flame",
+    "world": "vharadren",
+    "name": "Ashara's private quarters",
+    "residenceType": "private Vharadren quarters",
+    "description": "Priestess Ashara Flame keeps a compact room above the temple kitchens. A low table holds a clay jug and two cups. A narrow bed stands against the far wall with a folded wool blanket at its foot.",
+    "details": [
+      "A dented bronze wine jug rests on the table beside two mismatched cups.",
+      "A small iron brazier holds cooled ash from the previous night.",
+      "A leather-bound ledger with ink stains sits on a shelf near the bed."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Share a drink from the bronze jug",
+      "Choose a verse for a fireside reading"
+    ],
+    "windowOutlook": "Black volcanic cliffs dropping into dark water with distant salt fleet masts visible.",
+    "interiorStyle": "A single low-ceilinged chamber of rough black stone with charcoal walls, a crimson wool hanging over the bed, and a worn reed mat covering part of the floor.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Priestess Ashara Flame"
+  },
+  {
+    "homeId": "6b65bd6e-2957-4ee1-bb54-0661b0c3fc2b",
+    "slug": "prince-aurel-ravaryn",
+    "world": "vharadren",
+    "name": "Aurel's Island Quarters",
+    "residenceType": "private residence",
+    "description": "A compact stone chamber above the harbor with a single wide window. A low table holds a stack of poetry pages and a small model ship. A sea chest stands at the foot of the bed.",
+    "details": [
+      "A folded sailing chart lies under the model ship with tide notes in the margin.",
+      "A slim volume of island poetry rests on the chest beside a quill.",
+      "A plain wooden mask used for anonymous theatre sits on a shelf."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Read a poem from the volume",
+      "Adjust the sails on the model ship"
+    ],
+    "windowOutlook": "Black cliffs meet the salt fleet in the bay below.",
+    "interiorStyle": "Ember-orange cushions cover a low bench along one wall. The bed is draped in verdant-green wool. Dragonbone stone shelves hold the poetry and mask under a single oil lamp.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Prince Aurel Ravaryn"
+  },
+  {
+    "homeId": "21d8ca79-d08c-45a1-9fc4-fe5e6d092f91",
+    "slug": "prince-lucien-vaelorian",
+    "world": "vharadren",
+    "name": "Lucien's Petition Rooms",
+    "residenceType": "private residence",
+    "description": "A single long room with a high window and a polished wooden floor. A fencing blade leans against the wall near a rack of scrolls. A small table holds a stack of petitions and a quill stand.",
+    "details": [
+      "A leather-bound book of plays sits open on the table with a ribbon marking a page.",
+      "A polished fencing mask rests on a chest beside a pair of practice gloves.",
+      "A small pouch of market tokens lies next to the petitions."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Read a scene from the play book aloud",
+      "Practice footwork with the fencing blade"
+    ],
+    "windowOutlook": "A steep street market rises toward the citadel gates.",
+    "interiorStyle": "Tarnished-gold wall hangings frame the window. The floor shows scuff marks from practice. A charcoal-black wool curtain divides the sleeping area from the table.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Prince Lucien Vaelorian"
+  },
+  {
+    "homeId": "02d6be58-f8d6-425c-925b-3d1ca0376145",
+    "slug": "princess-elara-thornwall",
+    "world": "vharadren",
+    "name": "Elara's Iron Quarters",
+    "residenceType": "private residence",
+    "description": "A square stone room inside an iron fortress with thick walls and a low ceiling. A wide oak table holds rolled maps weighted by iron markers. A narrow bed stands against the far wall beside a wooden chest.",
+    "details": [
+      "A stack of worn ledgers sits open on the table showing supply tallies in neat columns.",
+      "A heavy iron tankard rests on a shelf next to a small cask of dark ale.",
+      "A set of old horse tack hangs from a peg near the door, oiled and ready."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Trace routes on the old maps",
+      "Compare breeding notes over ale"
+    ],
+    "windowOutlook": "Snow drifts across a narrow mine road below the fortress wall.",
+    "interiorStyle": "Rough black iron brackets hold oil lamps above a scarred oak table and simple pine bed. Charcoal-gray wool blankets cover the bed. The floor is bare stone with a single woven rush mat.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Princess Elara Thornwall"
+  },
+  {
+    "homeId": "08a45ef6-5f3e-47ac-aa06-26ee08e95f90",
+    "slug": "princess-maris-vaelorian",
+    "world": "vharadren",
+    "name": "Maris's Adjoining Rooms",
+    "residenceType": "royal private residence",
+    "description": "Two narrow stone chambers connected by a short archway inside Dragonbone Citadel. One room holds a low bed and a brazier. The other contains shelves of rolled petitions and a small writing desk.",
+    "details": [
+      "A riding cloak of storm-blue wool hangs on a hook by the door.",
+      "A wooden flute rests on the desk beside a stack of folded court music sheets.",
+      "A folded city map lies open on the bed with several terraces marked in charcoal."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a court tune on the flute",
+      "Mark new notes on the city map"
+    ],
+    "windowOutlook": "Terraced rooftops step downward toward the lower city streets.",
+    "interiorStyle": "Dragonbone-gray walls meet a low vaulted ceiling. A single brazier casts ember light over the desk and shelves. The bed is covered in bone-ivory linen with a deep-crimson wool throw at the foot.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Princess Maris Vaelorian"
+  },
+  {
+    "homeId": "1699c45f-d4f8-4fb7-b693-20ba999ee032",
+    "slug": "pyra-ashscale",
+    "world": "vharadren",
+    "name": "Pyra's Room",
+    "residenceType": "private Vharadren quarters",
+    "description": "Pyra keeps a compact room above the hatchery. Rough volcanic stone forms the walls. A narrow bed stands against one side, and a small chest holds folded cloaks.",
+    "details": [
+      "A clay jug of wine rests on a wooden stool beside the bed.",
+      "A set of iron hairpins lies in a shallow dish on the chest.",
+      "A folded length of dark cloth hangs from a wall peg."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Taste the wine from the jug",
+      "Sort through the hairpins"
+    ],
+    "windowOutlook": "A single high slit shows the steam rising from the caldera rim.",
+    "interiorStyle": "Small rectangular chamber with uneven stone floor, charcoal walls, a straw-stuffed bed, one stool, and a plain wooden chest.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Pyra Ashscale"
+  },
+  {
+    "homeId": "df41bb67-926e-4198-9a44-2d14bef7720f",
+    "slug": "queen-maerra-vaelorian",
+    "world": "vharadren",
+    "name": "Maerra's Quarters",
+    "residenceType": "private residence",
+    "description": "Maerra's quarters stand high in the dragonbone citadel of Crownspire. A heavy table holds rolled military scrolls and a pair of leather gloves. A perch near the window holds a falcon hood and jesses.",
+    "details": [
+      "A leather-bound book of battle accounts lies open on the table.",
+      "A pair of polished blackglass cups sit on a tray near the hearth.",
+      "A set of silver bells for the falcon rests in a small pouch."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Read a favorite account from the battle book",
+      "Share a toast in the blackglass cups"
+    ],
+    "windowOutlook": "Tall arched windows face the lower wards and the distant glassed fields.",
+    "interiorStyle": "High-ceilinged room with dragonbone pillars, deep crimson hangings, a long oak table, stone benches, and an iron brazier in one corner.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Queen Maerra Vaelorian"
+  },
+  {
+    "homeId": "10245f34-11e1-4ada-800f-e09f442d0040",
+    "slug": "queen-selene-ravaryn",
+    "world": "vharadren",
+    "name": "Selene's Quarters",
+    "residenceType": "private residence",
+    "description": "Queen Selene's quarters occupy a corner of Pyrehold Castle on the Ember Isles. Black stone walls hold shelves of rolled maps and sealed jars of oils. A wide table near the hearth displays charts weighted by iron markers.",
+    "details": [
+      "A brass astrolabe sits beside the maps, its dials marked for volcanic currents.",
+      "Small glass vials of perfume rest on a low shelf, each labeled with wax seals.",
+      "A carved dragonbone token rests in a shallow dish near the door."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Trace fleet routes on the chart",
+      "Compare two perfume samples"
+    ],
+    "windowOutlook": "Narrow slits overlook the black cliffs and the salt fleet anchored below.",
+    "interiorStyle": "A single square room with a low vaulted ceiling, charcoal walls, a heavy oak table, crimson wool hangings, and an iron brazier for light.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Queen Selene Ravaryn"
+  },
+  {
+    "homeId": "d1c9cc5c-5f9d-4637-9130-c25653db5044",
+    "slug": "rhevan-crownsbane",
+    "world": "vharadren",
+    "name": "Rhevan's Quarters",
+    "residenceType": "private residence",
+    "description": "Rhevan's quarters sit inside an old waystation in the Ashlands. Thick glass panes cover the single window. A low bench holds a whetstone and a length of oiled cloth.",
+    "details": [
+      "A small bone flute rests on the bench beside the whetstone.",
+      "A stack of folded parchment notes sits under a flat stone.",
+      "A short sword in a plain scabbard leans against the wall."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a short melody on the flute",
+      "Try to name a tune after three notes"
+    ],
+    "windowOutlook": "The wide pane looks out over cracked glass plains and distant hills.",
+    "interiorStyle": "Rectangular room with thick stone walls, a single shuttered window, a straw mattress on a frame, a low bench, and ash-gray wool blankets.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Rhevan Crownsbane"
+  },
+  {
+    "homeId": "fac31ce0-13c5-4da3-95eb-b5416d9f0e54",
+    "slug": "riven-crow",
+    "world": "vharadren",
+    "name": "Riven’s Private Room",
+    "residenceType": "private Vharadren quarters",
+    "description": "A compact room near the shipyard with a low bed and a single chair. A deck of cards sits on a small table and a clay jug stands on the floor. A damp towel hangs from a peg by the door.",
+    "details": [
+      "A worn deck of cards lies face down on the table.",
+      "A half-full clay jug of grog rests on the floor beside the bed.",
+      "A set of brass dice sits in a pocket of the coat draped over the chair."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a round of cards at the table",
+      "Roll the brass dice for a short game"
+    ],
+    "windowOutlook": "A small high window shows the masts of docked ships and the edge of the yard below.",
+    "interiorStyle": "Dark plank walls, a charcoal blanket on the bed, a scarred wooden table and chair, and a single tarnished lantern on a wall hook.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Riven Crow"
+  },
+  {
+    "homeId": "d998fc5c-98b2-4965-89e0-137f878d7007",
+    "slug": "rorik-pell",
+    "world": "vharadren",
+    "name": "Rorik’s Private Quarters",
+    "residenceType": "private residence",
+    "description": "A low-ceilinged room near the harbor with a narrow bed and a wooden bench. A coil of rope and a folded net rest against one wall. A small lantern sits on a shelf above the bench.",
+    "details": [
+      "A set of wooden blocks carved with lantern symbols lies on the bench.",
+      "A pair of bone dice sits in a tin cup on the shelf.",
+      "A mending needle and thread rest beside the folded net."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Trade messages using the lantern-code blocks",
+      "Teach each other a netting knot"
+    ],
+    "windowOutlook": "A single shuttered opening faces the dark water and the outline of a distant pier.",
+    "interiorStyle": "Rough plank walls, a storm-blue blanket on the bed, a charcoal-stained bench, and a bone-ivory lantern with a low flame.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Rorik Pell"
+  },
+  {
+    "homeId": "0b2141ad-1bc0-4b1e-b66d-ef18ad2ff6f4",
+    "slug": "sabine-silk-veyl",
+    "world": "vharadren",
+    "name": "Sabine’s Private Quarters",
+    "residenceType": "private residence",
+    "description": "A compact set of rooms on an upper level of Crownspire, reached by a narrow stair. The space holds a wide bed with heavy drapes, a table for papers, and a wardrobe filled with layered garments. A small side chamber holds a basin and folded cloths.",
+    "details": [
+      "A lacquered box of colored ribbons sits open on the table for quick access during dressing.",
+      "A wooden flute rests on a low stool beside the bed.",
+      "A stack of bound contracts lies on a shelf next to a quill and ink pot."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a short tune on the flute",
+      "Sort through the ribbon box for a new pattern"
+    ],
+    "windowOutlook": "Narrow windows look down on the stepped roofs and torchlit alleys two levels below.",
+    "interiorStyle": "Stone walls covered by deep crimson hangings, a charcoal floor rug, a dark wood bed frame with bone inlay, and a single ember-orange lamp on the table.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Sabine “Silk” Veyl"
+  },
+  {
+    "homeId": "8d0fb17a-6ab8-4ee4-8587-dc0d7e3c2d20",
+    "slug": "sable-wren",
+    "world": "vharadren",
+    "name": "Sable’s Private Room",
+    "residenceType": "private Vharadren quarters",
+    "description": "A small room above the House of Velvet Oaths with one narrow bed and a low chest. Wine-colored fabric covers the bed and a corner shelf holds several small bottles. A shallow dish sits on the chest for loose chains and coins.",
+    "details": [
+      "A set of glass perfume vials lines the shelf, each with a different scent.",
+      "A pair of bone dice rests in a small leather pouch beside the bed.",
+      "A length of gold chain lies coiled in the dish on the chest."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Roll the bone dice for a quick game",
+      "Test two of the perfume oils on a cloth strip"
+    ],
+    "windowOutlook": "A single slit window shows the upper edge of a neighboring roof and a slice of night sky.",
+    "interiorStyle": "Plain stone walls, a wine velvet coverlet on the bed, a worn rush mat on the floor, and a single candle holder fixed to the wall.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Sable Wren"
+  },
+  {
+    "homeId": "00769054-ccf3-422c-8699-0e631c162dab",
+    "slug": "ser-jareth-iron",
+    "world": "vharadren",
+    "name": "Ser’s iron Quarters",
+    "residenceType": "private Vharadren quarters",
+    "description": "A low-ceilinged stone room sits above the Crownspire barracks. Black iron hooks line one wall above a scarred worktable. A narrow bed and a single trunk occupy the far corner.",
+    "details": [
+      "A whetstone block rests on the table beside a cloth-wrapped blade.",
+      "A small iron-bound book of old liturgy lies open on the trunk lid.",
+      "A set of oath ribbons hangs from a hook near the door."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Read a favorite tale from the iron-bound book",
+      "Invent a coat of arms on scrap parchment"
+    ],
+    "windowOutlook": "Narrow slit overlooking the lower palace walls and drifting ashfall.",
+    "interiorStyle": "Rough stone walls blackened by soot, a single oil lamp on the table, heavy wool blanket on the bed, iron fittings on the trunk and hooks.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Ser Jareth Iron"
+  },
+  {
+    "homeId": "9d8e663b-c34a-49ad-b792-695b976710f0",
+    "slug": "sera-blackvein",
+    "world": "vharadren",
+    "name": "Sera’s blackvein Quarters",
+    "residenceType": "private residence",
+    "description": "A small stone chamber in the Black March barracks contains a low table and a narrow cot. Chalk marks cover a slate board propped against the wall. A canvas pack leans in the corner.",
+    "details": [
+      "A rolled underground map lies beside the slate board.",
+      "A small wooden flute sits on the table next to a tin cup.",
+      "A bundle of echo-song sheet music weighted with a stone rests nearby."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Trace routes on the underground map",
+      "Play a simple tune on the wooden flute"
+    ],
+    "windowOutlook": "Small barred window facing the snow-covered mine road and distant furnaces.",
+    "interiorStyle": "Gray stone walls with iron brackets, a thick wool blanket on the cot, rough wooden table and stool, and a single oil lamp.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Sera Blackvein"
+  },
+  {
+    "homeId": "ec20f922-a496-4633-a126-ff1e1c1b5f5e",
+    "slug": "sister-mercy-voss",
+    "world": "vharadren",
+    "name": "Mercy’s voss Quarters",
+    "residenceType": "private residence",
+    "description": "A modest room in the Ashlands camp holds a cot and a sturdy worktable. Rows of small glass vials stand in a wooden rack against one wall. A woven basket sits under the table.",
+    "details": [
+      "A set of glass vials with stoppers lines the rack on the table.",
+      "A simple wooden flute rests beside a folded cloth.",
+      "A small tin of salve and clean bandages sit in the basket."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Learn a lullaby on the flute",
+      "Make up a second harmony"
+    ],
+    "windowOutlook": "Low window opening onto a fenced garden patch and the ash-streaked sky.",
+    "interiorStyle": "Plain plank walls, a faded green wool blanket on the cot, worn oak table with visible grain, and a clay oil lamp.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Sister Mercy Voss"
+  },
+  {
+    "homeId": "07af81ae-613d-488f-af61-24c40db2d3a3",
+    "slug": "tamsin-quill",
+    "world": "vharadren",
+    "name": "Quill's Room",
+    "residenceType": "private residence",
+    "description": "A cramped upper-floor room in Crownspire holds a narrow desk under a small window. Stacks of parchment and ink pots crowd the surface. A low cot and a wooden chest stand against the opposite wall.",
+    "details": [
+      "Miniature paint pots and a fine brush sit in a shallow tray on the desk.",
+      "A wooden puzzle box with sliding panels rests beside the ink pots.",
+      "A folded street-theatre mask hangs from a peg above the chest."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Work on a miniature painting together",
+      "Solve the sliding puzzle box"
+    ],
+    "windowOutlook": "View down a narrow alley toward the gilded steps market below.",
+    "interiorStyle": "Whitewashed plaster walls with water stains, a battered oak desk, rough linen bedding, and a single candle holder.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Tamsin Quill"
+  },
+  {
+    "homeId": "0f7c72c1-9146-4bd7-b8b6-69f2c738d2e4",
+    "slug": "thalia-moss",
+    "world": "vharadren",
+    "name": "Thalia Moss's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Thalia's quarters sit behind the sanctuary's herb shed. Bundles of dried leaves hang from the rafters. A low bench holds several stoppered clay jars.",
+    "details": [
+      "A wooden pestle and mortar sit on the bench with green residue in the bowl.",
+      "A length of woven reed matting covers the packed-earth floor.",
+      "A small drum with a hide head leans against the wall."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Taste a new batch of fermented root tonic",
+      "Try a short dance step on the reed mat"
+    ],
+    "windowOutlook": "View across a narrow stream and into the dense green edge of the forest.",
+    "interiorStyle": "Rectangular room with wattle-and-daub walls, a low sleeping pallet on the floor, shelves of labeled jars along one wall, and a small stone basin in the corner.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Thalia Moss"
+  },
+  {
+    "homeId": "a673c681-a17b-4b44-bf00-338ffc8673d9",
+    "slug": "torren-bale",
+    "world": "vharadren",
+    "name": "Torren Bale's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Torren's room sits above the tavern kitchen. A scarred pine table holds a stack of maps and a deck of cards. The hearth is banked with ash.",
+    "details": [
+      "A whetstone and small knife rest on a wooden block by the table.",
+      "A pair of snowshoes leans against the wall near the door.",
+      "A carved wooden box of playing cards sits open on the table."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a round of cards on the pine table",
+      "Trace a route on the old maps"
+    ],
+    "windowOutlook": "View of the snow-covered road leading toward the iron fortress on the ridge.",
+    "interiorStyle": "Square room with thick timber walls, a narrow bed with a bearskin, a single window with oiled cloth, and a chest of spare cloaks under the table.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Torren Bale"
+  },
+  {
+    "homeId": "cf253754-b418-4f97-8cf7-640b979438ff",
+    "slug": "vaelora-silk",
+    "world": "vharadren",
+    "name": "Vaelora Silk's private room",
+    "residenceType": "private Vharadren quarters",
+    "description": "Vaelora keeps a narrow room on an upper floor of the spire quarter. A tall wardrobe stands against one wall. A small writing desk holds a wax tablet and stylus.",
+    "details": [
+      "A length of deep red silk is draped over the back of the chair.",
+      "A brass oil lamp with a smoked chimney sits on the desk.",
+      "A small wooden box of colored sealing waxes rests beside the tablet."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Compare two old songs",
+      "Examine the silk for new embroidery ideas"
+    ],
+    "windowOutlook": "View down the stepped street toward the lower market and the river bend.",
+    "interiorStyle": "Tall narrow room with stone walls, a raised wooden platform bed, a single straight-backed chair at the desk, and a woven wall hanging in muted crimson and charcoal.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Vaelora Silk"
+  },
+  {
+    "homeId": "00ab10bb-8fd2-4c75-931b-eea69242c509",
+    "slug": "velin-silk",
+    "world": "vharadren",
+    "name": "Velin Silk's private room",
+    "residenceType": "private Vharadren quarters",
+    "description": "Velin keeps a compact room above a dockside stairwell. A low table holds a clay jug and two cups. The bed sits against the back wall with a folded wool blanket at the foot.",
+    "details": [
+      "A small bone flute rests on the windowsill beside a stack of folded linen.",
+      "A leather pouch of dried herbs hangs from a peg near the door.",
+      "A dented tin tray with wine stains sits on the table."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Hum an old dock song together",
+      "Taste two wines from the jug"
+    ],
+    "windowOutlook": "Narrow view of fog rolling over the pier and the masts of tied-up ships.",
+    "interiorStyle": "Single low-ceilinged room with rough plank walls, a charcoal hearth on one side, a straw-stuffed mattress on a rope frame, and a single iron hook for cloaks.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Velin Silk"
+  },
+  {
+    "homeId": "f4d18f1c-8e3c-47e6-ba9d-c7b80a070c3b",
+    "slug": "vespera-saan",
+    "world": "vharadren",
+    "name": "Vespera Saan's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Vespera Saan keeps a private suite on the upper level of a black-stone house in the Ember Isles. A carved chest holds lengths of silk cord and a small knife rests on a side table. The room is used only when she is off contract.",
+    "details": [
+      "A carved cedar chest at the foot of the bed contains neatly folded silk cords of several thicknesses.",
+      "A short curved knife with a bone handle lies on a low table near the window.",
+      "A clay jug of volcanic red wine stands beside two plain cups."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Practice a dance step without the blades",
+      "Braid a silk cord for the next performance"
+    ],
+    "windowOutlook": "Black volcanic cliff face and a narrow strip of sea visible between two dragonbone pillars",
+    "interiorStyle": "Rectangular room with dark stone walls, a wide low bed covered in dark red wool, a single carved chair, a small side table, and a wall bracket holding an oil lamp",
+    "draftModel": "grok-4.3",
+    "ownerName": "Vespera Saan"
+  },
+  {
+    "homeId": "55c2d2d7-02ba-4501-b0fc-eebbe6a20c43",
+    "slug": "warden-tide",
+    "world": "vharadren",
+    "name": "Warden Tide's private room",
+    "residenceType": "private Vharadren quarters",
+    "description": "Warden Tide keeps a compact stone room above the tidevault approaches. A low table holds a dented tin plate and a heavy iron ring of keys. The single window faces the salt flats where the tide pulls back twice a day.",
+    "details": [
+      "A ring of brass and iron keys hangs from a wall peg, each tagged with a small carved bone marker.",
+      "A short yew bow leans in the corner beside a quiver of practice bolts.",
+      "A battered tin cup sits on the table next to a small sack of dried meat strips."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Solve the practice chest’s puzzle latch",
+      "Make up a riddle for the next visitor"
+    ],
+    "windowOutlook": "Low salt flats and receding tide beyond a broken sea wall",
+    "interiorStyle": "Small rectangular room with rough stone walls, a narrow straw mattress on a wooden frame, one oak chair, a wall peg for the key ring, and a single oil lamp on a shelf",
+    "draftModel": "grok-4.3",
+    "ownerName": "Warden Tide"
+  },
+  {
+    "homeId": "7f2a7725-2a8b-44bc-a952-1f6035f7650e",
+    "slug": "whisper-saan",
+    "world": "vharadren",
+    "name": "Whisper Saan's private room",
+    "residenceType": "private Vharadren quarters",
+    "description": "Whisper Saan keeps a narrow upper-floor room in Crownspire. A small lacquered box holds her blades and a stoppered vial of perfume rests on the sill. The room stays quiet once the outer door is latched.",
+    "details": [
+      "A lacquered wooden box on the floor contains three slim throwing blades wrapped in oiled cloth.",
+      "A small glass vial of rose and myrrh perfume sits on the window ledge.",
+      "A folded length of dark silk lies across the foot of the bed."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Try two voices on an old court ballad",
+      "Invent a verse for the final chorus"
+    ],
+    "windowOutlook": "Narrow alley and the upper rail of a neighboring palace walkway",
+    "interiorStyle": "Small plastered room with a single bed, one low stool, a wall hook for the silk wrap, a wooden chest, and a brass oil lamp on a bracket",
+    "draftModel": "grok-4.3",
+    "ownerName": "Whisper Saan"
+  },
+  {
+    "homeId": "a03b0b06-5c07-4aec-a391-9cd72575af19",
+    "slug": "ysolde-lantern",
+    "world": "vharadren",
+    "name": "Ysolde Lantern's private room",
+    "residenceType": "private Vharadren quarters",
+    "description": "Ysolde Lantern keeps a modest room two floors above the Lantern Rooms entrance. A tall brass lamp stands near the door and a small rack holds rolled lengths of silk. The space is used mainly for rest between shifts.",
+    "details": [
+      "A tall brass lamp with a cracked chimney sits on a low stand beside the door.",
+      "A wooden rack against the wall holds three rolled bolts of colored silk.",
+      "A pair of worn leather walking boots rests under the bed frame."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Try silk colors in the lamplight",
+      "Design a ribbon border for a lantern"
+    ],
+    "windowOutlook": "Stone courtyard with a single twisted fig tree and the edge of the next roofline",
+    "interiorStyle": "Rectangular room with whitewashed plaster walls, a sturdy bed with a wool blanket, a small table, one wooden chair, and a wall shelf holding a jug of wine",
+    "draftModel": "grok-4.3",
+    "ownerName": "Ysolde Lantern"
+  }
+]

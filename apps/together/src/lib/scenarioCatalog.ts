@@ -37,7 +37,7 @@ export const scenarios:Scenario[] = [
       "rivalry",
       "attraction"
     ],
-    "setup": "After a broadcast, Nia discovers that her apparently harmless interview has vanished from the station archive. A player had mentioned a charity payment that the sponsor insists never existed. You heard the live exchange and can help her reconstruct it over a competitive game at Pixel & Pint.",
+    "setup": "Nia's interview has vanished from the station archive. On air, a player mentioned a charity payment the sponsor now denies making. You heard it too, and Nia wants to compare notes over a game at Pixel & Pint.",
     "requiredState": null,
     "arcSlug": "juniper-off-the-record",
     "arcTitle": "Off the Record",
@@ -329,7 +329,7 @@ export const scenarios:Scenario[] = [
       "sensual romance",
       "reputation"
     ],
-    "setup": "During an invited tasting, Céline opens a prestigious bottle whose contents do not match its history. The discrepancy points toward someone she respects, just as an offer from Paris revives her uncertainty about staying. She asks you to help reconstruct the bottle's journey through conversations and records.",
+    "setup": "At a tasting, Céline opens an expensive bottle and realizes the wine inside doesn't match its label. Someone she respects handled it, and she wants your help finding out where the swap happened. A job offer from Paris is waiting for her answer.",
     "requiredState": null
   },
   {
@@ -753,7 +753,7 @@ export const scenarios:Scenario[] = [
       "faith",
       "compassion"
     ],
-    "setup": "A frightened visitor claims an old sanctuary right just as the chapel bells begin sounding without movement. Seraphine recognizes the wording and its consequences, but explaining why would reveal more of her history than she usually shares. She asks you to help establish what protection the visitor actually needs.",
+    "setup": "A frightened visitor asks for sanctuary just as the chapel bells start ringing on their own. Seraphine knows the old rule they're invoking, but explaining it would expose part of her past. She asks you to help find out who the visitor is running from.",
     "requiredState": null
   },
   {
@@ -1017,7 +1017,7 @@ export const scenarios:Scenario[] = [
       "romance",
       "trust"
     ],
-    "setup": "You join Yusuf for a planned group outing that he reroutes when conditions change. One client calls the safer valley journey a disappointment. Away from the argument, the altered route reveals a quiet side of NorthVale and gives you time to learn why Yusuf left a more prestigious guiding career.",
+    "setup": "Yusuf changes a group hike when the weather turns, and one customer complains that the safer valley trail is boring. Once the argument dies down, he shows you a part of NorthVale most visitors miss. He also tells you why he walked away from a bigger guiding job.",
     "requiredState": null
   },
   {
@@ -1105,7 +1105,7 @@ export const scenarios:Scenario[] = [
       "looming war",
       "divided duty"
     ],
-    "setup": "An incoming transport arrives carrying essential components and a demand for expanded Axiom security control before unloading. Rhea faces frightened residents, an independence campaign unwilling to compromise, and a captain claiming orders that do not match the charter. You become involved through the public arrivals hall as negotiations unfold.",
+    "setup": "A transport ship brings parts the colony badly needs, but its captain won't unload them unless Axiom gets more security control. Rhea has to face angry residents and independence organizers in the arrivals hall. The captain says he's following orders, though the colony's charter says otherwise.",
     "requiredState": null
   },
   {
@@ -1165,7 +1165,7 @@ export const scenarios:Scenario[] = [
       "freedom",
       "emotional honesty"
     ],
-    "setup": "At Velvet Gravity, Camille offers you a dance and an evening in which neither person needs to provide an impressive biography. The attraction is clear, and you agree what you want from the night. When you later pass Quiet Orbit, a guest recognizes her as the proprietor, restoring the professional identity she wanted a few hours away from.",
+    "setup": "Camille asks you to dance at Velvet Gravity. You're both clear about what you want from the night, and she's glad to spend a few hours away from work. Then someone outside Quiet Orbit recognizes her as the owner and starts asking for favors.",
     "requiredState": null
   },
   {
@@ -1205,7 +1205,7 @@ export const scenarios:Scenario[] = [
       "science mystery",
       "romance"
     ],
-    "setup": "Kellan prepares a permitted survey flight after recognizing terrain from a journey he remembers differently from its official log. You join the ground analysis or take an authorized observer seat. A geometric feature appears in the new imagery, but its scale is smaller and its location subtly different.",
+    "setup": "Kellan spots a ridge he remembers from an old trip, but the official flight log puts him somewhere else. You can watch the new survey from the ground or ride along as an approved observer. The images show the same odd shape he remembers, only smaller and farther east.",
     "requiredState": null,
     "arcSlug": "eos-habitat-lyra",
     "arcTitle": "Habitat Lyra",
@@ -1385,7 +1385,7 @@ export const scenarios:Scenario[] = [
       "courtly intrigue",
       "personal freedom"
     ],
-    "setup": "Celessa prepares you, by mutual agreement, to attend a masked diplomatic supper as her companion. The lesson is an intimate contest of language: what a compliment offers, what a silence refuses, and how desire differs from obligation. During the supper, a delegate mistakes your closeness for influence over her.",
+    "setup": "Celessa asks you to accompany her to a masked diplomatic supper and helps you learn the room's signals beforehand. A compliment can be an invitation; silence can be a refusal. At dinner, a delegate sees you together and assumes you can speak for her.",
     "requiredState": null
   },
   {
@@ -1449,7 +1449,7 @@ export const scenarios:Scenario[] = [
       "diplomacy",
       "restrained romance"
     ],
-    "setup": "An informal hunt brings opposing envoys to Rowan's lodge under a fragile truce. A missing guide and a wounded animal threaten to turn ordinary suspicion into an accusation of ambush. Rowan asks the guests, including you, to remain while a search establishes what actually happened.",
+    "setup": "Two rival envoys join a hunt at Rowan's lodge under a shaky truce. Then a guide goes missing and an animal turns up wounded. Rowan asks everyone, including you, to stay until his search party learns what happened.",
     "requiredState": null
   },
   {
@@ -1469,7 +1469,7 @@ export const scenarios:Scenario[] = [
       "grief",
       "intense romance"
     ],
-    "setup": "Rhevan shelters at the waystation after a fragment of his former dragon bond overwhelms an ordinary journey. A crown's messenger offers restoration of his title if he returns to service and reveals what he knows of the eggs. He has spent so long refusing ownership that he struggles to accept even freely offered companionship.",
+    "setup": "Rhevan stops at the waystation after a memory of his old dragon bond leaves him shaken. A royal messenger offers him his title back if he returns to service and tells the crown what he knows about the eggs. Rhevan doesn't want another master, and he's wary even when someone offers him company without asking for anything.",
     "requiredState": null
   },
   {
@@ -1800,7 +1800,7 @@ export const scenarios:Scenario[] = [
       "discovery",
       "Storyline"
     ],
-    "setup": "At the Observatory, Zuri plays the same short recording twice. A faint pulse returns at an interval she cannot dismiss. The next observation could establish a pattern—or expose an error.",
+    "setup": "Zuri plays you a short recording from the Observatory. The same faint pulse comes back at regular intervals. One more night of listening could tell her whether it is real.",
     "requiredState": null,
     "arcSlug": "vespormoor-observatory-signal",
     "arcTitle": "The Observatory Signal",
@@ -2030,7 +2030,7 @@ export const scenarios:Scenario[] = [
       "personal",
       "Storyline"
     ],
-    "setup": "At Domaine Vervelle, Lorenzo asks you to taste a wine before he shows you its label. An opportunity could establish his own work—or make it another footnote to the family name. He has a decision to make before the next release.",
+    "setup": "Lorenzo pours you a wine at Domaine Vervelle and hides the label until you have tasted it. He has a chance to release something under his own name, but the family expects a say.",
     "requiredState": null,
     "arcSlug": "port-vervelle-own-vintage",
     "arcTitle": "His Own Vintage",
@@ -2375,7 +2375,7 @@ export const scenarios:Scenario[] = [
       "personal",
       "Storyline"
     ],
-    "setup": "At Central Station, Omar compares the approved accessibility design with the procurement list. A detail praised in the announcement has quietly disappeared. He wants to demonstrate who needs it before the order is finalized.",
+    "setup": "Omar checks the order for Central Station’s upgrade and finds that a promised accessibility feature has been cut. He wants the people who need it to speak up before the station buys the wrong equipment.",
     "requiredState": null,
     "arcSlug": "juniper-signal-upgrade",
     "arcTitle": "The Signal Upgrade",
@@ -2398,7 +2398,7 @@ export const scenarios:Scenario[] = [
       "personal",
       "Storyline"
     ],
-    "setup": "At the Rivermark, Caleb is being recruited for a prestigious role elsewhere. Every conversation seems to begin with how much the hotel needs him. He would like one that starts with what he wants from his own life.",
+    "setup": "Caleb has a job offer that would take him away from the Rivermark. Everyone keeps telling him how much the hotel needs him. He wants to talk about what he wants for once.",
     "requiredState": null,
     "arcSlug": "juniper-rivermark-offer",
     "arcTitle": "The Rivermark Offer",
@@ -2421,7 +2421,7 @@ export const scenarios:Scenario[] = [
       "personal",
       "Storyline"
     ],
-    "setup": "At City Hall, Reese has found accessibility moved into a later phase of a celebrated proposal. A public walk-through could make the exclusion clear. They want the people affected to have a voice, not become illustrations for someone else’s campaign.",
+    "setup": "Reese reads the city’s new plan and finds that accessible routes have been pushed to a later phase. They want to walk the route with the people who use it before City Hall celebrates the design.",
     "requiredState": null,
     "arcSlug": "juniper-accessible-city",
     "arcTitle": "The Accessible City",
@@ -2444,7 +2444,7 @@ export const scenarios:Scenario[] = [
       "personal",
       "Storyline"
     ],
-    "setup": "On the overnight platform, Jules points out a small anomaly that keeps recurring. Colleagues have learned to work around it. An upcoming maintenance window offers a chance to establish a cause instead.",
+    "setup": "Jules has noticed the same odd problem on the overnight platform several times. The crew knows how to work around it, but a maintenance window is coming up. Jules wants to find the cause before the workaround becomes permanent.",
     "requiredState": null,
     "arcSlug": "juniper-night-platform",
     "arcTitle": "Night Platform",
@@ -2467,7 +2467,7 @@ export const scenarios:Scenario[] = [
       "personal",
       "Storyline"
     ],
-    "setup": "At City Hall, Leila has been invited to a briefing with a shortcut she would struggle to defend in public. She wants to understand the full cost before the room calls it consensus. There is still time to ask an inconvenient question.",
+    "setup": "Leila gets invited to a private City Hall briefing where everyone seems ready to approve a shortcut. She wants to know who pays for it before she puts her name on the decision.",
     "requiredState": null,
     "arcSlug": "juniper-closed-door-briefing",
     "arcTitle": "The Closed-Door Briefing",
@@ -2490,7 +2490,7 @@ export const scenarios:Scenario[] = [
       "personal",
       "Storyline"
     ],
-    "setup": "At Riverside Landing, Naomi has a budget proposal large enough to change the season. Its conditions would also narrow who feels welcome. She wants to hear how the place is used before choosing what the money should buy.",
+    "setup": "Naomi has been offered enough money to change Riverside Landing’s whole season. The catch: the new rules might shut out the people who use it now. She wants to hear from them before she signs.",
     "requiredState": null,
     "arcSlug": "juniper-landing-season",
     "arcTitle": "The Landing Season",
@@ -2513,7 +2513,7 @@ export const scenarios:Scenario[] = [
       "personal",
       "Storyline"
     ],
-    "setup": "At Juniper General, Talia is considering an executive role that would take her away from the emergency floor. Her team deserves a capable successor, and she deserves a future she chooses. Neither question has a ready answer.",
+    "setup": "Talia is offered an executive job at Juniper General. Taking it means leaving the emergency floor and the team she built. She wants to know who could take over before she decides.",
     "requiredState": null,
     "arcSlug": "juniper-unit-she-built",
     "arcTitle": "The Unit She Built",
@@ -2628,7 +2628,7 @@ export const scenarios:Scenario[] = [
       "history",
       "Storyline"
     ],
-    "setup": "At Rialto Mountain Cinema, Sofia tests a damaged reel from the gondola opening. A few surviving frames show people missing from the familiar account. Restoring enough to identify their work would be a beginning, not the whole story.",
+    "setup": "Sofia finds a damaged film reel from the gondola opening. A few frames show workers left out of the usual story. She wants to restore enough film to learn their names.",
     "requiredState": null,
     "arcSlug": "northvale-last-reel",
     "arcTitle": "The Last Reel",
@@ -2651,7 +2651,7 @@ export const scenarios:Scenario[] = [
       "personal",
       "Storyline"
     ],
-    "setup": "At Halo Terrain Park, Mika is discussing a return after injury. Other people already have a story about what her comeback should look like. She wants room to decide what success means before a date goes on the calendar.",
+    "setup": "Mika is ready to talk about riding again after her injury, but everyone at Halo Terrain Park has an opinion about her comeback. She wants to choose the run and the date herself.",
     "requiredState": null,
     "arcSlug": "northvale-second-descent",
     "arcTitle": "Second Descent",
@@ -2674,7 +2674,7 @@ export const scenarios:Scenario[] = [
       "infrastructure",
       "Storyline"
     ],
-    "setup": "At Sunrise Gondola, Mila shows you a retired cable sample whose wear does not match the removal note. The inspection records deserve a careful reading. Understanding the discrepancy could matter more than finding someone to blame.",
+    "setup": "Mila shows you a worn piece of cable from the Sunrise Gondola. The damage doesn’t match the reason given for replacing it. She wants to read the inspection notes before anyone rides on the next cable.",
     "requiredState": null,
     "arcSlug": "northvale-broken-cable",
     "arcTitle": "The Broken Cable",
@@ -2697,7 +2697,7 @@ export const scenarios:Scenario[] = [
       "discovery",
       "Storyline"
     ],
-    "setup": "At Vale & Pine Books, Tessa finds repeated directions on an old checkout card. They seem to lead toward Pine Lake, but the current guest maps offer no answer. She asks for help checking the route before anyone turns it into a legend.",
+    "setup": "Tessa finds directions scribbled several times on an old library card. They point toward Pine Lake, but no current map shows a cabin there. She wants to check the route before the rumor gets ahead of her.",
     "requiredState": null,
     "arcSlug": "northvale-cabin-mile-nine",
     "arcTitle": "The Cabin at Mile Nine",
@@ -2766,7 +2766,7 @@ export const scenarios:Scenario[] = [
       "mystery",
       "Storyline"
     ],
-    "setup": "At the arrivals desk, Owen finds one check-in that a traveler cannot reconcile with their own journey. A quiet conversation may establish what happened without exposing someone who needs privacy.",
+    "setup": "Owen finds a check-in at the arrivals desk that a traveler swears they never made. He wants to ask a few questions before the record pulls someone into trouble.",
     "requiredState": null,
     "arcSlug": "eos-ghost-passenger",
     "arcTitle": "The Ghost Passenger",
@@ -2789,7 +2789,7 @@ export const scenarios:Scenario[] = [
       "world",
       "Storyline"
     ],
-    "setup": "Sera brings a sample from Deepnail that does not behave like ordinary ore. Before another shift descends, she needs someone to help establish what the mine is cutting into.",
+    "setup": "Sera brings back a piece of Deepnail ore that behaves nothing like it should. She wants it tested before another crew goes down.",
     "requiredState": null,
     "arcSlug": "deepnail-awakening",
     "arcTitle": "The Dragon Beneath Deepnail",
@@ -2858,7 +2858,7 @@ export const scenarios:Scenario[] = [
       "world",
       "Storyline"
     ],
-    "setup": "Mirelle believes a lost charter may survive below the flooded palace. Before a descent can be proposed, someone must establish the tide, the risks and who would have a claim on the result.",
+    "setup": "Mirelle thinks a lost charter is still inside the flooded palace. She needs to check the tides and find out who would own the document before anyone dives for it.",
     "requiredState": null,
     "arcSlug": "what-sinks-shall-rise",
     "arcTitle": "What Sinks Shall Rise",
@@ -3111,7 +3111,7 @@ export const scenarios:Scenario[] = [
       "world",
       "Storyline"
     ],
-    "setup": "In the Red Sash parlor, Bess rehearses a chorus about buying the house while Sabine quietly turns over the page containing the repair estimate.",
+    "setup": "Bess is rehearsing a song about buying the Red Sash when Sabine shows her the repair bill. The women may be able to own the house, but first they need to know what it will cost to keep it standing.",
     "requiredState": null,
     "arcSlug": "calders-the-red-sash-lease",
     "arcTitle": "The Red Sash Lease",

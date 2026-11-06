@@ -10,6 +10,7 @@ describe('public activity descriptions',()=>{
  });
  it('preserves specific authored text without treating ordinary consent language as internal policy',()=>{
   expect(activityDisplayDescription('dinner','Share a meal overlooking the harbor.')).toBe('Share a meal overlooking the harbor.');
+  expect(activityDisplayDescription('conversation','Try conversation here with someone who is available.')).toBeUndefined();
   expect(isInternalActivityCopy('Talk about consent and what you both enjoy.')).toBe(false);
  });
  it('keeps display copy separate from internal rules through normalization',()=>{

@@ -1,6 +1,8 @@
 import { useSupportDraft } from "../../lib/supportDraft";
 import { useState } from "react";
-import { Text, TextInput } from "react-native";
+import { Text, TextInput,View } from "react-native";
+import { SupportScreenshotGallery } from '../../features/support/SupportScreenshotGallery';
+import type { SupportAttachment } from '../../lib/operations';
 import { replyToSupportTicket, type SupportReply } from "../../lib/operations";
 import { useSupportRequest } from "../../lib/useSupportRequest";
 import { colors } from "../../theme";
@@ -8,9 +10,10 @@ import { styles } from "../../styles/opsStyles";
 import { date, Panel, RecordLine, SmallAction } from "./OperationsPrimitives";
 
 export function SupportReplies(
-  { ticketId, replies, onSent }: {
+  { ticketId, replies, onSent,attachments=[] }: {
     ticketId: string;
     replies: SupportReply[];
+    attachments?:SupportAttachment[];
     onSent: () => Promise<void>;
   },
 ) {
@@ -29,8 +32,8 @@ export function SupportReplies(
         { ticketId, message: message.trim() },
         (input) => replyToSupportTicket(input, true),
       );
-      setMessage("");
-      await onSent();
+      await draft.clear();
+      await onSent().catch(()=>setError('Reply sent. Refresh this request to see it.'));
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Reply could not be saved.",
@@ -45,12 +48,12 @@ export function SupportReplies(
       hint="Replies here are visible to the customer in their support portal. Private notes stay in the ticket history."
     >
       {replies.map((reply) => (
-        <RecordLine
+        <View key={reply.id}><RecordLine
           key={reply.id}
           title={reply.sender === "support" ? "Kivelli Support" : "Customer"}
           body={reply.message}
           meta={date(reply.created_at)}
-        />
+        /><SupportScreenshotGallery attachments={attachments.filter(item=>item.replyId===reply.id)}/></View>
       ))}
       <TextInput
         accessibilityLabel="Reply to customer"

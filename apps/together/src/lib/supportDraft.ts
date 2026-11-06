@@ -57,8 +57,15 @@ export function useSupportDraft<T extends object>(scope: string, initial: T) {
         setState((current) => ({ ...current, ...patch }));
       }
     },
-    clear: () => {
-      if (activeKey.current === key) setState(initialRef.current);
+    clear: async () => {
+      if (activeKey.current !== key || !key) return;
+      setState(initialRef.current);
+      // Remove the submitted draft after any older queued write, even if the
+      // screen closes before React runs the next persistence effect.
+      writes.current = writes.current.then(() => AsyncStorage.removeItem(key))
+        .then(() => { if (activeKey.current === key) setPersistenceError(false); })
+        .catch(() => { if (activeKey.current === key) setPersistenceError(true); });
+      await writes.current;
     },
   };
 }

@@ -3,10 +3,11 @@ import { useAuth } from '../src/hooks/useAuth';
 import { CharacterBlueprintSheet } from '../src/components/memory/CharacterBlueprintSheet';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowUpDown, Brain, Check, CheckSquare, ChevronDown, LockKeyhole, Plus, Search, ShieldCheck, SlidersHorizontal, X } from 'lucide-react-native';
-import { CharacterAvatar, EmptyState, FrostedSurface, Screen } from '../src/components';
+import { CharacterAvatar, EmptyState, Screen } from '../src/components/ui';
+import { FrostedSurface } from '../src/components/FrostedGlass';
 import { MemoryActionToast, MemoryBulkBar, MemoryDetailSheet, MemoryEditorSheet, MemoryInsightsPanel, MemoryJournalRow, MemoryPrivacySheet } from '../src/components/memory/MemoryCenterPrimitives';
 import { colors, radius, spacing, typography } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
@@ -88,7 +89,14 @@ export default function Memories(){
     finally{if(version===requestVersion.current){requestInFlight.current=null;setLoading(false);setLoadingMore(false);}}
   },[category,companion?.id,privacyMode,searchTerm,sort]);
 
-  useEffect(()=>{void load(true);},[category,companion?.id,privacyMode,searchTerm,sort]);
+  useFocusEffect(useCallback(()=>{
+    if(companion){
+      const prefix=`${companion.id}:${privacyMode?'privacy':'companion'}`;
+      summaryCache.current.delete(prefix);
+      for(const key of pageCache.current.keys())if(key.startsWith(`${prefix}:`))pageCache.current.delete(key);
+    }
+    void load(true);
+  },[load,companion?.id,privacyMode]));
   const choose=(item:CharacterInstance)=>router.replace(`/memories?character=${item.together_character_templates.slug}${privacyMode?'&privacy=1':''}` as never);
   const notify=(message:string)=>setToast({id:Date.now(),message});
   const reload=async(message?:string)=>{if(companion){const prefix=`${companion.id}:${privacyMode?'privacy':'companion'}`;summaryCache.current.delete(prefix);for(const key of pageCache.current.keys())if(key.startsWith(`${prefix}:`))pageCache.current.delete(key);}await Promise.all([load(true),refresh()]);if(message)notify(message);};

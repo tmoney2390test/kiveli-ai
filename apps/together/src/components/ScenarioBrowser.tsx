@@ -80,7 +80,6 @@ export function ScenarioBrowser({ worldId, gender = 'any', onboarding = false, l
       return <Pressable key={s.id} accessibilityRole="button" accessibilityLabel={`Scenario: ${s.title}. ${s.leadName}. ${s.locationName}${session ? `. ${statusLabel(session)}` : locked ? '. Locked' : ''}`} onPress={() => { setSelected(s); setError(''); }} onHoverIn={() => setHoveredId(s.id)} onHoverOut={() => setHoveredId(null)} style={({ pressed }) => [styles.card, cardWidth ? { width: cardWidth } : styles.cardFallback, hoveredId === s.id && styles.cardHovered, pressed && styles.pressed]}>
         <View><ScenarioArtwork scenario={s} />{session || locked ? <View style={styles.badge}>{locked ? <LockKeyhole size={12} color={colors.text} /> : session?.status === 'completed' ? <Check size={12} color={colors.success} /> : <BookOpen size={12} color={colors.text} />}<Text style={styles.badgeText}>{session ? statusLabel(session) : 'Story unlock'}</Text></View> : null}</View>
         <View style={styles.copy}>
-          <Text style={styles.themes} numberOfLines={1}>{s.chapterCount?`${s.chapterCount} chapters · ${s.themes[0]}`:s.themes.slice(0, 2).join(' · ')}</Text>
           <Text style={styles.title} numberOfLines={2}>{s.title}</Text>
           <Text style={styles.lead}>With {s.leadName}</Text>
           <Text style={styles.setup} numberOfLines={2}>{s.setup}</Text>

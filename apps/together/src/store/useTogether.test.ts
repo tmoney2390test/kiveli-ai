@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Location, Snapshot, SnapshotDelta } from '../types';
 
 vi.stubGlobal('__DEV__', false);
-vi.mock('../lib/api', () => ({loadSnapshot: vi.fn(), loadCharacterPresence: vi.fn()}));
+vi.mock('../lib/api/catalog', () => ({loadSnapshot: vi.fn(), loadCharacterPresence: vi.fn()}));
 const { useTogether } = await import('./useTogether');
-const { loadSnapshot, loadCharacterPresence } = await import('../lib/api');
+const { loadSnapshot, loadCharacterPresence } = await import('../lib/api/catalog');
 
 function life(id: string): Snapshot {
   return {activeContinuity: {id}, characters: [{id: `${id}-character`}], conversations: [], scheduleEvents: []} as unknown as Snapshot;
@@ -67,5 +67,20 @@ describe('personal place artwork synchronization', () => {
   it('ignores a save completed after switching accounts',()=>{
     useTogether.getState().upsertPersonalPlace({...place,owner_user_id:'another-account'});
     expect(useTogether.getState().snapshot?.locations).toEqual([]);
+  });
+});
+
+describe('deleted account recovery',()=>{
+  beforeEach(()=>{useTogether.getState().clear();vi.resetAllMocks();});
+  it('exposes the deleted-account state and clears it when starting fresh',async()=>{
+    vi.mocked(loadSnapshot).mockRejectedValueOnce(Object.assign(new Error('Previous account was deleted.'),{code:'ACCOUNT_DELETED'}));
+    await useTogether.getState().refresh();
+    expect(useTogether.getState().errorCode).toBe('ACCOUNT_DELETED');
+    useTogether.getState().clear();
+    expect(useTogether.getState().errorCode).toBeNull();
+    vi.mocked(loadSnapshot).mockResolvedValueOnce({...life('fresh'),profile:null});
+    await useTogether.getState().refresh();
+    expect(useTogether.getState().snapshot?.profile).toBeNull();
+    expect(useTogether.getState().errorCode).toBeNull();
   });
 });

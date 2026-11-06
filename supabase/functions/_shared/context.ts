@@ -38,7 +38,7 @@ export function adminClient(): SupabaseClient {
   return sharedAdminClient;
 }
 
-export async function authenticated(request: Request): Promise<{ user: User; db: SupabaseClient }> {
+export async function authenticated(request: Request, options: { allowDeletedAccount?: boolean } = {}): Promise<{ user: User; db: SupabaseClient }> {
   const authorization = request.headers.get('authorization');
   if (!authorization?.startsWith('Bearer ')) throw new AppError('AUTH_REQUIRED', 'Sign in to continue.', 401);
   const accessToken=authorization.slice(7);
@@ -61,7 +61,7 @@ export async function authenticated(request: Request): Promise<{ user: User; db:
   const deletion=assertedUserId===data.user.id
     ? preloadedDeletion.data
     : (await db.from('together_account_deletion_markers').select('user_id').eq('user_id',data.user.id).maybeSingle()).data;
-  if(deletion)throw new AppError('ACCOUNT_DELETED','This Kivelle account has been deleted.',410,false);
+  if(deletion&&!options.allowDeletedAccount)throw new AppError('ACCOUNT_DELETED','Your previous Kivelli account was deleted. You can create a new account to start fresh.',410,false);
   return { user: data.user, db: requestClient(db) };
 }
 
@@ -123,7 +123,7 @@ async function enforceDailyMessageLimit(db:SupabaseClient,userId:string):Promise
   if(Number(count??0)>=limit)throw new AppError('PLAN_LIMIT_REACHED',`${access.capabilities.displayName} includes ${limit} messages per day. Your daily message allowance resets at midnight UTC.`,429);
 }
 
-function jwtIssuedAt(token:string):number|null{try{const encoded=token.split('.')[1];if(!encoded)return null;const normalized=encoded.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(encoded.length/4)*4,'='),payload=JSON.parse(atob(normalized)) as Record<string,unknown>,issued=Number(payload.iat);return Number.isFinite(issued)?issued:null;}catch{return null;}}
+export function jwtIssuedAt(token:string):number|null{try{const encoded=token.split('.')[1];if(!encoded)return null;const normalized=encoded.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(encoded.length/4)*4,'='),payload=JSON.parse(atob(normalized)) as Record<string,unknown>,issued=Number(payload.iat);return Number.isFinite(issued)?issued:null;}catch{return null;}}
 export function jwtSubjectFromAccessToken(token:string):string|null{try{const encoded=token.split('.')[1];if(!encoded)return null;const normalized=encoded.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(encoded.length/4)*4,'='),payload=JSON.parse(atob(normalized))as Record<string,unknown>,subject=String(payload.sub??'');return/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(subject)?subject:null;}catch{return null;}}
 
 export function serverEnv(name: string): string { return env(name); }

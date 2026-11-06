@@ -37,6 +37,45 @@ Deno.test('chat enables xAI explicit routing only when the private-text rollout 
   }
 });
 
+Deno.test('a clear group-chat sexual invitation uses the authorized adult route', () => {
+  const previousKey = Deno.env.get('XAI_API_KEY');
+  const previousEnabled = Deno.env.get('KIVELLE_XAI_ENABLED');
+  const previousExplicit = Deno.env.get('KIVELLE_XAI_EXPLICIT_ENABLED');
+  const previousPrivateText = Deno.env.get('KIVELLE_PRIVATE_ADULT_TEXT_MODE');
+  try {
+    Deno.env.set('XAI_API_KEY', 'test-key');
+    Deno.env.set('KIVELLE_XAI_ENABLED', 'true');
+    Deno.env.set('KIVELLE_XAI_EXPLICIT_ENABLED', 'true');
+    Deno.env.set('KIVELLE_PRIVATE_ADULT_TEXT_MODE', 'on');
+    const route = resolveDialogueRouting({
+      message: 'So Adrian, we are down to fuck',
+      requestedMode: 'explicit',
+      ageVerified: true,
+      adultAuthorized: true,
+      characterAge: 29,
+      relationshipAllowsExplicit: true,
+      clientSurface: 'web',
+    });
+    assertEquals(route.classification, 'explicit_adult');
+    assertEquals(route.provider, 'wavespeed');
+    assertEquals(route.explicit, true);
+    const ios = resolveDialogueRouting({
+      message: 'So Adrian, we are down to fuck',
+      requestedMode: 'mature',
+      ageVerified: true,
+      adultAuthorized: false,
+      characterAge: 29,
+      clientSurface: 'ios',
+    });
+    assertEquals(ios.explicit, false);
+  } finally {
+    restore('XAI_API_KEY', previousKey);
+    restore('KIVELLE_XAI_ENABLED', previousEnabled);
+    restore('KIVELLE_XAI_EXPLICIT_ENABLED', previousExplicit);
+    restore('KIVELLE_PRIVATE_ADULT_TEXT_MODE', previousPrivateText);
+  }
+});
+
 Deno.test('an eligible explicit photo request reaches PhotoGen even when private-text rollout is unavailable', () => {
   const route = resolveDialogueRouting({
     message: 'Send me a photo of your bent over with your ass and pussy showing',
@@ -65,6 +104,17 @@ Deno.test('adult photo routing still fails closed for age and media-safety viola
   };
   assertEquals(resolveDialogueRouting({...base,ageVerified:false,photoSafetyBlocked:false}).hardBlocked,true);
   assertEquals(resolveDialogueRouting({...base,ageVerified:true,photoSafetyBlocked:true}).hardBlocked,true);
+});
+
+Deno.test('iOS treats isolated profanity and anatomy words as ordinary chat', () => {
+  for (const message of ['cock', 'fuck', 'What the fuck happened?']) {
+    const route = resolveDialogueRouting({message,requestedMode:'mature',ageVerified:true,adultAuthorized:false,characterAge:29,clientSurface:'ios'});
+    assertEquals(route.classification,'standard');
+    assertEquals(route.hardBlocked,false);
+  }
+  const explicit = resolveDialogueRouting({message:'I want to fuck you.',requestedMode:'mature',ageVerified:true,adultAuthorized:false,characterAge:29,clientSurface:'ios'});
+  assertEquals(explicit.classification,'explicit_adult');
+  assertEquals(explicit.hardBlocked,true);
 });
 
 Deno.test('website lethal violence routes through the adult dialogue provider', () => {

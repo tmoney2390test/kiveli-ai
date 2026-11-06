@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ApiError, manageCall, type ManageCallResult, type VoiceCallBilling, type VoiceRouteOption } from '../lib/api';
+import { ApiError } from '../lib/api/transport';
+import { manageCall, type ManageCallResult, type VoiceCallBilling, type VoiceRouteOption } from '../lib/api/voice';
 import { createClientRequestId } from '../lib/requestId';
 import { createRealtimeVoiceClient, resolvePreferredVoiceRoute, transitionRealtimeCall, voiceRouteShellOptions, type FinalVoiceTranscript, type RealtimeCallEvent, type RealtimeCallState, type RealtimeVoiceCallbacks, type RealtimeVoiceClient, type VoiceCallRoute } from '../lib/realtimeVoice';
 import type { VoiceCallSession } from '../types';
+import type { CallCaption } from '../lib/realtimeVoice/captions';
 
 type UseRealtimeVoiceCallInput={characterInstanceId?:string;conversationId?:string};
 type EndReason='user_ended'|'route_unmounted'|'app_backgrounded'|'token_expired'|'provider_closed'|'connection_failed'|'credits_exhausted';
@@ -19,12 +21,13 @@ const IMMEDIATE_ROUTE_OPTIONS:VoiceRouteOption[]=voiceRouteShellOptions.map((opt
 export function useRealtimeVoiceCall(input:UseRealtimeVoiceCallInput){
   const[state,dispatch]=useReducer((current:RealtimeCallState,event:RealtimeCallEvent)=>transitionRealtimeCall(current,event),'idle');
   const[call,setCall]=useState<VoiceCallSession|null>(null),[error,setError]=useState(''),[unavailable,setUnavailable]=useState('');
-  const[muted,setMutedState]=useState(false),[speaker,setSpeakerState]=useState(true),[speaking,setSpeaking]=useState<'user'|'assistant'|null>(null),[partialTranscript,setPartialTranscript]=useState(''),[partialTranscriptRole,setPartialTranscriptRole]=useState<'user'|'assistant'|null>(null);
+  const[muted,setMutedState]=useState(false),[speaker,setSpeakerState]=useState(true),[speaking,setSpeaking]=useState<'user'|'assistant'|null>(null);
+  const[caption,setCaption]=useState<CallCaption|null>(null);
   const[billing,setBilling]=useState<VoiceCallBilling|null>(null),[routeOptions,setRouteOptions]=useState<VoiceRouteOption[]>(IMMEDIATE_ROUTE_OPTIONS),[route,setRouteState]=useState<VoiceCallRoute>('standard');
   const[elapsed,setElapsed]=useState(0);
   const requestId=useRef(createClientRequestId()),clientRef=useRef<RealtimeVoiceClient|null>(null),callRef=useRef<VoiceCallSession|null>(null),startingRef=useRef(false),callbacksRef=useRef<RealtimeVoiceCallbacks|null>(null);
   const stateRef=useRef<RealtimeCallState>('idle'),routeRef=useRef<VoiceCallRoute>('standard'),conversationProviderId=useRef(''),reconnectCount=useRef(0),firstConnectedAt=useRef(0),ending=useRef(false),mounted=useRef(true);
-  const partialTranscriptRef=useRef<{role:'user'|'assistant';content:string}|null>(null),pendingEventsRef=useRef(new Map<string,FinalVoiceTranscript>()),transcriptUploadRef=useRef<Promise<void>>(Promise.resolve()),usageUploadRef=useRef<Promise<void>>(Promise.resolve()),billedMinuteRef=useRef(0),billingStartedAtRef=useRef(0),meteringRef=useRef(false);
+  const pendingEventsRef=useRef(new Map<string,FinalVoiceTranscript>()),transcriptUploadRef=useRef<Promise<void>>(Promise.resolve()),usageUploadRef=useRef<Promise<void>>(Promise.resolve()),billedMinuteRef=useRef(0),billingStartedAtRef=useRef(0),meteringRef=useRef(false);
   const reconnectRef=useRef<(reason?:string)=>Promise<void>>(()=>Promise.resolve()),endRef=useRef<(reason?:EndReason)=>Promise<void>>(()=>Promise.resolve());
   useEffect(()=>{stateRef.current=state;},[state]);
   useEffect(()=>{callRef.current=call;},[call]);
@@ -53,10 +56,11 @@ export function useRealtimeVoiceCall(input:UseRealtimeVoiceCallInput){
     mounted.current=true;ending.current=false;
     if(!input.characterInstanceId||!input.conversationId)return;
     callbacksRef.current={
+      onCaption:(next)=>{if(mounted.current&&!ending.current)setCaption(next);},
       onConnected:(providerConversationId?:string)=>{if(providerConversationId)conversationProviderId.current=providerConversationId;if(!firstConnectedAt.current)firstConnectedAt.current=Date.now();dispatch('CONNECTED');setError('');const active=callRef.current;if(active)void manageCall({action:'connected',callSessionId:active.id,providerSessionId:providerConversationId}).then((result)=>{if(result.call&&mounted.current)setCall(result.call);}).catch(()=>undefined);},
       onClosed:()=>{if(!ending.current)void reconnectRef.current('provider_closed');},
-      onTranscript:(event:FinalVoiceTranscript)=>{const key=event.providerEventId??`sequence:${event.sequence}:${event.role}`;pendingEventsRef.current.set(key,event);partialTranscriptRef.current=null;setPartialTranscript('');setPartialTranscriptRole(null);transcriptUploadRef.current=transcriptUploadRef.current.catch(()=>undefined).then(flushTranscriptOutbox).catch((caught)=>{if(!mounted.current)return;setError(caught instanceof Error?caught.message:'The call transcript could not be saved.');if(caught instanceof ApiError&&caught.code==='INSUFFICIENT_CREDITS')void endRef.current('credits_exhausted');});},
-      onPartialTranscript:(role:'user'|'assistant',content:string)=>{const previous=partialTranscriptRef.current,next={role,content:role==='assistant'&&previous?.role==='assistant'?`${previous.content}${content}`:content};partialTranscriptRef.current=next;setPartialTranscript(next.content);setPartialTranscriptRole(role);},
+      onTranscript:(event:FinalVoiceTranscript)=>{const key=event.providerEventId??`sequence:${event.sequence}:${event.role}`;pendingEventsRef.current.set(key,event);transcriptUploadRef.current=transcriptUploadRef.current.catch(()=>undefined).then(flushTranscriptOutbox).catch((caught)=>{if(!mounted.current)return;setError(caught instanceof Error?caught.message:'The call transcript could not be saved.');if(caught instanceof ApiError&&caught.code==='INSUFFICIENT_CREDITS')void endRef.current('credits_exhausted');});},
+      onPartialTranscript:()=>{},
       onSpeaking:(who:'user'|'assistant',active:boolean)=>setSpeaking(active?who:(current)=>current===who?null:current),
       onPipelineUsage:(event)=>{const active=callRef.current;if(active)usageUploadRef.current=usageUploadRef.current.catch(()=>undefined).then(()=>manageCall({action:'pipeline_usage',callSessionId:active.id,event}).then(()=>undefined));},
       onError:(caught:Error,recoverable:boolean)=>{setError(caught.message);if(!recoverable){dispatch('FAIL');void endRef.current('connection_failed');}},
@@ -74,7 +78,7 @@ export function useRealtimeVoiceCall(input:UseRealtimeVoiceCallInput){
     if(!characterInstanceId||!conversationId||startingRef.current||ending.current||!callbacksRef.current)return;
     const selectedOption=routeOptions.find((option)=>option.route===routeRef.current);
     if(!selectedOption?.available){setError(selectedOption?.unavailableReason??'Voice call options are still loading.');return;}
-    startingRef.current=true;requestId.current=createClientRequestId();const attemptId=requestId.current;let serverCreateStarted=false;setError('');setUnavailable('');dispatch('CREATE');
+    startingRef.current=true;requestId.current=createClientRequestId();const attemptId=requestId.current;let serverCreateStarted=false;setError('');setUnavailable('');setCaption(null);dispatch('CREATE');
     try{
       const routeToUse=routeRef.current,client=createRealtimeVoiceClient(routeToUse,callbacksRef.current);clientRef.current=client;
       serverCreateStarted=true;
@@ -107,7 +111,7 @@ export function useRealtimeVoiceCall(input:UseRealtimeVoiceCallInput){
 
   const endCall=useCallback(async(reason:EndReason='user_ended')=>{
     const client=clientRef.current,stoppingLocalAudio=client?.disconnect().catch(()=>undefined);
-    if(mounted.current){setSpeaking(null);setPartialTranscript('');setPartialTranscriptRole(null);}
+    if(mounted.current){setSpeaking(null);setCaption(null);}
     if(ending.current){await stoppingLocalAudio;return;}
     ending.current=true;if(mounted.current)dispatch('END');
     const active=callRef.current,clientUsage=client?.usage()??{connectedDurationMs:0,inputAudioDurationMs:0,outputAudioDurationMs:0};
@@ -124,7 +128,7 @@ export function useRealtimeVoiceCall(input:UseRealtimeVoiceCallInput){
 
   const setMuted=useCallback(async(value:boolean)=>{await clientRef.current?.setMuted(value);setMutedState(value);},[]);
   const setSpeakerEnabled=useCallback(async(value:boolean)=>{await clientRef.current?.setSpeakerEnabled(value);setSpeakerState(value);},[]);
-  return{state,call,error,unavailable,muted,speaker,speaking,partialTranscript,partialTranscriptRole,elapsed,billing,route,routeOptions,routeOptionsReady:routeOptions.length>0,selectRoute,speakerControlAvailable:clientRef.current?.speakerControlAvailable??true,startCall,setMuted,setSpeakerEnabled,endCall};
+  return{state,call,error,unavailable,muted,speaker,speaking,caption,elapsed,billing,route,routeOptions,routeOptionsReady:routeOptions.length>0,selectRoute,speakerControlAvailable:clientRef.current?.speakerControlAvailable??true,startCall,setMuted,setSpeakerEnabled,endCall};
 }
 
 function terminal(state:RealtimeCallState){return state==='ending'||state==='ended'||state==='failed';}

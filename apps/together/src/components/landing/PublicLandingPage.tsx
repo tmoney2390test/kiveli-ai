@@ -35,7 +35,7 @@ export function PublicLandingPage() {
           source={publicLandingPrimaryHeroAsset}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
-          contentPosition={desktop ? 'center' : 'top'}
+          contentPosition="top center"
           loading="eager"
           priority="high"
           transition={0}

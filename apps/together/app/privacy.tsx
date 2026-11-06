@@ -1,17 +1,22 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import {clearSessionSnapshot} from '../src/lib/sessionSnapshotCache';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, CheckCircle2, Download, ExternalLink, RefreshCw, ShieldAlert, Trash2, X } from 'lucide-react-native';
-import { FrostedSurface, PageTitle, Screen, SectionHeader } from '../src/components';
+import { FrostedSurface } from '../src/components/FrostedGlass';
+import { PageTitle, Screen, SectionHeader } from '../src/components/ui';
 import { colors, radius, spacing } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
 import { ensureAiConsent } from '../src/lib/aiConsent';
+import { confirmAction } from '../src/lib/dialogs';
 import { manageAccount } from '../src/lib/api';
 import { useAuth } from '../src/hooks/useAuth';
 import { authProviderState } from '../src/lib/authProviders';
 import { exportStatusCopy } from '../src/lib/accountSecurity';
 import type { SocialAuthProvider } from '../src/lib/socialAuth';
 import { emailCodeReady, normalizeEmailCode } from '../src/lib/emailCodeAuth';
+
+import {conversationPreferenceForPlatform} from '../src/lib/nativeContentPolicy';
 
 type ExportState = { id: string; status: 'queued' | 'processing' | 'ready' | 'failed' | 'expired'; fileName: string; expiresAt: string; signedUrl?: string; sizeBytes?: number | null };
 type DeletionPreview = { appleManualRevocation?:string|null; canDelete: boolean; billingAction: 'none' | 'cancel_stripe' | 'external_action'; providerLabel: string | null; message: string; requiresRecentAuthentication: boolean };
@@ -23,7 +28,9 @@ export default function Privacy() {
   const { session, signOut, requestEmailCode, verifyEmailCode, signInWithSocial } = useAuth();
   const provider = authProviderState(session?.user), settings = snapshot?.profile?.privacy_settings ?? { personalization: true, analytics: true };
   const [deleteOpen, setDeleteOpen] = useState(false), [confirmation, setConfirmation] = useState(''), [emailCode, setEmailCode] = useState(''), [emailCodeSent, setEmailCodeSent] = useState(false), [deleting, setDeleting] = useState(false);
-  const [deletePreview, setDeletePreview] = useState<DeletionPreview | null>(null), [deleteError, setDeleteError] = useState(''), [previewLoading, setPreviewLoading] = useState(false), [identityVerified, setIdentityVerified] = useState(params.verified === '1');
+  const recentSignIn=()=>{const at=Date.parse(session?.user.last_sign_in_at??'');return Number.isFinite(at)&&Date.now()-at>=0&&Date.now()-at<=10*60_000;};
+  const [deleteError, setDeleteError] = useState(''), [identityVerified, setIdentityVerified] = useState(params.verified === '1'||recentSignIn());
+  const deletionInFlight=useRef(false);
   const [exportState, setExportState] = useState<ExportState | null>(null), [exportBusy, setExportBusy] = useState(false), [exportError, setExportError] = useState('');
   const [privacyChoices, setPrivacyChoices] = useState<PrivacyChoices | null>(null), [privacyChoiceError, setPrivacyChoiceError] = useState('');
 
@@ -31,13 +38,7 @@ export default function Privacy() {
   const loadPrivacyChoices = async () => { try { setPrivacyChoices(await manageAccount<PrivacyChoices>({ action: 'privacy_choices_status' })); } catch (error) { setPrivacyChoiceError(error instanceof Error ? error.message : 'Privacy choices could not be loaded.'); } };
   useEffect(() => { void loadPrivacyChoices(); }, []);
 
-  const loadDeletePreview = async () => {
-    setPreviewLoading(true); setDeleteError('');
-    try { setDeletePreview(await manageAccount<DeletionPreview>({ action: 'delete_preview' })); }
-    catch (error) { setDeleteError(error instanceof Error ? error.message : 'Account deletion details could not be loaded.'); }
-    finally { setPreviewLoading(false); }
-  };
-  const openDelete = () => { setConfirmation(''); setEmailCode(''); setEmailCodeSent(false); setDeletePreview(null); setDeleteError(''); setIdentityVerified(params.verified === '1'); setDeleteOpen(true); void loadDeletePreview(); };
+  const openDelete = () => { setConfirmation(''); setEmailCode(''); setEmailCodeSent(false); setDeleteError(''); setIdentityVerified(params.verified === '1'||recentSignIn()); setDeleteOpen(true); };
 
   useEffect(() => { if (params.delete === '1') openDelete(); }, [params.delete, params.verified]);
 
@@ -94,19 +95,37 @@ export default function Privacy() {
     finally { setDeleting(false); }
   };
 
+  const finishDeletion = async () => {
+    if(deletionInFlight.current)return;
+    deletionInFlight.current=true;setDeleting(true);setDeleteError('');
+    try{
+      const result=await manageAccount<{deleted:boolean;queued?:boolean}>({action:'delete',confirmation:'DELETE'});
+      if(!result.deleted&&!result.queued)throw new Error('Your account could not be deleted. Please try again.');
+      await signOut().catch(()=>undefined);
+      if(session?.user.id)clearSessionSnapshot(session.user.id);
+      clear();setDeleteOpen(false);router.replace('/auth');
+      if(Platform.OS!=='web')Alert.alert(result.deleted?'Account deleted':'Account deletion requested',result.deleted?'Your Kivelli account and its data have been deleted.':'Your account is closed while the remaining deletion finishes.');
+    }catch(error){setDeleteError(error instanceof Error?error.message:'Your account could not be deleted. Please try again.');}
+    finally{deletionInFlight.current=false;setDeleting(false);}
+  };
   const remove = async () => {
-    if (confirmation !== 'DELETE' || !deletePreview?.canDelete || deleting) return;
-    setDeleting(true); setDeleteError('');
-    try {
-      if (!identityVerified) { setDeleteError('Verify your sign-in before deleting the account.'); return; }
-      await manageAccount({ action: 'delete', confirmation: 'DELETE' });
-      await signOut().catch(() => undefined);
-      clear(); setDeleteOpen(false); router.replace('/auth');
-    } catch (error) { setDeleteError(error instanceof Error ? error.message : 'Your account could not be deleted. Nothing else was changed.'); }
-    finally { setDeleting(false); }
+    if(confirmation!=='DELETE'||deletionInFlight.current)return;
+    deletionInFlight.current=true;setDeleting(true);setDeleteError('');
+    let proceed=false;
+    try{
+      // Read billing only after the user requests deletion, never when opening.
+      const preview=await manageAccount<DeletionPreview>({action:'delete_preview'});
+      if(preview.requiresRecentAuthentication){setIdentityVerified(false);setDeleteError('Verify your sign-in before deleting the account.');return;}
+      if(!preview.canDelete){setDeleteError(preview.message);return;}
+      if(preview.billingAction!=='none'){
+        confirmAction({title:'Before deleting your account',message:preview.message,confirmLabel:'Delete account',destructive:true,onConfirm:()=>Promise.resolve().then(finishDeletion)});
+      }else proceed=true;
+    }catch(error){setDeleteError(error instanceof Error?error.message:'Your account could not be deleted. Please try again.');}
+    finally{deletionInFlight.current=false;setDeleting(false);}
+    if(proceed)await finishDeletion();
   };
 
-  const deleteReady = confirmation === 'DELETE' && Boolean(deletePreview?.canDelete) && identityVerified;
+  const deleteReady = confirmation === 'DELETE' && identityVerified;
   return <Screen>
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Go back" hitSlop={10} onPress={() => router.canGoBack() ? router.back() : router.replace('/settings?section=privacy')}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Privacy</PageTitle></View>
     <Text style={styles.lead}>You control what Kivelle keeps and how the experience is personalized.</Text>
@@ -114,12 +133,12 @@ export default function Privacy() {
     <Toggle title="Personalized experience" body="Use your profile and memories to tailor your experience. Turning this off removes personal memory and reflection context from new replies." value={settings.personalization !== false} onChange={(value) => void toggle('personalization', value)} />
     <Toggle title="Product analytics" body="Help us understand what works without exposing your conversations. Turning this off is enforced before analytics are stored." value={settings.analytics !== false} onChange={(value) => void toggle('analytics', value)} />
     {privacyChoiceError?<Text accessibilityRole="alert" style={styles.error}>{privacyChoiceError}</Text>:null}
-    <Pressable accessibilityRole="button" accessibilityLabel="Open Conversation Spiciness in Account settings" onPress={() => router.push('/account')} style={styles.row}><ShieldAlert color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.rowTitle}>Conversation Spiciness</Text><Text style={styles.rowBody}>Current: {privacyChoices?.privateTextPreference ? privacyChoices.privateTextPreference.charAt(0).toUpperCase() + privacyChoices.privateTextPreference.slice(1) : 'Not chosen'}</Text></View></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Open Conversation tone in Account settings" onPress={() => router.push('/account')} style={styles.row}><ShieldAlert color={colors.rose} /><View style={{ flex: 1 }}><Text style={styles.rowTitle}>Conversation tone</Text><Text style={styles.rowBody}>Current: {privacyChoices?.privateTextPreference ? conversationPreferenceForPlatform(privacyChoices.privateTextPreference,Platform.OS).replace(/^./,letter=>letter.toUpperCase()) : 'Not chosen'}</Text></View></Pressable>
     <Pressable accessibilityRole="button" accessibilityLabel="Manage remembered information" onPress={() => router.push('/memories?privacy=1')} style={styles.row}><ShieldAlert color={colors.violet} /><View style={{ flex: 1 }}><Text style={styles.rowTitle}>Manage remembered information</Text><Text style={styles.rowBody}>Review, forget, or disable remembered information on any plan.</Text></View></Pressable>
     <SectionHeader title="Your data" />
     <Pressable accessibilityRole="button" accessibilityLabel={exportState?.status === 'ready' ? 'Download private Kivelle data export' : 'Create private Kivelle data export'} accessibilityState={{ disabled: exportBusy }} disabled={exportBusy} onPress={() => exportState?.status === 'ready' ? void downloadExport() : void requestExport()} style={styles.row}>{exportBusy ? <ActivityIndicator color={colors.rose} /> : exportState?.status === 'ready' ? <CheckCircle2 color={colors.success} /> : exportState?.status === 'failed' || exportState?.status === 'expired' ? <RefreshCw color={colors.rose} /> : <Download color={colors.rose} />}<View style={{ flex: 1 }}><Text style={styles.rowTitle}>{exportState?.status === 'ready' ? 'Download your private ZIP' : exportBusy ? 'Preparing your export…' : exportState?.status === 'failed' || exportState?.status === 'expired' ? 'Create a new export' : 'Export your Kivelle data'}</Text><Text style={styles.rowBody}>{exportState ? exportStatusCopy(exportState.status) : 'Prepare a private ZIP of your profile, relationships, conversations, and history. The link expires after 24 hours.'}</Text>{exportState?.sizeBytes ? <Text style={styles.rowMeta}>{formatBytes(exportState.sizeBytes)} · {exportState.fileName}</Text> : null}</View>{exportState?.status === 'ready' ? <ExternalLink size={18} color={colors.muted} /> : null}</Pressable>
     {exportError ? <Text accessibilityRole="alert" style={styles.error}>{exportError}</Text> : null}
-    <Pressable accessibilityRole="button" accessibilityLabel="Delete Kivelle account" onPress={openDelete} style={[styles.row, styles.dangerRow]}><Trash2 color={colors.danger} /><View style={{ flex: 1 }}><Text style={[styles.rowTitle, { color: colors.danger }]}>Delete Kivelle account</Text><Text style={styles.rowBody}>Review billing, verify your identity, and permanently remove account data and private media.</Text></View></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Delete account" onPress={openDelete} style={[styles.row, styles.dangerRow]}><Trash2 color={colors.danger} /><View style={{ flex: 1 }}><Text style={[styles.rowTitle, { color: colors.danger }]}>Delete account</Text><Text style={styles.rowBody}>Permanently remove your account data and private media.</Text></View></Pressable>
     <Pressable accessibilityRole="button" onPress={()=>{if(session?.user.id)void ensureAiConsent(session.user.id,true).then(()=>loadPrivacyChoices());}} style={styles.row}><ShieldAlert color={colors.violet}/><View style={{flex:1}}><Text style={styles.rowTitle}>AI data sharing</Text><Text style={styles.rowBody}>Review or withdraw permission</Text></View></Pressable>
     <Text style={styles.note}>Kivelle companions are fictional AI characters. Kivelle never uses guilt or dependency to pressure you to return.</Text>
 
@@ -127,7 +146,6 @@ export default function Privacy() {
       <View style={styles.modalBackdrop}><Pressable accessible={false} style={StyleSheet.absoluteFill} onPress={() => !deleting && setDeleteOpen(false)} /><FrostedSurface intensity={85} style={styles.modalCard}><ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.modalHeader}><Text accessibilityRole="header" style={styles.modalTitle}>Delete your account?</Text><Pressable accessibilityRole="button" accessibilityLabel="Close account deletion" hitSlop={10} disabled={deleting} onPress={() => setDeleteOpen(false)}><X color={colors.muted} /></Pressable></View>
         <Text style={styles.modalBody}>This permanently removes your Kivelle account, conversations, memories, relationships, exports, and stored media. This cannot be undone.</Text>
-        <View style={styles.billingReview}>{previewLoading ? <View style={styles.loadingRow}><ActivityIndicator color={colors.violet} /><Text style={styles.billingText}>Checking subscription status…</Text></View> : deletePreview ? <><Text style={styles.billingTitle}>{deletePreview.canDelete ? 'Billing reviewed' : 'Subscription action needed'}</Text><Text style={styles.billingText}>{deletePreview.message}</Text>{deletePreview.appleManualRevocation?<Pressable accessibilityRole="link" onPress={()=>void Linking.openURL(deletePreview.appleManualRevocation!)} style={styles.billingButton}><Text style={styles.billingButtonText}>Apple access: revoke it manually if automatic revocation is unavailable</Text></Pressable>:null}{deletePreview.billingAction==='external_action'||!deletePreview.canDelete ? <Pressable accessibilityRole="button" onPress={() => { setDeleteOpen(false); router.push('/subscription'); }} style={styles.billingButton}><Text style={styles.billingButtonText}>Manage renewal separately</Text></Pressable> : null}</> : <Pressable accessibilityRole="button" onPress={() => void loadDeletePreview()} style={styles.billingButton}><Text style={styles.billingButtonText}>Retry billing check</Text></Pressable>}</View>
         <View style={styles.socialVerify}><Text style={styles.confirmLabel}>Verify your sign-in</Text>{identityVerified?<View style={styles.verifiedRow}><CheckCircle2 size={17} color={colors.success} /><Text style={styles.verifiedText}>Identity verified</Text></View>:provider.providers.some((item)=>item==='google'||item==='apple')?<><Text style={styles.billingText}>Confirm with your connected sign-in before account deletion.</Text><Pressable accessibilityRole="button" disabled={deleting} onPress={() => void verifySocial()} style={styles.billingButton}><Text style={styles.billingButtonText}>Verify with {provider.providers.includes('google') ? 'Google' : 'Apple'}</Text></Pressable></>:emailCodeSent?<><Text style={styles.billingText}>Enter the six-digit code sent to {session?.user.email}.</Text><TextInput accessibilityLabel="Six-digit account deletion verification code" value={emailCode} onChangeText={(value)=>setEmailCode(normalizeEmailCode(value))} keyboardType="number-pad" autoComplete="one-time-code" maxLength={6} placeholder="000000" placeholderTextColor={colors.dimmed} style={styles.confirmInput}/><Pressable accessibilityRole="button" accessibilityState={{disabled:deleting||!emailCodeReady(emailCode)}} disabled={deleting||!emailCodeReady(emailCode)} onPress={()=>void verifyDeleteCode()} style={[styles.billingButton,(deleting||!emailCodeReady(emailCode))&&styles.disabled]}><Text style={styles.billingButtonText}>Verify code</Text></Pressable></>:<><Text style={styles.billingText}>We’ll send a private code to {session?.user.email}.</Text><Pressable accessibilityRole="button" disabled={deleting} onPress={()=>void sendDeleteCode()} style={styles.billingButton}><Text style={styles.billingButtonText}>Email a verification code</Text></Pressable></>}</View>
         <Text style={styles.confirmLabel}>Type DELETE to confirm</Text><TextInput accessibilityLabel="Type DELETE to confirm account deletion" autoCapitalize="characters" autoCorrect={false} value={confirmation} onChangeText={setConfirmation} placeholder="DELETE" placeholderTextColor={colors.dimmed} style={styles.confirmInput} />
         {deleteError ? <Text accessibilityRole="alert" style={styles.error}>{deleteError}</Text> : null}

@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from 'jsr:@std/assert@1';
-import { stripeBillingConfiguration, stripeCreditPackForPrice, stripePriceForCreditPack, stripePriceForTier, stripeTierForPrice, verifyStripeWebhook } from './stripe.ts';
+import { ensureStripeCustomer, stripeBillingConfiguration, stripeCreditPackForPrice, stripePriceForCreditPack, stripePriceForTier, stripeTierForPrice, verifyStripeWebhook } from './stripe.ts';
 
 Deno.test({name:'Stripe catalog maps only configured server-side prices',permissions:{env:true},fn:()=>{
   const names=['STRIPE_PRICE_KIVELLE_PLUS_MONTHLY','STRIPE_PRICE_CREDITS_100'] as const,previous=names.map((name)=>Deno.env.get(name));
@@ -41,3 +41,17 @@ async function hmac(secret:string,value:string):Promise<string>{
   const result=await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(value));
   return Array.from(new Uint8Array(result)).map((byte)=>byte.toString(16).padStart(2,'0')).join('');
 }
+
+Deno.test({name:'fresh enrollment gets a new Stripe customer while retries reuse the new identity',permissions:{env:true},fn:async()=>{
+ const oldSecret=Deno.env.get('STRIPE_SECRET_KEY'),oldFetch=globalThis.fetch,customers=new Map<string,string>();
+ const fixtureDb=(recreatedAt:string|null)=>({from:(table:string)=>{const query={select:()=>query,eq:()=>query,order:()=>query,limit:()=>query,upsert:()=>query,maybeSingle:async()=>({data:table==='kivelle_account_recreations'&&recreatedAt?{recreated_at:recreatedAt}:null,error:null}),single:async()=>({data:{customer_id:[...customers.values()].at(-1)},error:null})};return query;}}) as unknown as Parameters<typeof ensureStripeCustomer>[0];
+ try{
+  Deno.env.set('STRIPE_SECRET_KEY','sk_test_disposable_fixture');
+  globalThis.fetch=async(_input,init)=>{const key=new Headers(init?.headers).get('Idempotency-Key')!;if(!customers.has(key))customers.set(key,'cus_fixture_'+customers.size);return Response.json({id:customers.get(key)});};
+  const oldCustomer=await ensureStripeCustomer(fixtureDb(null),{userId:'fixture-user'});
+  const newCustomer=await ensureStripeCustomer(fixtureDb('2026-11-04T22:00:00Z'),{userId:'fixture-user'});
+  assertEquals(oldCustomer===newCustomer,false);
+  assertEquals(await ensureStripeCustomer(fixtureDb('2026-11-04T22:00:00Z'),{userId:'fixture-user'}),newCustomer);
+  assertEquals(customers.size,2);
+ }finally{globalThis.fetch=oldFetch;oldSecret===undefined?Deno.env.delete('STRIPE_SECRET_KEY'):Deno.env.set('STRIPE_SECRET_KEY',oldSecret);}
+}});

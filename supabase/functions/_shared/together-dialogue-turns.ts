@@ -145,12 +145,13 @@ export async function finishTurnWithResponse(
   db: SupabaseClient,
   lease: ConversationTurnLease,
   response: Response,
+  succeeded: () => boolean = () => true,
 ): Promise<Response> {
   if (!response.body) {
     await finishConversationTurn(
       db,
       lease,
-      response.ok ? "completed" : "failed",
+      response.ok && succeeded() ? "completed" : "failed",
     );
     return response;
   }
@@ -175,7 +176,7 @@ export async function finishTurnWithResponse(
         await finishConversationTurn(
           db,
           lease,
-          response.ok && completed ? "completed" : "failed",
+          response.ok && completed && succeeded() ? "completed" : "failed",
         );
       }
     },

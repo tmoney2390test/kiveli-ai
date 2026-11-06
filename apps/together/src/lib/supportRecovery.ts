@@ -13,9 +13,9 @@ export const recoveryTopics = [
     title: "Missing conversation",
     category: "account",
     body:
-      "Check the active Persona and Life, then Archived chats. Retained chats show their remaining restore window.",
-    route: "/archived-chats",
-    action: "Open archived chats",
+      "Check your Persona and Life, then Manage Chats → Archived. Archived chats stay saved. Deleted chats move to Recently Removed for 30 days.",
+    route: "/manage-chats",
+    action: "Open Manage Chats",
   },
   {
     id: "media",

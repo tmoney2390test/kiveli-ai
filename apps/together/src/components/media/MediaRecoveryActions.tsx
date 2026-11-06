@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import type { GeneratedMedia, MediaOffer } from '../../types';
 import { mediaFailurePresentation } from '../../lib/mediaProgressPresentation';
 import { styles } from '../../styles/mediaStyles';
+import { contextualSupportHref } from '../../lib/mediaSupportReference';
 
 export function MediaRecoveryActions({ media, offer, checking, busy, notice, onCheck, onRetry, failed = false }: {
   media?: GeneratedMedia; offer?: MediaOffer; checking: boolean; busy?: boolean; notice: string;
@@ -11,10 +12,7 @@ export function MediaRecoveryActions({ media, offer, checking, busy, notice, onC
 }) {
   const [confirmRetry, setConfirmRetry] = useState(false);
   const failure = mediaFailurePresentation(media, offer);
-  const support = () => router.push({ pathname: '/support', params: { topic: 'media',
-    ...(media?.id ? { mediaId: media.id } : {}),
-    ...(media?.conversation_id ?? offer?.conversation_id ? { conversationId: media?.conversation_id ?? offer?.conversation_id } : {}),
-  } });
+  const support = () => router.push(contextualSupportHref('media',{mediaId:media?.id,conversationId:media?.conversation_id??offer?.conversation_id,errorCode:media?.failure_code??offer?.failure_code}) as never);
   return <View style={styles.recoveryActions}>
     {notice ? <Text accessibilityLiveRegion="polite" style={styles.chatPhotoFailureCopy}>{notice}</Text> : null}
     {failed && failure.refund ? <Text style={styles.chatPhotoFailureCopy}>{failure.refund}</Text> : null}

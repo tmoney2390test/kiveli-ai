@@ -6,7 +6,7 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { invoke } from './api';
 
-const SAFE_ROUTES=new Set(['/home','/chat','/group-chat','/dates','/moments','/notifications']);
+const SAFE_ROUTES=new Set(['/home','/chat','/group-chat','/dates','/moments','/notifications','/support']);
 const INSTALLATION_KEY='kivelle.push.installation.v1';
 
 export type PushRegistrationResult={registered:boolean;permission:'granted'|'denied'|'unavailable'};

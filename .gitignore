@@ -1,6 +1,7 @@
 node_modules/
 .pnpm-store/
 .wrangler/
+.wrangler-config/
 supabase/.temp/
 .expo/
 dist/
@@ -15,3 +16,9 @@ apps/together/deploy.tar.gz
 .codex-output/
 .codex-temp/
 work/
+# Local release checks may contain account fixtures and deployment receipts.
+.test-tmp/
+.wrangler-*/
+infra/cloudflare/kivelli-app-gateway/.wrangler*dryrun*/
+output/
+release/app-store/

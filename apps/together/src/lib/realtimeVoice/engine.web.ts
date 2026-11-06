@@ -1,8 +1,10 @@
-import type { RealtimeAudioEngine } from './engine.types';
+import { PlaybackClock } from './playbackClock';
+import type { AudioEngineInput, RealtimeAudioEngine } from './engine.types';
 
 type BrowserAudioContext=AudioContext;
 export class PlatformRealtimeAudioEngine implements RealtimeAudioEngine {
   readonly speakerControlAvailable=true;
+  private playback = new PlaybackClock();private playbackTimer:ReturnType<typeof setInterval>|null=null;private onPlayback:AudioEngineInput['onPlayback'];private outputSampleRate=24000;
   private context:BrowserAudioContext|null=null;private stream:MediaStream|null=null;private primedStream:MediaStream|null=null;private processor:ScriptProcessorNode|null=null;
   private inputSource:MediaStreamAudioSourceNode|null=null;private keepAlive:GainNode|null=null;private output:GainNode|null=null;
   private sources=new Set<AudioBufferSourceNode>();private nextOutputAt=0;private muted=false;private closing=false;
@@ -18,9 +20,9 @@ export class PlatformRealtimeAudioEngine implements RealtimeAudioEngine {
       return'granted';
     }catch{await this.close().catch(()=>undefined);return'denied';}
   }
-  async open(input:{sampleRate:number;onInput:(base64Pcm16:string)=>void;onError:(error:Error)=>void}){
+  async open(input:AudioEngineInput){
     try{
-      this.closing=false;
+      this.closing=false;this.onPlayback=input.onPlayback;this.outputSampleRate=input.sampleRate;
       this.stream=this.primedStream??await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});this.primedStream=null;
       this.context=this.ensureContext();await settleAudioContext(this.context.resume(),this.context);
       this.output=this.context.createGain();this.output.gain.value=1;this.output.connect(this.context.destination);
@@ -32,7 +34,7 @@ export class PlatformRealtimeAudioEngine implements RealtimeAudioEngine {
   resetForReconnect(){return this.teardown(false);}
   close(){return this.teardown(true);}
   private async teardown(closeContext:boolean){
-    this.closing=true;
+    this.closing=true;this.stopPlaybackClock();
     const context=this.context,stream=this.stream,primedStream=this.primedStream,processor=this.processor,inputSource=this.inputSource,keepAlive=this.keepAlive,output=this.output;
     // Muting the gain node is synchronous, so Hang Up is silent even while the
     // browser finishes closing its AudioContext asynchronously.
@@ -45,9 +47,17 @@ export class PlatformRealtimeAudioEngine implements RealtimeAudioEngine {
   }
   setMuted(muted:boolean){this.muted=muted;this.stream?.getAudioTracks().forEach((track)=>{track.enabled=!muted;});return Promise.resolve();}
   setSpeakerEnabled(enabled:boolean){if(this.output)this.output.gain.value=enabled?1:0;return Promise.resolve();}
-  pushOutput(input:{audio:string;turnId:string;first:boolean}){const context=this.context,output=this.output;if(this.closing||!context||!output)return;const pcm=base64Pcm16ToFloat(input.audio),buffer=context.createBuffer(1,pcm.length,24_000);buffer.getChannelData(0).set(pcm);const source=context.createBufferSource();source.buffer=buffer;source.connect(output);source.onended=()=>this.sources.delete(source);this.sources.add(source);const start=Math.max(context.currentTime,this.nextOutputAt);source.start(start);this.nextOutputAt=start+buffer.duration;}
-  endOutput(){}
-  interrupt(){for(const source of this.sources)try{source.stop();}catch{/* A source may already have ended. */}this.sources.clear();this.nextOutputAt=this.context?.currentTime??0;return Promise.resolve();}
+  pushOutput(input:{audio:string;turnId:string;first:boolean}){const context=this.context,output=this.output;if(this.closing||!context||!output)return;const pcm=base64Pcm16ToFloat(input.audio),buffer=context.createBuffer(1,pcm.length,this.outputSampleRate);buffer.getChannelData(0).set(pcm);const source=context.createBufferSource();source.buffer=buffer;source.connect(output);source.onended=()=>this.sources.delete(source);this.sources.add(source);const start=Math.max(context.currentTime,this.nextOutputAt);source.start(start);this.nextOutputAt=start+buffer.duration;this.playback.add(input.turnId,start,buffer.duration);if(!this.playbackTimer)this.playbackTimer=setInterval(()=>this.reportPlayback(),50);}
+  endOutput(turnId:string){this.playback.end(turnId);this.reportPlayback();}
+  interrupt(){this.stopPlaybackClock();for(const source of this.sources)try{source.stop();}catch{/* A source may already have ended. */}this.sources.clear();this.nextOutputAt=this.context?.currentTime??0;return Promise.resolve();}
+  private reportPlayback(){
+    const context=this.context;if(!context)return;
+    // AudioContext time is at the renderer. Account for the device output lag.
+    const heardAt=Math.max(0,context.currentTime-(context.outputLatency??0)-(context.baseLatency??0));
+    for(const event of this.playback.sample(heardAt))this.onPlayback?.(event);
+    if(!this.playback.pending&&this.playbackTimer){clearInterval(this.playbackTimer);this.playbackTimer=null;}
+  }
+  private stopPlaybackClock(){if(this.playbackTimer)clearInterval(this.playbackTimer);this.playbackTimer=null;this.playback.clear();}
   private ensureContext():BrowserAudioContext{
     if(this.context&&this.context.state!=='closed')return this.context;
     const AudioContextConstructor=window.AudioContext??(window as typeof window&{webkitAudioContext?:typeof AudioContext}).webkitAudioContext;

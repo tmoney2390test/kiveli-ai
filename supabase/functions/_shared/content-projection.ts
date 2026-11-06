@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { imagePreviewUrl, signImagePreviews } from './media-image-previews.ts';
 import { issueAdultAssetUrl, type AdultAccessContext } from './web-adult-access.ts';
 import { collapseRestrictedRuns, isSafelyVisible } from '../../../packages/together-domain/src/content-projection.ts';
 
@@ -19,13 +20,16 @@ export function projectConversationRows(rows:Row[],accessInput:ProjectionAccessI
 export async function signProjectedAttachments(db:SupabaseClient,rows:Row[],authorizedWebAdult:boolean,security?:{request:Request;access:AdultAccessContext;userId:string}):Promise<Row[]>{
   const paths:string[]=[];
   for(const row of rows){for(const attachment of attachments(row)){if(isSafePolicy(attachment)&&typeof attachment.storage_path==='string')paths.push(attachment.storage_path);}}
-  const signed=paths.length?await db.storage.from('together-user-media').createSignedUrls([...new Set(paths)],900):{data:[]};
+  const [signed,previews]=await Promise.all([
+    paths.length?db.storage.from('together-user-media').createSignedUrls([...new Set(paths)],900):Promise.resolve({data:[]}),
+    signImagePreviews(db,rows.flatMap(attachments)),
+  ]);
   const byPath=new Map<string,string>((signed.data??[]).flatMap((item)=>typeof item.path==='string'&&typeof item.signedUrl==='string'?[[item.path,item.signedUrl] as [string,string]]:[]));
   return Promise.all(rows.map(async(row)=>({...row,together_conversation_attachments:await Promise.all(attachments(row).filter((attachment)=>authorizedWebAdult||isSafePolicy(attachment)).map(async(attachment)=>{
-    if(isSafePolicy(attachment))return sanitizeAttachment(attachment,byPath);
+    if(isSafePolicy(attachment))return sanitizeAttachment(attachment,byPath,undefined,previews);
     if(!security)return sanitizeAttachment(attachment,new Map());
     const signedUrl=await issueAdultAssetUrl({request:security.request,db,access:security.access,userId:security.userId,attachmentId:String(attachment.id)});
-    return sanitizeAttachment(attachment,new Map(),signedUrl);
+    return sanitizeAttachment(attachment,new Map(),signedUrl,previews);
   }))})));
 }
 
@@ -58,8 +62,9 @@ function safeBridgeRow(run:Row[],characterName:string):Row{
   const first=run[0]??{},last=run[run.length-1]??first;
   const approved=run.map((row)=>typeof row.safe_bridge==='string'?row.safe_bridge.trim():'').find((value)=>value.length>0&&value.length<=500);
   const body=approved??'A portion of this conversation is unavailable in this app.';
-  const generic=body==='You and your companion shared a more intimate moment and grew closer.'?`You and ${characterName} shared a more intimate moment and grew closer.`:body;
-  return{id:`bridge-${String(first.id??'start')}-${String(last.id??'end')}`,conversation_id:first.conversation_id,conversation_sequence:first.conversation_sequence,role:'system',content:`Private exchange\n\n${generic}`,delivery_status:'complete',moderation_status:'approved',content_rating:'safe',visibility_scope:'all',moderation_version:'safe-bridge-v1',created_at:first.created_at,updated_at:last.updated_at??last.created_at,provider_metadata:{systemEvent:'restricted_bridge'},together_conversation_attachments:[],together_message_reactions:[]};
+  const oldGeneric=body==='You and your companion shared a more intimate moment and grew closer.'||body==='You and your companions shared a more intimate moment and grew closer.';
+  const generic=oldGeneric?`Some messages with ${characterName} are unavailable in this app.`:body;
+  return{id:`bridge-${String(first.id??'start')}-${String(last.id??'end')}`,conversation_id:first.conversation_id,conversation_sequence:first.conversation_sequence,role:'system',content:`Messages unavailable\n\n${generic}`,delivery_status:'complete',moderation_status:'approved',content_rating:'safe',visibility_scope:'all',moderation_version:'safe-bridge-v1',created_at:first.created_at,updated_at:last.updated_at??last.created_at,provider_metadata:{systemEvent:'restricted_bridge'},together_conversation_attachments:[],together_message_reactions:[]};
 }
 
 function stripRestrictedRelations(row:Row,access:ConversationProjectionAccess):Row{
@@ -68,4 +73,4 @@ function stripRestrictedRelations(row:Row,access:ConversationProjectionAccess):R
   return clone;
 }
 function attachments(row:Row):Row[]{const value=row.together_conversation_attachments??row.attachments;return Array.isArray(value)?value.filter((item):item is Row=>Boolean(item)&&typeof item==='object'&&!Array.isArray(item)):[];}
-function sanitizeAttachment(attachment:Row,urls:Map<string,string>,adultUrl?:string):Row{const path=typeof attachment.storage_path==='string'?attachment.storage_path:null;const safe:Row={...attachment,signed_url:adultUrl??(path?urls.get(path)??null:null)};delete safe.storage_path;delete safe.analysis_metadata;delete safe.safe_variant_key;return safe;}
+function sanitizeAttachment(attachment:Row,urls:Map<string,string>,adultUrl?:string,previews:ReadonlyMap<string,string>=new Map()):Row{const path=typeof attachment.storage_path==='string'?attachment.storage_path:null;const signedUrl=adultUrl??(path?urls.get(path)??null:null);const safe:Row={...attachment,signed_url:signedUrl,preview_url:imagePreviewUrl(attachment,signedUrl,previews)};delete safe.storage_path;delete safe.analysis_metadata;delete safe.safe_variant_key;return safe;}

@@ -305,7 +305,11 @@ const pack = (prefix: string, entries: Array<[InteractionFamily, string, string[
 export const interactionPacks: Record<InteractionPack, InteractionDefinition[]> = {
   cafe: pack('cafe', [['activity','Sit together',['cafe'],20,{sceneActivityKey:'coffee_together'}],['activity','Order something',['cafe','food'],8],['share','Share something',['cafe'],5],['talk','Ask what they are working on',['workplace','creative'],5],['social','People-watch',['cafe','social'],15],['activity','Stay a little longer',['cafe'],20,{mayExtendScene:true}]]),
   restaurant: pack('restaurant', [['activity','Look at the menu',['restaurant','food'],8],['activity','Let them choose',['restaurant','food'],6],['share','Pick something for each other',['restaurant','food'],8],['activity','Share food',['restaurant','food'],15],['relationship','Order dessert',['restaurant','food'],20,{}, {minRelationshipStage:'friend'}],['social','Toast together',['restaurant','drinks'],5,{relationshipEvidenceType:'shared_experience'}, {minRelationshipStage:'friend'}]]),
-  bar: pack('bar', [['activity','Grab a drink',['bar','drinks'],12,{sceneActivityKey:'drinks'}],['activity','Let them choose for you',['bar','drinks'],8],['activity','Find a booth',['bar','social'],10],['social','Use the jukebox',['bar','live_music'],6],['social','Toast together',['bar','drinks'],5,{relationshipEvidenceType:'shared_experience'}],['move','Go somewhere quieter',['bar'],12,{mayMoveCharacter:true}]]),
+  bar: [
+    ...pack('bar', [['activity','Grab a drink',['bar','drinks'],12,{sceneActivityKey:'drinks'}],['activity','Let them choose for you',['bar','drinks'],8],['social','Toast together',['bar','drinks'],5,{relationshipEvidenceType:'shared_experience'}]]),
+    { ...definition('bar.play_pool','social','Play a game of pool',['bar','games'],18,{sceneActivityKey:'pool_game'}), objectTags: ['pool table'] },
+    { ...definition('bar.use_the_jukebox','social','Use the jukebox',['bar','live_music'],6), objectTags: ['jukebox'] },
+  ],
   karaoke: pack('karaoke', [['activity','Pick a song',['karaoke'],6,{sceneActivityKey:'karaoke',mayExtendScene:true}],['activity','Sing together',['karaoke'],8,{sceneActivityKey:'karaoke',relationshipEvidenceType:'shared_experience',photoCandidate:true,momentCandidate:true},{minRelationshipStage:'friend'}],['activity','Let them pick your song',['karaoke'],5,{sceneActivityKey:'karaoke'}],['social','Cheer them on',['karaoke'],7,{sceneActivityKey:'karaoke'}],['activity','Do another song',['karaoke'],8,{sceneActivityKey:'karaoke',mayExtendScene:true}]]),
   live_music: pack('live_music', [['activity','Find a spot together',['live_music'],8],['social','Talk about the set',['live_music','music'],6],['activity','Stay for another song',['live_music'],7,{mayExtendScene:true}],['media','Take a photo together',['live_music','photography'],4,{photoCandidate:true,momentCandidate:true}],['move','Step outside for a minute',['live_music'],8,{mayMoveCharacter:true}]]),
   dance: pack('dance', [['activity','Dance together',['dance'],18,{sceneActivityKey:'dancing',relationshipEvidenceType:'shared_experience'}],['activity','Let them lead',['dance'],12,{sceneActivityKey:'dancing'}],['social','Find a quieter corner',['dance'],8],['activity','Take a breather together',['dance'],8],['relationship','Share a slow dance',['dance'],14,{relationshipEvidenceType:'romantic_tension',momentCandidate:true},{minRelationshipStage:'friend',contentLevel:'romance'}],['relationship','Turn up the flirting',['dance'],10,{relationshipEvidenceType:'romantic_tension'},{minRelationshipStage:'flirting',contentLevel:'romance'}]]),
@@ -353,6 +357,25 @@ export const interactionPacks: Record<InteractionPack, InteractionDefinition[]> 
 };
 
 const allDefinitions = Object.values(interactionPacks).flat();
+// A pack identifies the type of venue, not every object or service inside it.
+// These actions require a positive affordance in the place's own data.
+const groundedActionObjects: Record<string,string[]> = {
+  'arcade.visit_the_prize_counter': ['prize counter'],
+  'books.sit_with_coffee': ['coffee', 'cafe'],
+  'civic.browse_the_public_exhibits': ['exhibits', 'exhibition'],
+  'history.browse_the_exhibits': ['exhibits', 'exhibition', 'museum'],
+  'lodging.order_room_service': ['room service'],
+  'lodging.have_a_lobby_drink': ['lobby drinks', 'lobby bar'],
+  'park.have_a_picnic': ['picnic'],
+  'sacred.light_a_candle': ['candles', 'candle lighting'],
+  'spa.try_the_sauna_circuit': ['sauna'],
+  'spa.unwind_in_the_warm_pool': ['warm pool', 'pool'],
+  'water_activity.rent_something_together': ['rental', 'rentals', 'equipment hire'],
+};
+for (const item of allDefinitions) {
+  const objects = groundedActionObjects[item.key];
+  if (objects) item.objectTags ??= objects;
+}
 export const interactionDefinitions = new Map(allDefinitions.map((item) => [item.key, item]));
 
 export function deriveCharacterInteractionProfile(character: InteractionCharacter): CharacterInteractionProfile {
@@ -407,16 +430,20 @@ export function resolveInteractions(input: InteractionResolveInput): Interaction
   const unique = new Map<string, InteractionCandidate>();
   for (const candidate of chained.sort((left, right) => right.score - left.score || left.interactionKey.localeCompare(right.interactionKey))) if (!unique.has(candidate.interactionKey)) unique.set(candidate.interactionKey, candidate);
   const ordered = [...unique.values()].sort((left, right) => right.score - left.score || left.interactionKey.localeCompare(right.interactionKey));
+  // Do not refill the visible tray with the last action simply to hit a count.
+  // Bring it back only when the place has no other eligible choice.
+  const fresh = ordered.filter((candidate) => !recent.slice(-2).includes(candidate.interactionKey));
+  const available = fresh.length ? fresh : ordered;
   // Preserve the strongest overall candidates while reserving room for each
   // compatible pack. A park that also supports photography should not bury
   // every photo interaction beneath five slightly different walking options.
   const candidates: InteractionCandidate[] = [];
   for (const interactionPack of packs) {
-    const compatible = ordered.find((candidate) => !candidates.some((chosen) => chosen.id === candidate.id) && (interactionDefinition(candidate.interactionKey)?.activityTags ?? []).includes(interactionPack));
+    const compatible = available.find((candidate) => !candidates.some((chosen) => chosen.id === candidate.id) && (interactionDefinition(candidate.interactionKey)?.activityTags ?? []).includes(interactionPack));
     if (compatible) candidates.push(compatible);
     if (candidates.length >= (input.limit ?? 5)) break;
   }
-  for (const candidate of ordered) {
+  for (const candidate of available) {
     if (candidates.length >= (input.limit ?? 5)) break;
     if (!candidates.some((chosen) => chosen.id === candidate.id)) candidates.push(candidate);
   }
@@ -500,17 +527,30 @@ export function resolveSceneTransition(input:{candidate:Pick<InteractionCandidat
 function interactionEligible(definition: InteractionDefinition, input: InteractionResolveInput, profile: CharacterInteractionProfile, availableMinutes: number) {
   const requirements = definition.requirements;
   const reasons = ['eligible'];
-  if (!requirements) return { eligible: true, reasons };
-  if (requirements.allowedCharacterRoles?.length && !requirements.allowedCharacterRoles.includes(input.character.role ?? '')) return { eligible: false, reasons: ['role'] };
-  if (requirements.minRelationshipStage && stageIndex(input.relationship.stage) < stageIndex(requirements.minRelationshipStage)) return { eligible: false, reasons: ['relationship_stage'] };
-  if (requirements.maxRelationshipStage && stageIndex(input.relationship.stage) > stageIndex(requirements.maxRelationshipStage)) return { eligible: false, reasons: ['relationship_stage'] };
-  if (requirements.contentLevel === 'romance' && input.relationship.romanceEnabled === false) return { eligible: false, reasons: ['romance_disabled'] };
-  if (requirements.minAvailability === 'open' && lifeLevel(input.life) !== 'open') return { eligible: false, reasons: ['availability'] };
-  if (requirements.minAvailability === 'limited' && ['busy', 'unavailable'].includes(lifeLevel(input.life))) return { eligible: false, reasons: ['availability'] };
+  if (definition.objectTags?.length && !hasPlaceAffordance(input.location, definition.objectTags)) return { eligible: false, reasons: ['missing_place_affordance'] };
+  if (requirements?.allowedCharacterRoles?.length && !requirements.allowedCharacterRoles.includes(input.character.role ?? '')) return { eligible: false, reasons: ['role'] };
+  if (requirements?.minRelationshipStage && stageIndex(input.relationship.stage) < stageIndex(requirements.minRelationshipStage)) return { eligible: false, reasons: ['relationship_stage'] };
+  if (requirements?.maxRelationshipStage && stageIndex(input.relationship.stage) > stageIndex(requirements.maxRelationshipStage)) return { eligible: false, reasons: ['relationship_stage'] };
+  if (requirements?.contentLevel === 'romance' && input.relationship.romanceEnabled === false) return { eligible: false, reasons: ['romance_disabled'] };
+  if (requirements?.minAvailability === 'open' && lifeLevel(input.life) !== 'open') return { eligible: false, reasons: ['availability'] };
+  if (requirements?.minAvailability === 'limited' && ['busy', 'unavailable'].includes(lifeLevel(input.life))) return { eligible: false, reasons: ['availability'] };
   if (definition.durationMinutes && availableMinutes < definition.durationMinutes + 3) return { eligible: false, reasons: ['schedule_pressure'] };
   if ((definition.activityTags ?? []).some((tag) => profile.dislikedActivityTags.includes(tag))) return { eligible: false, reasons: ['character_boundary'] };
   if (input.character.role === 'social_character' && definition.family === 'relationship') return { eligible: false, reasons: ['social_role'] };
   return { eligible: true, reasons };
+}
+
+function hasPlaceAffordance(location: InteractionLocation, required: string[]): boolean {
+  const metadata = location.metadata ?? {};
+  const affordances = [
+    ...(location.possibleActivities ?? []),
+    ...words(metadata['interactionObjects']),
+    ...words(metadata['interaction_objects']),
+  ].map((value) => value.toLowerCase().replace(/[_-]+/g, ' ').trim());
+  return required.some((object) => affordances.some((affordance) =>
+    affordance === object || affordance.startsWith(`${object} `) || affordance.endsWith(` ${object}`) ||
+    (object === 'pool table' && affordance === 'pool'),
+  ));
 }
 
 function lifeLevel(life: InteractionLife | null | undefined) { return life?.availability ?? life?.interruptibility ?? 'open'; }

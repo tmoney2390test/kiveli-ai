@@ -16,7 +16,7 @@ export function FromCompanionSection({ name, items, fallbackSource, onViewAll, o
 function MediaCard({ item, onPress, compact }: { item: CompanionMediaItem; onPress: () => void; compact:boolean }) {
   const date = new Date(item.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
   return <Pressable accessibilityRole="button" accessibilityLabel={`${item.locked ? 'Locked media' : item.title}, ${item.subtitle}`} onPress={onPress} style={({ pressed }) => [styles.card,compact&&styles.cardCompact, pressed && styles.cardPressed]}>
-    {item.thumbnailUrl || item.type !== 'video' ? <DetailPreservingArtwork source={{ uri: item.thumbnailUrl ?? item.url, cacheKey: item.cacheKey }} accessibilityLabel={item.title} blurRadius={item.locked ? 15 : 0} dim={.08} priority="low" loading="lazy" recyclingKey={item.id} /> : <View style={styles.videoFallback} />}
+    {item.thumbnailUrl || item.type !== 'video' ? <DetailPreservingArtwork source={{ uri: item.thumbnailUrl ?? item.url, cacheKey: item.cacheKey }} previewSource={item.previewUrl ? {uri:item.previewUrl,cacheKey:item.cacheKey?`${item.cacheKey}:preview-v1`:undefined} : undefined} accessibilityLabel={item.title} blurRadius={item.locked ? 15 : 0} dim={.08} priority="low" loading="lazy" recyclingKey={item.id} /> : <View style={styles.videoFallback} />}
     {item.type === 'video' && !item.locked ? <VideoMomentThumbnail uri={item.url} posterUri={item.thumbnailUrl} /> : null}
     <View style={styles.cardShade} />
     {item.locked ? <View style={styles.lock}><LockKeyhole size={13} color="#FFF4F7" /><Text style={styles.lockText}>PRIVATE</Text></View> : item.type === 'video' ? <View style={styles.play}><Play size={15} color="#fff" fill="#fff" /></View> : null}

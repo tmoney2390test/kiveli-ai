@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GeneratedMedia, MediaOffer } from '../types';
-import { customPhotoRequestText, includedPhotoWasFree, mediaWithoutActivePhotoOffer, photoCardAspectRatio, photoMediaForOffer, photoOfferDismissAction, photoOfferForMessage, photoOfferPaymentMethod, photoOffersAtTimelineTail, photoOffersWithoutVisibleMessages, shouldShowPhotoGenerationPending, visibleChatPhotoMedia } from './photoRequestPresentation';
+import { customPhotoRequestText, includedPhotoWasFree, mediaWithoutActivePhotoOffer, photoCardAspectRatio, photoMediaForOffer, photoOfferDismissAction, photoOfferForMessage, photoOfferPaymentMethod, photoOffersAtTimelineTail, photoOffersForConversation, photoOffersWithoutVisibleMessages, shouldShowPhotoGenerationPending, visibleChatPhotoMedia } from './photoRequestPresentation';
 
 function offer(id: string, status: MediaOffer['status'], source: MediaOffer['source'], createdAt: string): MediaOffer {
   return {id,continuity_id:'life',character_instance_id:'character',message_id:id.includes('orphan')?null:'photo-message',source,status,content_level:'standard',quality_tier:'standard',shot_type:'selfie',credit_action:'companion_photo',credit_cost:10,title:'Picture request',companion_message:'A picture is ready to confirm',preview_metadata:{},included_subscription_benefit:false,created_at:createdAt,updated_at:createdAt};
@@ -91,6 +91,20 @@ describe('photo request presentation', () => {
     const attached=offer('attached','pending','user_request','2026-08-21T12:00:00.000Z');
     const orphan=offer('orphan-offer','pending','story','2026-08-21T12:01:00.000Z');
     expect(photoOffersWithoutVisibleMessages([attached,orphan],new Set(['photo-message']))).toEqual([orphan]);
+  });
+
+  it('never renders another conversation or Life’s photo offer during a quick switch', () => {
+    const current={...offer('current','pending','user_request','2026-10-07T12:00:00Z'),conversation_id:'chat-a'};
+    const otherChat={...current,id:'other-chat',conversation_id:'chat-b'};
+    const unscopedRequest={...current,id:'unscoped',conversation_id:null};
+    const otherCharacter={...current,id:'other-character',character_instance_id:'someone-else'};
+    const otherLife={...current,id:'other-life',continuity_id:'life-b'};
+    expect(photoOffersForConversation([current,otherChat,unscopedRequest,otherCharacter,otherLife],'chat-a','character','life')).toEqual([current]);
+  });
+
+  it('does not resurrect a declined request at the timeline tail', () => {
+    const declined=offer('orphan-declined','declined','user_request','2026-10-07T12:00:00Z');
+    expect(photoOffersAtTimelineTail([declined],new Set(),[])).toEqual([]);
   });
 
   it('does not collect failed requests at the bottom when their source message is not visible', () => {

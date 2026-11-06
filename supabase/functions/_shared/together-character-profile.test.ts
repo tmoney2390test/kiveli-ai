@@ -39,6 +39,28 @@ Deno.test('incoming-only relationships keep their direction explicit', () => {
   assert(result[0]?.direction === 'incoming', 'an incoming relationship must not be presented as an outgoing claim');
 });
 
+Deno.test('profile summaries describe the public relationship without leaking internal history', () => {
+  const result = projectPublicCharacterConnections({
+    sourceTemplateId: 'source', worldId: 'world', viewerUserId: 'viewer', targets: [official('target', 'Target')],
+    edges: [{ world_id: 'world', source_template_id: 'source', target_template_id: 'target', relationship_type: 'mentor_secret',
+      history: 'Target does not know the secret.', metadata: { profileLabel: 'mentor', profileSummary: 'They have a lasting mentor relationship.', privateCanon: 'secret' } }],
+  });
+  assert(result[0]?.relationshipLabel === 'mentor', 'public relationship label should win');
+  assert(result[0]?.history === 'They have a lasting mentor relationship.', 'public relationship summary should win');
+  assert(!JSON.stringify(result).includes('secret'), 'private canon and raw history must not reach the client');
+});
+
+Deno.test('a hidden edge hides the entire reciprocal relationship from public profiles', () => {
+  const result = projectPublicCharacterConnections({
+    sourceTemplateId: 'source', worldId: 'world', viewerUserId: 'viewer', targets: [official('target', 'Target')],
+    edges: [
+      { world_id: 'world', source_template_id: 'source', target_template_id: 'target', relationship_type: 'colleague', history: 'Public history.' },
+      { world_id: 'world', source_template_id: 'target', target_template_id: 'source', relationship_type: 'secret', history: 'Hidden history.', metadata: { profileVisible: false } },
+    ],
+  });
+  assert(result.length === 0, 'either hidden direction must suppress the full public connection');
+});
+
 Deno.test('public profiles suppress imported editorial placeholders but keep authored history', () => {
   const placeholders = [
     'An established personal connection; details require direct knowledge.',

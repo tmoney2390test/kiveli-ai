@@ -4,6 +4,7 @@ import { buildCompanionLife } from './companionLife';
 import { mostRecentlyUsedConversation } from './conversation';
 import { worldForLocation } from './place';
 import { currentScheduleEvent, getScheduleEventPresentation, getScheduleHint, nextVisibleScheduleEvents } from './lifePresentation';
+import { isHomeScheduleEvent, isHomeScheduleItem } from './characterDaySchedule';
 import { naturalizeCharacterActivity, naturalizeCharacterEventSummary, naturalizeCharacterEventTitle } from '@together/domain/src/character-language';
 
 export type HomeTargetAction =
@@ -27,6 +28,7 @@ export type HomeViewModel = {
   relationshipDay: number;
   currentLocation?: Location;
   currentWorld?: World;
+  atHome: boolean;
   hero: {
     stage: string;
     statusLine: string;
@@ -91,7 +93,10 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
   const homePresence = currentWorld
     ? (snapshot.characterWorldPresence ?? []).find((item) => item.character_version_id === companion.character_version_id && item.world_id === currentWorld.id)
     : undefined;
-  const atHome = Boolean(currentLocation && currentLocation.location_type === 'residence' && homePresence?.home_location_id === currentLocation.id);
+  const atHome = Boolean(
+    (currentLocation && currentLocation.location_type === 'residence' && homePresence?.home_location_id === currentLocation.id)
+    || (currentEvent && isHomeScheduleEvent(currentEvent, getScheduleHint(currentEvent) ?? getScheduleEventPresentation(currentEvent).activity)),
+  );
   const locationLabel = atHome ? 'At home' : currentLocation ? `At ${currentLocation.name}` : currentWorld ? `In ${currentWorld.name}` : 'In the world';
   const activityLabel = currentEvent?getScheduleEventPresentation(currentEvent).activity:humanizeActivity(companion.current_activity);
   const interruptibility=currentEvent?.interruptibility??companion.current_interruptibility??'open';
@@ -178,6 +183,7 @@ export function buildHomeViewModel(snapshot: Snapshot, now = new Date()): HomeVi
     relationshipDay,
     currentLocation,
     currentWorld,
+    atHome,
     hero: {
       stage: labelStage(companion.relationship_stage),
       statusLine: `${locationLabel} · ${activityLabel}`,
@@ -308,21 +314,25 @@ function buildTimeline({ snapshot, companion, recentEvents, currentLocation, cur
   for (const item of persistedSchedule) {
     if (localDateKey(item.starts_at,clock.timezone)!==clock.dateKey) continue;
     const hint=getScheduleHint(item);if(!hint)continue;
+    const home=isHomeScheduleEvent(item,hint);
+    const place=snapshot.locations.find((location)=>location.id===item.location_id);
     future.push({
       id: `schedule:${item.id}`,
       kind: 'schedule',
       title: hint,
-      detail: snapshot.locations.find((location) => location.id === item.location_id)?.name ?? currentWorld?.name ?? 'Current place',
+      detail: home?'Home':place?.name??currentWorld?.name??'Current place',
       time: formatTime(item.starts_at,clock.timezone),
-      locationId: item.location_id,
+      locationId: home&&place?.location_type!=='residence'&&place?.category!=='home'?undefined:item.location_id,
       sortMinute: minuteInZone(item.starts_at,clock.timezone),
     });
   }
   if(!persistedSchedule.length){
     for(const item of snapshot.schedules){
       if(!scheduleRunsOnDate(item.metadata,now,clock.timezone)||item.character_version_id!==companion.character_version_id||item.day_of_week!==clock.weekday||item.start_minute<=clock.minuteOfDay)continue;
-      if(currentWorld&&worldForLocation(snapshot,item.location_id)?.id!==currentWorld.id)continue;
-      future.push({id:`legacy-schedule:${item.id}:${item.start_minute}`,kind:'schedule',title:humanizeActivity(item.activity),detail:snapshot.locations.find((location)=>location.id===item.location_id)?.name??currentWorld?.name??'Current place',time:formatScheduleMinute(item.start_minute),locationId:item.location_id,sortMinute:item.start_minute});
+      const home=isHomeScheduleItem(item);
+      if(currentWorld&&!home&&worldForLocation(snapshot,item.location_id)?.id!==currentWorld.id)continue;
+      const place=snapshot.locations.find((location)=>location.id===item.location_id);
+      future.push({id:`legacy-schedule:${item.id}:${item.start_minute}`,kind:'schedule',title:humanizeActivity(item.activity),detail:home?'Home':place?.name??currentWorld?.name??'Current place',time:formatScheduleMinute(item.start_minute),locationId:home&&place?.location_type!=='residence'&&place?.category!=='home'?undefined:item.location_id,sortMinute:item.start_minute});
     }
   }
   for (const plan of snapshot.sharedPlans) {

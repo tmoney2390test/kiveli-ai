@@ -36,7 +36,7 @@ export function reconcileMessages(
   // Repeated focus/realtime reads should not remount unchanged rows or relayout the list.
   for (let index = 0; index < result.length; index++) {
     const previous = current[index], next = result[index];
-    if (previous && next && previous.id === next.id && JSON.stringify(previous) === JSON.stringify(next)) result[index] = previous;
+    if (previous && next && previous !== next && previous.id === next.id && JSON.stringify(previous) === JSON.stringify(next)) result[index] = previous;
   }
   return result.length === current.length && result.every((message, index) => message === current[index]) ? current : result;
 }
@@ -51,6 +51,13 @@ export function sameLogicalMessage(left: Message, right: Message): boolean {
     return left.response_key === right.response_key;
   }
   return false;
+}
+
+/** Keep an outgoing bubble mounted when its temporary ID becomes a server ID. */
+export function messageRenderKey(message: Pick<Message, 'id' | 'conversation_id' | 'role' | 'client_request_id'>): string {
+  return message.role === 'user' && message.client_request_id
+    ? `${message.conversation_id}:user-request:${message.client_request_id}`
+    : `${message.conversation_id}:message:${message.id}`;
 }
 
 function compareMessages(left: Message, right: Message): number {

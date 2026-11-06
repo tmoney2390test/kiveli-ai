@@ -5,6 +5,7 @@ import { KIVELLI_IMAGE_PLACEHOLDER } from '../lib/imageWarmup';
 
 type Props = {
   source: ImageSource | number;
+  previewSource?: ImageSource;
   accessibilityLabel?: string;
   contentPosition?: ImageContentPosition;
   foregroundFit?: 'contain' | 'cover';
@@ -25,6 +26,7 @@ type Props = {
  */
 export function DetailPreservingArtwork({
   source,
+  previewSource,
   accessibilityLabel,
   contentPosition = 'center',
   foregroundFit = 'contain',
@@ -44,6 +46,7 @@ export function DetailPreservingArtwork({
       importantForAccessibility="no-hide-descendants"
       alt=""
       source={source}
+      previewSource={previewSource}
       style={[StyleSheet.absoluteFill, styles.backdrop]}
       contentFit="cover"
       contentPosition={contentPosition}
@@ -64,6 +67,7 @@ export function DetailPreservingArtwork({
         importantForAccessibility="no-hide-descendants"
         alt={accessibilityLabel ?? ''}
         source={source}
+        previewSource={previewSource}
         style={StyleSheet.absoluteFill}
         contentFit={foregroundFit}
         contentPosition={contentPosition}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { usePathname } from 'expo-router';
-import { queueClientPerformance } from '../lib/api';
+import { queueClientPerformance } from '../lib/api/telemetry';
 import { consumeRouteIntent, routePath } from '../lib/routeWarmup';
 import { useTogether } from '../store/useTogether';
 

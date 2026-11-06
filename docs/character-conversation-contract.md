@@ -80,6 +80,37 @@ chat use the same compiler; each speaker receives their own private profile
 and already-filtered visible history. Story dialogue retains its authored
 speech fingerprint and also consumes the shared behavior selection.
 
+### Everyday mood and emotional causality
+
+The response brief now separates the user's intent from the companion's own
+emotional state. Canonical scene mood and energy, short-lived per-character
+emotional residue, and unresolved relationship conflict can affect delivery.
+An external bad day must not become anger at the user. A user saying they are
+angry must not make the companion angry. A direct insult may receive a sharp,
+character-specific objection, but swearing about a bad shift is not an insult.
+
+Emotional residue is written only from what the companion actually expresses.
+A user apology does not imply forgiveness; acceptance or remaining anger must
+come from the companion's reply. The existing residue row stores only a
+categorical cause and target, decays over time, and stays scoped to the
+speaker's character instance and Life. Direct text, group speaker replies,
+and voice transcript updates use this same derivation. Major relationship
+conflict remains owned by the relationship system.
+
+An angry or frustrated state selects that character's angry performance even
+on an ordinary check-in. Fatigue can shorten patience without implying a
+grievance. Profanity follows the authored voice preference and context; it is
+never a quota. Routine check-ins answer the question before adding one
+grounded detail. A remote text reply cannot claim the companion is physically
+swimming, driving, or performing while composing it, and cannot invent a
+completed transition to make the reply plausible.
+
+This path applies to every character using the shared context compiler,
+including historical versions, new published residents, and custom
+companions. Set `KIVELLE_CHARACTER_EMOTION_ENABLED=false` to disable the
+emotional-state selection while investigating a regression. The flag defaults
+to enabled; it does not alter content permissions or relationship state.
+
 `assessScenePressure()` runs before ordinary keyword-based social intent. It
 distinguishes immediate danger, uncertain pressure, aftermath, and ordinary
 conversation. Short continuations may inherit a visible recent threat;

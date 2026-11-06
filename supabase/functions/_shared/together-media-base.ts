@@ -23,7 +23,6 @@ import {
   hasUsableCharacterIdentityReference,
   type MediaPresenceState,
   photoRequestAllowsHiddenFace,
-  photoRequestWantsVisibleCaptureDevice,
   resolveCanonicalMediaPresence,
   resolveMediaSceneBoundary,
   resolvePhotoComposition,
@@ -64,6 +63,7 @@ export function mediaCaptureLightingForRequest(
   const place = request.context.place;
   return resolveMediaCaptureLighting({
     requestText: request.generationIntent?.requestText,
+    worldSlug: place?.world.slug ?? request.context.worldContainment?.worldSlug,
     localTime: place?.clock.localTime,
     localIso: place?.clock.localIso,
     timezone: place?.clock.timezone,
@@ -495,9 +495,20 @@ function list(value: unknown): string {
     ? value.map(String).filter(Boolean).join(", ")
     : "";
 }
+export function captureDeviceGuidance(compact = false): string {
+  return compact
+    ? "No phone/camera in hand, frame or mirror."
+    : "No phone, camera, or selfie stick in hand or frame, including mirrors. A selfie is a viewpoint; its capture device is unseen.";
+}
+
 export function buildImagePrompt(
   request: CanonicalImageGenerationRequest,
 ): string {
+  if(request.generationKind==='home_environment'){
+    const prompt=request.generationIntent?.requestText?.trim();
+    if(!prompt)throw new AppError('VALIDATION_FAILED','Home artwork needs an authored prompt.',400);
+    return prompt+' Empty interior photograph. No people, faces, bodies, captions, or UI. A single believable residential interior, not a collage.';
+  }
   if ((request.subjects?.length ?? 1) > 1) {
     return buildGroupImagePrompt(request);
   }
@@ -517,6 +528,9 @@ export function buildImagePrompt(
         instruction,
         classifyMediaEditSemantics(instruction),
       ),
+      "CAPTURE DEVICE",
+      captureDeviceGuidance(),
+      "Exactly one subject. Remove incidental bystanders and background figures; do not add another person.",
       "IDENTITY",
       `${request.companion.name} is one fictional adult age ${request.companion.age}. Preserve the exact same recognizable identity, facial geometry, hair, skin, body identity, adult age, and identifying features from the source photograph.`,
       "PHOTOREALISM",
@@ -533,9 +547,6 @@ export function buildImagePrompt(
   }
   const place = request.context.place, location = request.context.location;
   const captureLighting = mediaCaptureLightingForRequest(request);
-  const visibleCaptureDevice = photoRequestWantsVisibleCaptureDevice(
-    request.generationIntent?.requestText,
-  );
   const sceneBoundary = resolveMediaSceneBoundary({
     locationName: place?.location.name ?? location?.name ??
       "the current canonical place",
@@ -606,6 +617,9 @@ export function buildImagePrompt(
   return [
     "PHOTOREALISM REQUIREMENT",
     CHARACTER_PHOTO_REALISM_GUIDANCE,
+    "CAPTURE DEVICE",
+    captureDeviceGuidance(),
+    "Exactly one subject. No incidental bystanders, background people, or crowd.",
     "IDENTITY",
     referenceRule,
     `${request.companion.name} is a fictional adult age ${request.companion.age}.`,
@@ -692,11 +706,7 @@ export function buildImagePrompt(
       )
     }. Pose: ${direction.poseDirection}. Facial direction: ${direction.faceDirection}. The identity reference defines appearance only and must never pull the pose, head angle, gaze, or expression back to its source orientation.`,
     "CAMERA STYLE",
-    `One coherent photorealistic personal smartphone or camera photograph, natural lighting, subtle sensor and lens character, realistic environment, natural expression, and visible natural skin detail. ${faceGuidance} No illustration, anime, painting, CGI, 3D render, doll-like face, waxy or plastic skin, collage, inset, diptych, screenshot, user interface, phone screen displaying a portrait, printed portrait, framed portrait, reference sheet, caption, prompt text, location label, watermark, or logo. Avoid glossy advertising, glamour-campaign staging, fantasy rendering, oversaturation, malformed or duplicated facial features, smeared eyes or mouth, impossible mirror geometry, and identity drift.`,
-    "CAPTURE DEVICE",
-    visibleCaptureDevice
-      ? "The approved request explicitly asks for a visible phone or camera. Include only that requested device, held naturally without obscuring the companion’s identity or introducing impossible mirror geometry."
-      : "The photograph may use a close selfie viewpoint, but the capture device is outside the frame. Do not show a phone, smartphone, camera, selfie stick, device reflection, phone screen, or a hand posed as though visibly holding one.",
+    `One coherent photorealistic personal photograph, natural lighting, subtle sensor and lens character, realistic environment, natural expression, and visible natural skin detail. ${faceGuidance} No illustration, anime, painting, CGI, 3D render, doll-like face, waxy or plastic skin, collage, inset, diptych, screenshot, user interface, phone screen displaying a portrait, printed portrait, framed portrait, reference sheet, caption, prompt text, location label, watermark, or logo. Avoid glossy advertising, glamour-campaign staging, fantasy rendering, oversaturation, malformed or duplicated facial features, smeared eyes or mouth, impossible mirror geometry, and identity drift.`,
     "ANATOMICAL REALISM",
     "Preserve a coherent adult skeleton and natural body proportions from head through torso and limbs. Shoulders, elbows, wrists, hips, knees, and ankles must connect and bend plausibly. Every visible hand has one palm, five distinct naturally arranged fingers, correct thumb placement, separated digits, and believable nails. Do not fuse, erase, duplicate, stretch, twist, or add limbs, joints, fingers, toes, facial features, or body parts. Visible adult anatomy must have natural contours, believable volume, fine skin texture, and complete photographic detail rather than smooth, melted, vague, featureless, or synthetic regions.",
     "CONTINUITY REQUIREMENTS",
@@ -718,7 +728,7 @@ export function buildImagePrompt(
               ? "general-audience wardrobe or pose violation"
               : reason
           ).join(", ")
-        }). Produce a fresh single photograph with one clear, detailed, naturally proportioned face and fully coherent adult anatomy. Correct the named defects rather than hiding them with blur, crop, hands behind the body, crossed limbs, shadows, or missing detail. Do not reuse the previous composition or reproduce any reference image inside the scene.`,
+        }). Produce a fresh single photograph with fully coherent adult anatomy. ${hiddenFaceAllowed?'The approved crop may exclude the face; do not widen it to include a face.':'Keep one clear, detailed, naturally proportioned face.'} Correct the named defects rather than hiding requested detail with blur, occlusion, shadows, or missing anatomy. Do not reuse the previous composition or reproduce any reference image inside the scene.`,
       ]
       : []),
     "WORLD / LOCATION LOCK",
@@ -744,9 +754,6 @@ export function buildGroupImagePrompt(
     location = request.context.location,
     staged = request.context.groupSceneMode === "staged_group_portrait";
   const captureLighting = mediaCaptureLightingForRequest(request);
-  const visibleCaptureDevice = photoRequestWantsVisibleCaptureDevice(
-    request.generationIntent?.requestText,
-  );
   if (subjects.length !== 2) {
     throw new AppError(
       "PROVIDER_REQUEST_INVALID",
@@ -813,6 +820,9 @@ export function buildGroupImagePrompt(
   return [
     "TWO-PERSON KIVELLE PHOTOGRAPH",
     edit,
+    "Exactly the two selected subjects, with no incidental bystanders or background figures.",
+    "CAPTURE DEVICE",
+    captureDeviceGuidance(),
     "PHOTOREALISM REQUIREMENT",
     CHARACTER_PHOTO_REALISM_GUIDANCE,
     "IDENTITY ASSIGNMENT",
@@ -834,10 +844,6 @@ export function buildGroupImagePrompt(
       )
     }`,
     "Keep both intended subjects readable in one camera image. Exactly two people: no third person, duplicate person, extra face, merged body, or cropped-away selected companion.",
-    "CAPTURE DEVICE",
-    visibleCaptureDevice
-      ? "The approved request explicitly asks for a visible phone or camera. Include only that requested device and keep both companion identities unobstructed."
-      : "Treat selfie as viewpoint and framing only. The capture device is outside the image: no visible phone, smartphone, camera, selfie stick, device reflection, phone screen, or device-holding hand.",
     "WARDROBE",
     "Give each subject distinct natural clothing appropriate to the approved request and shared setting unless the approved adult request explicitly changes coverage. Identity references never define wardrobe.",
     "ANATOMICAL REALISM",
@@ -1772,6 +1778,7 @@ export async function canonicalRequestForMedia(
           : [],
         visualContext: snapshot.locationVisualContext ?? {},
         lore: snapshot.locationLore ?? {},
+        ...(snapshot.homeArtwork?{homeArtwork:snapshot.homeArtwork}:{}),
         ...(snapshot.locationVirtualType === "character_home"
           ? { virtualType: "character_home" as const }
           : {}),
@@ -1805,6 +1812,16 @@ export async function canonicalRequestForMedia(
     : null;
   const place = historicalPlace ?? resolvedPlace;
   const references: MediaReferenceImage[] = [];
+  // This immutable home-art snapshot is an environment reference only. It may
+  // never replace an identity image, and another resident's home is not inferred.
+  if(place?.location.homeArtwork){
+    const art=place.location.homeArtwork;
+    const {data:approved}=await db.from('together_home_artwork').select('id,storage_bucket,storage_path').eq('id',art.artworkId).eq('home_id',art.homeId).eq('status','ready').maybeSingle();
+    if(approved&&approved.storage_bucket===art.bucket&&approved.storage_path===art.path){
+      const ref=await loadStorageReference(db,{role:'location_environment',bucket:art.bucket,path:art.path,name:'home-interior'});
+      if(ref)references.push(ref);
+    }
+  }
   const snapshotted = Array.isArray(meta.referenceAssets)
     ? meta.referenceAssets as Array<Record<string, unknown>>
     : [];

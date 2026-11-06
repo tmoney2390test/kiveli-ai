@@ -44,7 +44,9 @@ export async function markMentionedMemories(input:{db:any;userId:string;memoryId
 export function activeEmotionalResidue(row:Row|null|undefined,now:Date){
   if(!row)return null;
   const intensity=decayEmotionalResidue({intensity:Number(row.intensity??0),startedAt:String(row.started_at),halfLifeMinutes:Number(row.half_life_minutes??120),now});
-  return intensity>=.08?{tone:String(row.tone),valence:Number(row.valence??0),intensity,expiresAt:String(row.expires_at)}:null;
+  const metadata=row.metadata&&typeof row.metadata==='object'&&!Array.isArray(row.metadata)?row.metadata as Row:{};
+  const target=metadata.target==='user'||metadata.target==='external'?metadata.target:'unknown';
+  return intensity>=.08?{tone:String(row.tone),valence:Number(row.valence??0),intensity,expiresAt:String(row.expires_at),target}:null;
 }
 
 function present(row:Row,override?:{id:string;canonicalText:string;memoryType:string;importance:number}):MemoryContextEntry{return{id:String(override?.id??row.id),text:String(override?.canonicalText??row.canonical_text??''),type:String(override?.memoryType??row.memory_type??'semantic'),pinned:Boolean(row.pinned),importance:Number(override?.importance??row.importance??.5),sourceType:row.source_type??undefined,episodeId:row.episode_id??undefined,locationId:row.location_id??null,worldId:row.world_id??null,contextTags:Array.isArray(row.context_tags)?row.context_tags.map(String):[],metadata:row.metadata&&typeof row.metadata==='object'&&!Array.isArray(row.metadata)?row.metadata as Record<string,unknown>:undefined};}

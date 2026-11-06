@@ -48,6 +48,7 @@ export type VisionInput = {
 export type VisionResult = {
   shortDescription: string;
   notableDetails: string[];
+  captionFocus?: string;
   visibleText?: string;
   safetyCategories: string[];
   confidence: number;

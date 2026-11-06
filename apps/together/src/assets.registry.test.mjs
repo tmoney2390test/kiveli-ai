@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const registryPath = fileURLToPath(new URL('./assets.ts', import.meta.url));
+const characterRegistryRoot = fileURLToPath(new URL('./character-assets', import.meta.url));
 const portraitsRoot = fileURLToPath(new URL('../assets/characters', import.meta.url));
 
 function registeredCharacterKeys(source) {
@@ -27,7 +28,10 @@ function primaryPortraitSlugs() {
 
 describe('registered character portraits', () => {
   it('registers every primary character portrait file', () => {
-    const keys = registeredCharacterKeys(readFileSync(registryPath, 'utf8'));
+    const registrySources = [readFileSync(registryPath, 'utf8'),
+      ...readdirSync(characterRegistryRoot).filter((name) => name.endsWith('.ts'))
+        .map((name) => readFileSync(join(characterRegistryRoot, name), 'utf8'))];
+    const keys = registeredCharacterKeys(registrySources.join('\n'));
     const missing = [...new Set(primaryPortraitSlugs())]
       .filter((slug) => !keys.has(slug))
       .sort();

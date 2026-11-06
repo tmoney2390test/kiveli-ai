@@ -48,6 +48,7 @@ export type RealtimeVoiceUsage = {
 };
 
 export type RealtimeVoiceCallbacks = {
+  onCaption?(caption: import('./captions').CallCaption | null): void;
   onConnected(providerConversationId?: string): void;
   onClosed(): void;
   onTranscript(event: FinalVoiceTranscript): void;

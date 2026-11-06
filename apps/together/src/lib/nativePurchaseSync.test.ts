@@ -8,11 +8,14 @@ const options={delays:[0,1,1],sleep:vi.fn(()=>Promise.resolve())};
 
 describe('authoritative native restore reconciliation',()=>{
   it('waits through stale free state until the signed entitlement arrives',async()=>{
-    const refetch=vi.fn().mockResolvedValueOnce({data:free}).mockResolvedValueOnce({data:paid});
+    const refetch=vi.fn().mockResolvedValueOnce({data:free}).mockResolvedValueOnce({data:paid,verification:'active'});
     expect(await waitForAuthoritativeRestore(refetch,options)).toMatchObject({state:'active',data:paid});
   });
   it('never treats repeated stale free responses as proof of no purchase',async()=>{
     expect(await waitForAuthoritativeRestore(vi.fn().mockResolvedValue({data:free}),options)).toEqual({state:'syncing'});
+  });
+  it('does not claim an old paid snapshot confirms a new store operation',async()=>{
+    expect(await waitForAuthoritativeRestore(vi.fn().mockResolvedValue({data:paid,verification:'syncing'}),options)).toEqual({state:'syncing'});
   });
   it('only accepts an explicit provider-verified empty account',async()=>{
     expect(await waitForAuthoritativeRestore(()=>Promise.resolve({data:free,verification:'verified_none' as const}),options)).toEqual({state:'verified_none',data:free});

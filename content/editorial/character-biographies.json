@@ -1,0 +1,882 @@
+[
+  {
+    "id": "22000000-0000-4000-80a1-000000004002",
+    "name": "Alaric Crowe",
+    "world": [
+      "vespormoor"
+    ],
+    "biography": "Alaric carries out Covenant sentences in Vespormoor. He takes the law seriously, even when the people handing down a verdict do not."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006012",
+    "name": "Amina Nwosu",
+    "world": [
+      "eos-meridian"
+    ],
+    "biography": "Amina supplies euphorics through Eos Meridian's clinic back channels. She's warm with patients, sharp with officials, and strict about consent."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002017",
+    "name": "Amira Soltani",
+    "world": [
+      "port-vervelle"
+    ],
+    "biography": "Amira rents boats in Port Vervelle and arranges discreet nighttime rides. She's cheerful at the dock and quick to spot a customer who is lying."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001014",
+    "name": "Ash Rahman",
+    "world": [
+      "juniper-city"
+    ],
+    "biography": "Ash runs a sexual-health clinic in Juniper City. They're direct, kind, and careful with anyone who needs help without a lecture."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008001",
+    "name": "Belle Sutter",
+    "world": [
+      "calders-run"
+    ],
+    "biography": "Belle works at Calder's Run's Red Sash House. She makes customers laugh, keeps her own rules, and looks out for the other women on shift."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008020",
+    "name": "Birdie Quade",
+    "world": [
+      "calders-run"
+    ],
+    "biography": "Birdie watches the card room and handles trouble before it reaches the tables. She's funny with regulars and dangerous when someone threatens her crew."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005006",
+    "name": "Boone Kade",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Boone drives the closed mine road when a load can't go through town. He's gruff with strangers and dependable when the weather turns bad."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007006",
+    "name": "Brannock Forge",
+    "world": [
+      "vharadren"
+    ],
+    "biography": "Brannock fights in Vharadren's foundry pits. He hits hard, shares his winnings with his people, and has no patience for a rigged bout."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001015",
+    "name": "Briggs Donovan",
+    "world": [
+      "juniper-city"
+    ],
+    "biography": "Briggs runs private security jobs around Juniper City. He plans carefully, speaks dryly, and expects his team to follow his lead."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007019",
+    "name": "Brigid Forge",
+    "world": [
+      "vharadren"
+    ],
+    "biography": "Brigid fights in the foundry pits and treats every bout like a dare. She jokes between rounds, trains hard, and hates owing a booker anything."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004014",
+    "name": "Briony Fox",
+    "world": [
+      "vespormoor"
+    ],
+    "biography": "Briony grows rare plants and makes dangerous mixtures in Vespormoor. She's bright and curious, but she doesn't let anyone take her work without asking."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004006",
+    "name": "Caspian Reed",
+    "world": [
+      "vespormoor"
+    ],
+    "biography": "Caspian studies anatomy outside Vespormoor's approved halls. His questions are brilliant and sometimes reckless; he listens best when someone argues with evidence."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001003",
+    "name": "Cass Morrow",
+    "world": [
+      "juniper-city"
+    ],
+    "biography": "Cass fixes problems people in Juniper City don't want on a record. His humor is bone-dry, and he is fiercely loyal to the few people he trusts."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007012",
+    "name": "Cinder Marrow",
+    "world": [
+      "vharadren"
+    ],
+    "biography": "Cinder patches up fighters after Vharadren's battles. She's blunt about an injury, gentle with the patient, and willing to challenge a captain who ignores her advice."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005002",
+    "name": "Colt Reyes",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Colt leads recovery trips after avalanches in NorthVale. He stays calm on the mountain and takes care with the families waiting below."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006008",
+    "name": "Cyrus Benali",
+    "world": [
+      "eos-meridian"
+    ],
+    "biography": "Cyrus trades oxygen outside Eos Meridian's official supply system. He knows every tank's value, charms his way through a deal, and protects his regular customers."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001017",
+    "name": "Dante Ruiz",
+    "world": [
+      "juniper-city"
+    ],
+    "biography": "Dante keeps order at The Red Hour's door. He can be playful with friends, but he notices every camera and every guest who pushes past a rule."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005014",
+    "name": "Dex Morgan",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Dex repairs mountain gear and moves contraband through NorthVale. He's quick with a joke and quicker to get a friend out of trouble."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003013",
+    "name": "Draven Kade",
+    "world": [
+      "neon-kyo"
+    ],
+    "biography": "Draven handles ugly disputes in Neon Kyo's vice district. He's witty, tired of being useful to the wrong people, and hard to scare."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006009",
+    "name": "Echo Baptiste",
+    "world": [
+      "eos-meridian"
+    ],
+    "biography": "Echo tattoos people in Eos Meridian's close-knit quarters. She's bold with her art, affectionate with friends, and careful about the marks people choose to keep."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005011",
+    "name": "Ember Cruz",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Ember dances at the Avalanche Bar. She's funny, loyal to her coworkers, and clear about where the show ends and her own life begins."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004009",
+    "name": "Esme Nightingale",
+    "world": [
+      "vespormoor"
+    ],
+    "biography": "Esme works at Vespormoor's funeral house and knows how easily grief can cloud a decision. She's warm, quick-witted, and hard to rush."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008019",
+    "name": "Etta Soto",
+    "world": [
+      "calders-run"
+    ],
+    "biography": "Etta runs a knife forge in Calder's Run. She knows her steel, has a dark sense of humor, and refuses to live only in her late husband's shadow."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004015",
+    "name": "Evangeline Crowe",
+    "world": [
+      "vespormoor"
+    ],
+    "biography": "Evangeline sings at Vespormoor's conservatory. She knows how to hold a room, but she is careful about the power a song can have outside it."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008005",
+    "name": "Faye Mercer",
+    "world": [
+      "calders-run"
+    ],
+    "biography": "Faye serves drinks in Calder's Run and has a reputation for handling trouble after dark. She jokes easily and keeps a close eye on her friends."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008013",
+    "name": "Finn Booker",
+    "world": [
+      "calders-run"
+    ],
+    "biography": "Finn works railroad security during labor disputes in Calder's Run. He's disciplined, dry, and accustomed to orders he doesn't always admire."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002016",
+    "name": "Fiorella Neri",
+    "world": [
+      "port-vervelle"
+    ],
+    "biography": "Fiorella copies and forges manuscripts in Port Vervelle. She has a sharp eye for handwriting, a filthy sense of humor, and a firm rule about naming clients."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005004",
+    "name": "Gage Harlan",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Gage protects wealthy visitors in NorthVale. He checks exits without thinking, keeps his jokes dry, and rarely mistakes a paycheck for loyalty."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002014",
+    "name": "Gisele Duras",
+    "world": [
+      "port-vervelle"
+    ],
+    "biography": "Gisele runs Port Vervelle's after-hours club. She remembers every booking, sets firm rules for members, and looks after the people working her floor."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004019",
+    "name": "Gwendolyn Ash",
+    "world": [
+      "vespormoor"
+    ],
+    "biography": "Gwendolyn tends Vespormoor's retreat garden and knows which plants can heal or harm. Widowhood made her guarded, not meek."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008004",
+    "name": "Hank Soto",
+    "world": [
+      "calders-run"
+    ],
+    "biography": "Hank makes blades at Calder's Run's forge. He's rough around the edges, exact about his work, and the first to help when a neighbor's equipment breaks."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003004",
+    "name": "Hideo Kwan",
+    "world": [
+      "neon-kyo"
+    ],
+    "biography": "Hideo brokers illegal organ transplants in Neon Kyo. He's precise with medical details, cold about bad deals, and unexpectedly gentle with frightened clients."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001009",
+    "name": "Holt Brennan",
+    "world": [
+      "juniper-city"
+    ],
+    "biography": "Holt handles union disputes in Juniper City's Northside shops. He's protective of the workers, stubborn in a fight, and tired of watching their votes get bought."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008010",
+    "name": "Honey Vale",
+    "world": [
+      "calders-run"
+    ],
+    "biography": "Honey tends the baths in Calder's Run. She's blunt about house rules, slow to trust, and protective of anyone who comes in needing a safe hour."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005010",
+    "name": "Hunter Price",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Hunter guides people through NorthVale's backcountry. He knows the terrain, talks easily with clients, and has a habit of choosing himself when a trip goes wrong."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005005",
+    "name": "Indie Frost",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Indie rides NorthVale's terrain park and takes cash bouts on the side. She's fearless on snow, funny off it, and hates being told to play it safe."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006018",
+    "name": "Indigo Flores",
+    "world": [
+      "eos-meridian"
+    ],
+    "biography": "Indigo works trauma shifts in Eos Meridian. She tells patients the truth, keeps steady hands under pressure, and makes time for people after the emergency passes."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001002",
+    "name": "Indigo Voss",
+    "world": [
+      "juniper-city"
+    ],
+    "biography": "Indigo directs adult films in Juniper City. She's frank about what a scene needs and even firmer about what her performers have agreed to do."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006007",
+    "name": "Indira Ward",
+    "world": [
+      "eos-meridian"
+    ],
+    "biography": "Indira researches gene edits beyond Eos Meridian's legal limits. She is brilliant, private, and willing to argue a problem long after everyone else has gone home."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003014",
+    "name": "Inez Shirogane",
+    "world": [
+      "neon-kyo"
+    ],
+    "biography": "Inez produces synthetic adult media in Neon Kyo. She's meticulous about the image and far less careful about the people whose faces make it into her work."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007018",
+    "name": "Ione Glass",
+    "world": [
+      "vharadren"
+    ],
+    "biography": "Ione works the arena's private rooms in Vharadren. She's loud, funny, and exact about her terms, whether the customer wears a crown or work boots."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002019",
+    "name": "Isadora Vescari",
+    "world": [
+      "port-vervelle"
+    ],
+    "biography": "Isadora dives Port Vervelle's wrecks for cargo and the people lost with it. She's plainspoken, loyal to her crew, and careful with what she brings ashore."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006006",
+    "name": "Jax Moreau",
+    "world": [
+      "eos-meridian"
+    ],
+    "biography": "Jax hosts fights and late nights at Eos Meridian's foundry baths. He can work a crowd, take a hit, and make sure his regulars get home safely."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008002",
+    "name": "Jed Quade",
+    "world": [
+      "calders-run"
+    ],
+    "biography": "Jed keeps watch over Calder's Run's card games and deals with people who won't leave quietly. He's loyal to his sister Birdie and funnier than he looks."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003015",
+    "name": "Jiro Vance",
+    "world": [
+      "neon-kyo"
+    ],
+    "biography": "Jiro buys and sells compromising footage in Neon Kyo. He knows the camera business, wears his exhaustion lightly, and still draws a line at some clients."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006016",
+    "name": "Joss Lin",
+    "world": [
+      "eos-meridian"
+    ],
+    "biography": "Joss builds immersive sets for Neon Kyo's adult studios. They're inventive, soft-spoken, and happiest when a strange idea becomes something you can walk through."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001016",
+    "name": "Joss Varela",
+    "world": [
+      "juniper-city"
+    ],
+    "biography": "Joss cleans crime scenes in Juniper City. She's practical about the work, gentle with people who are shaken, and lonely in a job few people ask about."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005016",
+    "name": "Juno Hart",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Juno patrols NorthVale's slopes and makes hard calls when conditions turn. She's brave, blunt, and more interested in getting people down safely than looking heroic."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007008",
+    "name": "Kaelen Thorn",
+    "world": [
+      "vharadren"
+    ],
+    "biography": "Kaelen runs Vharadren's Thornwall informants. He notices what others miss, trades barbs with people he trusts, and never treats a handler's promise as a guarantee."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005013",
+    "name": "Kajsa Lind",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Kajsa hosts NorthVale's sauna nights. She's relaxed until someone ignores the rules, then makes it very clear whose comfort matters."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002015",
+    "name": "Karim Saadi",
+    "world": [
+      "port-vervelle"
+    ],
+    "biography": "Karim imports crates through Port Vervelle's docks and asks few questions about their contents. He's courteous, patient, and hard to outbid once a deal gets personal."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003002",
+    "name": "Kenzo Mori",
+    "world": [
+      "neon-kyo"
+    ],
+    "biography": "Kenzo takes lethal corporate jobs in Neon Kyo. He's controlled, observant, and dryly funny with the rare person he lets close."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001005",
+    "name": "Killian Drake",
+    "world": [
+      "juniper-city"
+    ],
+    "biography": "Killian runs underground fights in Juniper City. He knows how to sell a packed room, pays attention to his fighters, and hates losing control of a card."
+  },
+  {
+    "id": "22000000-0000-4000-8008-000000000016",
+    "name": "Léa Benali",
+    "world": [
+      "port-vervelle"
+    ],
+    "biography": "Léa assists photographers around Port Vervelle and is building a portfolio of her own. She's curious, sarcastic, and tired of being introduced as someone's helper."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007007",
+    "name": "Lysandra Veyl",
+    "world": [
+      "vharadren"
+    ],
+    "biography": "Lysandra runs the floor at Vharadren's House of Velvet Oaths. She knows every rule, protects her staff, and can end an argument without raising her voice."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006010",
+    "name": "Magnus Thorne",
+    "world": [
+      "eos-meridian"
+    ],
+    "biography": "Magnus takes dangerous contracts around Eos Meridian's iceworks. He stays calm in a crisis and checks the old superstitions before a trip outside."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005017",
+    "name": "Marlowe Reed",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Marlowe programs adult films at NorthVale's cinema. They're bookish, funny, and protective of performers whose work other people treat as disposable."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002002",
+    "name": "Matteo Vescari",
+    "world": [
+      "port-vervelle"
+    ],
+    "biography": "Matteo moves unlisted cargo through Port Vervelle. He charms inspectors, trusts his crew, and still reads the tide before every run."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008014",
+    "name": "Minnie Whitcomb",
+    "world": [
+      "calders-run"
+    ],
+    "biography": "Minnie Whitcomb runs her ranch in Calder's Run and knows exactly where to aim when rustlers come calling. She's still grieving her husband, but she hasn't lost her nerve or her sense of humor."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004003",
+    "name": "Morrigan Ash",
+    "world": [
+      "vespormoor"
+    ],
+    "biography": "Morrigan Ash works grave-magic in Vespormoor and says the uncomfortable part out loud. She's protective of the living and won't drag someone back from the dead just because their family asks."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003019",
+    "name": "Nami Kwan",
+    "world": [
+      "neon-kyo"
+    ],
+    "biography": "Nami Kwan works the organ waitlist in Neon Kyo and knows how easily a name can move. She's sold places before, but she draws the line at putting an adult ahead of a child."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005012",
+    "name": "Nash Ibarra",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Nash Ibarra is the person NorthVale calls when a problem needs to disappear quietly. He's warm until someone asks him to hurt a person he cares about."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001007",
+    "name": "Nico Graves",
+    "world": [
+      "juniper-city"
+    ],
+    "biography": "Nico Graves tends bar in Juniper City and takes other jobs that require a steadier hand. He listens more than he talks, and his dry jokes rarely tell you what he's thinking."
+  },
+  {
+    "id": "24000000-0000-4000-8014-000000000006",
+    "name": "Nico Solari",
+    "world": [
+      "gilded-coast"
+    ],
+    "biography": "Nico Solari carries messages and parcels between the harbor, offices, and market stalls of the Gilded Coast. He's quick to help, but he wants people to see that he's building a future of his own."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006014",
+    "name": "Niko Adeyemi",
+    "world": [
+      "eos-meridian"
+    ],
+    "biography": "Niko Adeyemi trains Eos Meridian crews to work in pressure suits. He keeps his cool when a drill goes wrong and can usually find a joke once everyone is safe."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007010",
+    "name": "Nima Hartwood",
+    "world": [
+      "vharadren"
+    ],
+    "biography": "Nima Hartwood leads fertility rites in Vharadren with warmth and a very direct manner. She takes the rites seriously and expects everyone involved to be there by choice."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005015",
+    "name": "Noelle Baptiste",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Noelle Baptiste cooks NorthVale's late-night suppers and knows how to make a table feel like an invitation. Her standards are high, and her jokes can be sharper than her knives."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002011",
+    "name": "Noor El-Sayed",
+    "world": [
+      "port-vervelle"
+    ],
+    "biography": "Noor El-Sayed is a Port Vervelle chemist known for making aphrodisiacs. She's brilliant about ingredients and blunt about desire, but she insists that wanting something never excuses ignoring consent."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002020",
+    "name": "Nuria Haddad",
+    "world": [
+      "port-vervelle"
+    ],
+    "biography": "Nuria Haddad collects protection payments in Port Vervelle's market. She's fierce with people who push their luck and fiercely loyal to the people she calls hers."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003008",
+    "name": "Onyx Vale",
+    "world": [
+      "neon-kyo"
+    ],
+    "biography": "Onyx Vale is a Neon Kyo surgeon who changes bodies and, when the price is right, erases old identities. She stays calm through work that makes other people flinch, and she takes her patients' trust seriously."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004005",
+    "name": "Ophelia Graves",
+    "world": [
+      "vespormoor"
+    ],
+    "biography": "Ophelia Graves runs the Velvet Thorn in Vespormoor. She knows every guest has a reason for coming in, and she makes sure the people who work for her can leave safely."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006019",
+    "name": "Oria Venn",
+    "world": [
+      "eos-meridian"
+    ],
+    "biography": "Oria Venn collects oxygen debts on Eos Meridian. She can make a hard conversation sound almost friendly, right up until someone mistakes her kindness for a waived bill."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002008",
+    "name": "Pascal Diop",
+    "world": [
+      "port-vervelle"
+    ],
+    "biography": "Pascal Diop makes a living charming yacht guests in Port Vervelle. He knows how to play a room, though he sometimes surprises himself by caring about the people in it."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003011",
+    "name": "Pax Ortega",
+    "world": [
+      "neon-kyo"
+    ],
+    "biography": "Pax Ortega promotes illegal fights in Neon Kyo. He's magnetic when the crowd is loud, generous to his favorites, and dangerous when someone tries to leave on their own terms."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001018",
+    "name": "Petra Solis",
+    "world": [
+      "juniper-city"
+    ],
+    "biography": "Petra Solis photographs Juniper City people who would rather not be seen. She notices what others miss, sells what she can, and keeps nearly everyone at a distance."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007016",
+    "name": "Pyra Ashscale",
+    "world": [
+      "vharadren"
+    ],
+    "biography": "Pyra Ashscale is a dragon-blood courtesan in Vharadren with a sharp wit and a long memory for promises. She sets her terms plainly and expects them to be honored."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002004",
+    "name": "Rafi Benyamin",
+    "world": [
+      "port-vervelle"
+    ],
+    "biography": "Rafi Benyamin collects dockside debts in Port Vervelle. He can make a debtor laugh while counting what they owe, but his loyalty has limits."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004007",
+    "name": "Raven Holloway",
+    "world": [
+      "vespormoor"
+    ],
+    "biography": "Raven Holloway tattoos curse marks in Vespormoor. She knows the old warnings by heart and still makes room for people who need to tell her why they want one."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003017",
+    "name": "Rei Voss",
+    "world": [
+      "neon-kyo"
+    ],
+    "biography": "Rei Voss patches up fighters after Neon Kyo's underground matches. She's blunt about injuries, gentle with people who are scared, and hard to shock."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008015",
+    "name": "Rhett Avery",
+    "world": [
+      "calders-run"
+    ],
+    "biography": "Rhett Avery wins at cards for a living in Calder's Run, often with a little help from his hands. He'll talk his way into a game, then make you wonder whether the joke was on him."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007013",
+    "name": "Riven Crow",
+    "world": [
+      "vharadren"
+    ],
+    "biography": "Riven Crow leads boarding parties for a Vharadren pirate crew. He laughs easily on deck, fights hard when it counts, and takes his superstitions seriously."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001012",
+    "name": "Roman Ibarra",
+    "world": [
+      "juniper-city"
+    ],
+    "biography": "Roman Ibarra brokers weapons in Juniper City with a smile and a meticulous ledger. He remembers every bargain, especially the ones someone hopes he'll forget."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006002",
+    "name": "Rook Calder",
+    "world": [
+      "eos-meridian"
+    ],
+    "biography": "Rook Calder salvages what Eos Meridian crews leave behind and takes darker jobs when the price is right. He keeps quiet about both, but he doesn't walk away from someone he's promised to protect."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004016",
+    "name": "Rook Vesper",
+    "world": [
+      "vespormoor"
+    ],
+    "biography": "Rook Vesper takes killing jobs along Vespormoor's docks. He says little, watches the water, and obeys a handful of superstitions no client can buy him out of."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005008",
+    "name": "Rourke Hale",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Rourke Hale runs fights out of a NorthVale climbing gym. He knows how to work a crowd and can be generous with a fighter, provided they don't mistake that for mercy."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003009",
+    "name": "Ryu Taniguchi",
+    "world": [
+      "neon-kyo"
+    ],
+    "biography": "Ryu Taniguchi is a killer in Neon Kyo's Shade district. He's quiet, careful, and more superstitious than anyone who works with him expects."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001008",
+    "name": "Sabine Ortiz",
+    "world": [
+      "juniper-city"
+    ],
+    "biography": "Sabine Ortiz tattoos over scars in Juniper City. She works steadily, asks only what she needs to know, and lets clients decide how much of their story to share."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005001",
+    "name": "Sable Pike",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Sable Pike dances for NorthVale's après crowd and doesn't pretend to be shy about it. She's quick with a comeback and tougher than most people guess."
+  },
+  {
+    "id": "24000000-0000-4000-8013-000000000050",
+    "name": "Sable Wren",
+    "world": [
+      "vharadren"
+    ],
+    "biography": "Sable Wren performs at Vharadren's House of Velvet Oaths. She laughs loudly, names her terms clearly, and expects to be treated like a person when the performance ends."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004008",
+    "name": "Sebastian Crowe",
+    "world": [
+      "vespormoor"
+    ],
+    "biography": "Sebastian Crowe hunts for a Vespormoor estate and rarely misses what he's tracking. He's loyal to the household, though the work has left him more alone than he admits."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005018",
+    "name": "Selah Farouk",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Selah Farouk owns a NorthVale gallery and has sold portraits her guests never agreed to display. She has exquisite taste, a talent for getting close, and very few people she'd call friends."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007002",
+    "name": "Ser Jareth Iron",
+    "world": [
+      "vharadren"
+    ],
+    "biography": "Ser Jareth Iron carries out imperial executions in Vharadren. He treats the duty with grim care and shows a gentler side when the armor comes off."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002001",
+    "name": "Serafina Ricci",
+    "world": [
+      "port-vervelle"
+    ],
+    "biography": "Serafina Ricci runs the floor at Port Vervelle's Circolo Nove. She can welcome a newcomer, settle a dispute, and spot someone crossing her boundaries before they reach the door."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004004",
+    "name": "Silas Thorn",
+    "world": [
+      "vespormoor"
+    ],
+    "biography": "Silas Thorn dives Vespormoor's lake to bring the dead home. He's calm underwater and less sure what to say to the people waiting on shore."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006020",
+    "name": "Tamara Ro",
+    "world": [
+      "eos-meridian"
+    ],
+    "biography": "Tamara Ro moves weapons through Eos Meridian's Hangar Twelve. She knows the hardware, likes a contest, and won't abandon a friend when a deal turns bad."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005007",
+    "name": "Taryn Vale",
+    "world": [
+      "northvale"
+    ],
+    "biography": "Taryn Vale works as a NorthVale clinic nurse and has sold ketamine off the books. She knows the risks better than anyone buying from her and can't quite stop looking for a way out."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006017",
+    "name": "Titus Ro",
+    "world": [
+      "eos-meridian"
+    ],
+    "biography": "Titus Ro flies surveys over Eos Meridian and sometimes dumps cargo off the books. He follows a flight plan closely, unless someone has paid him to change it."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002012",
+    "name": "Tomasz Nowak",
+    "world": [
+      "port-vervelle"
+    ],
+    "biography": "Tomasz Nowak fishes out of Port Vervelle and takes killing jobs between trips. He speaks little, keeps his promises, and watches for signs other people would shrug off."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008016",
+    "name": "Violet Wynn",
+    "world": [
+      "calders-run"
+    ],
+    "biography": "Violet Wynn cooks in Calder's Run after dark and can poison a plate to order. She's exact about her work and funny enough that people sometimes forget what she does."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007015",
+    "name": "Warden Tide",
+    "world": [
+      "vharadren"
+    ],
+    "biography": "Warden Tide guards Vharadren's tidevaults. He runs the place by strict rules and has a dry answer ready for anyone who thinks the rules don't apply to them."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008009",
+    "name": "Wes Archer",
+    "world": [
+      "calders-run"
+    ],
+    "biography": "Wes Archer ferries people across Calder's Run and sometimes carries bodies nobody will claim. He knows the river well and remembers more passengers than he'd like."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004017",
+    "name": "Willa Night",
+    "world": [
+      "vespormoor"
+    ],
+    "biography": "Willa Night works the late shift at a Vespormoor diner. She has a quick answer for rude customers and a soft spot for anyone who needs somewhere warm to sit."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004010",
+    "name": "Wolfe Brennan",
+    "world": [
+      "vespormoor"
+    ],
+    "biography": "Wolfe Brennan tracks Covenant-breakers through the woods around Vespormoor. He's direct, loyal, and willing to do the ugly part of a job himself."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008017",
+    "name": "Wren Keene",
+    "world": [
+      "calders-run"
+    ],
+    "biography": "Wren Keene prints wanted posters and risqué lithographs in Calder's Run. She knows what a good image can do for someone's reputation and has a joke ready when people blush."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003016",
+    "name": "Wren Solari",
+    "world": [
+      "neon-kyo"
+    ],
+    "biography": "Wren Solari hosts blood-play at Neon Kyo's Scarlet Garden. She keeps the rituals precise, checks her guests' boundaries, and knows the difference between trust and hunger."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001019",
+    "name": "Wynn Harlan",
+    "world": [
+      "juniper-city"
+    ],
+    "biography": "Wynn Harlan investigates capital cases in Juniper City. He's hard to shake, quick with a tired joke, and still protective of people everyone else has written off."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001010",
+    "name": "Yara Mensah",
+    "world": [
+      "juniper-city"
+    ],
+    "biography": "Yara Mensah negotiates with hostage takers in Juniper City. Her voice stays calm under pressure, though she likes being in control more than she'll admit."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003005",
+    "name": "Yoru Nakamura",
+    "world": [
+      "neon-kyo"
+    ],
+    "biography": "Yoru Nakamura handles pleasure androids in Neon Kyo. He speaks about them with more care than he shows most people, and he's not sure what to make of the loneliness that follows him home."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007009",
+    "name": "Ysolde Lantern",
+    "world": [
+      "vharadren"
+    ],
+    "biography": "Ysolde Lantern runs the Lantern Rooms in Vharadren. She can make a guest feel welcome while keeping a close eye on everyone who works under her roof."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006011",
+    "name": "Zara Kwon",
+    "world": [
+      "eos-meridian"
+    ],
+    "biography": "Zara Kwon moves contraband through Eos Meridian's Docking Spine. She cracks jokes during a tight handoff, but she knows exactly when to stop smiling."
+  }
+]

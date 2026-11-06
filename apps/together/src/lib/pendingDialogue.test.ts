@@ -1,5 +1,5 @@
 import{describe,expect,it}from'vitest';
-import{beginPendingDialogue,finishPendingDialogue,type PendingDialogueMap}from'./pendingDialogue';
+import{beginPendingDialogue,finishPendingDialogue,stalledPendingDialogueDelay,STALLED_PENDING_DIALOGUE_AFTER_MS,type PendingDialogueMap}from'./pendingDialogue';
 
 describe('pending dialogue registry',()=>{
   const reply={conversationId:'brooke-chat',characterInstanceId:'brooke',clientRequestId:'request-2',startedAt:'2026-08-21T18:00:00.000Z',showTyping:true};
@@ -20,5 +20,10 @@ describe('pending dialogue registry',()=>{
   it('can keep photo-offer work silent without losing its in-flight lock',()=>{
     const silent:PendingDialogueMap=beginPendingDialogue({}, {...reply,showTyping:false});
     expect(silent['brooke-chat']?.showTyping).toBe(false);
+  });
+  it('releases an orphaned pending turn only after the server reply lease expires',()=>{
+    const startedAt=Date.parse(reply.startedAt);
+    expect(stalledPendingDialogueDelay(reply,startedAt+180_000)).toBe(10_000);
+    expect(stalledPendingDialogueDelay(reply,startedAt+STALLED_PENDING_DIALOGUE_AFTER_MS)).toBe(0);
   });
 });

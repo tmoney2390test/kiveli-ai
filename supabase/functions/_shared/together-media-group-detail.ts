@@ -88,3 +88,61 @@ export async function tryAdultGroupDetailRefinement(input:{db:SupabaseClient;job
 function stableBucket(value:string):number{let hash=2166136261;for(let i=0;i<value.length;i+=1){hash^=value.charCodeAt(i);hash=Math.imul(hash,16777619);}return(hash>>>0)%10_000;}
 function envEnabled(name:string,fallback:boolean):boolean{const value=Deno.env.get(name);return value==null?fallback:['1','true','yes','on'].includes(value.toLowerCase());}
 function envRate(name:string,fallback:number):number{const raw=Deno.env.get(name);if(raw==null||raw.trim()==='')return fallback;const value=Number(raw);return Number.isFinite(value)?value:fallback;}
+
+
+const SINGLE_BODY_GEOMETRY_REASONS = new Set(['torso_distortion', 'duplicate_body_parts', 'limb_distortion', 'joint_distortion', 'body_proportion_error', 'multiple_subjects', 'subject_count_mismatch', 'visible_capture_device']);
+
+export function shouldRefineAdultSingleAnatomy(input:{adultAuthorized:boolean;subjectCount:number;provider:string;bytes?:Uint8Array;reasonCodes:string[];alreadyAttempted:boolean;enabled:boolean}):boolean{
+  return input.enabled&&input.adultAuthorized&&input.subjectCount===1&&input.provider==='venice'&&Boolean(input.bytes?.byteLength)&&!input.alreadyAttempted&&input.reasonCodes.some((reason)=>SINGLE_BODY_GEOMETRY_REASONS.has(reason))&&!input.reasonCodes.some((reason)=>SAFETY_REASONS.has(reason));
+}
+
+export function isBetterAnatomyCandidate(first:MediaQualityVerdict,next:MediaQualityVerdict):boolean{
+  if(first.status!=='fail'||next.status==='unavailable')return false;
+  if(next.reasonCodes.some((reason)=>SINGLE_BODY_GEOMETRY_REASONS.has(reason)||SAFETY_REASONS.has(reason)))return false;
+  if(next.reasonCodes.some((reason)=>!first.reasonCodes.includes(reason)))return false;
+  return true;
+}
+
+/** A bounded platform-funded repair attempt. If it fails QA, the original generated photo remains deliverable. */
+export async function tryAdultSingleAnatomyRefinement(input:{db:SupabaseClient;job:Record<string,any>;media:Record<string,any>;original:ProviderCompletedMedia;request:CanonicalMediaRequest;firstVerdict:MediaQualityVerdict;providerMetadata:Record<string,unknown>;assess:(candidate:ProviderCompletedMedia)=>Promise<MediaQualityVerdict>;client?:VeniceImageClient;subscriptionTier?:string;emit?:(name:string,properties:Record<string,unknown>)=>Promise<void>}):Promise<ProviderCompletedMedia|null>{
+  const {db,job,media,original,request,firstVerdict,providerMetadata}=input;
+  if(!shouldRefineAdultSingleAnatomy({adultAuthorized:request.adultPipelineAuthorized===true,subjectCount:request.subjects?.length??1,provider:String(job.provider),bytes:original.bytes,reasonCodes:firstVerdict.reasonCodes,alreadyAttempted:providerMetadata.anatomyRefinementAttempted===true,enabled:envEnabled('KIVELLE_ADULT_ANATOMY_REFINEMENT_ENABLED',true)}))return null;
+  const client=input.client??configuredVeniceClient(),leaseToken=job.finalization_lease_token;
+  if(!client||!leaseToken||!original.bytes)return null;
+  const claimedMetadata={...providerMetadata,anatomyRefinementAttempted:true,anatomyRefinementSelected:false};
+  const {data:claimed,error:claimError}=await db.from('together_media_provider_jobs').update({provider_metadata:claimedMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id)).eq('finalization_lease_token',String(leaseToken)).select('id').maybeSingle();
+  if(claimError||!claimed)return null;
+  Object.assign(providerMetadata,claimedMetadata);
+  const attemptNumber=Math.max(1,Number(job.attempt_count??1))+1,model=original.model,routeId=String(job.route_id),estimatedCost=veniceModelCostUsd(model);
+  let providerSucceeded=false;
+  try{
+    const source=`data:${original.contentType??'image/png'};base64,${encodeBase64(original.bytes)}`;
+    const repaired=await client.edit({model,prompt:'Repair this fictional adult photograph so exactly the intended single companion remains. Remove any visible phone, camera, selfie stick, device reflection, and device-holding gesture; reconstruct the hand naturally empty. Remove all unintended background people, bystanders, extra faces, and duplicate figures while keeping the same place. Preserve the companion’s recognizable identity, lighting, camera angle, requested pose, clothing and permitted exposure. Reconstruct one continuous head, neck, shoulders, upper torso, spine, waist, pelvis, arms and legs with realistic proportions. Keep the buttocks behind the pelvis, never incorrectly attached to the front beneath a forward-facing chest. Remove any extra upper torso, shoulders, head or chest growing from the back or hips; separate fused body parts and reconnect impossible joints. Do not hide requested anatomy, crop away the body, censor the image, or change the scene. Output only a natural photograph.',images:[source],aspectRatio:request.composition.aspectRatio,safeMode:false,compactSingleEdit:true,timeoutMs:30_000});
+    providerSucceeded=true;
+    const tier=input.subscriptionTier??await resolveSubscriptionState(db,String(media.user_id)).then((state)=>state.tier).catch(()=>'free');
+    await recordMediaUsageAttempt(db,{job,media,subscriptionTier:tier,routeId,model,provider:'venice',attemptNumber,qualityRetry:true,generationMs:repaired.generationMs,estimatedCost:repaired.estimatedCost,attemptMetadata:{pipelineStage:'adult_single_anatomy_refinement',providerRequestId:repaired.providerRequestId}});
+    await completeMediaUsageAttempt(db,{providerJobId:String(job.id),attemptNumber,success:true,generationMs:repaired.generationMs});
+    const candidate:ProviderCompletedMedia={bytes:repaired.bytes,contentType:repaired.contentType,providerRequestId:repaired.providerRequestId,model:repaired.model,estimatedCost:Number(original.estimatedCost??0)+repaired.estimatedCost,generationMs:Number(original.generationMs??0)+repaired.generationMs};
+    const verdict=await input.assess(candidate),selected=isBetterAnatomyCandidate(firstVerdict,verdict);
+    const nextMetadata={...claimedMetadata,anatomyRefinementSelected:selected,anatomyRefinementReasonCodes:verdict.reasonCodes,anatomyRefinementProviderRequestId:repaired.providerRequestId,anatomyRefinementEstimatedCostUsd:estimatedCost,...(selected?{qualityVerdict:verdict.status,qualityReasonCodes:verdict.reasonCodes,qualityCheckedAt:new Date().toISOString()}:{})};
+    const {data:updated}=await db.from('together_media_provider_jobs').update({provider_metadata:nextMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('provider_request_id',String(job.provider_request_id)).eq('finalization_lease_token',String(leaseToken)).select('id').maybeSingle();
+    if(updated)Object.assign(providerMetadata,nextMetadata);
+    await (input.emit?.('media_anatomy_refinement_completed',{mediaId:media.id,selected:Boolean(selected&&updated),firstReasonCodes:firstVerdict.reasonCodes,repairReasonCodes:verdict.reasonCodes,estimatedCostUsd:estimatedCost})??track(db,String(media.user_id),'media_anatomy_refinement_completed',{mediaId:media.id,selected:Boolean(selected&&updated),firstReasonCodes:firstVerdict.reasonCodes,repairReasonCodes:verdict.reasonCodes,estimatedCostUsd:estimatedCost})).catch(()=>{});
+    if(!selected||!updated)return null;
+    return{...candidate,providerMetadata:{...(original.providerMetadata??{}),anatomyRefinementAttempted:true,anatomyRefinementSelected:true,...(verdict.status==='fail'?{qualityAcceptedWithWarnings:true,qualityWarningReasonCodes:verdict.reasonCodes}:{})}};
+  }catch(error){
+    const code=error instanceof AppError?error.code:'anatomy_refinement_failed';
+    if(!providerSucceeded){
+      const tier=input.subscriptionTier??await resolveSubscriptionState(db,String(media.user_id)).then((state)=>state.tier).catch(()=>'free');
+      await recordMediaUsageAttempt(db,{job,media,subscriptionTier:tier,routeId,model,provider:'venice',attemptNumber,qualityRetry:true,estimatedCost,attemptMetadata:{pipelineStage:'adult_single_anatomy_refinement'}});
+      await completeMediaUsageAttempt(db,{providerJobId:String(job.id),attemptNumber,success:false,failureCode:code});
+    }
+    const failedMetadata={...claimedMetadata,anatomyRefinementErrorCode:code};
+    await db.from('together_media_provider_jobs').update({provider_metadata:failedMetadata,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','processing').eq('finalization_lease_token',String(leaseToken));
+    Object.assign(providerMetadata,failedMetadata);
+    await (input.emit?.('media_anatomy_refinement_failed',{mediaId:media.id,errorCode:code,estimatedCostUsd:estimatedCost})??track(db,String(media.user_id),'media_anatomy_refinement_failed',{mediaId:media.id,errorCode:code,estimatedCostUsd:estimatedCost})).catch(()=>{});
+    return null;
+  }
+}
+
+function encodeBase64(bytes:Uint8Array):string{let binary='';for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(binary);}

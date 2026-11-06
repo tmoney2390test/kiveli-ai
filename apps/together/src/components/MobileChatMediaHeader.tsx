@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Image, type ImageSource } from 'expo-image';
-import { ArrowLeft, Camera, ChevronDown, Images, MapPin, MoreHorizontal, Phone } from 'lucide-react-native';
+import { ArrowLeft, Camera, ChevronDown, GitBranch, Images, MapPin, MoreHorizontal, Phone } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme';
 import { FrostedSurface } from './FrostedGlass';
@@ -35,6 +35,8 @@ type MobileChatMediaHeaderProps = {
   onMedia?: () => void;
   onFeaturedMedia?: () => void;
   mediaCount?: number;
+  onBranches?: () => void;
+  branchCount?: number;
 };
 
 export function MobileChatMediaHeader({
@@ -55,12 +57,15 @@ export function MobileChatMediaHeader({
   onMedia,
   onFeaturedMedia,
   mediaCount,
+  onBranches,
+  branchCount = 0,
 }: MobileChatMediaHeaderProps) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const topInset = Platform.OS === 'web' ? 10 : Math.max(insets.top, 24);
+  const topInset = Platform.OS === 'web' ? insets.top + 10 : Math.max(insets.top, 24);
   const compactHeight = topInset + 62;
-  const expandedHeight = Math.min(430, Math.max(350, width * .9, topInset + 300));
+  const expandedHeight = Math.min(470, Math.max(350, width * .9, topInset + 300,
+    onBranches ? topInset + (onCall ? 186 : 132) + (onPlace ? 50 : 0) + (onMedia ? 50 : 0) + 68 : 0));
   const [mode, setMode] = useState<HeaderMode>('compact');
   const progress = useRef(new Animated.Value(0)).current;
   const modeRef = useRef<HeaderMode>('compact');
@@ -167,6 +172,7 @@ export function MobileChatMediaHeader({
   const profileLabel = profileAccessibilityLabel ?? `View ${name}'s profile`;
   const showMediaAction=mediaCount!==undefined&&Boolean(onMedia);
   const placeActionTop=topInset+(onCall?186:132);
+  const branchActionTop=placeActionTop+(onPlace?50:0)+(showMediaAction?50:0);
 
   if (mode === 'hidden') {
     return <View pointerEvents="box-none" style={[styles.hiddenShell,Platform.OS!=='web'&&{position:'relative',height:topInset,backgroundColor:colors.background}]}>
@@ -244,11 +250,20 @@ export function MobileChatMediaHeader({
         </Animated.View>:null}
         {showMediaAction?<Animated.View
           pointerEvents={mode === 'expanded' ? 'auto' : 'none'}
-          style={[styles.action,styles.expandedPlaceAction,{top:placeActionTop+(onPlace?54:0),opacity:expandedOpacity}]}
+          style={[styles.action,styles.expandedPlaceAction,{top:placeActionTop+(onPlace?50:0),opacity:expandedOpacity}]}
         >
           <Pressable accessibilityRole="button" accessibilityLabel={`Open ${name} conversation media${mediaCount?`, ${mediaCount} items`:''}`} onPress={onMedia} style={styles.actionPressable}>
             <Images size={18} color={colors.violet}/>
             {mediaCount?<View style={styles.mediaCount}><Text style={styles.mediaCountText}>{mediaCount>99?'99+':mediaCount}</Text></View>:null}
+          </Pressable>
+        </Animated.View>:null}
+        {onBranches?<Animated.View
+          pointerEvents={mode === 'expanded' ? 'auto' : 'none'}
+          style={[styles.action,styles.expandedPlaceAction,{top:branchActionTop,opacity:expandedOpacity}]}
+        >
+          <Pressable accessibilityRole="button" accessibilityLabel={`Manage conversation branches${branchCount ? `, ${branchCount} alternate paths` : ''}`} onPress={onBranches} style={styles.actionPressable}>
+            <GitBranch size={18} color={colors.rose}/>
+            {branchCount?<View style={styles.mediaCount}><Text style={styles.mediaCountText}>{branchCount>99?'99+':branchCount}</Text></View>:null}
           </Pressable>
         </Animated.View>:null}
         <Animated.View style={[styles.action, animatedActionStyle(12, topInset + 24)]}>

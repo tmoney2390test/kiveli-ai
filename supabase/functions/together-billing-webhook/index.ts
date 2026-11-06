@@ -9,7 +9,7 @@ import {normalizeStripeSubscription,retrieveStripeCharge,retrieveStripeCheckoutL
 import { track } from '../_shared/together.ts';
 import { constantTimeEqual } from '../../../packages/together-domain/src/security.ts';
 import {beginBillingEvent,finishBillingEvent} from '../_shared/kivelle-billing-events.ts';
-import {accountDeletionStarted,deletedAccountForProviderCustomer} from '../_shared/kivelle-deleted-account.ts';
+import {accountDeletionStarted,deletedAccountForProviderCustomer,billingPredatesRecreation} from '../_shared/kivelle-deleted-account.ts';
 
 const legacySchema=z.object({eventId:z.string().trim().min(6).max(200),eventType:z.enum(['subscription_updated','subscription_cancelled','credit_purchase']),provider:z.string().trim().min(1).max(80).default('configured'),userId:z.string().uuid(),tier:z.enum(['free','kivelle_plus','kivelle_max','together_plus','unlimited']).optional(),productKey:z.string().trim().max(160).optional(),periodStart:z.string().datetime().optional(),periodEnd:z.string().datetime().optional(),expiresAt:z.string().datetime().nullable().optional(),creditAmount:z.number().int().positive().max(100000).optional(),metadata:z.record(z.string(),z.unknown()).default({})});
 type Db=ReturnType<typeof adminClient>;
@@ -28,6 +28,10 @@ async function handleStripeEvent(db:Db,event:StripeEvent,correlationId:string):P
   try{
     const object=event.data.object,customerId=stripeObjectCustomerId(object),metadata=metadataForObject(object);
     userId=validUserId(metadata.user_id??object.client_reference_id)??await userForStripeCustomer(db,customerId);
+    if((customerId&&await deletedAccountForProviderCustomer(db,'stripe',customerId))||(userId&&await billingPredatesRecreation(db,userId,Math.min(event.created,Number(object.created??event.created))*1000))){
+      await finishBillingEvent(db,'stripe',event.id,'ignored',userId,{accountDeleted:true});
+      return json({data:{applied:false,ignored:true},correlationId},200,correlationId);
+    }
     if(userId&&customerId)await rememberStripeCustomer(db,{userId,customerId,email:typeof object.customer_details?.email==='string'?object.customer_details.email:null});
     let applied=false;
     if(['checkout.session.completed','checkout.session.async_payment_succeeded'].includes(event.type)){
@@ -97,7 +101,7 @@ async function applyCreditPurchaseReversal(db:Db,input:{event:StripeEvent;userId
 async function handleLegacyEvent(db:Db,input:z.infer<typeof legacySchema>,correlationId:string):Promise<Response>{
   const ledger=await beginBillingEvent(db,'configured',input.eventId,input.eventType);if(ledger.idempotent)return json({data:{applied:false,idempotent:true},correlationId},200,correlationId);
   try{
-    if(await accountDeletionStarted(db,input.userId)){await finishBillingEvent(db,'configured',input.eventId,'ignored',input.userId,{eventType:input.eventType,provider:input.provider,accountDeleted:true});return json({data:{applied:false,ignored:true},correlationId},200,correlationId);}
+    if(await accountDeletionStarted(db,input.userId)||await billingPredatesRecreation(db,input.userId,input.periodStart)){await finishBillingEvent(db,'configured',input.eventId,'ignored',input.userId,{eventType:input.eventType,provider:input.provider,accountDeleted:true});return json({data:{applied:false,ignored:true},correlationId},200,correlationId);}
     if(input.eventType==='credit_purchase'){
       const amount=resolveCreditPurchaseGrant({productKey:input.productKey,reportedCreditAmount:input.creditAmount,source:input.provider});if(!amount)throw new AppError('VALIDATION_ERROR','A recognized credit product is required.',400);
       const{error}=await db.rpc('kivelle_grant_permanent_credits',{p_user_id:input.userId,p_amount:amount,p_event_type:'purchase',p_idempotency_key:`purchase:${input.provider}:${input.eventId}`,p_reference_type:'billing_event',p_reference_id:input.eventId,p_metadata:{provider:input.provider,productKey:input.productKey??null,reportedCreditAmount:input.creditAmount??null,...input.metadata}});if(error)throw new AppError('INTERNAL_ERROR','Purchased credits could not be applied.',500,true);

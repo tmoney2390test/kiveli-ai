@@ -5,6 +5,7 @@
 node_modules/
 .pnpm-store/
 .wrangler/
+.wrangler-config/
 supabase/.temp/
 .expo/
 dist/
@@ -28,3 +29,7 @@ apps/together/deploy.tar.gz
 work/
 *.log
 
+
+# Local verification fixtures and receipts are never build inputs.
+.test-tmp/
+release/

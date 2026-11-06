@@ -6,50 +6,50 @@ import { colors, radius } from '../theme';
 import type { ChatGenerationChoice } from '../lib/chatGenerationOptions';
 import { ThemedSettingPicker } from './settings/ThemedSettingPicker';
 
-type Props={value:DialogueContentMode;onChange:(value:DialogueContentMode)=>void;disabled:boolean;eligible:boolean};
+type Props={value:DialogueContentMode;onChange:(value:DialogueContentMode)=>void;disabled:boolean;eligible:boolean;explicitAvailable?:boolean;onRequireAgeConfirmation:()=>void};
 const baseOptions:ChatGenerationChoice<DialogueContentMode>[]=[
   {value:'standard',label:'Standard',description:''},
   {value:'mature',label:'Mature',description:''},
   {value:'explicit',label:'Explicit',description:''},
 ];
 
-export function ChatContentModeControl({value,onChange,disabled,eligible}:Props){
+export function ChatContentModeControl({value,onChange,disabled,eligible,explicitAvailable=true,onRequireAgeConfirmation}:Props){
   const [open,setOpen]=useState(false);
   const selectorRef=useRef<ElementRef<typeof Pressable>>(null);
   const normalized=value==='explicit'?'explicit':value==='standard'?'standard':'mature';
-  const options=baseOptions.map((option)=>option.value==='explicit'?{...option,locked:!eligible}:option);
-  const selectedLabel=options.find((option)=>option.value===normalized)?.label??'Mature';
+  const options=baseOptions.filter((option)=>explicitAvailable||option.value!=='explicit').map((option)=>option.value==='explicit'?{...option,locked:!eligible}:option);
+  const selectedLabel=!explicitAvailable&&normalized==='explicit'?'Mature':options.find((option)=>option.value===normalized)?.label??'Mature';
   return <View>
     <Pressable
       ref={selectorRef}
       testID="conversation-spicyness-setting"
       accessibilityRole="button"
-      accessibilityLabel={`Conversation Spicyness: ${selectedLabel}`}
-      accessibilityHint="Opens the Conversation Spicyness choices"
+      accessibilityLabel={`Conversation tone: ${selectedLabel}`}
+      accessibilityHint="Opens the conversation tone choices"
       accessibilityState={{expanded:open,disabled}}
       disabled={disabled}
       onPress={()=>setOpen(true)}
       style={({pressed})=>[styles.selector,disabled&&styles.disabled,pressed&&styles.pressed]}
     >
       <View style={styles.icon}><Flame size={18} color={colors.violet}/></View>
-      <Text style={styles.label}>Conversation Spicyness</Text>
+      <Text style={styles.label}>Conversation tone</Text>
       <Text style={styles.value}>{selectedLabel}</Text>
       <ChevronRight size={17} color={colors.muted}/>
     </Pressable>
     <ThemedSettingPicker
       visible={open}
-      title="Conversation Spicyness"
+      title="Conversation tone"
       choices={options}
-      selected={normalized}
+      selected={!explicitAvailable&&normalized==='explicit'?'mature':normalized}
       disabled={disabled}
       onSelect={onChange}
-      onLockedSelect={()=>undefined}
+      onLockedSelect={()=>{setOpen(false);if(explicitAvailable)onRequireAgeConfirmation();}}
       onClose={()=>setOpen(false)}
       returnFocusRef={selectorRef}
       testIDPrefix="conversation-spicyness-option"
       showChoiceDescriptions={false}
-      lockedRequirement="Confirm your age in account settings first"
-      lockedAccessibilityHint="Confirm your age in account settings before choosing Explicit"
+      lockedRequirement={explicitAvailable?"Confirm your birthdate in Account settings first":"Explicit dialogue is currently unavailable on iOS"}
+      lockedAccessibilityHint={explicitAvailable?"Saves your current settings, then opens Account settings to confirm your birthdate":"Explicit dialogue is currently unavailable on iOS"}
     />
   </View>;
 }

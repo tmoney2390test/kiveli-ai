@@ -14,7 +14,10 @@ const rates:Record<string,{input:number;cached:number;output:number}>={
   'openai:gpt-4.1-nano':{input:100_000,cached:25_000,output:400_000},
   'xai:grok-4.3':{input:1_250_000,cached:200_000,output:2_500_000},
 };
-export function assertContextPricingCurrent(now=Date.now()):void{if(now>Date.parse('2026-10-07T00:00:00Z'))throw new AppError('PROVIDER_UNAVAILABLE','Expanded context pricing is being updated. Choose Included for now.',503,true);}
+// Keep unknown models fail-closed in contextCredits below. A calendar cutoff
+// here disabled every existing expanded-context chat when it elapsed, even
+// though the selected model still had a verified rate.
+export function assertContextPricingCurrent():void{}
 export function contextCredits(input:{provider:string;model:string;inputTokens:number;outputTokens:number;cachedInputTokens?:number;serviceTier?:string}):number{
   const veniceRate=input.provider==='venice'?veniceChatRate(input.model):undefined;
   const waveRate=input.provider==='wavespeed'?wavespeedChatRate(input.model):undefined;

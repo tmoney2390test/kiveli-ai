@@ -13,14 +13,14 @@ export type PlanActionAvailability = {
 };
 
 export type ConversationPlanMenuItem = {
-  key: 'createPlan' | 'changePlan' | 'endPlan';
-  label: 'Plan something' | 'Change plan' | 'End plan';
+  key: 'createPlan' | 'changePlan' | 'endPlan' | 'activity';
+  label: 'Plan something' | 'Change plan' | 'End plan' | 'Do an Activity';
   danger?: boolean;
 };
 
 export function conversationPlanMenuItems(hasActivePlan: boolean): ConversationPlanMenuItem[] {
   return hasActivePlan
-    ? [{ key: 'changePlan', label: 'Change plan' }, { key: 'endPlan', label: 'End plan', danger: true }]
+    ? [{ key: 'activity', label: 'Do an Activity' }, { key: 'changePlan', label: 'Change plan' }, { key: 'endPlan', label: 'End plan', danger: true }]
     : [{ key: 'createPlan', label: 'Plan something' }];
 }
 
@@ -107,6 +107,7 @@ export function planLifecycleDividerLabel(event: { event_type: string }, compani
 
 /** A switch emits one compact event; hide the completion event it supersedes. */
 export function shouldShowPlanTimelineEvent(event: { event_type: string; created_at?: string; metadata?: Record<string, unknown> }): boolean {
+  if (event.event_type === 'plan_missed' || event.event_type === 'plan_repaired') return false;
   if (event.event_type === 'plan_completed' && typeof event.metadata?.switchedToPlanId === 'string') return false;
   if (event.event_type !== 'plan_created') return true;
   if (event.metadata?.immediate === true || event.metadata?.timingChoice === 'now') return false;

@@ -3,7 +3,7 @@ import { AppError } from './types.ts';
 import { renderPersonaPromptBlock } from './kivelle-persona.ts';
 
 export type UserPersonaRow={id:string;user_id:string;name:string;display_name:string;pronouns:string|null;age:number|null;occupation:string|null;biography:string|null;interests:string[];appearance_config:Record<string,unknown>;communication_config:Record<string,unknown>;metadata:Record<string,unknown>;is_default:boolean};
-export type ContinuityRow={id:string;user_id:string;persona_id:string;kind:'main'|'alternate';title:string;active_companion_instance_id:string|null;metadata:Record<string,unknown>;together_user_personas?:UserPersonaRow};
+export type ContinuityRow={id:string;user_id:string;persona_id:string;kind:'main'|'alternate'|'branch';title:string;active_companion_instance_id:string|null;metadata:Record<string,unknown>;together_user_personas?:UserPersonaRow};
 
 export async function ensureMainContinuity(db:SupabaseClient,userId:string):Promise<ContinuityRow>{
   const{data:profile,error:profileError}=await db.from('together_profiles').select('display_name,about_me,interests,active_continuity_id,active_companion_instance_id').eq('user_id',userId).maybeSingle();

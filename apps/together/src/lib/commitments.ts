@@ -15,6 +15,7 @@ export const getCommitment=(planId:string)=>invoke<Commitment>('together-plan',{
 export const joinCommitment=(planId:string,characterInstanceId:string,requestId=createClientRequestId())=>invoke<PlanExperience>('together-plan',{action:'join',planId,characterInstanceId,requestId});
 export const getPlanExperience=(planId:string,characterInstanceId:string)=>invoke<PlanExperience>('together-plan',{action:'experience',planId,characterInstanceId});
 export const endPlanExperience=(planId:string,characterInstanceId:string,sceneId?:string,requestId=createClientRequestId())=>invoke<PlanExperience>('together-plan',{action:'end',planId,characterInstanceId,sceneId,requestId});
+export const changePlanActivity=(planId:string,conversationId:string,activity:string,requestId:string)=>invoke<PlanExperience>('together-plan',{action:'change_activity',planId,conversationId,activity,requestId});
 export const switchPlanExperience=<T=PlanExperience>(input:{currentPlanId:string;characterInstanceId:string;activityKey:string;locationId:string;sourceConversationId:string;sceneId?:string;requestId?:string})=>invoke<T>('together-plan',{action:'switch',...input,requestId:input.requestId??createClientRequestId()});
 /** @deprecated Use endPlanExperience for user-facing copy and intent. */
 export const wrapPlanExperience=(planId:string,characterInstanceId:string,sceneId?:string,requestId=createClientRequestId())=>invoke<PlanExperience>('together-plan',{action:'wrap_up',planId,characterInstanceId,sceneId,requestId});

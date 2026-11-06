@@ -2,11 +2,11 @@ import { useMediaStatusRecovery } from '../../lib/useMediaStatusRecovery';
 import { mediaFailurePresentation } from '../../lib/mediaProgressPresentation';
 import { MediaRecoveryActions } from './MediaRecoveryActions';
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { Image } from 'expo-image';
+import { MediaImage as Image } from '../MediaImage';
 import { Camera, Play } from 'lucide-react-native';
 import type { GeneratedMedia } from '../../types';
 import { colors } from '../../theme';
-import { generatedMediaImageSource } from '../../lib/mediaImageSource';
+import { generatedMediaImageSource, generatedMediaPreviewSource } from '../../lib/mediaImageSource';
 import { styles } from '../../styles/mediaStyles';
 import { MediaProgress } from './MediaProgress';
 import { MediaFeedbackControls } from './MediaFeedbackControls';
@@ -60,10 +60,12 @@ export function MediaTile(
           : (
             <Image
               source={generatedMediaImageSource(media)}
+              previewSource={generatedMediaPreviewSource(media)}
               style={StyleSheet.absoluteFill}
               contentFit={contentFit}
               transition={180}
               cachePolicy="memory-disk"
+              loading="lazy"
               priority="low"
               recyclingKey={media.id}
             />

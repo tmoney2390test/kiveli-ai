@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adultRoutingCarryover, adultRoutingEvidence } from './dialogue-routing-continuity';
+import { ADULT_ROUTING_CARRYOVER_TURNS, adultRoutingCarryover, adultRoutingEvidence } from './dialogue-routing-continuity';
 import { classifyDialogueContent, routeKivelleDialogue } from './ai-routing';
 
 const neutral=adultRoutingEvidence({message:'I nod.',classification:'standard',eligible:true});
@@ -7,15 +7,16 @@ const fresh=adultRoutingEvidence({message:'[classified input]',classification:'e
 const providers={openai:true,xai:true,gemini:true,xaiEnabled:true,xaiExplicitEnabled:true};
 
 describe('bounded adult routing continuity',()=>{
-  it('retains exactly three following user turns without self-renewing',()=>{
+  it('retains exactly the configured following user turns without self-renewing',()=>{
     const history=[fresh];
-    for(const remaining of [3,2,1,0,0]){
+    for(const remaining of [5,4,3,2,1,0,0]){
       expect(adultRoutingCarryover(neutral,history)).toBe(remaining);
       history.push(neutral);
     }
+    expect(ADULT_ROUTING_CARRYOVER_TURNS).toBe(5);
   });
   it('only fresh classification renews the window',()=>{
-    expect(adultRoutingCarryover(neutral,[fresh,neutral,neutral,fresh])).toBe(3);
+    expect(adultRoutingCarryover(neutral,[fresh,neutral,neutral,fresh])).toBe(5);
     expect(adultRoutingCarryover(fresh,[neutral,neutral])).toBe(0);
   });
   it.each(['Stop.','I changed my mind.','Change the subject.','New topic.'])(

@@ -19,7 +19,7 @@ Deno.test('current moderation is evaluated on every turn, and only fresh evidenc
   const first=resolveDialogueRouting({...base,moderation:classified});
   assertEquals(first.adultRouting?.freshAdult,true);
   const history=[first.adultRouting];
-  for(const remaining of [3,2,1,0]){
+  for(const remaining of [5,4,3,2,1,0]){
     const route=resolveDialogueRouting({...base,routingHistory:history});
     assertEquals(route.carryoverTurnsRemaining,remaining);
     assertEquals(route.provider,remaining?'wavespeed':'openai');
@@ -37,6 +37,11 @@ Deno.test('contextual continuation and assistant output never become fresh evide
   const route=resolveDialogueRouting({...base,message:'Continue.',recentTurns:[{role:'assistant',content:'[NSFW context]'}],routingHistory:[fresh]});
   assertEquals(route.explicit,true);
   assertEquals(route.adultRouting?.freshAdult,false);
+  const continued=resolveDialogueRouting({...base,message:'Continue.',continuationFromExplicit:true});
+  assertEquals(continued.provider,'wavespeed');
+  assertEquals(continued.adultRouting?.freshAdult,false);
+  assertEquals(continued.carryoverTurnsRemaining,0);
+  assertEquals(resolveDialogueRouting({...base,message:'Continue.',continuationFromExplicit:true,adultAuthorized:false}).explicit,false);
 }));
 
 Deno.test('permission, preference, relationship and rollout changes override carried routing',()=>configured(()=>{
@@ -50,7 +55,7 @@ Deno.test('permission, preference, relationship and rollout changes override car
 Deno.test('a group turn freezes its history for every speaker and does not consume multiple user turns',()=>configured(()=>{
   const history=[fresh];
   for(let speaker=0;speaker<5;speaker++){
-    assertEquals(resolveDialogueRouting({...base,routingHistory:history}).carryoverTurnsRemaining,3);
+    assertEquals(resolveDialogueRouting({...base,routingHistory:history}).carryoverTurnsRemaining,5);
   }
   assertEquals(history,[fresh]);
   assertEquals(resolveDialogueRouting({...base,routingHistory:history,adultAuthorized:false}).explicit,false);
@@ -84,7 +89,7 @@ Deno.test('history is user/conversation scoped, user-turn bounded, ordered and r
   const db={from(table:string){assertEquals(table,'together_messages');return query;}} as unknown as SupabaseClient;
   const history=await loadAdultRoutingHistory(db,'owner-a','chat-a',42);
   assertEquals(history[0],fresh);
-  assertEquals(calls,[['select','provider_metadata'],['eq','user_id','owner-a'],['eq','conversation_id','chat-a'],['eq','role','user'],['lt','conversation_sequence',42],['order','conversation_sequence',{ascending:false}],['limit',3]]);
+  assertEquals(calls,[['select','provider_metadata'],['eq','user_id','owner-a'],['eq','conversation_id','chat-a'],['eq','role','user'],['lt','conversation_sequence',42],['order','conversation_sequence',{ascending:false}],['limit',5]]);
   calls.length=0;
   assertEquals(await loadAdultRoutingHistory(db,'owner-a','chat-a',42),history);
 });

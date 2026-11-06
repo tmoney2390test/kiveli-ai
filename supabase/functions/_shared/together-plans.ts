@@ -7,6 +7,7 @@ import {activeContinuity}from'./together-continuity.ts';
 import { localToUtc, planStartSatisfiesLeadTime } from '../../../packages/together-domain/src/index.ts';
 import { closedLocationPlanMessage, locationClosingWindow, planFitsLocationHours } from './together-plan-hours.ts';
 import { planParticipantIds, recordGroupPlanCommitment, resolveSharedPlanRoster } from './together-group-plans.ts';
+import { assertHomePlanWelcome } from './character-homes.ts';
 
 export type PlanSource = 'chat'|'manual_planner'|'location'|'discover'|'date'|'story';
 
@@ -46,6 +47,7 @@ export async function createSharedPlan(db:any, input:CreatePlanInput) {
   const resolved=await resolvePlanOption(db,input.userId,input.locationId,input.activityKey,input.title,input.durationMinutes);
   await assertCharacterResidentInWorld({db,characterVersionId:String(instance.character_version_id),worldId:String(resolved.location.world_id)});
   const roster=await resolveSharedPlanRoster(db,{userId:input.userId,continuityId:continuity.id,anchorCharacterInstanceId:input.characterInstanceId,sourceConversationId:input.sourceConversationId,worldId:String(resolved.location.world_id)});
+  await assertHomePlanWelcome(db,{userId:input.userId,location:resolved.location,participantIds:roster.participantInstanceIds,conversationId:input.sourceConversationId});
   const worldAccess=await resolveWorldAccess({db,userId:input.userId,worldId:String(resolved.location.world_id)});
   if(worldAccess==='locked'||worldAccess==='available')throw new AppError('FORBIDDEN','Unlock this world before making plans there.',403);
   const start=new Date(input.startsAt);
@@ -79,7 +81,7 @@ export async function createSharedPlan(db:any, input:CreatePlanInput) {
   const groupPlan=roster.participantInstanceIds.length>1;
   const participantLabel=roster.participantNames.length?joinPlanNames(roster.participantNames):'their companions';
   const effectiveDurationMinutes=Math.max(1,Math.ceil((end.getTime()-start.getTime())/60000));
-  const metadata={requestId:input.requestId,durationMinutes:effectiveDurationMinutes,significance:resolved.significance,completionSummary:groupPlan?`User and ${participantLabel} spent time together for ${resolved.title}.`:`User and their companion spent time together for ${resolved.title}.`,locationSlug:resolved.location.slug,immediate:input.immediate===true,participantInstanceIds:roster.participantInstanceIds,...(availability.shortenedForClosingTime?{requestedDurationMinutes:resolved.durationMinutes,shortenedForClosingTime:true,locationClosesAt:availability.closesAt}:{}),...(groupPlan?{groupPlan:true,groupConversationId:roster.groupConversationId,groupTitle:roster.groupTitle,participantNames:roster.participantNames}:{}),...(input.replacementPlanId?{replacesPlanId:input.replacementPlanId,switchState:'staged'}:{})};
+  const metadata={homeVisitCheckedAt:new Date().toISOString(),requestId:input.requestId,durationMinutes:effectiveDurationMinutes,significance:resolved.significance,completionSummary:groupPlan?`User and ${participantLabel} spent time together for ${resolved.title}.`:`User and their companion spent time together for ${resolved.title}.`,locationSlug:resolved.location.slug,immediate:input.immediate===true,participantInstanceIds:roster.participantInstanceIds,...(availability.shortenedForClosingTime?{requestedDurationMinutes:resolved.durationMinutes,shortenedForClosingTime:true,locationClosesAt:availability.closesAt}:{}),...(groupPlan?{groupPlan:true,groupConversationId:roster.groupConversationId,groupTitle:roster.groupTitle,participantNames:roster.participantNames}:{}),...(input.replacementPlanId?{replacesPlanId:input.replacementPlanId,switchState:'staged'}:{})};
   // Send every required commitment field explicitly. PostgREST can materialize
   // omitted JSON properties as NULL rather than applying the SQL default, which
   // would reject an otherwise valid plan after the commitment migrations added
@@ -110,6 +112,7 @@ export async function rescheduleSharedPlan(db:any,input:{userId:string;planId:st
   const continuity=await activeContinuity(db,input.userId),{data:plan}=await db.from('together_shared_plans').select('*,together_character_instances!inner(character_version_id),together_locations(*)').eq('id',input.planId).eq('user_id',input.userId).eq('continuity_id',continuity.id).maybeSingle();
   if(!plan)throw new AppError('NOT_FOUND','That plan could not be found.',404);
   if(!['proposed','scheduled'].includes(plan.status))throw new AppError('CONFLICT','That plan can no longer be rescheduled.',409,true);
+  await assertHomePlanWelcome(db,{userId:input.userId,location:plan.together_locations,participantIds:planParticipantIds(plan),conversationId:input.conversationId??plan.source_conversation_id});
   const start=new Date(input.startsAt);const duration=Math.max(30,(new Date(plan.ends_at).getTime()-new Date(plan.starts_at).getTime())/60000);const end=new Date(start.getTime()+duration*60000);
   const availability=await validateAvailability(db,{userId:input.userId,characterInstanceId:plan.character_instance_id,characterVersionId:plan.together_character_instances.character_version_id,location:plan.together_locations,activityKey:plan.activity_key,start,end,excludePlanId:plan.id});
   await validateAdditionalPlanParticipants(db,{userId:input.userId,continuityId:continuity.id,plan,location:plan.together_locations,activityKey:plan.activity_key,start,end,excludePlanId:plan.id});
@@ -127,6 +130,9 @@ export async function updateSharedPlan(db:any,input:{userId:string;planId:string
   const continuity=await activeContinuity(db,input.userId),{data:plan}=await db.from('together_shared_plans').select('*,together_character_instances!inner(character_version_id)').eq('id',input.planId).eq('user_id',input.userId).eq('continuity_id',continuity.id).maybeSingle();
   if(!plan)throw new AppError('NOT_FOUND','That plan could not be found.',404);
   if(!['proposed','scheduled'].includes(plan.status))throw new AppError('CONFLICT','That plan can no longer be changed.',409,true);
+  const {data:homeTarget}=await db.from('together_locations').select('*').eq('id',input.locationId??plan.location_id).maybeSingle();
+  if(!homeTarget)throw new AppError('NOT_FOUND','That place is unavailable.',404);
+  await assertHomePlanWelcome(db,{userId:input.userId,location:homeTarget,participantIds:planParticipantIds(plan),conversationId:input.conversationId??plan.source_conversation_id});
   const patch:Record<string,unknown>={updated_at:new Date().toISOString()};
   if(input.note!==undefined)patch.note=input.note.trim()||null;
   if(input.locationId||input.activityKey){const resolved=await resolvePlanOption(db,input.userId,input.locationId??plan.location_id,input.activityKey??plan.activity_key);await assertCharacterResidentInWorld({db,characterVersionId:String(plan.together_character_instances.character_version_id),worldId:String(resolved.location.world_id)});const start=new Date(plan.starts_at),end=new Date(start.getTime()+resolved.durationMinutes*60000);const availability=await validateAvailability(db,{userId:input.userId,characterInstanceId:plan.character_instance_id,characterVersionId:plan.together_character_instances.character_version_id,location:resolved.location,activityKey:resolved.activityKey,start,end,excludePlanId:plan.id});await validateAdditionalPlanParticipants(db,{userId:input.userId,continuityId:continuity.id,plan,location:resolved.location,activityKey:resolved.activityKey,start,end,excludePlanId:plan.id});patch.location_id=resolved.location.id;patch.world_id=resolved.location.world_id;patch.activity_key=resolved.activityKey;patch.title=resolved.title;patch.ends_at=end.toISOString();patch.world_timezone=availability.worldTimezone;patch.user_timezone=availability.userTimezone;patch.metadata={...(plan.metadata??{}),durationMinutes:resolved.durationMinutes,significance:resolved.significance};}

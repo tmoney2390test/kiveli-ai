@@ -24,3 +24,14 @@ Deno.test('a streamed direct response releases its floor only through the token-
   assertEquals(response.headers.get('x-test'),'preserved');
   assertEquals(calls,[{name:'kivelle_finish_dialogue_turn',args:{p_turn_id:'turn-1',p_lease_token:'lease-1',p_state:'completed',p_metadata:null}}]);
 });
+
+Deno.test('an error event in a 200 stream leaves the turn failed and retryable',async()=>{
+  const states:string[]=[];
+  const db={rpc:async(_name:string,args:Record<string,unknown>)=>{states.push(String(args.p_state));return{data:true,error:null};}} as unknown as SupabaseClient;
+  const lease:ConversationTurnLease={id:'turn-1',token:'lease-1',acquired:true,state:'generating',requestId:'request-1',interruptedCount:0};
+  const outcome={failed:false};
+  const stream=new ReadableStream<Uint8Array>({start(controller){controller.enqueue(new TextEncoder().encode('data: {"type":"error"}\n\n'));outcome.failed=true;controller.close();}});
+  const response=await finishTurnWithResponse(db,lease,new Response(stream,{status:200}),()=>!outcome.failed);
+  await response.text();
+  assertEquals(states,['failed']);
+});

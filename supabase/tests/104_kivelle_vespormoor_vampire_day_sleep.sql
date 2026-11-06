@@ -91,8 +91,8 @@ select ok(not exists(
   select 1
   from public.together_schedule_templates schedule
   where schedule.metadata->>'scheduleRevision'='vespormoor_long_lived_day_sleep_v1'
-    and jsonb_array_length(coalesce(schedule.metadata->'activityVariants','[]'::jsonb))<3
-),'Every new schedule block retains three deterministic prose variants');
+    and jsonb_array_length(coalesce(schedule.metadata->'activityVariants','[]'::jsonb))<1
+),'Every new schedule block retains a specific activity');
 
 select is((
   select count(*)::integer

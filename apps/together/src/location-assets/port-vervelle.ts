@@ -2,6 +2,13 @@ import { catalogArtwork } from '../catalogArtwork';
 import type { ImageSource } from 'expo-image';
 
 export const portVervelleLocationAssets:Record<string,ImageSource>={
+  'cala-bianca':catalogArtwork('locations/port-vervelle/cala-bianca.png'),
+  'faro-vervelle':catalogArtwork('locations/port-vervelle/faro-vervelle.png'),
+  'la-pergola':catalogArtwork('locations/port-vervelle/la-pergola.png'),
+  'museo-marittimo-vervelle':catalogArtwork('locations/port-vervelle/museo-marittimo-vervelle.png'),
+  'sotto-sale':catalogArtwork('locations/port-vervelle/sotto-sale.png'),
+  'studio-lucent':catalogArtwork('locations/port-vervelle/studio-lucent.png'),
+  'studio-ondine':catalogArtwork('locations/port-vervelle/studio-ondine.png'),
   'atelier-amelie':catalogArtwork('locations/port-vervelle/atelier-amelie.jpg'),
   'bellavista':catalogArtwork('locations/port-vervelle/bellavista.jpg'),
   'bellavista-apartments':catalogArtwork('locations/port-vervelle/bellavista-apartments.jpg'),

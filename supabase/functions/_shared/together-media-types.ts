@@ -91,7 +91,7 @@ export type CanonicalImageGenerationRequest = {
   mediaId: string;
   adultPipelineAuthorized?: boolean;
   anonymousAdultPartner?: boolean;
-  generationKind?: "companion_photo" | "creator_identity" | "photo_edit";
+  generationKind?: "companion_photo" | "creator_identity" | "photo_edit" | "home_environment";
   sourceImage?: MediaReferenceImage;
   companion: {
     templateId: string;

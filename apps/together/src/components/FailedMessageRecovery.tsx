@@ -1,14 +1,17 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Pencil, RotateCw, X } from 'lucide-react-native';
+import { Pencil, RotateCw, X, LifeBuoy } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { contextualSupportHref } from '../lib/mediaSupportReference';
 import { colors, radius } from '../theme';
 
 /** Recovery controls stay attached to the failed user message in both chat modes. */
-export function FailedMessageRecovery({ onRetry, onEdit, onDiscard }: { onRetry: () => void; onEdit: () => void; onDiscard: () => void }) {
+export function FailedMessageRecovery({ onRetry, onEdit, onDiscard,conversationId,clientRequestId }: { onRetry?: () => void; onEdit: () => void; onDiscard: () => void;conversationId?:string;clientRequestId?:string|null }) {
   return <View accessibilityRole="toolbar" accessibilityLabel="Message not sent" style={styles.root}>
     <Text style={styles.label}>Not sent</Text>
-    <RecoveryAction label="Retry" icon={<RotateCw size={12} color={colors.rose} />} onPress={onRetry} />
+    {onRetry ? <RecoveryAction label="Retry" icon={<RotateCw size={12} color={colors.rose} />} onPress={onRetry} /> : null}
     <RecoveryAction label="Edit" icon={<Pencil size={12} color={colors.textSecondary} />} onPress={onEdit} />
     <RecoveryAction label="Discard" icon={<X size={13} color={colors.muted} />} onPress={onDiscard} />
+    <RecoveryAction label="Help" icon={<LifeBuoy size={13} color={colors.muted}/>} onPress={()=>router.push(contextualSupportHref('conversation',{conversationId,correlationId:clientRequestId}) as never)}/>
   </View>;
 }
 

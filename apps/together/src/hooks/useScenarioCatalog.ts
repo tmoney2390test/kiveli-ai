@@ -5,7 +5,7 @@ let pending:Promise<Scenario[]>|null=null;
 const empty:Scenario[]=[];
 export function loadScenarioCatalog():Promise<Scenario[]>{
  if(cached)return Promise.resolve(cached);
- if(!pending)pending=import('../lib/scenarioCatalog').then(m=>{cached=m.scenarios;return cached;}).finally(()=>{pending=null;});
+ if(!pending)pending=Promise.all([import('../lib/scenarioCatalog'),import('../lib/gildedCoastScenarioCatalog')]).then(([base,gilded])=>{cached=[...base.scenarios,...gilded.gildedCoastScenarios];return cached;}).finally(()=>{pending=null;});
  return pending;
 }
 export function useScenarioCatalog(){

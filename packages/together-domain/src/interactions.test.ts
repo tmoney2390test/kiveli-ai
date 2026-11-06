@@ -61,6 +61,29 @@ describe('Interaction domain', () => {
     }
   });
 
+  it('does not invent a jukebox, pool table, or room service from a venue category', () => {
+    const bar = { id: 'quiet-hours', name: 'Quiet Hours', category: 'bar', locationType: 'venue', possibleActivities: ['drinks', 'late food'] };
+    const plain = resolveInteractions({ character: creativeCharacter, relationship, location: bar, life: { availability: 'open' }, seed: 'bar-affordances', limit: 20 });
+    expect(plain.some((item) => item.interactionKey === 'bar.use_the_jukebox')).toBe(false);
+    expect(plain.some((item) => item.interactionKey === 'bar.play_pool')).toBe(false);
+    const withPool = resolveInteractions({ character: creativeCharacter, relationship, location: { ...bar, possibleActivities: ['drinks', 'pool'] }, life: { availability: 'open' }, seed: 'bar-pool', limit: 20 });
+    expect(withPool.some((item) => item.interactionKey === 'bar.play_pool')).toBe(true);
+    const withJukebox = resolveInteractions({ character: creativeCharacter, relationship, location: { ...bar, metadata: { interactionObjects: ['jukebox'] } }, life: { availability: 'open' }, seed: 'bar-jukebox', limit: 20 });
+    expect(withJukebox.some((item) => item.interactionKey === 'bar.use_the_jukebox')).toBe(true);
+    const hotel = resolveInteractions({ character: creativeCharacter, relationship, location: { id: 'inn', name: 'Blue Lantern Inn', category: 'inn', locationType: 'residence', possibleActivities: ['lodging', 'breakfast'] }, life: { availability: 'open' }, seed: 'inn-affordances', limit: 20 });
+    expect(hotel.some((item) => item.interactionKey === 'lodging.order_room_service')).toBe(false);
+    expect(hotel.some((item) => item.interactionKey === 'lodging.have_a_lobby_drink')).toBe(false);
+  });
+
+  it('does not put a just-used place action back in the visible choices', () => {
+    const location = { id: 'quiet-hours', name: 'Quiet Hours', category: 'bar', locationType: 'venue', possibleActivities: ['drinks'] };
+    const initial = resolveInteractions({ character: creativeCharacter, relationship, location, life: { availability: 'open' }, seed: 'bar-repeat', limit: 5 });
+    const used = initial[0]!.interactionKey;
+    const next = resolveInteractions({ character: creativeCharacter, relationship, location, scene: { recentActionKeys: [used] }, life: { availability: 'open' }, seed: 'bar-repeat', limit: 5 });
+    expect(next.length).toBeGreaterThan(0);
+    expect(next.some((item) => item.interactionKey === used)).toBe(false);
+  });
+
   it('keeps private spa choices gated to an established romantic relationship', () => {
     const location = { id: 'spa', name: 'Moonwake Baths', category: 'spa', locationType: 'venue', possibleActivities: ['bathing', 'massage'] };
     const friendly = resolveInteractions({ character: creativeCharacter, relationship, location, life: { availability: 'open' }, seed: 'friendly-spa', limit: 12 });

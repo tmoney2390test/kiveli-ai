@@ -29,7 +29,7 @@ const snapshot = {
 
 describe('first-login catalog', () => {
   it('shows published worlds in authored order', () => {
-    expect(onboardingWorlds(snapshot).map((item) => item.id)).toEqual(['first', 'later', 'preview-gilded-age']);
+    expect(onboardingWorlds(snapshot).map((item) => item.id)).toEqual(['first', 'later', 'preview-gilded-coast']);
   });
 
   it('omits an ops-hidden world even when its row stays published for established conversations', () => {
@@ -53,7 +53,6 @@ describe('first-login catalog', () => {
     expect(onboardingWorldGenre(world('fallback', 0))).toBe('Characters · Stories');
   });
 });
-
  describe('world recommendations', () => {
   it('uses signup gender and preserves catalog order', () => {
     const worlds = [world('juniper-city', 0), world('port-vervelle', 1), world('vharadren', 2)];

@@ -1,0 +1,77 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { PGlite } from '@electric-sql/pglite';
+const db = new PGlite();
+try {
+  await db.exec(`
+    create role anon; create role authenticated; create role service_role; create schema extensions;
+    create table together_entitlements(user_id uuid primary key,tier text,expires_at timestamptz);
+    create table together_billing_subscriptions(user_id uuid,plan_key text,status text,current_period_end timestamptz,access_ends_at timestamptz,updated_at timestamptz);
+    create table together_continuities(id uuid primary key,user_id uuid,kind text,title text);
+    create table together_character_templates(id uuid primary key,name text);
+    create table together_character_instances(id uuid primary key,user_id uuid,character_template_id uuid);
+    create table together_conversations(id uuid primary key default gen_random_uuid(),user_id uuid,continuity_id uuid,character_instance_id uuid,
+      kind text,title text,archived_at timestamptz,user_archived_at timestamptz,restore_until timestamptz,last_message_at timestamptz,created_at timestamptz default now(),updated_at timestamptz default now());
+    create table together_dialogue_turns(user_id uuid,conversation_id uuid,state text);
+    create table together_proactive_messages(user_id uuid,conversation_id uuid,status text,updated_at timestamptz);
+    create table together_messages(id uuid primary key,user_id uuid,conversation_id uuid,content text);
+    create table together_conversation_attachments(id uuid primary key,user_id uuid,conversation_id uuid,storage_path text);
+    create table together_generated_media(id uuid primary key,user_id uuid,conversation_id uuid,status text);
+  `);
+  const oldBranch = await readFile(new URL('../supabase/migrations/20261003062000_subscriber_chat_branches.sql', import.meta.url), 'utf8');
+  const guard = oldBranch.slice(oldBranch.indexOf('  select count(*)::integer into v_active_count from public.together_conversations'), oldBranch.indexOf('  insert into public.together_continuities(id,user_id,persona_id,kind,title,metadata)')).trimEnd();
+  assert.ok(guard.includes('ACTIVE_CONVERSATION_LIMIT_REACHED'));
+  await db.exec(`create function kivelle_start_chat_branch(p_user_id uuid,a uuid,b uuid,c uuid) returns void language plpgsql as $$declare v_active_count int;v_limit int;begin\n${guard}\nend $$;`);
+  await db.exec(await readFile(new URL('../supabase/migrations/20261026131153_use_active_billing_for_chat_limit.sql', import.meta.url), 'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/20261026134929_manage_chat_capacity_and_saved_history.sql', import.meta.url), 'utf8'));
+  const user = crypto.randomUUID(), foreign = crypto.randomUUID(), main = crypto.randomUUID(), otherLife = crypto.randomUUID(), branch = crypto.randomUUID(), person = crypto.randomUUID();
+  for (const [id, kind, title] of [[main,'main','Main Life'],[otherLife,'alternate','Another Life'],[branch,'branch','Alternate path']]) await db.query('insert into together_continuities values($1,$2,$3,$4)', [id,user,kind,title]);
+  const photo = 'private/preserved.jpg';
+  const chat = async (life=main, who=person, archived=false, owner=user) => (await db.query(`insert into together_conversations(user_id,continuity_id,character_instance_id,kind,archived_at) values($1,$2,$3,'direct',${archived?'now()':'null'}) returning id`, [owner,life,who])).rows[0].id;
+  const a=await chat(), b=await chat(otherLife,crypto.randomUUID()), c=await chat(main,crypto.randomUUID()), d=await chat(main,crypto.randomUUID()), e=await chat(main,crypto.randomUUID());
+  await assert.rejects(()=>chat(),/ACTIVE_CONVERSATION_LIMIT_REACHED:5/);
+  const branchChat=await chat(branch,crypto.randomUUID());
+  const saved=await chat(main,person,true), outsider=await chat(null,null,false,foreign);
+  const count=async()=> (await db.query('select kivelle_active_conversation_count($1) as n',[user])).rows[0].n;
+  const list=async(category='active',offset=0)=> (await db.query('select kivelle_manage_chat_list($1,$2,$3,2) as value',[user,category,offset])).rows[0].value;
+  const archive=async(ids,owner=user)=> (await db.query('select kivelle_save_chats_to_history($1,$2::uuid[]) as value',[owner,ids])).rows[0].value;
+  const resume=async(id,owner=user)=> db.query('select kivelle_resume_saved_chat($1,$2)',[owner,id]);
+  assert.equal(await count(),5,'Branches are excluded across all Lives');
+  const first=await list();
+  assert.equal(first.activeCount,5);assert.equal(first.archivedCount,1);assert.equal(first.branchCount,1);assert.equal(first.limit,5);assert.equal(first.items.length,2);
+  const second=await list('active',2);assert.equal(second.items.some(row=>first.items.some(a=>a.id===row.id)),false);
+  assert.equal((await list('branches')).items[0].id,branchChat);
+  await db.query('insert into together_messages values($1,$2,$3,$4)',[crypto.randomUUID(),user,a,'Keep this message']);
+  await db.query('insert into together_conversation_attachments values($1,$2,$3,$4)',[crypto.randomUUID(),user,a,photo]);
+  await db.query("insert into together_generated_media values($1,$2,$3,'generating')",[crypto.randomUUID(),user,a]);
+  await db.query("insert into together_proactive_messages values($1,$2,'queued',now())",[user,a]);
+  await db.query("insert into together_dialogue_turns values($1,$2,'generating')",[user,b]);
+  await assert.rejects(()=>archive([a,outsider]),/CHAT_SELECTION_UNAVAILABLE/);
+  assert.equal(await count(),5,'Cross-account batch failure must roll back every selected chat');
+  await assert.rejects(()=>archive([branchChat]),/CHAT_SELECTION_UNAVAILABLE/);
+  const archived=await archive([a,a,b]);
+  assert.deepEqual(archived.archivedIds,[a]);assert.deepEqual(archived.busyIds,[b]);assert.equal(archived.activeCount,4);
+  const row=(await db.query('select archived_at,user_archived_at,restore_until from together_conversations where id=$1',[a])).rows[0];
+  assert.ok(row.archived_at);assert.equal(row.user_archived_at,null);assert.equal(row.restore_until,null);
+  assert.equal((await db.query('select content from together_messages where conversation_id=$1',[a])).rows[0].content,'Keep this message');
+  assert.equal((await db.query('select storage_path from together_conversation_attachments where conversation_id=$1',[a])).rows[0].storage_path,photo);
+  assert.equal((await db.query('select status from together_generated_media where conversation_id=$1',[a])).rows[0].status,'generating');
+  assert.equal((await db.query('select status from together_proactive_messages where conversation_id=$1',[a])).rows[0].status,'cancelled');
+  assert.equal((await archive([a])).activeCount,4,'Retry is idempotent');
+  await resume(a);assert.equal(await count(),5);
+  await resume(saved);assert.equal(await count(),5,'Resuming the same companion replaces its current chat without consuming an extra slot');
+  assert.ok((await db.query('select archived_at from together_conversations where id=$1',[a])).rows[0].archived_at);
+  const otherSaved=await chat(main,crypto.randomUUID(),true);
+  await assert.rejects(()=>resume(otherSaved),/ACTIVE_CONVERSATION_LIMIT_REACHED:5/);
+  assert.equal(await count(),5);
+  await assert.rejects(()=>resume(saved,foreign),/CHAT_SELECTION_UNAVAILABLE/);
+  await db.query("insert into together_dialogue_turns values($1,$2,'planning')",[user,saved]);
+  await assert.rejects(()=>resume(a),/CHAT_REPLY_IN_PROGRESS/);
+  for(const signature of ['kivelle_active_conversation_count(uuid)','kivelle_manage_chat_list(uuid,text,integer,integer)','kivelle_save_chats_to_history(uuid,uuid[])','kivelle_resume_saved_chat(uuid,uuid)']){
+    for(const role of ['anon','authenticated'])assert.equal((await db.query("select has_function_privilege($1,$2,'execute') as allowed",[role,signature])).rows[0].allowed,false);
+  }
+  const definition=(await db.query("select pg_get_functiondef('kivelle_start_chat_branch(uuid,uuid,uuid,uuid)'::regprocedure) as definition")).rows[0].definition;
+  assert.equal(definition.includes('ACTIVE_CONVERSATION_LIMIT_REACHED'),false);
+  assert.equal((await list()).activeCount,await count());
+  console.log('PASS: account-wide counts, branch separation, pagination, bulk archive, idempotency, busy replies, preserved messages/attachments/media, resume limits, atomic ownership checks and permissions.');
+}finally{await db.close();}

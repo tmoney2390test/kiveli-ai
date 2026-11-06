@@ -1,4 +1,5 @@
 import { streamWavespeedDialogue } from './kivelle-wavespeed-dialogue.ts';
+import { WaveSpeedAccessError } from './kivelle-test-chat-completions.ts';
 import { streamVeniceDialogue } from './kivelle-venice-dialogue.ts';
 import type { ChatDialogueExperiment } from '../../../packages/together-domain/src/chat-model-test.ts';
 import {requireScopedAiConsent} from './kivelle-ai-consent.ts';
@@ -12,10 +13,7 @@ import {
   type OpenThreadCandidate,
   threadAnswered,
 } from "./together.ts";
-import {
-  buildCompanionPrompt,
-  responseTokenBudget,
-} from "./kivelle-intelligence.ts";
+import { buildCompanionPrompt } from "./kivelle-intelligence.ts";
 import type { KivelleConversationContext } from "./kivelle-conversation-context.ts";
 import type { PlaceOpinionCandidate } from "./kivelle-place-perspective.ts";
 import {
@@ -52,14 +50,12 @@ import {
   isContradictoryAcceptedIntimacyRefusal,
   isDialogueHardBlocked,
   isUnsupportedTemperatureResponse,
-  limitVisibleDialogue,
   providerGenerationControls,
   type NormalizedAiUsage,
   type NormalizedModerationResult,
   normalizeResponsesUsage,
   parseResponsesStreamEvent,
   type ResponsesServiceTier,
-  visibleDialoguePrefix,
 } from "../../../packages/together-domain/src/index.ts";
 import { type AiUsageScope, recordAiUsage } from "./kivelle-ai-usage.ts";
 import {
@@ -141,6 +137,8 @@ export type DialogueStreamEvent = { type: "token"; token: string } | {
 export type DialogueRunOptions = {
   /** A manual revision must fail rather than silently switch provider routes. */
   strictRoute?: boolean;
+  /** An explicit Continue action may use another adult provider, never a general-model downgrade. */
+  preserveExplicitRoute?: boolean;
   signal?: AbortSignal;
   contextPayment?:ContextPayment;
   route: DialogueRoutingDecision;
@@ -305,6 +303,34 @@ export function dialogueProviderName(): "openai" | "gemini" | "deterministic" {
   return "deterministic";
 }
 
+function waveSpeedAccessFallbackOptions(options: DialogueRunOptions, error: unknown): DialogueRunOptions | null {
+  const retryableOutage = error instanceof WaveSpeedAccessError ||
+    (error instanceof AppError && error.retryable &&
+      (error.code === 'PROVIDER_UNAVAILABLE' || error.code === 'RATE_LIMITED'));
+  if (!retryableOutage || options.strictRoute || options.signal?.aborted ||
+    options.route.experiment || !options.route.explicit || !options.route.adultEligible ||
+    options.route.hardBlocked || !xaiKey()) return null;
+  return {
+    ...options,
+    generationProfile: undefined,
+    visibleOutputTruncated: undefined,
+    route: { ...options.route, provider: 'xai', adultModel: undefined, reason: 'provider_fallback' },
+    operation: `${options.operation ?? 'dialogue'}_provider_fallback`,
+  };
+}
+
+function waveSpeedAccessFallbackContext(context: DialogueContext): DialogueContext {
+  // A paid memory quote was priced for the primary model. Keep the backup at
+  // included context so provider failover never invalidates that quote.
+  const recentTurnBudget = context.subscription?.capabilities?.recentTurnBudget ?? 10;
+  return {
+    ...context,
+    contextInputCeiling: undefined,
+    recent: (context.recent ?? []).slice(-recentTurnBudget),
+    dialogueRouting: { ...context.dialogueRouting, provider: 'xai', reason: 'provider_fallback' },
+  };
+}
+
 export class ConfiguredDialogueProvider implements DialogueProvider {
   async generate(
     context: DialogueContext,
@@ -312,10 +338,17 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
   ): Promise<DialogueGenerationResult> {
     await requireScopedAiConsent(options.usageScope);
     if (options.route.provider === 'wavespeed') {
-      let text = ''; let metadata: DialogueRunMetadata | undefined;
-      for await (const event of streamWavespeedDialogue(context, options)) { if (event.type === 'token') text += event.token; else metadata = event.metadata; }
-      if (!metadata) throw new AppError('PROVIDER_UNAVAILABLE', 'WaveSpeed did not complete the reply.', 503, true);
-      return { text, metadata };
+      try {
+        let text = ''; let metadata: DialogueRunMetadata | undefined;
+        for await (const event of streamWavespeedDialogue(context, options)) { if (event.type === 'token') text += event.token; else metadata = event.metadata; }
+        if (!metadata) throw new AppError('PROVIDER_UNAVAILABLE', 'WaveSpeed did not complete the reply.', 503, true);
+        return { text, metadata };
+      } catch (error) {
+        const fallback = waveSpeedAccessFallbackOptions(options, error);
+        if (!fallback) throw error;
+        const result = await this.generate(waveSpeedAccessFallbackContext(context), fallback);
+        return { ...result, metadata: { ...result.metadata, fallback: true, contextCharge: contextChargeForUsage(fallback.contextPayment, null, true) } };
+      }
     }
     if (options.route.provider === 'venice') {
       let text = ''; let metadata: DialogueRunMetadata | undefined;
@@ -374,6 +407,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
         if(options.strictRoute)throw error;
       if(error instanceof ContextPricingError||options.signal?.aborted)throw error;
         if (options.route.provider === "xai") {
+          if (options.preserveExplicitRoute && options.route.explicit) throw error;
           return generateAdultProviderDowngrade(context, options);
         }
         if (
@@ -482,7 +516,22 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
     options: DialogueRunOptions,
   ): AsyncIterable<DialogueStreamEvent> {
     await requireScopedAiConsent(options.usageScope);
-    if (options.route.provider === 'wavespeed') { yield* streamWavespeedDialogue(context, options); return; }
+    if (options.route.provider === 'wavespeed') {
+      let emitted = false;
+      try {
+        for await (const event of streamWavespeedDialogue(context, options)) {
+          if (event.type === 'token') emitted = true;
+          yield event;
+        }
+      } catch (error) {
+        const fallback = emitted ? null : waveSpeedAccessFallbackOptions(options, error);
+        if (!fallback) throw error;
+        for await (const event of this.stream(waveSpeedAccessFallbackContext(context), fallback)) {
+          yield event.type === 'complete' ? { ...event, metadata: { ...event.metadata, fallback: true, contextCharge: contextChargeForUsage(fallback.contextPayment, null, true) } } : event;
+        }
+      }
+      return;
+    }
     if (options.route.provider === 'venice') { yield* streamVeniceDialogue(context, options); return; }
     if (
       options.route.provider === "openai" || options.route.provider === "xai"
@@ -496,6 +545,7 @@ export class ConfiguredDialogueProvider implements DialogueProvider {
         return;
       } catch (error) {
       if(error instanceof ContextPricingError||options.signal?.aborted)throw error;
+        if(options.preserveExplicitRoute&&options.route.explicit)throw error;
         if (!canRetryStreamFailure(emitted)) throw error;
         if (isDialogueProviderTimeout(error)) {
           const text = options.route.provider === "xai"
@@ -2318,10 +2368,10 @@ async function generateGemini(
       part: Record<string, unknown>,
     ) => part.text).filter(Boolean).join("");
   if (typeof rawText !== 'string' || !rawText.trim()) throw new Error('empty_gemini_response');
-  const visible = limitVisibleDialogue(rawText, options.generationProfile?.visibleTokenBudget ?? responseTokenBudget(context));
-  options.visibleOutputTruncated = visible.truncated;
-  options.deliveredVisibleOutputTokensEstimate = visible.estimatedTokens;
-  return visible.text;
+  if (data.candidates?.[0]?.finishReason === 'MAX_TOKENS') throw new Error('incomplete_gemini_response');
+  options.visibleOutputTruncated = false;
+  options.deliveredVisibleOutputTokensEstimate = estimateContextTokens(rawText.trim());
+  return rawText.trim();
 }
 
 async function* streamGemini(
@@ -2348,28 +2398,20 @@ async function* streamGemini(
     throw new Error(`Gemini stream failed (${response.status})`);
   }
   let deliveredText = '';
-  let visibleLimitReached = false;
-  const visibleBudget = options.generationProfile?.visibleTokenBudget ?? responseTokenBudget(context);
+  let finishReason: string | undefined;
   for await (const data of sseData(response.body)) {
     const payload = JSON.parse(data) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>;
     };
+    finishReason = payload.candidates?.[0]?.finishReason ?? finishReason;
     const token = payload.candidates?.[0]?.content?.parts?.map((part) =>
       part.text ?? ""
     ).join("") ?? "";
-    if (token && !visibleLimitReached) {
-      const candidate = `${deliveredText}${token}`;
-      const limited = visibleDialoguePrefix(candidate, visibleBudget);
-      const deliverable = limited.slice(deliveredText.length);
-      if (limited.length < candidate.length) {
-        options.visibleOutputTruncated = true;
-        visibleLimitReached = true;
-      }
-      deliveredText = limited;
-      if (deliverable) yield deliverable;
-    }
+    if (token) { deliveredText += token; yield token; }
   }
-  options.deliveredVisibleOutputTokensEstimate = limitVisibleDialogue(deliveredText, visibleBudget).estimatedTokens;
+  if (finishReason === 'MAX_TOKENS') throw new Error('incomplete_gemini_response');
+  options.visibleOutputTruncated = false;
+  options.deliveredVisibleOutputTokensEstimate = estimateContextTokens(deliveredText.trim());
 }
 
 async function* sseData(

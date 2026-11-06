@@ -1,3 +1,4 @@
+import {assertHomePlanWelcome} from './character-homes.ts';
 import type{SupabaseClient}from'@supabase/supabase-js';
 import{classifyMissExplanation,deriveCommitmentTemporalState,missedCommitmentRepairImpact}from'../../../packages/together-domain/src/index.ts';
 import{AppError}from'./types.ts';
@@ -86,6 +87,7 @@ export async function createWindowedCommitment(db:SupabaseClient,input:{userId:s
   const worldTimezone=safeTimezone(world?.timezone);
   const userTimezone=input.userTimezone?safeTimezone(input.userTimezone):await resolveUserExperienceTimezone(db,input.userId,worldTimezone);
   const roster=await resolveSharedPlanRoster(db,{userId:input.userId,continuityId:input.continuityId,anchorCharacterInstanceId:input.characterInstanceId,sourceConversationId:input.sourceConversationId,worldId:String(location.world_id)});
+  await assertHomePlanWelcome(db,{userId:input.userId,location,participantIds:roster.participantInstanceIds,conversationId:input.sourceConversationId});
   const groupPlan=roster.participantInstanceIds.length>1;
   const participantLabel=joinNames(roster.participantNames);
   const{data,error}=await db.from('together_shared_plans').insert({user_id:input.userId,continuity_id:input.continuityId,character_instance_id:input.characterInstanceId,participant_instance_ids:roster.participantInstanceIds,title,activity_key:activity,world_id:location.world_id,location_id:location.id,starts_at:null,ends_at:null,window_starts_at:start.toISOString(),window_ends_at:end.toISOString(),time_precision:input.timePrecision,world_timezone:worldTimezone,user_timezone:userTimezone,original_time_expression:input.originalTimeExpression??null,participation_mode:input.participationMode??'live',status:'proposed',source:input.source,source_conversation_id:input.sourceConversationId??null,source_message_id:input.sourceMessageId??null,note:input.note?.trim()||null,grace_minutes:30,companion_state:'expected',metadata:{requestId:input.requestId,durationMinutes:90,significance:.45,proposedWindow:true,completionSummary:groupPlan?`You and ${participantLabel} spent time together for ${title}.`:`You and your companion spent time together for ${title}.`,locationSlug:location.slug,participantInstanceIds:roster.participantInstanceIds,...(groupPlan?{groupPlan:true,groupConversationId:roster.groupConversationId,groupTitle:roster.groupTitle,participantNames:roster.participantNames}:{})}}).select('*').single();

@@ -1,4 +1,5 @@
 import {ScenarioScheduleNotice} from '../../src/components/ScenarioScheduleNotice';
+import {CharacterHomeCard} from '../../src/components/CharacterHomeCard';
 import { styles } from '../../src/styles/characterProfileStyles';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -6,17 +7,9 @@ import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image as ExpoImage, type ImageContentPosition } from 'expo-image';
 import { ArrowLeft, Brain, CalendarDays, Camera, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Info as InfoIcon, LockKeyhole, MapPin, ShieldCheck, Sparkles, Users, X } from 'lucide-react-native';
-import {
-  Body,
-  EmptyState,
-  GradientButton,
-  ImageLightbox,
-  MoodBadge,
-  RelationshipBadge,
-  Screen,
-  SpiceBadge,
-  resolveCharacterPortraitSource,
-} from '../../src/components';
+import { Body, EmptyState, GradientButton, MoodBadge, RelationshipBadge, Screen, resolveCharacterPortraitSource } from '../../src/components/ui';
+import { ImageLightbox } from '../../src/components/ImageLightbox';
+import { SpiceBadge } from '../../src/components/SpiceBadge';
 import { DetailPreservingArtwork } from '../../src/components/DetailPreservingArtwork';
 import { characterProfilePhotos } from '../../src/character-profile-assets';
 import { loadCharacterProfileDetails, manageConversation, meetCompanion, openConversation } from '../../src/lib/api';
@@ -339,6 +332,7 @@ export default function CharacterProfile() {
           </View>
         </View>
 
+        {instance?<CharacterHomeCard characterInstanceId={instance.id} area={(()=>{const h=snapshot.characterHomes?.find(home=>home.character_version_id===version.id);return[snapshot.locations.find(place=>place.id===h?.district_anchor_location_id)?.name,snapshot.worlds.find(world=>world.id===h?.world_id)?.name].filter(Boolean).join(' · ');})()} home={snapshot.characterHomes?.find(home=>home.character_version_id===version.id)}/>:null}
         <CharacterScheduleCard snapshot={profileSnapshot} instance={instance} characterVersionId={version.id} characterName={template.name} loading={profileDetailsQuery.isLoading} loadError={profileDetailsQuery.isError} onRetry={() => { void profileDetailsQuery.refetch(); }}/>
 
         {error ? <Text accessibilityLiveRegion="assertive" style={styles.error}>{error}</Text> : null}
@@ -409,7 +403,6 @@ function CharacterPortraitGallery({slug,name,occupation,photos,focal,spiceLevel,
       onLoad={()=>setFailedPhotoIndexes((current)=>{if(!current[activePhotoIndex])return current;const next={...current};delete next[activePhotoIndex];return next;})}
       onError={()=>setFailedPhotoIndexes((current)=>({...current,[activePhotoIndex]:true}))}
     /></Pressable>:null}
-    <View pointerEvents="none" style={styles.portraitShade}/>
     <Pressable accessibilityRole="button" accessibilityLabel="Go back" hitSlop={4} onPress={onBack} style={({pressed})=>[styles.back,pressed&&styles.pressed]}><ArrowLeft size={20} color="#fff"/></Pressable>
     <SpiceBadge level={spiceLevel} overlay style={photos.length>1?styles.profileSpiceWithCounter:undefined}/>
     {photos.length>1?<>

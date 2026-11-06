@@ -1,12 +1,42 @@
-type Residue = { tone: string; valence: number; intensity: number; halfLifeMinutes: number };
+type Residue = {
+  tone: string;
+  valence: number;
+  intensity: number;
+  halfLifeMinutes: number;
+  target: 'user' | 'external' | 'unknown';
+  cause: 'user_conflict' | 'day_pressure' | 'accepted_repair' | 'personal_feeling';
+};
 
-/** Small, deterministic signals only. Relationship conflict remains canonical elsewhere. */
+/** Only the companion's own response can establish their feeling. */
 export function deriveEmotionalResidue(userText: string, assistantText: string): Residue | null {
-  const text = `${userText} ${assistantText}`.toLowerCase();
-  if (/\b(sorry|apologi[sz]e|my fault|wasn't fair|was not fair)\b/.test(text)) return { tone: 'reassured', valence: .45, intensity: .36, halfLifeMinutes: 120 };
-  if (/\b(angry|upset|annoyed|hurt|frustrated)\b/.test(text)) return { tone: 'slightly_annoyed', valence: -.42, intensity: .34, halfLifeMinutes: 180 };
-  if (/\b(can't wait|cannot wait|so excited|really excited)\b/.test(text)) return { tone: 'excited', valence: .58, intensity: .34, halfLifeMinutes: 360 };
-  if (/\b(lol|lmao|haha|teas(?:e|ing)|joking)\b/.test(text)) return { tone: 'playful', valence: .35, intensity: .22, halfLifeMinutes: 120 };
+  const user = userText.toLowerCase();
+  const reply = assistantText.toLowerCase();
+  const userConflict = /\b(you lied|you hurt me|what you said hurt|do not speak to me like that|don't speak to me like that|that was (?:cruel|a shitty thing to say)|i(?:'m| am) (?:still )?(?:angry|pissed|furious) (?:with|at) you)\b/.test(reply);
+  const selfAnger = /\b(i(?:'m| am) (?:still |really |so )?(?:angry|pissed|furious|frustrated|annoyed)|that (?:pissed me off|made me angry))\b/.test(reply);
+  const externalPressure=/\b(work|job|shift|lab|samples|project|meeting|office|client)\b/.test(reply)&&!/\byou\b/.test(reply);
+  if (userConflict || selfAnger) {
+    return { tone: userConflict ? 'angry' : 'frustrated', valence: -.55, intensity: userConflict ? .65 : .5,
+      halfLifeMinutes: 240, target: userConflict ? 'user' : externalPressure ? 'external' : 'unknown',
+      cause: userConflict ? 'user_conflict' : externalPressure ? 'day_pressure' : 'personal_feeling' };
+  }
+  // An apology offered by the user is not accepted until the companion says so.
+  // Explicitly remaining angry takes precedence over a partial acceptance.
+  if (/\b(i forgive you|i accept your apology|thank you for apologi[sz]ing(?: to me)?|we(?:'re| are) (?:okay|alright) now)\b/.test(reply) &&
+      /\b(sorry|apologi[sz]e|my fault)\b/.test(user)) {
+    return { tone: 'reassured', valence: .4, intensity: .4, halfLifeMinutes: 120, target: 'user', cause: 'accepted_repair' };
+  }
+  if (/\b(?:a |one )?(?:bad|rough|shitty|awful) day\b/.test(reply) ||
+      /\bi(?:'m| am) (?:really |so )?(?:tired|exhausted|drained|worn out)\b/.test(reply)) {
+    return { tone: 'weary', valence: -.35, intensity: .42, halfLifeMinutes: 180,
+      target: externalPressure ? 'external' : 'unknown',
+      cause: 'day_pressure' };
+  }
+  if (/\bi(?:'m| am) (?:really |so )?(?:excited|thrilled)\b/.test(reply)) {
+    return { tone: 'excited', valence: .5, intensity: .35, halfLifeMinutes: 180, target: 'unknown', cause: 'personal_feeling' };
+  }
+  if (/\b(?:ha(?:ha)+|i(?:'m| am) (?:just )?(?:joking|kidding|teasing))\b/.test(reply)) {
+    return { tone: 'playful', valence: .3, intensity: .2, halfLifeMinutes: 120, target: 'unknown', cause: 'personal_feeling' };
+  }
   return null;
 }
 
@@ -25,7 +55,7 @@ export async function upsertEmotionalResidue(input: { db: any; userId: string; c
     started_at: now.toISOString(),
     half_life_minutes: input.residue.halfLifeMinutes,
     expires_at: expires,
-    metadata: { version: 1, deterministic: true },
+    metadata: { version: 2, deterministic: true, target: input.residue.target, cause: input.residue.cause },
     updated_at: now.toISOString(),
   }, { onConflict: 'character_instance_id' });
 }

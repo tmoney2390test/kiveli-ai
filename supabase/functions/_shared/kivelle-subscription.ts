@@ -28,7 +28,16 @@ export async function resolveSubscriptionAccess(db:SupabaseClient,userId:string,
   if(!row){const created=await db.from('together_entitlements').insert({user_id:userId,tier:'free',entitlement_keys:[...entitlementsForTier('free')]}).select('*').single();if(created.error||!created.data)throw new AppError('INTERNAL_ERROR','Subscription status could not be prepared.',500,true);row=created.data;}
   const effective=selectEffectiveBillingSubscription(normalized.map((item)=>({provider:item.provider,planKey:item.plan_key,status:item.status,accessEndsAt:item.access_ends_at,currentPeriodEnd:item.current_period_end,updatedAt:item.updated_at})),now),selected=effective?normalized.find((item)=>item.provider===effective.provider&&item.plan_key===effective.planKey&&item.status===effective.status&&(item.access_ends_at??item.current_period_end)===(effective.accessEndsAt??effective.currentPeriodEnd)):newestBillingRow(normalized);
   const expired=Boolean(row.expires_at&&new Date(row.expires_at).getTime()<=now.getTime()),legacyTier=expired?'free':normalizeSubscriptionTier(row.tier),tier=effective?effective.planKey:normalized.length?'free':legacyTier,capabilities=capabilitiesForAccount(tier,row.metadata);
-  if(!readOnly&&(row.tier!==tier||!sameKeys(row.entitlement_keys,capabilities.entitlements)||selected&&row.billing_status!==selected.status)){const updated=await db.from('together_entitlements').update({tier,entitlement_keys:[...capabilities.entitlements],...(selected?{billing_provider:selected.provider,billing_customer_id:selected.provider_customer_id??row.billing_customer_id,billing_subscription_id:selected.provider_subscription_id,billing_status:selected.status,product_key:selected.provider_price_id??row.product_key,billing_period_start:selected.current_period_start??null,billing_period_end:selected.current_period_end??null,expires_at:effective?selected.access_ends_at??selected.current_period_end:null}:expired?{metadata:{...(row.metadata??{}),expiredAt:row.expires_at,expiredResolvedAt:now.toISOString()}}:{}),updated_at:now.toISOString()}).eq('user_id',userId).select('*').single();if(updated.data)row=updated.data;}
+  const selectedAccessEnd=effective?(selected?.access_ends_at??selected?.current_period_end??null):null;
+  const billingCacheStale=Boolean(selected&&(
+    row.billing_status!==selected.status
+    ||row.billing_provider!==selected.provider
+    ||row.billing_subscription_id!==selected.provider_subscription_id
+    ||row.billing_period_start!==(selected.current_period_start??null)
+    ||row.billing_period_end!==(selected.current_period_end??null)
+    ||row.expires_at!==selectedAccessEnd
+  ));
+  if(!readOnly&&(row.tier!==tier||!sameKeys(row.entitlement_keys,capabilities.entitlements)||billingCacheStale)){const updated=await db.from('together_entitlements').update({tier,entitlement_keys:[...capabilities.entitlements],...(selected?{billing_provider:selected.provider,billing_customer_id:selected.provider_customer_id??row.billing_customer_id,billing_subscription_id:selected.provider_subscription_id,billing_status:selected.status,product_key:selected.provider_price_id??row.product_key,billing_period_start:selected.current_period_start??null,billing_period_end:selected.current_period_end??null,expires_at:selectedAccessEnd}:expired?{metadata:{...(row.metadata??{}),expiredAt:row.expires_at,expiredResolvedAt:now.toISOString()}}:{}),updated_at:now.toISOString()}).eq('user_id',userId).select('*').single();if(updated.data)row=updated.data;}
   const status=selected?.status??row.billing_status??null,rowMetadata=isRecord(row.metadata)?row.metadata:{},selectedMetadata=isRecord(selected?.metadata)?selected.metadata:{},interval=selected?.billing_interval??(rowMetadata.billingInterval==='annual'?'annual':'monthly');
   const productKey=selected?.provider_price_id??row.product_key??null,provider=selected?.provider??row.billing_provider??null;
   const managedByKivelle=provider==='configured'&&Boolean(rowMetadata.adminSubscriptionGrant??selectedMetadata.adminSubscriptionGrant??rowMetadata.promotionGrant??selectedMetadata.promotionGrant??(typeof productKey==='string'&&productKey.endsWith('_test')));
@@ -52,7 +61,7 @@ export async function enforcePhotoSharingEntitlement(db:SupabaseClient,userId:st
 }
 
 export function activeConversationLimitError(capabilities:KivelleCapabilities):AppError{
-  return new AppError('PLAN_LIMIT_REACHED',`${capabilities.displayName} supports up to ${capabilities.maxActiveConversations} active conversations. Delete a conversation to start another, or upgrade your plan for more.`,403,false);
+  return new AppError('PLAN_LIMIT_REACHED',`${capabilities.displayName} supports up to ${capabilities.maxActiveConversations} active conversations. Archive a conversation in Manage Chats to make room. Your history stays saved.`,403,false);
 }
 
 export function isActiveConversationLimitDatabaseError(error:unknown):boolean{
@@ -61,7 +70,7 @@ export function isActiveConversationLimitDatabaseError(error:unknown):boolean{
 
 export async function enforceActiveConversationLimit(db:SupabaseClient,userId:string,capabilities?:KivelleCapabilities):Promise<void>{
   const resolved=capabilities??(await resolveSubscriptionAccess(db,userId)).capabilities;
-  const{count,error}=await db.from('together_conversations').select('id',{count:'exact',head:true}).eq('user_id',userId).is('archived_at',null).is('user_archived_at',null).in('kind',['direct','first_meeting','group']);
+  const{data:count,error}=await db.rpc('kivelle_active_conversation_count',{p_user_id:userId});
   if(error)throw new AppError('INTERNAL_ERROR','Your conversations could not be counted.',500,true);
   if(Number(count??0)>=resolved.maxActiveConversations)throw activeConversationLimitError(resolved);
 }
@@ -100,7 +109,7 @@ export async function reconcileSubscriptionCreditLifecycle(db:SupabaseClient,use
   const{error}=await db.rpc('kivelle_reconcile_subscription_credits',{p_user_id:userId,p_expected_tier:capabilities.tier,p_cap:capabilities.subscriptionCreditRolloverCap,p_paid_active:capabilities.tier!=='free',p_grace_days:30,p_now:now.toISOString()});
   if(error)throw new AppError('INTERNAL_ERROR','Subscription credit balance could not be reconciled.',500,true);
 }
-export async function enforceLifeLimit(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities):Promise<void>{const{count,error}=await db.from('together_continuities').select('id',{count:'exact',head:true}).eq('user_id',userId);if(error)throw new AppError('INTERNAL_ERROR','Kivelle Lives could not be counted.',500,true);if(Number(count??0)>=capabilities.maxLives)throw new AppError('PLAN_LIMIT_REACHED',`${capabilities.displayName} supports up to ${capabilities.maxLives} Kivelle ${capabilities.maxLives===1?'Life':'Lives'}.`,403);}
+export async function enforceLifeLimit(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities):Promise<void>{const{count,error}=await db.from('together_continuities').select('id',{count:'exact',head:true}).eq('user_id',userId).neq('kind','branch');if(error)throw new AppError('INTERNAL_ERROR','Kivelle Lives could not be counted.',500,true);if(Number(count??0)>=capabilities.maxLives)throw new AppError('PLAN_LIMIT_REACHED',`${capabilities.displayName} supports up to ${capabilities.maxLives} Kivelle ${capabilities.maxLives===1?'Life':'Lives'}.`,403);}
 export async function enforceCustomCompanionLimit(db:SupabaseClient,userId:string,capabilities:KivelleCapabilities):Promise<void>{const{count,error}=await db.from('together_character_templates').select('id',{count:'exact',head:true}).eq('creator_id',userId).neq('lifecycle_status','archived');if(error)throw new AppError('INTERNAL_ERROR','Custom companions could not be counted.',500,true);if(Number(count??0)>=capabilities.maxCustomCompanions)throw new AppError('PLAN_LIMIT_REACHED',`${capabilities.displayName} supports up to ${capabilities.maxCustomCompanions} custom ${capabilities.maxCustomCompanions===1?'companion':'companions'}.`,403);}
 
 export type DailyPhotoAllowanceStatus={limit:number;used:number;remaining:number;benefitDate:string;timezone:string;resetsAt:string};

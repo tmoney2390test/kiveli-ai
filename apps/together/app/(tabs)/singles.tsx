@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-na
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CalendarDays, LockKeyhole, Palmtree, UserRound } from 'lucide-react-native';
-import { EmptyState, LoadingSkeleton, PageTitle, Screen, SectionHeader } from '../../src/components';
+import { EmptyState, LoadingSkeleton, PageTitle, Screen, SectionHeader } from '../../src/components/ui';
 import { CompanionGenderToggle, useCompanionGenderPreference } from '../../src/components/CompanionGenderToggle';
 import { CompanionPortraitCard } from '../../src/components/CompanionPortraitCard';
 import { CompanionSpicePicker, type CompanionSpiceFilter } from '../../src/components/CompanionSpicePicker';

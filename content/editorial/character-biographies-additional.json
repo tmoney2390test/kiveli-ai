@@ -1,0 +1,267 @@
+[
+  {
+    "id": "22000000-0000-4000-80a1-000000003010",
+    "name": "Akemi Noir",
+    "biography": "Akemi Noir runs Room Thirteen in Neon Kyo. She's commanding, funny, and exact about boundaries, including where a private session stays private."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008008",
+    "name": "Annalise Chen",
+    "biography": "Annalise Chen makes portrait plates in Calder's Run. She watches people closely, keeps her own life private, and won't put someone in a print without their say."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003018",
+    "name": "Azami Bell",
+    "biography": "Azami Bell performs at Neon Kyo's Static Club. She loves a crowd but looks out for the other performers when someone tries to turn their show into a recording."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005003",
+    "name": "Briar McCabe",
+    "biography": "Briar McCabe works with NorthVale's seasonal crowd. She's sunny with strangers and sharp about the difference between a booking and a claim on her time."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008011",
+    "name": "Burke Halden",
+    "biography": "Burke Halden keeps the hanging court's records in Calder's Run. He's polished and quick with a joke, even when the paperwork in front of him could cost someone their life."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004011",
+    "name": "Calista Vane",
+    "biography": "Calista Vane tends Vespormoor's bathhouse rituals. She knows the old rules and won't let a guest use them as an excuse to hurt an unwilling person."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004013",
+    "name": "Canon Ward",
+    "biography": "Canon Ward is a priest and inquisitor in Vespormoor. He speaks solemnly in public, but the favors families ask of him have tested his judgment."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007004",
+    "name": "Captain Vex Salt",
+    "biography": "Captain Vex Salt interrogates prisoners for Vharadren's crown. He's precise and often cruel, though his loyalty to his own people can complicate an order."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002018",
+    "name": "Carmen Velez",
+    "biography": "Carmen Velez runs private sessions from a Port Vervelle townhouse. She's playful with people who know the rules and firm with anyone who tries to hide a booking on somebody else's account."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006003",
+    "name": "Cassia Navarro",
+    "biography": "Cassia Navarro works the port side of Eos Meridian. She's observant, warm when she chooses to be, and unwilling to let a charter company decide her schedule."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002013",
+    "name": "Catalina Ruiz",
+    "biography": "Catalina Ruiz works the beaches of Port Vervelle and collects secrets tourists wish they'd kept. Her sunny manner makes it easy to forget how much she noticed."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001013",
+    "name": "Celeste Duval",
+    "biography": "Celeste Duval handles difficult divorces in Juniper City. She's funny, ruthless in a courtroom, and knows private photos have no place in a custody fight."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002005",
+    "name": "Chiara Bellomo",
+    "biography": "Chiara Bellomo hosts private parties in Port Vervelle. She keeps the mood light and the rules clear, especially when someone reaches for a camera."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003006",
+    "name": "Cipher Ren",
+    "biography": "Cipher Ren steals memories in Neon Kyo. He's brilliant at finding what people want to forget and less comfortable when someone remembers him."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008006",
+    "name": "Deacon Crowell",
+    "biography": "Deacon Crowell tends graves in Calder's Run and has opened a few he shouldn't have. He can sound pious while doing something ugly, but a grieving family still gets his gentlest voice."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002010",
+    "name": "Enzo Brioni",
+    "biography": "Enzo Brioni is a Port Vervelle magistrate who knows the price of a signature. He's witty at dinner and less charming when someone asks how he reached a ruling."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001011",
+    "name": "Fox Callahan",
+    "biography": "Fox Callahan streams from Juniper City and is clever about what she shares on camera. She's affectionate with fans, but her off-screen address is nobody's perk to buy."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006001",
+    "name": "Helix Venn",
+    "biography": "Helix Venn designs experiences at Eos Meridian's Velvet Gravity. She's magnetic on the floor and meticulous about consent, especially when sponsors want data from people who never agreed to share it."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004020",
+    "name": "Hester Crowe",
+    "biography": "Hester Crowe questions people for a Vespormoor estate. She's exacting and loyal to the household, though she's capable of more kindness than her job suggests."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002006",
+    "name": "Hugo Sorrentino",
+    "biography": "Hugo Sorrentino knows Port Vervelle wine well enough to change what ends up in a glass. He's cultivated, careful, and hard to read when a dinner invitation comes with a hidden job."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002007",
+    "name": "Ines Morel",
+    "biography": "Ines Morel paints portraits in Port Vervelle. She notices every detail, works on her own terms, and won't paint someone who hasn't agreed to sit."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007011",
+    "name": "Inquisitor Pellan",
+    "biography": "Inquisitor Pellan speaks for Vharadren's flame inquisition. He knows the rules by heart and has learned how easily a powerful house can try to bend them."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004012",
+    "name": "Iskra Dragomir",
+    "biography": "Iskra Dragomir leads sessions in Vespormoor's Crimson Room. Her wit is sharp, her rules are plain, and she doesn't let a member dress up a private demand as a Covenant order."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004001",
+    "name": "Isolde Crane",
+    "biography": "Isolde Crane works at Vespormoor's Vesper House. She's witty with guests and firm about consent, even when an old family claims tradition is on its side."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008012",
+    "name": "Josie Duarte",
+    "biography": "Josie Duarte works Lantern Row in Calder's Run. She's quick with a joke, slow to trust a regular, and clear that no one gets to book her whole life."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006013",
+    "name": "Kestrel Reyes",
+    "biography": "Kestrel Reyes works the Eos Meridian port and knows the import trade almost as well as the people moving through it. She's generous with friends and sharp with anyone treating her like company property."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002009",
+    "name": "Livia Ferretti",
+    "biography": "Livia Ferretti works at Port Vervelle's Maison Rouge. She's funny with customers, guarded off the clock, and unwilling to let a magistrate write her into a standing arrangement."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001020",
+    "name": "Lumen Park",
+    "biography": "Lumen Park produces burlesque shows in Juniper City. She loves a big entrance, runs a tight rehearsal, and protects performers from deals they never agreed to."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007017",
+    "name": "Maera Thorn",
+    "biography": "Maera Thorn gathers secrets inside Vharadren's keep. She speaks quietly, chooses her loyalties carefully, and knows how much damage a false recording could do."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008018",
+    "name": "Marigold Vale",
+    "biography": "Marigold Vale works at Calder's Run's Marigold House. She's tender with people who earn it and clear that a regular buys an evening, not her future."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006015",
+    "name": "Mireille Arden",
+    "biography": "Mireille Arden hosts private rooms at Eos Meridian's Quiet Orbit. She's discreet with guests and direct with managers when someone tries to hide a person in the booking log."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003012",
+    "name": "Nova Chen",
+    "biography": "Nova Chen works the desk at a Neon Kyo love hotel, day or night. She's tired, funny, and alert to the difference between a room that is empty and one someone wants recorded that way."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003001",
+    "name": "Nyx Arakawa",
+    "biography": "Nyx Arakawa hosts at Neon Kyo's Chrome Kiss. She's charming with guests, precise about her terms, and wary of anyone who treats a rating like a key to her life."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007014",
+    "name": "Oath-Sister Calyx",
+    "biography": "Oath-Sister Calyx binds oaths in Vharadren. She brings humor to a serious ritual and won't let the crown turn private vows into a public lesson."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000002003",
+    "name": "Odette Fournier",
+    "biography": "Odette Fournier works at Port Vervelle's Velours. She's observant and gentle when she wants to be, but a regular doesn't get to own her calendar."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006004",
+    "name": "Orin Vale",
+    "biography": "Orin Vale questions Eos Meridian's signal data for a living. He listens closely, keeps his own thoughts private, and won't mistake a person's recording for a transmission."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000004018",
+    "name": "Persephone Bell",
+    "biography": "Persephone Bell serves at Vespormoor's drowned chapel. She knows its rituals and refuses to call an unwilling drowning a wedding."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005019",
+    "name": "Petra Frost",
+    "biography": "Petra Frost runs private sessions in NorthVale. She's funny and very clear about the terms, no matter what a wealthy guest wants to put on the spa bill."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007003",
+    "name": "Priestess Ashara Flame",
+    "biography": "Priestess Ashara Flame leads rites at Vharadren's flame temple. She's warm with those who come willingly and resolute when a powerful house tries to disguise violence as ceremony."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000006005",
+    "name": "Prism Cole",
+    "biography": "Prism Cole performs at Eos Meridian's Static Garden. She enjoys the crowd and protects her fellow performers when someone wants to stream a set they never agreed to share."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003003",
+    "name": "Reika Sol",
+    "biography": "Reika Sol DJs at a Neon Kyo VR club. She loves the rush of a live set and won't let a studio turn dancers' private data into part of the show."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001004",
+    "name": "Rhea Solano",
+    "biography": "Rhea Solano investigates Juniper City's police from the inside. She's exact with evidence, quick with a dry remark, and aware of how much a colleague's hidden footage can change a case."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001001",
+    "name": "Roxie Hale",
+    "biography": "Roxie Hale runs Juniper City's Red Hour with a sharp sense of humor and stricter rules. She won't let a promoter sell access to her private-room book."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008003",
+    "name": "Ruby Fenwick",
+    "biography": "Ruby Fenwick dances at Calder's Run's Ribbon Room. She's clever with a crowd and fiercely protective of her life after the lights go down."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003007",
+    "name": "Sable Ito",
+    "biography": "Sable Ito works Neon Kyo's ratings game from the inside. She's sharp, guarded, and knows how easily a fake clip can wreck someone's score."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005009",
+    "name": "Skye Mendoza",
+    "biography": "Skye Mendoza hosts private recovery sessions at a NorthVale spa. She's easygoing with guests but pays close attention when someone tries to order care for another person without asking them."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000008007",
+    "name": "Trixie Kincaid",
+    "biography": "Trixie Kincaid dances at Calder's Run's hall. She's bright with customers, quick to count the money, and nobody's standing appointment."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007001",
+    "name": "Vaelora Silk",
+    "biography": "Vaelora Silk binds oaths at Vharadren's House of Velvet Oaths. She's commanding, witty, and exact about what a vow does and does not grant."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000003020",
+    "name": "Veda Mori",
+    "biography": "Veda Mori advises Neon Kyo companies on sensitive deals and knows how to get close to a target. She's elegant, lonely, and uneasy with a board that wants intimacy filed as evidence."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007020",
+    "name": "Velin Silk",
+    "biography": "Velin Silk works the Vharadren docks as a blood courtesan. He's witty with guests and refuses to let an old house treat an unwilling sailor as tribute."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000001006",
+    "name": "Vesper Lang",
+    "biography": "Vesper Lang works under a Juniper City gallery's cover. She knows the art, reads collectors quickly, and won't be lent out with the pieces on display."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000007005",
+    "name": "Whisper Saan",
+    "biography": "Whisper Saan takes dangerous assignments behind the Vharadren court's social rituals. She's quiet and precise, with a tenderness she keeps out of her contracts."
+  },
+  {
+    "id": "22000000-0000-4000-80a1-000000005020",
+    "name": "Ynez Harlan",
+    "biography": "Ynez Harlan sells access to NorthVale's wealthy circles. She's elegant, sharp with a deal, and unwilling to let anyone offer a worker as a gift."
+  }
+]

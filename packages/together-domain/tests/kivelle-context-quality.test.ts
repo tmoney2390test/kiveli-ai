@@ -71,3 +71,16 @@ describe('Kivelle context quality evaluations', () => {
     expect(result.prompt).toContain('Current canonical location: Riverwalk');
   });
 });
+
+describe('canonical home context',()=>{
+ const home={path:'Eos Meridian → Dockside → Nia’s flat',location:{id:'character-home:nia',name:'Nia’s flat',category:'home',type:'residence',description:'A small flat near the rover yard.',possibleActivities:['Have coffee','Paint the model shuttle'],lore:{homeId:'home',personalDetails:[{description:'A model rover has removable wheels.'},{description:'A miniature shuttle is waiting for paint.'},{description:'A battered radio has a replacement dial.'}]}},world:{id:'eos',name:'Eos Meridian'},clock:{daypart:'evening'}};
+ it('retains the three persistent possessions during a home conversation',()=>{
+  const result=compileCompanionPrompt({...base,character:{...base.character,name:'Nia'},place:home,currentScene:{...base.currentScene,location:'Nia’s flat',interactionMode:'co_present'},userMessage:'Can we work on the model?',queryIntent:'location'});
+  for(const detail of home.location.lore.personalDetails)expect(result.prompt).toContain(detail.description);
+  expect(result.prompt).toContain('do not invent roommates');expect(result.prompt).toContain('persistent possessions');expect(result.estimatedTokens).toBeLessThanOrEqual(result.ceilingTokens);
+ });
+ it('can discuss a home without pretending either person has arrived',()=>{
+  const result=compileCompanionPrompt({...base,referencedPlaces:[home],userMessage:'Tell me about your place.',queryIntent:'location'});
+  expect(result.prompt).toContain('Current canonical location: Riverwalk');expect(result.prompt).toContain('Viewing or discussing a home does not mean the user has arrived');
+ });
+});

@@ -7,10 +7,10 @@ type RouteParams = Record<string, string | string[] | undefined>;
 const pageLabels: Record<string, string> = {
   '/': 'Welcome', '/home': 'Home', '/explore': 'Explore', '/singles': 'Discover',
   '/chat-tab': 'Messages', '/messages': 'Messages', '/chat': 'Chat', '/group-chat': 'Group Chat',
-  '/new-group': 'New Group', '/archived-chats': 'Archived Chats', '/companions': 'Your Companions',
+  '/manage-chats': 'Manage Chats', '/new-group': 'New Group', '/archived-chats': 'Recently Removed', '/companions': 'Your Companions',
   '/scenarios': 'Scenarios', '/moments': 'Moments', '/dates': 'Plans', '/market': 'Marketplace',
   '/subscription': 'Membership', '/upgrade': 'Membership',
-  '/settings': 'Settings', '/profile': 'Your Profile', '/account': 'Account',
+  '/settings': 'Your Account', '/profile': 'Your Account', '/account': 'Account',
   '/personas': 'Personas & Lives', '/persona-editor': 'Edit Persona',
   '/notifications': 'Notifications', '/privacy': 'Privacy & Safety', '/memories': 'Memories',
   '/conversation-controls': 'Relationship Controls', '/photo-settings': 'Photo Settings',

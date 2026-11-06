@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Camera, Clapperboard, ImagePlus, Phone, Volume2 } from 'lucide-react-native';
-import { PageTitle, Screen, SectionHeader } from '../src/components';
+import { PageTitle, Screen, SectionHeader } from '../src/components/ui';
 import { getExperienceCapabilities, saveMultimodalPreferences } from '../src/lib/api';
 import { useTogether } from '../src/store/useTogether';
 import { colors, radius } from '../src/theme';

@@ -7,6 +7,7 @@ import { portVervelleLocationAssets } from './port-vervelle';
 import { vespormoorLocationAssets } from './vespormoor';
 import { eosMeridianLocationAssets } from './eos-meridian';
 import { vharadrenLocationAssets } from './vharadren';
+import { gildedCoastLocationAssets } from './gilded-coast';
 
 export const locationAssetsByWorld:Record<string,Record<string,ImageSource>>={
   'calders-run':caldersRunLocationAssets,
@@ -17,6 +18,7 @@ export const locationAssetsByWorld:Record<string,Record<string,ImageSource>>={
   'vespormoor':vespormoorLocationAssets,
   'eos-meridian':eosMeridianLocationAssets,
   'vharadren':vharadrenLocationAssets,
+  'gilded-coast':gildedCoastLocationAssets,
 };
 
 export function mappedLocationAsset(worldSlug?:string|null,locationSlug?:string|null):ImageSource|undefined{

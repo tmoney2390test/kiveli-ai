@@ -3,6 +3,7 @@ import { describe,expect,it,vi } from 'vitest';
 vi.mock('./engine',()=>({PlatformRealtimeAudioEngine:class{}}));
 
 import { XaiCascadedVoiceClient } from './cascadeClient';
+import { XaiRealtimeVoiceClient } from './client';
 import type { RealtimeAudioEngine } from './engine.types';
 import type { RealtimeVoiceCallbacks,RealtimeVoiceCredentials } from './types';
 
@@ -38,6 +39,32 @@ describe('Essential voice audio lifecycle',()=>{
       FakeWebSocket.last!.open();await Promise.resolve();FakeWebSocket.last!.message({type:'session.updated'});await connecting;
       expect(audio.close).not.toHaveBeenCalled();expect(callbacks.onConnected).toHaveBeenCalledOnce();
       await client.disconnect();expect(audio.close).toHaveBeenCalledOnce();
+    }finally{Object.assign(globalThis,{WebSocket:original});}
+  });
+});
+
+describe.each([XaiCascadedVoiceClient,XaiRealtimeVoiceClient])('voice client playback captions', Client => {
+  it('keeps generated transcript out of captions until audio plays and cancels interrupted captions',async()=>{
+    const audio=audioEngine(),callbacks:RealtimeVoiceCallbacks={onCaption:vi.fn(),onConnected:vi.fn(),onClosed:vi.fn(),onTranscript:vi.fn(),onPartialTranscript:vi.fn(),onSpeaking:vi.fn(),onError:vi.fn()};
+    const original=globalThis.WebSocket;Object.assign(globalThis,{WebSocket:FakeWebSocket});
+    try{
+      const client=new Client(callbacks,audio),connecting=client.connect(credentials);await Promise.resolve();await Promise.resolve();
+      FakeWebSocket.last!.open();await Promise.resolve();FakeWebSocket.last!.message({type:'session.updated'});await connecting;
+      const socket=FakeWebSocket.last!,playback=vi.mocked(audio.open).mock.calls[0]![0].onPlayback!;
+      vi.mocked(callbacks.onCaption!).mockClear();
+      socket.message({type:'response.output_audio_transcript.delta',delta:'Hello there.',response_id:'a'});
+      socket.message({type:'response.output_audio.delta',delta:'AAAA',response_id:'a',audio_timestamps:{graph_chars:[...'Hello there.'],graph_times:[...'Hello there.'].map((_,i)=>[i/10,(i+1)/10])}});
+      socket.message({type:'response.output_audio_transcript.done',transcript:'Hello there.',response_id:'a',item_id:'item-a'});
+      expect(callbacks.onCaption).not.toHaveBeenCalled();expect(callbacks.onTranscript).toHaveBeenCalledOnce();
+      socket.message({type:'response.output_audio.done',response_id:'a'});
+      playback({turnId:'a',playedMs:500,totalMs:1200,done:false});
+      expect(callbacks.onCaption).toHaveBeenLastCalledWith({role:'assistant',content:'Hello'});
+      expect(callbacks.onSpeaking).toHaveBeenLastCalledWith('assistant',true);
+      socket.message({type:'input_audio_buffer.speech_started'});
+      expect(callbacks.onCaption).toHaveBeenLastCalledWith(null);
+      playback({turnId:'a',playedMs:1200,totalMs:1200,done:true});
+      expect(callbacks.onCaption).toHaveBeenLastCalledWith(null);
+      await client.disconnect();
     }finally{Object.assign(globalThis,{WebSocket:original});}
   });
 });

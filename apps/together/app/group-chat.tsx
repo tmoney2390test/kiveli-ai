@@ -1,17 +1,28 @@
+
+import { changePlanActivity } from '../src/lib/commitments';
+import { authorizeReply } from '../src/features/chat/authorizeReply';
+import { uploadConversationImage } from '../src/features/chat/uploadConversationImage';
+import { useScopedChatState } from '../src/features/chat/useScopedChatState';
+import { recoverPersistedReply } from '../src/features/chat/recoverPersistedReply';
+import { useGroupTimelineRefresh } from '../src/features/chat/useGroupTimelineRefresh';
+import { useGroupConversationLoad } from '../src/features/chat/useGroupConversationLoad';
+import { useChatRequestScope } from '../src/features/chat/useChatRequestScope';
+import { useConversationGallery } from '../src/features/chat/useConversationGallery';
 import { ChatRecoveryNotice } from '../src/components/ChatRecoveryNotice';
+import { WorldPulseConversationBanner } from '../src/components/WorldPulseConversationBanner';
 import { queueServerPhotoOfferAcceptance, waitForPhotoOfferStatus } from '../src/lib/photoOfferOptimism';
-import { loadPhotoOfferStatus } from '../src/lib/api';
+import { loadPhotoOfferStatus } from '../src/lib/api/media';
 import { createRealtimeChannel } from '../src/lib/realtimeChannel';
 import { useTimelineReveal } from '../src/hooks/useTimelineReveal';
 import { useChatInboxNavigation } from '../src/hooks/useChatInboxNavigation';
+import { useChatQuickActions } from '../src/hooks/useChatQuickActions';
 import { styles } from '../src/styles/groupChatStyles';
 import { CatalogImage as Image } from '../src/components/CatalogImage';
-import { VeniceTestDiagnostics } from '../src/components/VeniceTestDiagnostics';
 import { emptyReplyDrafts, reduceReplyDrafts } from '../src/lib/replyStreaming';
 import { useMessageRewrite } from '../src/hooks/useMessageRewrite';
 import { useContextQuote } from '../src/hooks/useContextQuote';
 import { ContextCostConfirmation } from '../src/components/settings/ContextCostConfirmation';
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
@@ -33,12 +44,10 @@ import { shouldKeepChatPinned } from "../src/lib/chatScroll";
 import { useMobileChatKeyboardPin } from "../src/hooks/useMobileChatKeyboardPin";
 import { ChatKeyboardFrame } from "../src/components/ChatKeyboardFrame";
 import { ChatComposerFrame } from "../src/components/ChatComposerFrame";
-import { uploadPreparedChatPhoto } from "../src/lib/chatPhotoStorageUpload";
 import { shouldConsumeComposerEnter, shouldSendComposerOnEnter } from "../src/lib/composerKeyboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
-import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
   Brain,
@@ -57,7 +66,6 @@ import {
   MessageCircle,
   Mic,
   MoreHorizontal,
-  Pause,
   Play,
   RefreshCw,
   Send,
@@ -74,62 +82,44 @@ import {
   MESSAGE_CHARACTER_LIMIT,
   messageCharacterLimitError,
 } from "@together/domain/src/message-limits";
-import {
-  CharacterAvatar,
-  CharacterMentionText,
-  CharacterProfilePreviewModal,
-  ChatConversationRail,
-  ChatPhotoRequestCard,
-  ChatTypingIndicator,
-  ConnectionBanner,
-  ConversationOverflowMenu,
-  ConversationMediaGalleryModal,
-  EmptyState,
-  FailedMessageRecovery,
-  FrostedSurface,
-  JumpToLatestButton,
-  ImageLightbox,
-  MediaTile,
-  MessageCharacterCounter,
-  MessageActionSheet,
-  MemorySavedToast,
-  MobileChatContextCard,
-  MobileChatMediaHeader,
-  PhotoSharingPaywallModal,
-  resolveCharacterPortraitSource,
-  VoiceNotePurchaseModal,
-  type MessageActionDefinition,
-} from "../src/components";
+import { CharacterAvatar, EmptyState, resolveCharacterPortraitSource } from '../src/components/ui';
+import { CharacterMentionText } from '../src/components/CharacterMentionText';
+import { CharacterProfilePreviewModal } from '../src/components/CharacterProfilePreviewModal';
+import { ChatConversationRail } from '../src/components/ChatConversationRail';
+import { ChatPhotoRequestCard } from '../src/components/media/ChatPhotoRequestCard';
+import { ChatTypingIndicator } from '../src/components/ChatTypingIndicator';
+import { ConnectionBanner } from '../src/components/ConnectionBanner';
+import { ConversationOverflowMenu } from '../src/components/ConversationOverflowMenu';
+import { ConversationMediaGalleryModal } from '../src/components/ConversationMediaGalleryModal';
+import { FailedMessageRecovery } from '../src/components/FailedMessageRecovery';
+import { FrostedSurface } from '../src/components/FrostedGlass';
+import { JumpToLatestButton } from '../src/components/JumpToLatestButton';
+import { ImageLightbox } from '../src/components/ImageLightbox';
+import { MediaTile } from '../src/components/media/MediaTile';
+import { MessageCharacterCounter } from '../src/components/MessageCharacterCounter';
+import { MessageActionSheet, type MessageActionDefinition } from '../src/components/MessageActionSheet';
+import { MessageQuickActions } from '../src/components/MessageQuickActions';
+import type { ChatQuickAction } from '../src/lib/chatQuickActions';
+import { CopyToast, MemorySavedToast } from '../src/components/MemorySavedToast';
+import { useRememberedMessages } from '../src/hooks/useRememberedMessages';
+import { MobileChatContextCard } from '../src/components/MobileChatContextCard';
+import { MobileChatMediaHeader } from '../src/components/MobileChatMediaHeader';
+import { PhotoSharingPaywallModal } from '../src/components/PhotoSharingPaywallModal';
+import { VoiceNotePurchaseModal } from '../src/components/VoiceNotePurchaseModal';
 import { PlanSelection } from "../src/components/PlanSelection";
 import { GroupManagementModal } from "../src/components/GroupManagementModal";
 import { GroupChatSettingsModal } from "../src/components/GroupChatSettingsModal";
 import { ConversationTimelineSkeleton } from "../src/components/ConversationTimelineSkeleton";
-import {
-  ApiError,
-  confirmUserImage,
-  confirmConversationAction,
-  createSharedPlan,
-  deleteConversationAttachment,
-  dismissConversationAction,
-  type GroupDialogueEvent,
-  loadGroupDetail,
-  loadConversationMediaGallery,
-  manageConversation,
-  manageGroup,
-  manageMedia,
-  managePlan,
-  meetCompanion,
-  prepareUserImage,
-  removePendingAttachment,
-  quoteVoiceNote,
-  refreshVoiceNote,
-  rememberMessage,
-  requestVoiceNote,
-  sendGroupDialogue,
-  setConversationPinned,
-  setMessageFavorite,
-  type VoiceNoteQuote,
-} from "../src/lib/api";
+import { ApiError } from '../src/lib/api/transport';
+import { deleteConversationAttachment, removePendingAttachment } from '../src/lib/api/multimodal';
+import { confirmConversationAction, createSharedPlan, dismissConversationAction, managePlan } from '../src/lib/api/plans';
+import { type GroupDialogueEvent, loadGroupDetail, manageGroup, sendGroupDialogue } from '../src/lib/api/groups';
+import { manageMedia } from '../src/lib/api/media';
+import { manageConversation, setConversationPinned, setMessageFavorite } from '../src/lib/api/conversations';
+import { meetCompanion } from '../src/lib/api/companions';
+import { quoteVoiceNote, refreshVoiceNote, requestVoiceNote, type VoiceNoteQuote } from '../src/lib/api/voice';
+import { VoiceNoteInline } from '../src/features/chat/components/VoiceMessage';
+import { mutateMemory, rememberMessage } from '../src/lib/api/memory';
 import { ReportMessageModal } from "../src/components/ReportMessageModal";
 import { characterAssets } from "../src/assets";
 import { locationImageSource } from "../src/lib/locationImageSource";
@@ -137,22 +127,24 @@ import { endPlanExperience, getPlanExperience, joinCommitment, switchPlanExperie
 import { activePlanForGroup, collapsePlanTimelineEvents, isPlanLifecycleDividerEvent, joinablePlanForGroup, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanTimelineEvent } from "../src/lib/planActions";
 import type { PlanOption, PlanTimingSelection } from "../src/lib/plans";
 import { createClientRequestId } from "../src/lib/requestId";
-import { reconcileMessages } from "../src/lib/messageReconciliation";
+import { messageRenderKey, reconcileMessages } from "../src/lib/messageReconciliation";
 import { chatErrorPresentation } from "../src/lib/chatErrorPresentation";
-import { withIdempotentRetry } from "../src/lib/requestRetry";
-import { DIALOGUE_RECOVERY_DELAYS_MS, dialogueFailureMayHavePersisted, persistedDialogueResponseForRequest } from "../src/lib/dialogueRecovery";
-import { subscribeToWebPageResume, waitForWebPageVisible } from "../src/lib/webPageLifecycle";
-import { isConversationPinned, MESSAGES_INBOX_ROUTE } from "../src/lib/messageInbox";
-import { clearChatScrollPosition, readChatScrollPosition, restoredChatOffset, saveChatScrollPosition, shouldRestoreChatScrollPosition, type ChatScrollPosition } from "../src/lib/chatNavigationState";
+import { dialogueFailureMayHavePersisted, latestUnansweredDialogueRequest, staleDialogueReplayDelay } from "../src/lib/dialogueRecovery";
+import { isConversationPinned, MESSAGES_INBOX_ROUTE, preferNewerReadState } from "../src/lib/messageInbox";
+import { chatAdvancedSincePosition, clearChatScrollPosition, newestChatTimestamp, readChatScrollPosition, restoredChatOffset, saveChatScrollPosition, shouldRestoreChatScrollPosition, type ChatScrollPosition } from "../src/lib/chatNavigationState";
 import { firstUnreadMessageId } from "../src/lib/chatUnreadWindow";
 import { chatMessageTypography, resolveChatBubbleColors } from "../src/lib/chatSettings";
 import { chatBubbleColorHex, chatBubbleTextColor, type ChatBubbleColor } from "@together/domain/src/chat-appearance";
-import { applyGroupDetailDelta, mergeGroupMedia, prependGroupTimelinePage } from "../src/lib/groupDetailReconciliation";
+import { mergeGroupDetailRefresh, mergeGroupMedia } from "../src/lib/groupDetailReconciliation";
 import {
   cacheCompleteGroupDetail,
   cacheGroupDetailSummary,
-  prefetchCompleteGroupDetail,
+  groupDetailCacheGeneration,
+  markCachedGroupRead,
+  hideCachedGroupPhotoOffer,
+  mergeGroupStreamMessage,
   readCachedGroupDetail,
+  restoreCachedGroupPhotoOffer,
 } from "../src/lib/groupDetailCache";
 import { confirmAction } from "../src/lib/dialogs";
 import {
@@ -172,13 +164,15 @@ import {
   type GroupRecipientSelection,
 } from "../src/lib/groupChatPresentation";
 import { mergeDictationTranscript } from "../src/lib/dictation";
-import { privateStoredImageSource } from "../src/lib/mediaImageSource";
+import { privateStoredImageSource, privateStoredPreviewSource } from "../src/lib/mediaImageSource";
 import { mergeGeneratedMediaCollections, missingMediaIds } from "../src/lib/mediaReconciliation";
 import { chatMediaGalleryItems } from "../src/lib/chatMediaGallery";
 import { presentMemoryText } from "../src/lib/memoryPresentation";
 import { mediaWithoutActivePhotoOffer, photoMediaForOffer, visibleChatPhotoMedia } from "../src/lib/photoRequestPresentation";
 import { groupPhotoRequestText } from "../src/lib/groupPhotoRequest";
 import { mediaOfferActionBusy } from "../src/lib/mediaOfferBusy";
+import { declinedPhotoReplyAnchor, declinedPhotoReplayText } from '../src/lib/photoOfferOptimism';
+import { clearPhotoDecline, photoDeclineHandoffKey, readPhotoDecline, rememberPhotoDecline, settlePhotoDecline, startPhotoDeclineReply } from '../src/lib/photoDeclineHandoff';
 import { spicyUnavailableCopy } from "../src/lib/mediaMomentPicker";
 import { characterCatalogForWorld, characterResidentWorld } from "../src/lib/place";
 import type { FeaturedCompanion } from "../src/lib/featuredCompanions";
@@ -212,8 +206,6 @@ import type {
   ConversationAction,
   ConversationEvent,
   GroupDetail,
-  GroupDetailDelta,
-  GroupTimelinePage,
   GroupParticipant,
   Location,
   MediaOffer,
@@ -228,11 +220,15 @@ type GroupTimelineItem =
   | { kind: "action"; value: ConversationAction }
   | { kind: "event"; value: ConversationEvent };
 type PendingGroupImage=NormalizedUserImage&{requestId:string};
+// Group turns hold a four-minute server lease, longer than direct dialogues.
+const GROUP_STALE_REPLAY_AFTER_MS=245_000;
 
 function navigateGroupSurface(href:string,mode:"push"|"replace"="push"){
   if(Platform.OS==="web"&&navigateLocalRouteOnWeb(href,mode))return;
   if(mode==="replace")router.replace(href as never);else router.push(href as never);
 }
+
+const PlanActivityPicker = lazy(() => import('../src/components/PlanActivityPicker').then(module => ({ default: module.PlanActivityPicker })));
 
 export default function GroupChatScreen() {
   const openMessagesInbox = useChatInboxNavigation();
@@ -245,6 +241,7 @@ export default function GroupChatScreen() {
       activity?: string;
       switchPlanId?: string;
       sharePhoto?: string;
+      draft?: string;
     }>(),
     { width } = useWindowDimensions(),
     snapshot = useTogether((state) => state.snapshot),
@@ -270,40 +267,25 @@ export default function GroupChatScreen() {
   const [replyDrafts,setReplyDrafts]=useState(emptyReplyDrafts);
   const currentComposer=useRef('');
   const completedPrimaryRequests=useRef(new Set<string>());
+  const chatScope=useChatRequestScope(session?.user.id,snapshot?.activeContinuity?.id,params.id);
+  const photoDeclineKey=photoDeclineHandoffKey(session?.user.id,snapshot?.activeContinuity?.id,params.id);
   const groupCacheScope = `${session?.user.id??"anonymous"}:${snapshot?.activeContinuity?.id??"default"}`;
-  const initialGroupCache = useRef(
-    params.id ? readCachedGroupDetail(groupCacheScope, params.id) : undefined,
-  ).current;
-  const [detailState, setDetail] = useState<GroupDetail | null>(
-      initialGroupCache?.detail ?? null,
-    ),
-    [loading, setLoading] = useState(!initialGroupCache?.complete),
-    [groupLoadAttempt,setGroupLoadAttempt]=useState(0),
-    [error, setError] = useState(""),
+  const initialGroupCache = useMemo(()=>params.id?readCachedGroupDetail(groupCacheScope,params.id):undefined,[groupCacheScope,params.id]);
+  const [detailState,setDetail]=useScopedChatState<GroupDetail|null>(chatScope,initialGroupCache?.detail??null);
+  const [loading,setLoading]=useScopedChatState(chatScope,!initialGroupCache?.complete);
+  const [error,setError]=useScopedChatState(chatScope,"");
+  const [groupLoadAttempt,setGroupLoadAttempt]=useState(0),
     [input, setInput] = useState(""),
     [pendingImage, setPendingImage] = useState<PendingGroupImage | null>(
       null,
     ),
     [activeVoiceId, setActiveVoiceId] = useState<string | null>(null),
-    [mediaOfferBusy, setMediaOfferBusy] = useState<string | null>(null),
     [typing, setTyping] = useState<Array<{ id: string; name: string }>>([]),
     [replyTo, setReplyTo] = useState<Message | null>(null),
     [recipientSelection, setRecipientSelection] = useState<GroupRecipientSelection>("automatic"),
-    [showPhotoMenu, setShowPhotoMenu] = useState(false),
-    [showPhotoPaywall,setShowPhotoPaywall]=useState(false),
-    [photoUploadPhase,setPhotoUploadPhase]=useState<PhotoUploadPhase>("idle"),
-    [photoSubjects, setPhotoSubjects] = useState<string[]>([]),
-    [photoDescription, setPhotoDescription] = useState(""),
-    [photoSpicyUnlocked, setPhotoSpicyUnlocked] = useState(false),
-    [photoMenuError, setPhotoMenuError] = useState(""),
-    [photoRequestBusy, setPhotoRequestBusy] = useState(false),
     [showDetails, setShowDetails] = useState(params.details === "1" && params.settings !== "1"),
     [showChatSettings,setShowChatSettings]=useState(params.settings === "1"),
     [showChatMedia,setShowChatMedia]=useState(false),
-    [loadedGalleryMedia,setLoadedGalleryMedia]=useState<GeneratedMedia[]>([]),
-    [loadedGalleryAttachments,setLoadedGalleryAttachments]=useState<ConversationAttachment[]>([]),
-    [galleryLoading,setGalleryLoading]=useState(false),
-    [galleryError,setGalleryError]=useState(""),
     [showGroupMenu, setShowGroupMenu] = useState(false),
     [characterPreview,setCharacterPreview]=useState<FeaturedCompanion|null>(null),
     [favoriteBusy, setFavoriteBusy] = useState(false),
@@ -312,22 +294,47 @@ export default function GroupChatScreen() {
     [contextParticipantId, setContextParticipantId] = useState<string | null>(
       null,
     ),
-    [showPlans, setShowPlans] = useState(false),
-    [switchPlanId, setSwitchPlanId] = useState<string | null>(null),
-    [pendingGroupActionId, setPendingGroupActionId] = useState<string | null>(null),
-    [planActionBusyId, setPlanActionBusyId] = useState<string | null>(null),
     [showSendConnectionNotice,setShowSendConnectionNotice]=useState(false),
-    [memorySavedNotice,setMemorySavedNotice]=useState<{id:number;name:string}|null>(null),
-    [sending, setSending] = useState(false),
+    [memorySavedNotice,setMemorySavedNotice]=useState<{id:number;name:string;characterSlug:string}|null>(null),
+    [copyNotice,setCopyNotice]=useState<number|null>(null),
+    [sending, setSending] = useScopedChatState(chatScope,false),
     [stoppingTurn, setStoppingTurn] = useState(false),
-    [olderLoading,setOlderLoading]=useState(false),
-    [busy, setBusy] = useState(false);
+    [olderLoading,setOlderLoading]=useState(false);
+  const [showPhotoMenu,setShowPhotoMenu]=useScopedChatState(chatScope,false);
+  const [showPhotoPaywall,setShowPhotoPaywall]=useScopedChatState(chatScope,false);
+  const [photoUploadPhase,setPhotoUploadPhase]=useScopedChatState<PhotoUploadPhase>(chatScope,'idle');
+  const [photoSubjects,setPhotoSubjects]=useScopedChatState<string[]>(chatScope,[]);
+  const [photoDescription,setPhotoDescription]=useScopedChatState(chatScope,'');
+  const [photoSpicyUnlocked,setPhotoSpicyUnlocked]=useScopedChatState(chatScope,false);
+  const [photoMenuError,setPhotoMenuError]=useScopedChatState(chatScope,'');
+  const [photoRequestBusy,setPhotoRequestBusy]=useScopedChatState(chatScope,false);
+  const [showPlans,setShowPlans]=useScopedChatState(chatScope,false);
+  const [switchPlanId,setSwitchPlanId]=useScopedChatState<string|null>(chatScope,null);
+  const [pendingGroupActionId,setPendingGroupActionId]=useScopedChatState<string|null>(chatScope,null);
+  const [busy,setBusy]=useScopedChatState(chatScope,false);
+  const [mediaOfferBusy,setMediaOfferBusy]=useScopedChatState<string|null>(chatScope,null);
+  const [planActionBusyId,setPlanActionBusyId]=useScopedChatState<string|null>(chatScope,null);
+  const [declinedPhotoReply,setDeclinedPhotoReply]=useScopedChatState<{offer:MediaOffer;dismissed:MediaOffer;queuedAt:number}|null>(chatScope,null);
+  const {media:loadedGalleryMedia,attachments:loadedGalleryAttachments,loading:galleryLoading,error:galleryError,load:loadChatGallery}=useConversationGallery({scope:chatScope,conversationId:params.id,visible:showChatMedia});
   const cachedRouteDetail = params.id
     ? readCachedGroupDetail(groupCacheScope, params.id)
     : undefined;
   const detail = detailState?.conversation.id === params.id
     ? detailState
     : cachedRouteDetail?.detail ?? null;
+  const latestKnownGroupAt=newestChatTimestamp(
+    snapshot?.conversations.find((item)=>item.id===params.id)?.last_message_at,
+    detail?.conversation.last_message_at,detail?.messages.at(-1)?.created_at);
+  const declinedOfferId=readPhotoDecline(photoDeclineKey)?.offer.id;
+  const visibleMediaOffers=(detail?.mediaOffers??[]).filter((offer)=>offer.id!==declinedOfferId);
+  const rememberedMessages=useRememberedMessages({
+    userId:session?.user.id,
+    continuityId:snapshot?.activeContinuity?.id,
+    conversationId:detail?.conversation.id,
+    messages:detail?.messages??[],
+    enabled:snapshot?.entitlements?.entitlement_keys?.includes('memory_manual_control')===true,
+  });
+  const quickActionPreference=useChatQuickActions(session?.user.id,detail?.conversation.id,'group',detail?.conversation.metadata?.chatQuickActions,detail?.conversation.metadata?.chatQuickActionsVersion);
   const pendingDialogue=params.id?pendingDialogues[params.id]:undefined;
   const messageRewrite=useMessageRewrite({profile:snapshot?.profile,userId:session?.user.id,conversation:detail?.conversation,messages:detail?.messages??[],pending:sending||Boolean(pendingDialogue),onMessage:(message)=>setDetail(current=>current?{...current,messages:reconcileMessages(current.messages,[message])}:current),onError:setError,onFinished:()=>{void refresh();}});
   const replyPending=sending||Boolean(pendingDialogue)||messageRewrite.busy;
@@ -336,25 +343,26 @@ export default function GroupChatScreen() {
   const subscriptionReturnTo=params.id?`/group-chat?id=${encodeURIComponent(params.id)}`:"/messages";
   const creditsSubscriptionHref=subscriptionHref({intent:"credits",returnTo:subscriptionReturnTo});
   const photoSharingSubscriptionHref=subscriptionHref({intent:"photo_sharing",returnTo:`${subscriptionReturnTo}${subscriptionReturnTo.includes("?")?"&":"?"}sharePhoto=1`});
-  const clearStoredDraft=usePersistentMessageDraft({userId:session?.user.id,conversationId:params.id,kind:"group",value:input,setValue:setInput});
+  const clearStoredDraft=usePersistentMessageDraft({userId:session?.user.id,conversationId:params.id,kind:"group",value:input,setValue:setInput,routeDraft:params.draft});
   currentComposer.current=input;
+  const [showActivities,setShowActivities]=useScopedChatState(chatScope,false);
+  const activityRequestRef=useRef<{activity:string;requestId:string}|null>(null);
+  const planRequestIdRef=useMemo(()=>({current:createClientRequestId()}),[chatScope]);
   const abortRef = useRef<AbortController | null>(null),
+    backgroundDialogueController=useRef<AbortController|null>(null),
     recipientConversationRef = useRef<string | null>(null),
     lastSendRef = useRef<{ text: string; startedAt: number } | null>(null),
     pendingPhotoMessageRequestRef=useRef<string|null>(null),
     pendingPhotoOptimisticMessageIdRef=useRef<string|null>(null),
     pendingImageRef=useRef<PendingGroupImage|null>(null),
-    planRequestIdRef = useRef(createClientRequestId()),
     freshRequestIdRef = useRef(createClientRequestId()),
-    galleryRequest = useRef(0),
     mediaRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
-    deltaRefreshRunning=useRef(false),
-    deltaRefreshQueued=useRef(false),
     detailRef=useRef<GroupDetail|null>(null),
     scrollRef = useRef<FlatList<GroupTimelineItem> | null>(null),
     contentHeightRef=useRef(0),
     viewportHeightRef=useRef(0),
     pendingScrollRestore=useRef<ChatScrollPosition|null>(null),
+    scrollPositionAtOpen=useRef<ChatScrollPosition|null>(null),
     prependHeightRef=useRef<number|null>(null),
     bottomAlignedConversation = useRef<string | null>(null),
     keepPinnedToBottom = useRef(true),
@@ -362,8 +370,19 @@ export default function GroupChatScreen() {
     initialBottomPinConversation = useRef<string | null>(null),
     initialBottomPinReleaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
     bottomPinSettleTimers = useRef(new Set<ReturnType<typeof setTimeout>>()),
-    observedPendingRequest = useRef<string | null>(null);
-  const loadedGroupRef = useRef<string | null>(null);
+    observedPendingRequest = useRef<string | null>(null),
+    staleGroupReplayAttempts = useRef(new Set<string>()),
+    replayPersistedGroupDialogueRef = useRef<(message: Message) => void>(() => undefined);
+  const loadedGroupRef = useMemo(()=>({current:null as string|null}),[chatScope]);
+  useLayoutEffect(()=>{
+    if(abortRef.current!==backgroundDialogueController.current)abortRef.current?.abort();
+    abortRef.current=null;backgroundDialogueController.current=null;
+    setSending(false);setTyping([]);setReplyDrafts(emptyReplyDrafts());setOlderLoading(false);
+    setPhotoUploadPhase('idle');setPendingImage(null);setPhotoRequestBusy(false);
+    pendingPhotoMessageRequestRef.current=null;pendingPhotoOptimisticMessageIdRef.current=null;
+    lastSendRef.current=null;
+    return()=>{if(abortRef.current!==backgroundDialogueController.current)abortRef.current?.abort();abortRef.current=null;backgroundDialogueController.current=null;};
+  },[chatScope]);
   const groupSnapshotReady=Boolean(snapshot?.activeContinuity?.id)&&(!snapshotLoading||loadedGroupRef.current===params.id);
   const groupTimelineReady=hasCoherentConversationTimeline({
     activeConversationId:params.id,
@@ -371,7 +390,6 @@ export default function GroupChatScreen() {
     hasCompleteCachedTimeline:cachedRouteDetail?.complete===true,
   });
   const timelineReveal=useTimelineReveal(params.id??'group',groupTimelineReady);
-  const groupLoadAbortRef=useRef<AbortController|null>(null);
   const resumedSharePhoto=useRef<string|null>(null);
   const unreadWindow=useRef<{conversationId:string|null;lastReadAt:string|null;openedAt:string}>({conversationId:null,lastReadAt:null,openedAt:new Date().toISOString()});
   const planLaunchHandledRef = useRef<string | null>(null);
@@ -421,19 +439,7 @@ export default function GroupChatScreen() {
     upsertConversation(current);
   },[detailState?.conversation.id,detailState?.conversation.last_message_at,detailState?.conversation.last_message_preview,detailState?.conversation.last_message_role,params.id,snapshot?.conversations,upsertConversation]);
   useEffect(()=>{if(connectionPhase==='online')setShowSendConnectionNotice(false);},[connectionPhase]);
-  useEffect(()=>{galleryRequest.current+=1;setShowSendConnectionNotice(false);setMemorySavedNotice(null);setShowChatMedia(false);setLoadedGalleryMedia([]);setLoadedGalleryAttachments([]);setGalleryLoading(false);setGalleryError("");},[params.id]);
-  const loadChatGallery=useCallback(async()=>{
-    const conversationId=params.id;if(!conversationId)return;
-    const request=++galleryRequest.current;setGalleryLoading(true);setGalleryError("");
-    try{
-      const result=await loadConversationMediaGallery(conversationId,160);
-      if(request!==galleryRequest.current)return;
-      setLoadedGalleryMedia(result.media??[]);
-      setLoadedGalleryAttachments(result.attachments??[]);
-    }catch(caught){if(request===galleryRequest.current)setGalleryError(caught instanceof Error?caught.message:"Conversation media could not be loaded.");}
-    finally{if(request===galleryRequest.current)setGalleryLoading(false);}
-  },[params.id]);
-  useEffect(()=>{if(showChatMedia)void loadChatGallery();},[loadChatGallery,showChatMedia]);
+  useEffect(()=>{setShowSendConnectionNotice(false);setMemorySavedNotice(null);setCopyNotice(null);setShowChatMedia(false);},[params.id]);
   const beginInitialBottomPin=useCallback((conversationId:string)=>{
     if(initialBottomPinReleaseTimer.current)clearTimeout(initialBottomPinReleaseTimer.current);
     initialBottomPinReleaseTimer.current=null;
@@ -472,7 +478,8 @@ export default function GroupChatScreen() {
   const prepareConversationScroll=useCallback((conversationId:string)=>{
     bottomAlignedConversation.current=null;
     const saved=readChatScrollPosition(conversationId);
-    if(shouldRestoreChatScrollPosition(saved)){
+    scrollPositionAtOpen.current=saved;
+    if(shouldRestoreChatScrollPosition(saved,96,latestKnownGroupAt)){
       cancelInitialBottomPin();
       pendingScrollRestore.current=saved;
       keepPinnedToBottom.current=false;
@@ -482,7 +489,7 @@ export default function GroupChatScreen() {
     pendingScrollRestore.current=null;
     beginInitialBottomPin(conversationId);
     setShowJumpToLatest(false);
-  },[beginInitialBottomPin,cancelInitialBottomPin]);
+  },[beginInitialBottomPin,cancelInitialBottomPin,latestKnownGroupAt]);
   const pinLatestForMobileKeyboard=useCallback(()=>{
     if(width>=720||!params.id||!keepPinnedToBottom.current)return;
     keepPinnedToBottom.current=true;
@@ -491,14 +498,11 @@ export default function GroupChatScreen() {
     scrollRef.current?.scrollToEnd({animated:false});
   },[params.id,width]);
   const onMobileComposerFocus=useMobileChatKeyboardPin(width<720,pinLatestForMobileKeyboard);
-  const refreshGroupDelta=useCallback(async function refreshGroupDeltaTask(){
-    const current=detailRef.current;if(!params.id||current?.conversation.id!==params.id||!current?.syncedAt)return;
-    if(deltaRefreshRunning.current){deltaRefreshQueued.current=true;return;}
-    deltaRefreshRunning.current=true;
-    try{const delta=await manageGroup<GroupDetailDelta>({action:"changes",conversationId:params.id,since:current.syncedAt});setDetail((value)=>value&&value.conversation.id===params.id?applyGroupDetailDelta(value,delta):value);}
-    catch{/* The next realtime event, poll, or focus load safely retries. */}
-    finally{deltaRefreshRunning.current=false;if(deltaRefreshQueued.current){deltaRefreshQueued.current=false;void refreshGroupDeltaTask();}}
-  },[params.id]);
+  const {refresh:refreshGroupDelta,loadOlder:loadOlderMessages}=useGroupTimelineRefresh({
+    scope:chatScope,conversationId:params.id,detail,setDetail,setOlderLoading,
+    onBeforePrepend:()=>{prependHeightRef.current=contentHeightRef.current;},
+    onPrependFailed:()=>{prependHeightRef.current=null;},onError:setError,
+  });
   useEffect(()=>{
     if(pendingDialogue?.clientRequestId){observedPendingRequest.current=pendingDialogue.clientRequestId;return;}
     if(!observedPendingRequest.current)return;
@@ -506,99 +510,80 @@ export default function GroupChatScreen() {
     const timer=setTimeout(()=>void refreshGroupDelta(),120);
     return()=>clearTimeout(timer);
   },[pendingDialogue?.clientRequestId,refreshGroupDelta]);
-  const refreshGroupAfterResume=useCallback(async()=>{
-    const conversationId=params.id;if(!conversationId||authLoading||!session||!groupSnapshotReady)return;
-    if(loadedGroupRef.current!==conversationId){
-      // A suspended tab may have exhausted its first request before Safari
-      // restored the radio. Reopen the timeline when the page is usable.
-      if(!groupLoadAbortRef.current){setLoading(true);setError('');setGroupLoadAttempt((value)=>value+1);}
-      return;
-    }
-    try{
-      const next=await loadGroupDetail(conversationId,{messageLimit:30,timeoutMs:20_000});
-      loadedGroupRef.current=conversationId;
-      setDetail((current)=>current?{...next,messages:reconcileMessages(current.messages,next.messages)}:next);
-      setLoading(false);
-      setError((current)=>current&&dialogueFailureMayHavePersisted(new Error(current))?'':current);
-    }catch{/* The browser radio can still be waking; the stream recovery retries. */}
-  },[authLoading,groupSnapshotReady,params.id,session?.user.id]);
   const recoverInterruptedGroupDialogue=async(clientRequestId:string,optimisticId:string):Promise<boolean>=>{
     const conversationId=params.id;if(!conversationId)return false;
-    await waitForWebPageVisible();
-    for(const delay of DIALOGUE_RECOVERY_DELAYS_MS){
-      await new Promise((resolve)=>setTimeout(resolve,delay));
-      try{
-        const next=await loadGroupDetail(conversationId,{messageLimit:30,timeoutMs:20_000});
-        if(!persistedDialogueResponseForRequest(next.messages,clientRequestId))continue;
-        loadedGroupRef.current=conversationId;
-        setDetail((current)=>current?{...next,messages:reconcileMessages(current.messages,next.messages,optimisticId?[optimisticId]:[])}:next);
-        setError('');
-        return true;
-      }catch{continue;}
+    const isCurrent=chatScope.capture();
+    const recovered=await recoverPersistedReply({requestId:clientRequestId,isCurrent,
+      load:()=>loadGroupDetail(conversationId,{messageLimit:30,timeoutMs:20_000}),messages:(page)=>page.messages});
+    if(!isCurrent()||recovered.status==='cancelled')return false;
+    const next=recovered.latest;
+    if(next&&(recovered.status==='recovered'||next.messages.some((message)=>message.role==='user'&&message.client_request_id===clientRequestId))){
+      loadedGroupRef.current=conversationId;
+      setDetail((current)=>mergeGroupDetailRefresh(current,next,optimisticId?[optimisticId]:[]));
     }
-    return false;
+    if(recovered.status==='recovered')setError('');
+    return recovered.status==='recovered';
   };
   useEffect(()=>{
-    let timer:ReturnType<typeof setTimeout>|undefined;
-    const refreshAfterWake=()=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>void refreshGroupAfterResume(),180);};
-    const unsubscribe=subscribeToWebPageResume(refreshAfterWake);
-    if(connectionPhase==='reconnected')refreshAfterWake();
-    return()=>{if(timer)clearTimeout(timer);unsubscribe();};
-  },[connectionPhase,refreshGroupAfterResume]);
-  useEffect(() => {
-    const conversationId=params.id;
-    // The session can restore before the active Life snapshot. A detail request
-    // in that gap can appear missing even though the saved group is intact.
-    if (!conversationId||authLoading||!session||!groupSnapshotReady) return;
-    let cancelled=false;
-    const loadController=new AbortController();
-    groupLoadAbortRef.current?.abort();
-    groupLoadAbortRef.current=loadController;
-    setLoading(true);
-    setError("");
-    prepareConversationScroll(conversationId);
-    void withIdempotentRetry(async()=>{
-      await waitForWebPageVisible();
-      if(loadController.signal.aborted)throw new Error('Group load cancelled.');
-      try{
-        return await prefetchCompleteGroupDetail(groupCacheScope,conversationId,()=>loadGroupDetail(conversationId,{messageLimit:30,signal:loadController.signal}));
-      }catch(caught){
-        // A previous mount can abort a coalesced warmup just as this page opens.
-        if(!loadController.signal.aborted&&caught instanceof Error&&caught.name==='AbortError')
-          throw new ApiError('Group request was interrupted.','REQUEST_INTERRUPTED',true);
-        throw caught;
-      }
-    },{attempts:3,delayMs:350})
-      .then((next)=>{
-        if(cancelled)return;
-        loadedGroupRef.current=conversationId;
-        setDetail(next);
-        setError("");
-      })
-      .catch((caught)=>{
-        if(cancelled||loadController.signal.aborted)return;
-        setError(caught instanceof Error?caught.message:"This group could not be loaded.");
-      })
-      .finally(()=>{
-        if(groupLoadAbortRef.current===loadController)groupLoadAbortRef.current=null;
-        if(!cancelled)setLoading(false);
-      });
-    return()=>{
-      cancelled=true;
-      loadController.abort();
-      if(groupLoadAbortRef.current===loadController)groupLoadAbortRef.current=null;
-    };
-  },[authLoading,groupCacheScope,groupLoadAttempt,groupSnapshotReady,params.id,prepareConversationScroll,session?.user.id]);
+    if(!detail||loadedGroupRef.current!==params.id||!groupTimelineReady||replyPending||!online||connectionPhase!=='online')return;
+    const unanswered=latestUnansweredDialogueRequest(detail.messages),requestId=unanswered?.client_request_id;
+    if(!unanswered||!requestId||unanswered.attachments?.length||unanswered.content==='[Photo]'||staleGroupReplayAttempts.current.has(requestId)||
+      detail.reactions.some((reaction)=>reaction.message_id===unanswered.id))return;
+    const directDelay=staleDialogueReplayDelay(unanswered);
+    const createdAt=Date.parse(unanswered.created_at);
+    const delay=directDelay===null?null:Math.max(directDelay,createdAt+GROUP_STALE_REPLAY_AFTER_MS-Date.now(),0);
+    if(delay===null)return;
+    const timer=setTimeout(()=>{
+      if(staleGroupReplayAttempts.current.has(requestId))return;
+      staleGroupReplayAttempts.current.add(requestId);
+      replayPersistedGroupDialogueRef.current(unanswered);
+    },delay+100);
+    return()=>clearTimeout(timer);
+  },[connectionPhase,detail,groupTimelineReady,online,params.id,replyPending]);
+  useGroupConversationLoad({
+    scope:chatScope,cacheScope:groupCacheScope,conversationId:params.id,
+    ready:!authLoading&&Boolean(session)&&groupSnapshotReady,attempt:groupLoadAttempt,connectionPhase,
+    loadedConversation:loadedGroupRef,setDetail,setLoading,setError,
+    onInitialDetail:(conversationId,next)=>{
+      const saved=scrollPositionAtOpen.current;
+      scrollPositionAtOpen.current=null;
+      if(!saved||!chatAdvancedSincePosition(saved,next.messages.at(-1)?.created_at))return;
+      pendingScrollRestore.current=null;
+      bottomAlignedConversation.current=null;
+      clearChatScrollPosition(conversationId);
+      beginInitialBottomPin(conversationId);
+    },
+    onRead:async(conversationId)=>{
+      const isCurrent=chatScope.capture();
+      const {last_read_at}=await manageGroup<{last_read_at:string}>({action:'read',conversationId});
+      if(!isCurrent())return;
+      markCachedGroupRead(groupCacheScope,conversationId,last_read_at);
+      const current=useTogether.getState().snapshot?.conversations.find((item)=>item.id===conversationId);
+      if(current)upsertConversation(preferNewerReadState(current,{...current,last_read_at,unread:false,unread_count:0}));
+      setDetail((value)=>value?.conversation.id===conversationId
+        ? {...value,conversation:preferNewerReadState(value.conversation,{...value.conversation,last_read_at,unread:false,unread_count:0})}
+        : value);
+    },
+    retry:()=>setGroupLoadAttempt(value=>value+1),prepareScroll:prepareConversationScroll,
+  });
   useFocusEffect(useCallback(() => {
-    if (!params.id || loadedGroupRef.current!==params.id) return;
+    if (!params.id || loading || detail?.conversation.id!==params.id || loadedGroupRef.current!==params.id) return;
     void refreshGroupDelta();
+    // Realtime delivery can pause in a backgrounded Safari tab or after a
+    // connection handoff. Keep an open group caught up without a page reload.
+    const catchUp=setInterval(()=>{
+      if(AppState.currentState==='active'&&
+        (typeof document==='undefined'||document.visibilityState==='visible'))
+        void refreshGroupDelta();
+    },15_000);
     return () => {
+      clearInterval(catchUp);
       if (mediaRefreshTimer.current) clearTimeout(mediaRefreshTimer.current);
       if (initialBottomPinReleaseTimer.current) clearTimeout(initialBottomPinReleaseTimer.current);
       for(const timer of bottomPinSettleTimers.current)clearTimeout(timer);
       bottomPinSettleTimers.current.clear();
     };
-  }, [params.id,prepareConversationScroll,refreshGroupDelta]));
+  }, [detail?.conversation.id,loading,params.id,prepareConversationScroll,refreshGroupDelta]));
   useEffect(() => {
     if (!params.id) return;
     const refreshDetail = () => {
@@ -757,6 +742,7 @@ export default function GroupChatScreen() {
     ).slice(0, 5);
   const groupPlans = detail?.sharedPlans ?? [];
   const activeGroupPlan = detail ? activePlanForGroup(groupPlans, detail.conversation.id) : null;
+  useEffect(()=>{setShowActivities(false);activityRequestRef.current=null;},[detail?.conversation.id,activeGroupPlan?.id]);
   const joinableGroupPlan = detail ? joinablePlanForGroup(groupPlans, detail.conversation.id) : null;
   const waitingGroupPlan = detail
     ? groupPlans.filter((plan) =>
@@ -938,7 +924,7 @@ export default function GroupChatScreen() {
   useEffect(()=>{
     setReplyDrafts(emptyReplyDrafts());
     completedPrimaryRequests.current.clear();
-    return()=>{abortRef.current?.abort();};
+    return()=>{if(abortRef.current!==backgroundDialogueController.current)abortRef.current?.abort();};
   },[params.id]);
   const handleEvent = (event: GroupDialogueEvent) => {
     if(event.type==='turn_started'||event.type==='message_delta'||event.type==='message_completed'||event.type==='turn_yielded'||event.type==='turn_cancelled'||event.type==='turn_completed')setReplyDrafts(current=>reduceReplyDrafts(current,event));
@@ -992,17 +978,17 @@ export default function GroupChatScreen() {
       setTyping([]);
     }
   };
-  const send = async (text = input, letThemTalk = false,retryRequestId?:string,retryMessageId?:string) => {
+  const send = async (text = input, letThemTalk = false,retryRequestId?:string,retryMessageId?:string,retryMessage?:Message,photoDecline?:{anchorMessageId:string;speakerId?:string},onStarted?:()=>void) => {
     const message = text.trim();
     if (!detail || !message || replyPending) return;
     if (message.length > MESSAGE_CHARACTER_LIMIT) {
       setError(messageCharacterLimitError());
       return;
     }
-    if(!retryMessageId&&dailyMessageExhausted){setError("You’ve used today’s free messages.");return;}
+    if(!retryMessageId&&!photoDecline&&dailyMessageExhausted){setError("You’ve used today’s free messages.");return;}
     if(connectionPhase!=='online')setShowSendConnectionNotice(true);
     if(!online){setError("You’re offline. Your draft is saved and ready when you reconnect.");return;}
-    const mentions = detail.participants.filter((participant) =>
+    const derivedMentions = detail.participants.filter((participant) =>
       new RegExp(
         `(?:^|\\s)@?${
           escapeRegExp(
@@ -1013,31 +999,54 @@ export default function GroupChatScreen() {
         "iu",
       ).test(message)
     ).map((participant) => participant.character_instance_id);
-    const recipientRequest = letThemTalk
+    const retryMetadata=retryMessage?.provider_metadata;
+    const originalMentions=Array.isArray(retryMetadata?.mentions)
+      ? retryMetadata.mentions.filter((id):id is string=>typeof id==='string'&&participantIds.includes(id))
+      : null;
+    const mentions=originalMentions??derivedMentions;
+    const originalManualSpeaker=typeof retryMetadata?.manualSpeakerInstanceId==='string'&&participantIds.includes(retryMetadata.manualSpeakerInstanceId)
+      ? retryMetadata.manualSpeakerInstanceId : null;
+    const recipientRequest = photoDecline&&photoDecline.speakerId&&participantIds.includes(photoDecline.speakerId)
+      ? {manualSpeakerInstanceId:photoDecline.speakerId}
+      : retryMessage
+      ? originalManualSpeaker ? {manualSpeakerInstanceId:originalManualSpeaker} : retryMetadata?.broadGroupRequest===true ? {broadGroupRequest:true} : {}
+      : letThemTalk
       ? { broadGroupRequest: true }
       : groupRecipientRequest(recipientSelection, participantIds);
-    const reply = replyTo;
-    const contextAuthorization=await contextPricing.authorize({conversationId:detail.conversation.id,message,mentionedCharacterInstanceIds:mentions,replyToMessageId:reply?.id,...recipientRequest,letThemTalk});
-    if(!contextAuthorization)return;
+    const replyToMessageId=photoDecline?undefined:retryMessage
+      ? typeof retryMetadata?.replyToMessageId==='string'?retryMetadata.replyToMessageId:undefined
+      : replyTo?.id;
+    const attempt=await authorizeReply(chatScope,()=>photoDecline
+      ? Promise.resolve({contextPreference:'included' as const})
+      : contextPricing.authorize({conversationId:detail.conversation.id,message,mentionedCharacterInstanceIds:mentions,replyToMessageId,...recipientRequest,letThemTalk}));
+    if(!attempt)return;
+    const {authorization:contextAuthorization,request}=attempt;
+    const isCurrent=chatScope.capture();
     const previousSend=lastSendRef.current;
-    if(previousSend?.text===message&&Date.now()-previousSend.startedAt<750)return;
-    lastSendRef.current={text:message,startedAt:Date.now()};
+    const submissionKey=photoDecline?`${message}\u0000${photoDecline.anchorMessageId}`:message;
+    if(previousSend?.text===submissionKey&&Date.now()-previousSend.startedAt<750){request.release();return;}
+    lastSendRef.current={text:submissionKey,startedAt:Date.now()};
     abortRef.current?.abort();
     setReplyDrafts(emptyReplyDrafts());
     keepPinnedToBottom.current = true;
     forcePinnedUntil.current = Date.now() + 800;
     const controller = new AbortController();
     abortRef.current = controller;
-    if (!letThemTalk) setInput("");
+    backgroundDialogueController.current=controller;
+    const groupCacheGeneration=groupDetailCacheGeneration();
+    if (!letThemTalk && !retryMessageId&&!photoDecline) setInput("");
     setSending(true);
+    onStarted?.();
     setError("");
     const clientRequestId=retryRequestId??createClientRequestId();
-    const optimistic:Message={id:retryMessageId??`local-${Date.now()}`,conversation_id:detail.conversation.id,role:"user",content:message,client_request_id:clientRequestId,delivery_status:"pending",created_at:new Date().toISOString(),provider_metadata:letThemTalk?{uiHidden:true,messageAction:'let_them_talk'}:undefined,attachments:[]};
+    const optimistic:Message={id:retryMessageId??`local-${Date.now()}`,conversation_id:detail.conversation.id,role:"user",content:photoDecline?'[Photo declined]':message,client_request_id:clientRequestId,delivery_status:"pending",created_at:retryMessage?.created_at??new Date().toISOString(),provider_metadata:retryMessage?.provider_metadata??(photoDecline?{uiHidden:true,messageAction:'respond_to_declined_photo',anchorMessageId:photoDecline.anchorMessageId}:letThemTalk?{uiHidden:true,messageAction:'let_them_talk'}:undefined),attachments:[]};
+    let persistedReply=false;
+    mergeGroupStreamMessage(groupCacheScope,detail.conversation.id,optimistic,groupCacheGeneration);
     const anchorCharacterId=detail.conversation.character_instance_id??detail.participants[0]?.character_instance_id;
     if(anchorCharacterId)beginPendingDialogue({conversationId:detail.conversation.id,characterInstanceId:anchorCharacterId,clientRequestId,startedAt:new Date().toISOString(),showTyping:true});
     setDetail((current)=>current?{...current,messages:retryMessageId?current.messages.map((item)=>item.id===retryMessageId?optimistic:item):[...current.messages,optimistic]}:current);
     settleGroupAtBottom();
-    setReplyTo(null);
+    if(!retryMessageId&&!photoDecline)setReplyTo(null);
     try {
       await sendGroupDialogue(
         {
@@ -1046,38 +1055,106 @@ export default function GroupChatScreen() {
           message,
           clientRequestId,
           mentionedCharacterInstanceIds: mentions,
-          replyToMessageId: reply?.id,
+          replyToMessageId,
           ...recipientRequest,
           letThemTalk,
+          ...(photoDecline?{messageAction:'respond_to_declined_photo' as const,anchorMessageId:photoDecline.anchorMessageId}:{}),
         },
-        (event)=>{if(abortRef.current===controller&&!controller.signal.aborted)handleEvent(event);},
+        (event)=>{
+          if(photoDecline&&event.type==='primary_completed'){clearPhotoDecline(photoDeclineKey,clientRequestId);setDeclinedPhotoReply(null);}
+          if(event.type==='primary_completed'||event.type==='message_completed'){
+            persistedReply=true;
+            mergeGroupStreamMessage(groupCacheScope,detail.conversation.id,event.message,groupCacheGeneration);
+          }
+          if(event.type==='turn_started'&&event.sourceMessage)
+            mergeGroupStreamMessage(groupCacheScope,detail.conversation.id,event.sourceMessage,groupCacheGeneration);
+          if(isCurrent()&&abortRef.current===controller&&!controller.signal.aborted){handleEvent(event);if(completedPrimaryRequests.current.has(clientRequestId))request.release();}
+        },
         controller.signal,
       );
-      if(abortRef.current!==controller)return;
-      if(!retryMessageId)consumeDailyMessageAllowance();
-      if(!letThemTalk&&!currentComposer.current.trim())await clearStoredDraft();
+      if(photoDecline){clearPhotoDecline(photoDeclineKey,clientRequestId);setDeclinedPhotoReply(null);}
+      if(!isCurrent()||abortRef.current!==controller)return;
+      if(!retryMessageId&&!photoDecline)consumeDailyMessageAllowance();
+      if(!letThemTalk&&!retryMessageId&&!photoDecline&&!currentComposer.current.trim())await clearStoredDraft();
     } catch (caught) {
-      if (!controller.signal.aborted&&!completedPrimaryRequests.current.has(clientRequestId)) {
+      if(photoDecline&&caught instanceof ApiError&&caught.code==='CONFLICT'){clearPhotoDecline(photoDeclineKey,clientRequestId);setDeclinedPhotoReply(null);}
+      if(!persistedReply)mergeGroupStreamMessage(groupCacheScope,detail.conversation.id,{...optimistic,delivery_status:'failed'},groupCacheGeneration);
+      if (isCurrent()&&!controller.signal.aborted&&!completedPrimaryRequests.current.has(clientRequestId)) {
         const recovered=dialogueFailureMayHavePersisted(caught)?await recoverInterruptedGroupDialogue(clientRequestId,optimistic.id):false;
-        if(recovered){if(!retryMessageId)consumeDailyMessageAllowance();if(!letThemTalk)await clearStoredDraft();return;}
+        if(!isCurrent())return;
+        if(recovered){if(photoDecline){clearPhotoDecline(photoDeclineKey,clientRequestId);setDeclinedPhotoReply(null);}if(!retryMessageId&&!photoDecline)consumeDailyMessageAllowance();if(!letThemTalk&&!retryMessageId&&!photoDecline)await clearStoredDraft();return;}
         if(caught instanceof ApiError&&caught.code==="PLAN_LIMIT_REACHED")exhaustDailyMessageAllowance();
         setError(
           caught instanceof Error
             ? caught.message
             : "The group could not reply.",
         );
-        if(!letThemTalk)setInput(message);
+        if(!letThemTalk&&!retryMessageId&&!photoDecline)setInput(message);
         setDetail((current)=>current?{...current,messages:current.messages.map((item)=>item.id===optimistic.id?{...item,delivery_status:"failed"}:item)}:current);
       }
     } finally {
+      request.release();
       finishPendingDialogue(detail.conversation.id,clientRequestId);
-      if (abortRef.current === controller) {
+      if(backgroundDialogueController.current===controller)backgroundDialogueController.current=null;
+      if (isCurrent()&&abortRef.current === controller) {
         abortRef.current = null;
         setTyping([]);
         setReplyDrafts(emptyReplyDrafts());
         setSending(false);
       }
     }
+  };
+  useEffect(()=>{
+    const pending=readPhotoDecline(photoDeclineKey);
+    if(!pending)return;
+    let cancelled=false,timer:ReturnType<typeof setTimeout>|undefined;
+    const resume=async()=>{
+      const current=readPhotoDecline(photoDeclineKey);
+      if(!current||cancelled)return;
+      if(current.startedAt&&Date.now()-current.startedAt<20_000){
+        timer=setTimeout(()=>void resume(),20_000-(Date.now()-current.startedAt));
+        return;
+      }
+      try{
+        const dismissed=current.dismissed??(await manageMedia<{offer:MediaOffer}>({action:'dismiss_offer',offerId:current.offer.id})).offer;
+        settlePhotoDecline(photoDeclineKey,dismissed);
+        if(!cancelled&&dismissed.status==='declined')setDeclinedPhotoReply({offer:current.offer,dismissed,queuedAt:Date.now()});
+      }catch(caught){
+        if(cancelled)return;
+        clearPhotoDecline(photoDeclineKey,current.offer.id);
+        setError(caught instanceof Error?caught.message:'The declined photo could not continue.');
+      }
+    };
+    void resume();
+    return()=>{cancelled=true;if(timer)clearTimeout(timer);};
+  },[chatScope,photoDeclineKey,setDeclinedPhotoReply]);
+  useEffect(()=>{
+    if(!declinedPhotoReply)return;
+    const {offer,dismissed,queuedAt}=declinedPhotoReply;
+    const anchor=declinedPhotoReplyAnchor(offer,dismissed,detail?.messages??[]);
+    if(!anchor){setDeclinedPhotoReply(null);return;}
+    if(!online)return;
+    if(Date.now()-queuedAt>60_000){setDeclinedPhotoReply(null);setError('The photo was declined, but the chat reply could not start. Send a message to continue.');return;}
+    const timer=setTimeout(()=>setDeclinedPhotoReply((current)=>current?.offer.id===offer.id?{...current}:current),1_500);
+    if(replyPending)return()=>clearTimeout(timer);
+    const startedAt=readPhotoDecline(photoDeclineKey)?.startedAt;
+    if(startedAt&&Date.now()-startedAt<20_000)return()=>clearTimeout(timer);
+    const originalMessage=detail?.messages.find((message)=>message.role==='user'&&
+      message.client_request_id===offer.preview_metadata?.clientRequestId&&message.provider_metadata?.uiHidden!==true);
+    const requestText=originalMessage?.content?.trim()||'Continue after the declined photo request.';
+    const speakerId=typeof offer.preview_metadata?.senderCharacterInstanceId==='string'
+      ? offer.preview_metadata.senderCharacterInstanceId : undefined;
+    void send(requestText,false,offer.id,undefined,undefined,{anchorMessageId:anchor,speakerId},()=>{
+      startPhotoDeclineReply(photoDeclineKey,offer.id);
+    });
+    return()=>clearTimeout(timer);
+  },[declinedPhotoReply,detail?.messages,replyPending,online,photoDeclineKey,setDeclinedPhotoReply]);
+  replayPersistedGroupDialogueRef.current=(message)=>{
+    if(!message.client_request_id)return;
+    const photoDecline=message.provider_metadata?.messageAction==='respond_to_declined_photo'&&typeof message.provider_metadata.anchorMessageId==='string'
+      ? {anchorMessageId:message.provider_metadata.anchorMessageId,speakerId:typeof message.provider_metadata.manualSpeakerInstanceId==='string'?message.provider_metadata.manualSpeakerInstanceId:undefined}
+      : undefined;
+    void send(declinedPhotoReplayText(message,detail?.messages??[]),false,message.client_request_id,message.id,message,photoDecline);
   };
   const sendPrepared = async () => {
     const message = input.trim(), selectedImage = pendingImage;
@@ -1089,11 +1166,14 @@ export default function GroupChatScreen() {
     if(dailyMessageExhausted){setError("You’ve used today’s free messages.");return;}
     if(connectionPhase!=='online')setShowSendConnectionNotice(true);
     if(!online){setError("You’re offline. Your draft is saved and ready when you reconnect.");return;}
-    const contextAuthorization=await contextPricing.authorize({conversationId:detail.conversation.id,message,mentionedCharacterInstanceIds:mentionedParticipants(message,detail.participants),replyToMessageId:replyTo?.id,...groupRecipientRequest(recipientSelection,participantIds)});
-    if(!contextAuthorization)return;
+    const attempt=await authorizeReply(chatScope,()=>contextPricing.authorize({conversationId:detail.conversation.id,message,mentionedCharacterInstanceIds:mentionedParticipants(message,detail.participants),replyToMessageId:replyTo?.id,...groupRecipientRequest(recipientSelection,participantIds)}));
+    if(!attempt)return;
+    const {authorization:contextAuthorization,request}=attempt;
+    const isCurrent=chatScope.capture();
+    const groupCacheGeneration=groupDetailCacheGeneration();
     const submissionKey=`${message}\u0000${selectedImage?.uri??""}`;
     const previousSend=lastSendRef.current;
-    if(previousSend?.text===submissionKey&&Date.now()-previousSend.startedAt<750)return;
+    if(previousSend?.text===submissionKey&&Date.now()-previousSend.startedAt<750){request.release();return;}
     lastSendRef.current={text:submissionKey,startedAt:Date.now()};
     abortRef.current?.abort();
     setReplyDrafts(emptyReplyDrafts());
@@ -1101,6 +1181,7 @@ export default function GroupChatScreen() {
     forcePinnedUntil.current = Date.now() + 800;
     const controller = new AbortController();
     abortRef.current = controller;
+    backgroundDialogueController.current=controller;
     setInput("");
     setSending(true);
     setError("");
@@ -1113,7 +1194,8 @@ export default function GroupChatScreen() {
     const clientRequestId=selectedImage?(pendingPhotoMessageRequestRef.current??createClientRequestId()):createClientRequestId();
     const optimisticId=selectedImage?(pendingPhotoOptimisticMessageIdRef.current??`local-${Date.now()}`):`local-${Date.now()}`;
     if(selectedImage){pendingPhotoMessageRequestRef.current=clientRequestId;pendingPhotoOptimisticMessageIdRef.current=optimisticId;}
-    const optimistic:Message={id:optimisticId,conversation_id:detail.conversation.id,role:"user",content:message||"[Photo]",client_request_id:clientRequestId,delivery_status:"pending",created_at:new Date().toISOString(),attachments:[]};
+    const optimistic:Message={id:optimisticId,conversation_id:detail.conversation.id,role:"user",content:message||"[Photo]",client_request_id:clientRequestId,delivery_status:"pending",created_at:new Date().toISOString(),attachments:[],provider_metadata:selectedImage?{optimisticPhoto:true}:undefined};
+    mergeGroupStreamMessage(groupCacheScope,detail.conversation.id,optimistic,groupCacheGeneration);
     const anchorCharacterId=detail.conversation.character_instance_id??detail.participants[0]?.character_instance_id;
     if(anchorCharacterId)beginPendingDialogue({conversationId:detail.conversation.id,characterInstanceId:anchorCharacterId,clientRequestId,startedAt:new Date().toISOString(),showTyping:true});
     setDetail((current)=>current?{...current,messages:current.messages.some((item)=>item.id===optimisticId)?current.messages.map((item)=>item.id===optimisticId?optimistic:item):[...current.messages,optimistic]}:current);
@@ -1121,34 +1203,12 @@ export default function GroupChatScreen() {
     setReplyTo(null);
     let attachmentId: string | undefined;
     try {
-      if (selectedImage) {
-        setPhotoUploadPhase("preparing");
-        const anchor = detail.conversation.character_instance_id ??
-          detail.participants[0]?.character_instance_id;
-        if (!anchor) throw new Error("This group has no available companion.");
-        const prepared = await prepareUserImage({
-          conversationId: detail.conversation.id,
-          characterInstanceId: anchor,
-          mimeType: selectedImage.mimeType,
-          byteSize: selectedImage.byteSize,
-          width: selectedImage.width,
-          height: selectedImage.height,
-          requestId: selectedImage.requestId,
-        });
-        attachmentId=prepared.attachment.id;
-        setPhotoUploadPhase("uploading");
-        const blob = await fetch(selectedImage.uri).then((response) =>
-          response.blob()
-        );
-        await uploadPreparedChatPhoto({
-          storage: supabase.storage.from(prepared.upload.bucket),
-          upload: prepared.upload,
-          body: blob,
-          contentType: selectedImage.mimeType,
-        });
-        setPhotoUploadPhase("processing");
-        attachmentId=(await confirmUserImage(prepared.attachment.id,message)).attachment.id;
-        setPhotoUploadPhase("sending");
+      if(selectedImage){
+        const anchor=detail.conversation.character_instance_id??detail.participants[0]?.character_instance_id;
+        if(!anchor)throw new Error('This group has no available companion.');
+        const attachment=await uploadConversationImage({image:selectedImage,conversationId:detail.conversation.id,characterInstanceId:anchor,text:message,isCurrent:()=>groupDetailCacheGeneration()===groupCacheGeneration&&!controller.signal.aborted,onPhase:(phase)=>{if(isCurrent())setPhotoUploadPhase(phase);},onPrepared:(id)=>{attachmentId=id;}});
+        if(!attachment){mergeGroupStreamMessage(groupCacheScope,detail.conversation.id,{...optimistic,delivery_status:'failed'},groupCacheGeneration);return;}
+        attachmentId=attachment.id;
       }
       await sendGroupDialogue(
         {
@@ -1161,10 +1221,16 @@ export default function GroupChatScreen() {
           replyToMessageId: reply?.id,
           ...recipientRequest,
         },
-        (event)=>{if(abortRef.current===controller&&!controller.signal.aborted)handleEvent(event);},
+        (event)=>{
+          if(event.type==='primary_completed'||event.type==='message_completed')
+            mergeGroupStreamMessage(groupCacheScope,detail.conversation.id,event.message,groupCacheGeneration);
+          if(event.type==='turn_started'&&event.sourceMessage)
+            mergeGroupStreamMessage(groupCacheScope,detail.conversation.id,event.sourceMessage,groupCacheGeneration);
+          if(isCurrent()&&abortRef.current===controller&&!controller.signal.aborted){handleEvent(event);if(completedPrimaryRequests.current.has(clientRequestId))request.release();}
+        },
         controller.signal,
       );
-      if(abortRef.current!==controller)return;
+      if(!isCurrent()||abortRef.current!==controller){if(selectedImage)cleanupNormalizedImage(selectedImage.uri);return;}
       consumeDailyMessageAllowance();
       if (selectedImage&&!completedPrimaryRequests.current.has(clientRequestId)) {
         cleanupNormalizedImage(selectedImage.uri);
@@ -1175,14 +1241,26 @@ export default function GroupChatScreen() {
       }
       if(!currentComposer.current.trim())await clearStoredDraft();
     } catch (caught) {
-      if (!controller.signal.aborted&&!completedPrimaryRequests.current.has(clientRequestId)) {
-        const recovered=dialogueFailureMayHavePersisted(caught)?await recoverInterruptedGroupDialogue(clientRequestId,optimistic.id):false;
-        if(recovered){
+      const recovered=dialogueFailureMayHavePersisted(caught)&&!controller.signal.aborted&&(!selectedImage||Boolean(attachmentId))
+        ? await recoverPersistedReply({requestId:clientRequestId,
+            isCurrent:()=>groupDetailCacheGeneration()===groupCacheGeneration&&!controller.signal.aborted,
+            load:()=>loadGroupDetail(detail.conversation.id,{messageLimit:30,timeoutMs:20_000}),
+            messages:(page)=>page.messages})
+        : null;
+      if(recovered?.latest)cacheCompleteGroupDetail(groupCacheScope,recovered.latest);
+      const persistedUser=(recovered?.latest?.messages??readCachedGroupDetail(groupCacheScope,detail.conversation.id)?.detail.messages??[])
+        .some((item)=>item.role==='user'&&item.client_request_id===clientRequestId&&!item.id.startsWith('local-'));
+      if(!controller.signal.aborted&&!persistedUser)
+        mergeGroupStreamMessage(groupCacheScope,detail.conversation.id,{...optimistic,delivery_status:'failed'},groupCacheGeneration);
+      if (isCurrent()&&!controller.signal.aborted&&!completedPrimaryRequests.current.has(clientRequestId)) {
+        if(recovered?.latest)setDetail((current)=>mergeGroupDetailRefresh(current,recovered.latest!,[optimistic.id]));
+        if(recovered?.status==='recovered'){
           consumeDailyMessageAllowance();
           if(selectedImage){cleanupNormalizedImage(selectedImage.uri);setPendingImage(null);setPhotoUploadPhase("idle");pendingPhotoMessageRequestRef.current=null;pendingPhotoOptimisticMessageIdRef.current=null;}
           await clearStoredDraft();
           return;
         }
+        if(persistedUser){setError('Message sent. The group reply is taking longer; it will appear here when ready.');return;}
         if(attachmentId)void removePendingAttachment(attachmentId).catch(()=>undefined);
         if(selectedImage)setPhotoUploadPhase("failed");
         if(caught instanceof ApiError&&caught.code==="PLAN_LIMIT_REACHED"){exhaustDailyMessageAllowance();if(selectedImage)setShowPhotoPaywall(true);}
@@ -1195,8 +1273,10 @@ export default function GroupChatScreen() {
         setDetail((current)=>current?{...current,messages:current.messages.map((item)=>item.id===optimistic.id?{...item,delivery_status:"failed"}:item)}:current);
       }
     } finally {
+      request.release();
       finishPendingDialogue(detail.conversation.id,clientRequestId);
-      if (abortRef.current === controller) {
+      if(backgroundDialogueController.current===controller)backgroundDialogueController.current=null;
+      if (isCurrent()&&abortRef.current === controller) {
         abortRef.current = null;
         setTyping([]);
         setReplyDrafts(emptyReplyDrafts());
@@ -1288,6 +1368,8 @@ export default function GroupChatScreen() {
   const requestGroupPhoto = async (description?: string) => {
     if (!detail || !photoSubjects.length || photoRequestBusy || replyPending) return;
     if(dailyMessageExhausted){setShowPhotoMenu(false);setError("You’ve used today’s free messages.");return;}
+    const request=chatScope.start('reply');if(!request)return;
+    const isCurrent=chatScope.capture();
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -1301,7 +1383,7 @@ export default function GroupChatScreen() {
         .split(" ")[0] ?? ""
     );
     const message = groupPhotoRequestText(names, photoSpicyUnlocked, description);
-    if (!message) { setPhotoRequestBusy(false); return; }
+    if (!message) { request.release();setPhotoRequestBusy(false);abortRef.current=null;return; }
     setShowPhotoMenu(false);
     const clientRequestId=createClientRequestId();
     const anchorCharacterId=photoSubjects[0]??detail.conversation.character_instance_id??detail.participants[0]?.character_instance_id;
@@ -1318,14 +1400,16 @@ export default function GroupChatScreen() {
           photoSubjectCharacterInstanceIds: photoSubjects,
           manualSpeakerInstanceId: photoSubjects[0],
         },
-        (event)=>{if(abortRef.current===controller&&!controller.signal.aborted)handleEvent(event);},
+        (event)=>{if(isCurrent()&&abortRef.current===controller&&!controller.signal.aborted)handleEvent(event);},
         controller.signal,
       );
+      if(!isCurrent())return;
       consumeDailyMessageAllowance();
       setPhotoDescription("");
     } catch (caught) {
-      if (!controller.signal.aborted) {
+      if (isCurrent()&&!controller.signal.aborted) {
         const recovered=dialogueFailureMayHavePersisted(caught)?await recoverInterruptedGroupDialogue(clientRequestId,''):false;
+        if(!isCurrent())return;
         if(recovered){consumeDailyMessageAllowance();return;}
         if(caught instanceof ApiError&&caught.code==="PLAN_LIMIT_REACHED")exhaustDailyMessageAllowance();
         setError(
@@ -1335,15 +1419,18 @@ export default function GroupChatScreen() {
         );
       }
     } finally {
+      request.release();
       finishPendingDialogue(detail.conversation.id,clientRequestId);
-      setPhotoRequestBusy(false);
-      if (abortRef.current === controller) {
+      if(isCurrent())setPhotoRequestBusy(false);
+      if (isCurrent()&&abortRef.current === controller) {
         abortRef.current = null;
         setTyping([]);
       }
     }
   };
   const acceptMediaOffer = async (offer: MediaOffer,paymentMethod:"credits"|"daily_included"="credits") => {
+    const request=chatScope.start('photo-offer-action');
+    if(!request)return;
     setMediaOfferBusy(offer.id);
     setDetail(current => current ? {...current, mediaOffers: (current.mediaOffers ?? []).map(item => item.id === offer.id ? queueServerPhotoOfferAcceptance(item) : item)} : current);
     try {
@@ -1359,9 +1446,10 @@ export default function GroupChatScreen() {
       >({
         action: "accept_offer",
         offerId: offer.id,
-        requestId: crypto.randomUUID(),
+        requestId: createClientRequestId(),
         paymentMethod,
       });
+      if(!request.isCurrent())return;
       setDetail(current => current ? {...current, mediaOffers:(current.mediaOffers ?? []).map(item => item.id === offer.id ? result.offer : item)} : current);
       if(result.state==="daily_unavailable"){
         setDetail((current)=>current?{...current,mediaOffers:(current.mediaOffers??[]).map((item)=>item.source==="user_request"&&item.status==="pending"?{...item,preview_metadata:{...item.preview_metadata,dailyPhotoAllowanceRemaining:0}}:item)}:current);
@@ -1401,7 +1489,9 @@ export default function GroupChatScreen() {
           : current
       );
     } catch (caught) {
+      if(!request.isCurrent())return;
       const recovered = await waitForPhotoOfferStatus({loadStatus: () => loadPhotoOfferStatus(offer.id)});
+      if(!request.isCurrent())return;
       setDetail(current => current ? {
         ...mergeGroupMedia(current, recovered?.media ? [recovered.media] : []),
         mediaOffers: (current.mediaOffers ?? []).map(item => item.id === offer.id ? recovered?.offer ?? offer : item),
@@ -1413,13 +1503,24 @@ export default function GroupChatScreen() {
           : "The photo could not be prepared.",
       );
     } finally {
-      setMediaOfferBusy(null);
+      if(request.isCurrent())setMediaOfferBusy(null);
+      request.release();
     }
   };
   const declineMediaOffer = async (offer: MediaOffer) => {
+    const request=chatScope.start('photo-offer-action');
+    if(!request)return;
+    rememberPhotoDecline(photoDeclineKey,offer);
+    hideCachedGroupPhotoOffer(groupCacheScope,offer.conversation_id??params.id??'',offer.id);
+    setDetail((current)=>current&&current.conversation.id===params.id
+      ? {...current,mediaOffers:(current.mediaOffers??[]).filter((item)=>item.id!==offer.id)}
+      : current);
     setMediaOfferBusy(offer.id);
     try {
       const result=await manageMedia<{offer:MediaOffer;removedMediaId:string|null}>({ action: "dismiss_offer", offerId: offer.id });
+      settlePhotoDecline(photoDeclineKey,result.offer);
+      if(result.removedMediaId)hideCachedGroupPhotoOffer(groupCacheScope,offer.conversation_id??params.id??'',offer.id,result.removedMediaId);
+      if(!request.isCurrent())return;
       setDetail((current) =>
         current
           ? {
@@ -1433,24 +1534,35 @@ export default function GroupChatScreen() {
           }
           : current
       );
+      if(result.offer.status==='declined'&&offer.source==='user_request')
+        setDeclinedPhotoReply({offer,dismissed:result.offer,queuedAt:Date.now()});
     } catch (caught) {
+      clearPhotoDecline(photoDeclineKey,offer.id);
+      restoreCachedGroupPhotoOffer(groupCacheScope,offer.conversation_id??params.id??'',offer);
+      if(!request.isCurrent())return;
+      setDetail((current)=>current&&current.conversation.id===params.id&&!(current.mediaOffers??[]).some((item)=>item.id===offer.id)
+        ? {...current,mediaOffers:[...current.mediaOffers,offer]}
+        : current);
       setError(
         caught instanceof Error
           ? caught.message
           : "The photo offer could not be dismissed.",
       );
     } finally {
-      setMediaOfferBusy(null);
+      if(request.isCurrent())setMediaOfferBusy(null);
+      request.release();
     }
   };
   const retryGeneratedMedia = async (media: GeneratedMedia) => {
-    if (mediaOfferBusy) return;
+    const request=chatScope.start('photo-offer-action');
+    if(!request)return;
     setMediaOfferBusy(media.id);
     try {
       const result = await manageMedia<{ media: GeneratedMedia }>({
         action: "retry",
         mediaId: media.id,
       });
+      if(!request.isCurrent())return;
       setDetail((current) =>
         current
           ? {
@@ -1467,41 +1579,19 @@ export default function GroupChatScreen() {
           : current
       );
     } catch (caught) {
-      setError(
+      if(request.isCurrent())setError(
         caught instanceof Error
           ? caught.message
           : "The photo could not be retried.",
       );
     } finally {
-      setMediaOfferBusy(null);
+      if(request.isCurrent())setMediaOfferBusy(null);
+      request.release();
     }
   };
   const reloadGroup = async () => {
     if (!detail) return;
     await refreshGroupDelta();
-  };
-  const loadOlderMessages = async () => {
-    const current = detailRef.current;
-    if (!current || olderLoading || !current.hasMoreMessages || !current.messages.length) return;
-    const oldestMessage = current.messages[0];
-    if (!oldestMessage) return;
-    setOlderLoading(true);
-    prependHeightRef.current = contentHeightRef.current;
-    try {
-      const page = await manageGroup<GroupTimelinePage>({
-        action: "messages",
-        conversationId: current.conversation.id,
-        ...(oldestMessage.conversation_sequence ? { beforeSequence: oldestMessage.conversation_sequence } : {}),
-        before: oldestMessage.created_at,
-        limit: 50,
-      });
-      setDetail((value) => value ? prependGroupTimelinePage(value, page) : value);
-    } catch (caught) {
-      prependHeightRef.current = null;
-      setError(caught instanceof Error ? caught.message : "Earlier messages could not be loaded.");
-    } finally {
-      setOlderLoading(false);
-    }
   };
   const openGroupPlanner = (change = false) => {
     if (!detail || !anchorParticipant) return;
@@ -1519,19 +1609,25 @@ export default function GroupChatScreen() {
     action: ConversationAction,
     timingChoice: "now" | "in_one_hour",
   ) => {
-    if (planActionBusyId) return;
+    const request=chatScope.start('plan-mutation');
+    if(!request)return;
     setPlanActionBusyId(action.id);
     setError("");
     try {
       await confirmConversationAction(action.id, { timingChoice });
+      if(!request.isCurrent())return;
+      setDetail((current)=>current?{...current,conversationActions:current.conversationActions.filter((item)=>item.id!==action.id)}:current);
       await reloadGroup();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The group plan could not be saved.");
+      if(request.isCurrent())setError(caught instanceof Error ? caught.message : "The group plan could not be saved.");
     } finally {
-      setPlanActionBusyId(null);
+      if(request.isCurrent())setPlanActionBusyId(null);
+      request.release();
     }
   };
   const dismissGroupPlanSuggestion = async (action: ConversationAction) => {
+    const request=chatScope.start('plan-mutation');
+    if(!request)return;
     setDetail((current) => current ? {
       ...current,
       conversationActions: current.conversationActions.filter((item) => item.id !== action.id),
@@ -1539,12 +1635,24 @@ export default function GroupChatScreen() {
     try {
       await dismissConversationAction(action.id);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "That suggestion could not be dismissed.");
-      await reloadGroup().catch(() => undefined);
-    }
+      if(request.isCurrent()){
+        setError(caught instanceof Error ? caught.message : "That suggestion could not be dismissed.");
+        await reloadGroup().catch(() => undefined);
+      }
+    }finally{request.release();}
+  };
+  const openActivityPicker=()=>{setShowGroupMenu(false);setShowActivities(true);};
+  const savePlanActivity=async(activity:string)=>{
+    if(!activeGroupPlan||!detail||replyPending)throw new Error('Wait for the current reply to finish.');
+    const request=chatScope.start('plan-mutation');if(!request)throw new Error('Another plan change is still finishing.');
+    if(activityRequestRef.current?.activity!==activity)activityRequestRef.current={activity,requestId:createClientRequestId()};
+    try{const experience=await changePlanActivity(activeGroupPlan.id,detail.conversation.id,activity,activityRequestRef.current.requestId);if(!request.isCurrent())return;useTogether.getState().upsertPlan(experience.plan);if(experience.scene)useTogether.getState().upsertSceneSession(experience.scene);activityRequestRef.current=null;await reloadGroup();}
+    finally{request.release();}
   };
   const saveGroupPlan = async (option: PlanOption, timing: PlanTimingSelection) => {
-    if (!detail || !anchorParticipant || busy) return;
+    if (!detail || !anchorParticipant) return;
+    const request=chatScope.start('plan-mutation');
+    if(!request)return;
     setBusy(true);
     setError("");
     try {
@@ -1581,6 +1689,7 @@ export default function GroupChatScreen() {
           sourceConversationId: detail.conversation.id,
         });
       }
+      if(!request.isCurrent())return;
       planRequestIdRef.current = createClientRequestId();
       setShowPlans(false);
       setSwitchPlanId(null);
@@ -1588,22 +1697,27 @@ export default function GroupChatScreen() {
       router.setParams({ plan: undefined, location: undefined, activity: undefined, switchPlanId:undefined });
       await reloadGroup();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The group plan could not be saved.");
+      if(request.isCurrent())setError(caught instanceof Error ? caught.message : "The group plan could not be saved.");
     } finally {
-      setBusy(false);
+      if(request.isCurrent())setBusy(false);
+      request.release();
     }
   };
   const startGroupPlan = async (plan: SharedPlan) => {
-    if (!detail || planActionBusyId) return;
+    if (!detail) return;
+    const request=chatScope.start('plan-mutation');
+    if(!request)return;
     setPlanActionBusyId(plan.id);
     setError("");
     try {
       await joinCommitment(plan.id, plan.character_instance_id);
+      if(!request.isCurrent())return;
       await reloadGroup();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The group plan could not be started.");
+      if(request.isCurrent())setError(caught instanceof Error ? caught.message : "The group plan could not be started.");
     } finally {
-      setPlanActionBusyId(null);
+      if(request.isCurrent())setPlanActionBusyId(null);
+      request.release();
     }
   };
   const requestEndGroupPlan = (plan: SharedPlan) => confirmAction({
@@ -1611,16 +1725,20 @@ export default function GroupChatScreen() {
     message: `This closes the shared scene with ${groupPlanLabel} and saves what happened for everyone.`,
     confirmLabel: "End plan",
     onConfirm: async () => {
+      const request=chatScope.start('plan-mutation');
+      if(!request)return;
       setPlanActionBusyId(plan.id);
       setError("");
       try {
         await endPlanExperience(plan.id, plan.character_instance_id);
+        if(!request.isCurrent())return;
         setShowGroupMenu(false);
         await reloadGroup();
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "The group plan could not be ended.");
+        if(request.isCurrent())setError(caught instanceof Error ? caught.message : "The group plan could not be ended.");
       } finally {
-        setPlanActionBusyId(null);
+        if(request.isCurrent())setPlanActionBusyId(null);
+        request.release();
       }
     },
   });
@@ -1629,14 +1747,18 @@ export default function GroupChatScreen() {
     message: `Cancel ${plan.title} for the whole group?`,
     confirmLabel: "Cancel plan",
     onConfirm: async () => {
+      const request=chatScope.start('plan-mutation');
+      if(!request)return;
       setPlanActionBusyId(plan.id);
       try {
         await managePlan({ action: "cancel", planId: plan.id, conversationId: detail?.conversation.id });
+        if(!request.isCurrent())return;
         await reloadGroup();
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "The group plan could not be cancelled.");
+        if(request.isCurrent())setError(caught instanceof Error ? caught.message : "The group plan could not be cancelled.");
       } finally {
-        setPlanActionBusyId(null);
+        if(request.isCurrent())setPlanActionBusyId(null);
+        request.release();
       }
     },
   });
@@ -1729,6 +1851,13 @@ export default function GroupChatScreen() {
     setDetail((current)=>current?{...current,messages:current.messages.map((item)=>item.id===message.id?{...item,user_metadata:{...(item.user_metadata??{}),favorite}}:item)}:current);
     try{const updated=await setMessageFavorite(detail.conversation.id,message.id,favorite);setDetail((current)=>current?{...current,messages:current.messages.map((item)=>item.id===message.id?{...item,...updated}:item)}:current);}
     catch(caught){setDetail((current)=>current?{...current,messages:current.messages.map((item)=>item.id===message.id?{...item,user_metadata:previous}:item)}:current);setError(caught instanceof Error?caught.message:'That message could not be saved.');}
+  };
+  const changeQuickActions=(value:ChatQuickAction[])=>{
+    quickActionPreference.change(value);
+    if(!detail)return;
+    setDetail((current)=>current?{...current,conversation:{...current.conversation,metadata:{...current.conversation.metadata,chatQuickActions:value,chatQuickActionsVersion:2}}}:current);
+    const current=useTogether.getState().snapshot?.conversations.find((item)=>item.id===detail.conversation.id)??detail.conversation;
+    upsertConversation({...current,metadata:{...current.metadata,chatQuickActions:value,chatQuickActionsVersion:2}});
   };
   const deleteSharedPhoto=(attachment:ConversationAttachment)=>confirmAction({title:"Delete this photo?",message:"The private file and its derived visual description will be removed immediately. This cannot be undone.",confirmLabel:"Delete photo",destructive:true,onConfirm:async()=>{try{await deleteConversationAttachment(attachment.id);setDetail((current)=>current?{...current,messages:current.messages.map((message)=>({...message,attachments:(message.attachments??message.together_conversation_attachments??[]).filter((item)=>item.id!==attachment.id),together_conversation_attachments:(message.together_conversation_attachments??[]).filter((item)=>item.id!==attachment.id)}))}:current);}catch(caught){setError(caught instanceof Error?caught.message:"The photo could not be deleted.");}}});
   const deleteGroupConversation = () => {
@@ -1854,7 +1983,7 @@ export default function GroupChatScreen() {
         {showConversationRail && snapshot
           ? <ChatConversationRail snapshot={snapshot} activeConversationId={detail.conversation.id} />
           : null}
-        <View style={styles.conversation}>
+        <View style={[styles.conversation, Platform.OS === 'web' && width < 720 && { paddingBottom: floatingComposerHeight }]}>
       <GroupAmbientGlow compact={width < 720} />
       {width<720?<MobileChatMediaHeader
         key={detail.conversation.id}
@@ -1881,6 +2010,7 @@ export default function GroupChatScreen() {
         onDetails={() => setShowGroupMenu((value) => !value)}
       />}
       <ConnectionBanner sendFailed={detail.messages.some((message)=>message.delivery_status==="failed")} sendScoped={showSendConnectionNotice}/>
+      {detail.conversation.metadata?.worldPulseOccurrenceId?<WorldPulseConversationBanner conversationId={detail.conversation.id} continuityId={snapshot?.activeContinuity?.id??''}/>:null}
       {!showRightRail&&activeGroupPlan?<MobileChatContextCard
         identityKey={`${detail.conversation.id}:${activeGroupPlan.id}`}
         name={detail.conversation.title??"the group"}
@@ -1889,10 +2019,11 @@ export default function GroupChatScreen() {
         activity={`Together now · ${activeGroupPlan.title}`}
         next={{title:activeGroupPlan.title,detail:"Together now",kicker:"GROUP PLAN",onPress:()=>navigateGroupSurface(`/plan/${activeGroupPlan.id}`)}}
       />:null}
+      {showActivities&&activeGroupPlan?<Suspense fallback={null}><PlanActivityPicker key={`${detail.conversation.id}:${activeGroupPlan.id}`} currentActivity={activeGroupPlan.activity_key} locationName={activeGroupPlan.together_locations?.name??"Shared place"} options={snapshot?.locations.find(place=>place.id===activeGroupPlan.location_id)?.possible_activities??[]} disabled={replyPending||busy||Boolean(planActionBusyId)} onSave={savePlanActivity} onClose={()=>setShowActivities(false)}/></Suspense>:null}
       {showGroupMenu ? <ConversationOverflowMenu
         title={detail.conversation.title ?? "Group"}
         kind="group"
-        hasActivePlan={Boolean(activeGroupPlan)}
+        hasActivePlan={Boolean(activeGroupPlan&&activeGroupPlan.source!=='date')}
         favorite={groupFavorite}
         favoriteBusy={favoriteBusy}
         pinned={isConversationPinned(detail.conversation)}
@@ -1906,6 +2037,7 @@ export default function GroupChatScreen() {
         } : undefined}
         onCreatePlan={() => openGroupPlanner(false)}
         onChangePlan={() => openGroupPlanner(true)}
+        onActivity={openActivityPicker}
         onEndPlan={() => activeGroupPlan && requestEndGroupPlan(activeGroupPlan)}
         onFavorite={() => void toggleGroupFavorite()}
         onPin={() => void toggleGroupPinned()}
@@ -1964,7 +2096,7 @@ export default function GroupChatScreen() {
             offsetY: native.contentOffset.y,
           }, initialBottomPinConversation.current===params.id?Number.POSITIVE_INFINITY:forcePinnedUntil.current);
           viewportHeightRef.current=native.layoutMeasurement.height;
-          if(params.id)saveChatScrollPosition(params.id,{offsetY:native.contentOffset.y,contentHeight:native.contentSize.height,viewportHeight:native.layoutMeasurement.height});
+          if(params.id)saveChatScrollPosition(params.id,{offsetY:native.contentOffset.y,contentHeight:native.contentSize.height,viewportHeight:native.layoutMeasurement.height,latestMessageAt:latestKnownGroupAt});
           setShowJumpToLatest(initialBottomPinConversation.current!==params.id&&!keepPinnedToBottom.current);
         }}
         onLayout={(event) => {
@@ -2075,15 +2207,18 @@ export default function GroupChatScreen() {
                 ),
               )
               : undefined,
-            offer = (detail.mediaOffers ?? []).find((item) =>
+            offer = visibleMediaOffers.find((item) =>
               item.message_id === message.id &&
               !["declined", "expired"].includes(item.status)
             );
           return (
-            <Fragment key={message.id}>
+            <Fragment key={messageRenderKey(message)}>
               {dayLabel ? <Text style={styles.day}>{dayLabel}</Text> : null}
               {message.id===unreadMessageId?<Text accessibilityRole="text" style={[styles.day,{color:colors.rose}]}>NEW</Text>:null}
-              <GroupBubble
+              <GroupBubble awaitingReply={Boolean(pendingDialogue?.clientRequestId&&pendingDialogue.clientRequestId===message.client_request_id)} photoUploadPhase={pendingImage&&pendingPhotoMessageRequestRef.current===message.client_request_id?photoUploadPhase:undefined}
+                quickActions={quickActionPreference.selected}
+                quickActionsReady={quickActionPreference.ready}
+                onQuickActionsChange={changeQuickActions}
                 message={message}
                 replyMessage={message.reply_to_message_id?messageById.get(message.reply_to_message_id):undefined}
                 participant={participant}
@@ -2105,8 +2240,6 @@ export default function GroupChatScreen() {
                 onOfferDecline={(item) => void declineMediaOffer(item)}
                 onMediaRetry={(item) => void retryGeneratedMedia(item)}
                 onReply={() => setReplyTo(message)}
-                voiceVisible={snapshot?.profile?.multimodal_preferences
-                  ?.companionVoiceNotes !== false}
                 voiceEnabled={snapshot?.experienceCapabilities?.voiceNotes !==
                   false}
                 memoryManualControl={Boolean(
@@ -2115,6 +2248,7 @@ export default function GroupChatScreen() {
                       "memory_manual_control",
                     ),
                 )}
+                remembered={Boolean(participant&&rememberedMessages.isRemembered(message.id,participant.character_instance_id))}
                 favorite={isMessageFavorite(message)}
                 canSpice={messageRewrite.available(message)}
                 onSpice={()=>messageRewrite.spice(message)}
@@ -2122,33 +2256,35 @@ export default function GroupChatScreen() {
                 canContinue={canContinueMessage(message,detail.messages.filter(isVisibleChatMessage))&&!replyPending}
                 onFavorite={()=>toggleGroupMessageSaved(message)}
                 onContinue={()=>send("Keep talking among yourselves for a moment.",true)}
-                onPlan={()=>openGroupPlanner(false)}
+                hasActivePlan={Boolean(activeGroupPlan&&activeGroupPlan.source!=='date')}
+                onActivity={openActivityPicker}
+                onPlan={()=>activeGroupPlan&&activeGroupPlan.source!=='date'?requestEndGroupPlan(activeGroupPlan):openGroupPlanner(false)}
                 onPhoto={openPhotoMenu}
+                onCopied={()=>{setMemorySavedNotice(null);setCopyNotice((current)=>(current??0)+1);}}
                 onRemember={participant
                   ? async () => {
-                    try {
-                      await rememberMessage(
-                        message.id,
-                        participant.character_instance_id,
-                      );
-                      await refresh();
-                      setMemorySavedNotice({
-                        id: Date.now(),
-                        name: participant.together_character_instances.together_character_templates.name,
-                      });
-                    } catch (caught) {
-                      Alert.alert(
-                        "Could not remember that",
-                        caught instanceof Error
-                          ? caught.message
-                          : "Please try again.",
-                      );
+                    const characterInstanceId = participant.character_instance_id;
+                    const memoryId = rememberedMessages.memoryIdFor(message.id, characterInstanceId);
+                    if (memoryId) {
+                      await mutateMemory({ action: 'forget', memoryId });
+                      rememberedMessages.unmarkRemembered(message.id, characterInstanceId);
+                      void refresh().catch(() => {});
+                      return;
                     }
+                    const saved = await rememberMessage(message.id, characterInstanceId);
+                    rememberedMessages.markRemembered(message.id, characterInstanceId, saved.id);
+                    setCopyNotice(null);
+                    setMemorySavedNotice({
+                      id: Date.now(),
+                      name: participant.together_character_instances.together_character_templates.name,
+                      characterSlug: participant.together_character_instances.together_character_templates.slug,
+                    });
+                    void refresh().catch(() => {});
                   }
                   : undefined}
                 onDeletePhoto={deleteSharedPhoto}
-                onRetry={message.delivery_status==="failed"&&message.content!=="[Photo]"?()=>void send(message.content,false,message.client_request_id??undefined,message.id):undefined}
-                onEditFailed={message.delivery_status==="failed"?()=>{setDetail((current)=>current?{...current,messages:current.messages.filter((item)=>item.id!==message.id)}:current);setInput(message.content);setError("");}:undefined}
+                onRetry={message.delivery_status==="failed"?(message.provider_metadata?.optimisticPhoto===true?(pendingImage&&pendingPhotoMessageRequestRef.current===message.client_request_id?()=>void sendPrepared():undefined):message.content!=="[Photo]"?()=>void send(message.content,false,message.client_request_id??undefined,message.id,message):undefined):undefined}
+                onEditFailed={message.delivery_status==="failed"?()=>{setDetail((current)=>current?{...current,messages:current.messages.filter((item)=>item.id!==message.id)}:current);setInput(message.content==="[Photo]"?"":message.content);setError("");}:undefined}
                 onDiscardFailed={message.delivery_status==="failed"?()=>{setDetail((current)=>current?{...current,messages:current.messages.filter((item)=>item.id!==message.id)}:current);if(input.trim()===message.content.trim())setInput("");setError("");}:undefined}
                 textStyle={messageTypography}
                 bubbleColors={bubbleColors}
@@ -2157,7 +2293,7 @@ export default function GroupChatScreen() {
           );
         }}
         ListFooterComponent={groupTimelineReady?<>
-        {(detail.mediaOffers ?? []).filter((offer) =>
+        {visibleMediaOffers.filter((offer) =>
           offer.status === "pending" && !offer.message_id
         ).map((offer) => (
           <ChatPhotoRequestCard
@@ -2174,7 +2310,7 @@ export default function GroupChatScreen() {
         ))}
         {replyDrafts.drafts.map(draft=><View key={draft.replyKey} style={{marginVertical:8,marginHorizontal:16,padding:14,borderRadius:18,backgroundColor:colors.surface}}><Text style={{color:colors.rose,fontWeight:'600',marginBottom:6}}>{draft.speakerName}</Text><Text style={[messageTypography,{color:colors.text}]}>{draft.text}</Text></View>)}
         {typing.filter(person=>!replyDrafts.drafts.some(draft=>draft.characterInstanceId===person.id)).map((person) => <ChatTypingIndicator key={person.id} name={person.name}/>) }
-        {replyPending&&!typing.length?<ChatTypingIndicator name={detail.conversation.title??"Group"}/>:null}
+        {replyPending&&!typing.length?<ChatTypingIndicator name={detail.participants.find((participant)=>participant.character_instance_id===pendingDialogue?.characterInstanceId)?.together_character_instances.together_character_templates.name??detail.conversation.title??"Someone"}/>:null}
         </>:null}
         initialNumToRender={Math.min(groupTimeline.length,60)}
         maxToRenderPerBatch={12}
@@ -2184,7 +2320,7 @@ export default function GroupChatScreen() {
       />
       {timelineReveal.hidden?<View pointerEvents="none" style={[StyleSheet.absoluteFill,{alignItems:"center",justifyContent:"center"}]}><ActivityIndicator accessibilityLabel="Opening conversation" color={colors.rose}/></View>:null}</View>
       <JumpToLatestButton visible={showJumpToLatest} bottom={width<720?floatingComposerHeight+12:92} onPress={()=>{if(params.id)clearChatScrollPosition(params.id);settleGroupAtBottom(true);}}/>
-      {error&&groupTimelineReady ? <ChatRecoveryNotice error={error} onDismiss={()=>setError("")} /> : null}
+      {error&&groupTimelineReady ? <ChatRecoveryNotice conversationId={detail?.conversation.id} error={error} onDismiss={()=>setError("")} /> : null}
       {mentionOptions.length
         ? (
           <FrostedSurface intensity={92} style={styles.mentions}>
@@ -2297,7 +2433,6 @@ export default function GroupChatScreen() {
         onJoin={() => void startGroupPlan(joinableGroupPlan)}
         onDetails={() => navigateGroupSurface(`/plan/${joinableGroupPlan.id}`)}
       /> : null}
-      {memorySavedNotice ? <MemorySavedToast key={memorySavedNotice.id} name={memorySavedNotice.name} onDismiss={() => setMemorySavedNotice(null)} /> : null}
       <ContextCostConfirmation pricing={contextPricing}/>
       <DailyMessageAllowanceNotice allowance={snapshot?.dailyMessageAllowance} onUpgrade={()=>navigateGroupSurface(subscriptionHref({intent:"plans",returnTo:subscriptionReturnTo}))}/>
       <GroupComposer
@@ -2322,8 +2457,10 @@ export default function GroupChatScreen() {
         onDictationError={setError}
         onDictationStart={() => setActiveVoiceId(null)}
         onFocus={onMobileComposerFocus}
-        onFrameLayout={(height)=>{if(Platform.OS==='web'&&width<720)setFloatingComposerHeight((current)=>current===height?current:height);}}
+        onFrameLayout={(height)=>setFloatingComposerHeight((current)=>current===height?current:height)}
       />
+      {memorySavedNotice ? <MemorySavedToast key={memorySavedNotice.id} name={memorySavedNotice.name} bottomOffset={floatingComposerHeight+12} onDismiss={() => setMemorySavedNotice(null)} onView={() => navigateGroupSurface(`/memories?character=${memorySavedNotice.characterSlug}`)} /> : null}
+      {copyNotice!==null ? <CopyToast key={copyNotice} bottomOffset={floatingComposerHeight+12} onDismiss={()=>setCopyNotice(null)}/> : null}
       <Modal
         animationType="fade"
         transparent
@@ -2411,11 +2548,11 @@ export default function GroupChatScreen() {
                   {photoSubjects.length === 2 ? "Photo together" : "Send me a photo"}
                 </Text>
               </Pressable>
-              <Pressable
+              {Platform.OS==='web'?<Pressable
                 testID="group-photo-spicy-toggle"
                 accessibilityRole="switch"
-                accessibilityLabel={Platform.OS==='web'?'Unlock adult group photo generation':`Adult photo generation unavailable on ${Platform.OS==='ios'?'iOS':'Android'}`}
-                accessibilityHint={Platform.OS==='web'?'Changes only the quick photo request.':'Adult photo generation is available on Kivelli.app.'}
+                accessibilityLabel="Unlock adult group photo generation"
+                accessibilityHint="Changes only the quick photo request."
                 accessibilityState={{checked:photoSpicyUnlocked}}
                 onPress={()=>{
                   const unavailable=spicyUnavailableCopy(Platform.OS);
@@ -2427,8 +2564,8 @@ export default function GroupChatScreen() {
                   setPhotoMenuError('');
                   setPhotoSpicyUnlocked((current)=>!current);
                 }}
-                style={[styles.photoSpicyToggle,photoSpicyUnlocked&&styles.photoSpicyToggleActive,Platform.OS!=='web'&&styles.photoSpicyToggleLocked]}
-              ><Text style={styles.photoSpicyEmoji}>🌶️</Text></Pressable>
+                style={[styles.photoSpicyToggle,photoSpicyUnlocked&&styles.photoSpicyToggleActive]}
+              ><Text style={styles.photoSpicyEmoji}>🌶️</Text></Pressable>:null}
             </View>
             {photoMenuError?<Text accessibilityLiveRegion="polite" style={styles.photoMenuError}>{photoMenuError}</Text>:null}
             <Text style={styles.photoPromptLabel}>CUSTOM PROMPT</Text>
@@ -3268,6 +3405,9 @@ function groupRelationshipLabel(stage: string) {
   } as Record<string, string>)[stage] ?? "Getting closer";
 }
 function GroupBubble({
+  quickActions,
+  quickActionsReady,
+  onQuickActionsChange,
   message,
   replyMessage,
   participant,
@@ -3285,17 +3425,20 @@ function GroupBubble({
   onOfferDecline,
   onMediaRetry,
   onReply,
-  voiceVisible,
   voiceEnabled,
   memoryManualControl,
+  remembered,
   favorite,
   canSpice,onSpice,onRestore,
   canContinue,
   onFavorite,
   onContinue,
   onPlan,
+  hasActivePlan,
+  onActivity,
   onPhoto,
   onRemember,
+  onCopied,
   onDeletePhoto,
   onRetry,
   onEditFailed,
@@ -3303,6 +3446,9 @@ function GroupBubble({
   textStyle,
   bubbleColors,
 }: {
+  quickActions: ChatQuickAction[];
+  quickActionsReady: boolean;
+  onQuickActionsChange: (value: ChatQuickAction[]) => void;
   message: Message;
   replyMessage?: Message;
   participant?: GroupParticipant;
@@ -3320,9 +3466,9 @@ function GroupBubble({
   onOfferDecline: (offer: MediaOffer) => void;
   onMediaRetry: (media: GeneratedMedia) => void;
   onReply: () => void;
-  voiceVisible: boolean;
   voiceEnabled: boolean;
   memoryManualControl: boolean;
+  remembered: boolean;
   favorite: boolean;
   canSpice: boolean;
   onSpice:()=>void|Promise<void>;
@@ -3331,18 +3477,23 @@ function GroupBubble({
   onFavorite: () => void | Promise<void>;
   onContinue: () => void | Promise<void>;
   onPlan: () => void;
+  hasActivePlan: boolean;
+  onActivity: () => void;
   onPhoto: () => void;
   onRemember?: () => Promise<void>;
+  onCopied: () => void;
   onDeletePhoto:(attachment:ConversationAttachment)=>void;
   onRetry?:()=>void;
   onEditFailed?:()=>void;
   onDiscardFailed?:()=>void;
+  awaitingReply?:boolean;
+  photoUploadPhase?:PhotoUploadPhase;
   textStyle: { fontSize: number; lineHeight: number };
   bubbleColors: { user: ChatBubbleColor; companion: ChatBubbleColor };
 }) {
   const opacity = useRef(new Animated.Value(0)).current,
     translate = useRef(new Animated.Value(8)).current;
-  const [actionsOpen,setActionsOpen]=useState(false),[reportOpen,setReportOpen]=useState(false),[voiceRequestToken,setVoiceRequestToken]=useState(0),[sharedPhoto,setSharedPhoto]=useState<ConversationAttachment|null>(null);
+  const [actionsOpen,setActionsOpen]=useState(false),[reportOpen,setReportOpen]=useState(false),[sharedPhoto,setSharedPhoto]=useState<ConversationAttachment|null>(null);
   useEffect(() => {
     Animated.parallel([
       Animated.timing(opacity, {
@@ -3394,6 +3545,7 @@ function GroupBubble({
         }).filter(Boolean) as Array<
           Exclude<ReturnType<typeof resolveCharacterPortraitSource>, undefined>
         >;
+  const voiceNote = useGroupVoiceNote(message, speakerName, voice, onVoiceActive, voiceEnabled);
   const bubbleColor = user ? bubbleColors.user : bubbleColors.companion;
   const customBubbleColor = chatBubbleColorHex(bubbleColor);
   const bubbleTextColor = chatBubbleTextColor(bubbleColor);
@@ -3401,11 +3553,10 @@ function GroupBubble({
     ...(canSpice?[{key:'spice',label:'Spice',icon:<Text style={{fontSize:23}}>🌶</Text>,onPress:onSpice},...(message.provider_metadata?.canRestoreOriginal?[{key:'restore',label:'Restore original',icon:<RefreshCw size={23} color={colors.textSecondary}/>,onPress:onRestore}]:[])]:[]),
     {key:'reply',label:'Reply',icon:<MessageCircle size={23} color={colors.textSecondary}/>,onPress:onReply},
     ...(!user&&canContinue?[{key:'continue',label:'Let them talk',icon:<FastForward size={23} color={colors.textSecondary}/>,onPress:onContinue}]:[]),
-    ...(memoryManualControl&&onRemember&&!message.id.startsWith('local-')?[{key:'memory',label:'Memory',icon:<Brain size={23} color={colors.textSecondary}/>,onPress:onRemember}]:[]),
-    {key:'copy',label:'Copy',icon:<Copy size={23} color={colors.textSecondary}/>,onPress:()=>Clipboard.setStringAsync(message.content)},
+    ...(memoryManualControl&&onRemember&&!message.id.startsWith('local-')&&message.delivery_status!=='failed'&&message.delivery_status!=='pending'?[{key:'memory',label:remembered?'Saved':'Memory',icon:<Brain size={23} color={remembered?colors.violet:colors.textSecondary} fill={remembered?'rgba(155,99,215,.28)':'transparent'}/>,selected:remembered,onPress:onRemember}]:[]),
+    {key:'copy',label:'Copy',icon:<Copy size={23} color={colors.textSecondary}/>,onPress:async()=>{await Clipboard.setStringAsync(message.content);onCopied();}},
     ...(!message.id.startsWith('local-')?[{key:'favorite',label:favorite?'Favorited':'Favorite',icon:<Heart size={23} color={favorite?colors.rose:colors.textSecondary} fill={favorite?colors.rose:'transparent'}/>,selected:favorite,onPress:onFavorite}]:[]),
-    ...(!user&&voiceVisible&&message.provider_metadata?.rewriteAction!=='spice'?[{key:'voice',label:'Voice',icon:<Volume2 size={23} color={voiceEnabled?colors.textSecondary:colors.muted}/>,onPress:()=>setVoiceRequestToken((value)=>value+1)}]:[]),
-    ...(!user?[{key:'plan',label:'Plan with group',icon:<CalendarDays size={23} color={colors.textSecondary}/>,onPress:onPlan},{key:'photo',label:'Group photo',icon:<Camera size={23} color={colors.textSecondary}/>,onPress:onPhoto}]:[]),
+    ...(!user?[{key:'plan',label:hasActivePlan?'End plan':'Plan with group',icon:<CalendarDays size={23} color={colors.textSecondary}/>,onPress:onPlan},{key:'activity',label:'Do an Activity',icon:<Sparkles size={23} color={colors.textSecondary}/>,disabled:!hasActivePlan,onPress:onActivity},{key:'photo',label:'Group photo',icon:<Camera size={23} color={colors.textSecondary}/>,onPress:onPhoto}]:[]),
     ...(user&&attachments.length&&!message.id.startsWith('local-')?[{key:'delete-photo',label:'Delete photo',icon:<X size={23} color={colors.danger}/>,destructive:true,onPress:()=>onDeletePhoto(attachments[0]!)}]:[]),
     ...(!user&&!message.id.startsWith('local-')?[{key:'report',label:'Report',icon:<Flag size={23} color={colors.muted}/>,onPress:()=>setReportOpen(true)}]:[]),
     ...(message.delivery_status==='failed'&&onRetry?[{key:'retry',label:'Retry send',icon:<RefreshCw size={23} color={colors.rose}/>,onPress:onRetry}]:[]),
@@ -3465,8 +3616,9 @@ function GroupBubble({
           )
           : null}
         {message.content !== "[Photo]" || attachments.length ||
-            visibleImages.length
+            visibleImages.length || message.delivery_status === 'pending' || message.delivery_status === 'failed'
           ? (
+            <>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${user?'Your':speakerName} message. Tap for actions.`}
@@ -3484,7 +3636,9 @@ function GroupBubble({
                 ? user
                   ? <Text style={[styles.bubbleText, textStyle, { color: bubbleTextColor }]}>{message.content}</Text>
                   : <CharacterMentionText text={message.content} characters={mentionCharacters} excludeSlug={speakerSlug} onCharacterPress={onCharacterMention} style={[styles.bubbleText,textStyle,{ color: bubbleTextColor }]}/>
-                : null}
+                : !attachments.length && !visibleImages.length
+                  ? <Text style={[styles.bubbleText, textStyle, { color: bubbleTextColor }]}>Photo</Text>
+                  : null}
               {attachments.map((attachment) => (
                 <Pressable
                   key={attachment.id}
@@ -3500,6 +3654,7 @@ function GroupBubble({
                       attachment.signed_url,
                       attachment.storage_path,
                     )}
+                    previewSource={privateStoredPreviewSource(attachment.preview_url, attachment.storage_path)}
                     style={styles.sharedImage}
                     contentFit="cover"
                     cachePolicy="memory-disk"
@@ -3516,19 +3671,17 @@ function GroupBubble({
                   contentFit="contain"
                 />
               ))}
-              {!user && !mediaOnly && voiceVisible && message.provider_metadata?.rewriteAction!=='spice'
-                ? (
-                  <GroupVoiceNote
-                    message={message}
-                    name={speakerName}
-                    initialMedia={voice}
-                    activeVoiceId={activeVoiceId}
-                    onVoiceActive={onVoiceActive}
-                    enabled={voiceEnabled}
-                    requestToken={voiceRequestToken}
-                  />
-                )
-                : null}
+              {!user && voiceNote.media ? <VoiceNoteInline
+                media={voiceNote.media}
+                active={activeVoiceId === voiceNote.media.id}
+                onActivate={() => { voiceNote.clearReadyHint(); onVoiceActive(voiceNote.media!.id); }}
+                onDeactivate={() => onVoiceActive(null)}
+                onRetry={() => void voiceNote.request()}
+                onRefresh={() => void voiceNote.refresh()}
+                pendingError={voiceNote.failureMessage}
+                onPendingRetry={voiceNote.retryPending}
+                showReadyHint={voiceNote.readyHint}
+              /> : null}
               <View style={styles.messageTimeRow}>
                 <Text style={[styles.timestamp, { color: bubbleTextColor, opacity: .58 }]}>
                   {new Date(message.created_at).toLocaleTimeString([], {
@@ -3538,9 +3691,12 @@ function GroupBubble({
                 </Text>
               </View>
             </Pressable>
+            {!user && !mediaOnly ? <MessageQuickActions kind='group' selected={quickActions} ready={quickActionsReady} onChange={onQuickActionsChange} actions={actionItems} voice={voiceNote.media ? null : voiceNote.requestControl} /> : null}
+            {voiceNote.requestStatus}
+            {voiceNote.purchaseModal}
+            </>
           )
           : null}
-        {!user?<VeniceTestDiagnostics metadata={message.provider_metadata}/>:null}
         {offer
           ? (
             <ChatPhotoRequestCard
@@ -3565,8 +3721,8 @@ function GroupBubble({
             />
           )
           : null}
-        {message.delivery_status === "failed" && onRetry && onEditFailed && onDiscardFailed
-          ? <FailedMessageRecovery onRetry={onRetry} onEdit={onEditFailed} onDiscard={onDiscardFailed} />
+        {message.delivery_status === "failed" && onEditFailed && onDiscardFailed
+          ? <FailedMessageRecovery conversationId={message.conversation_id} clientRequestId={message.client_request_id} onRetry={onRetry} onEdit={onEditFailed} onDiscard={onDiscardFailed} />
           : null}
         <View style={styles.bubbleMeta}>
           {reactions.map((reaction) => (
@@ -3600,128 +3756,151 @@ function GroupBubble({
   );
 }
 
-function GroupVoiceNote({
-  message,
-  name,
-  initialMedia,
-  activeVoiceId,
-  onVoiceActive,
-  enabled,
-  requestToken,
-}: {
-  message: Message;
-  name: string;
-  initialMedia?: GeneratedMedia;
-  activeVoiceId: string | null;
-  onVoiceActive: (id: string | null) => void;
-  enabled: boolean;
-  requestToken: number;
-}) {
+function useGroupVoiceNote(
+  message: Message,
+  name: string,
+  initialMedia: GeneratedMedia | undefined,
+  onVoiceActive: (id: string | null) => void,
+  enabled: boolean,
+) {
   const [media, setMedia] = useState(initialMedia),
     [quote, setQuote] = useState<VoiceNoteQuote | null>(null),
     [busy, setBusy] = useState(false),
-    [failed, setFailed] = useState(false);
-  const handledRequestToken=useRef(0);
-  const source = media?.status === "ready" && media.signed_url
-      ? media.signed_url
-      : null,
-    player = useAudioPlayer(source, { updateInterval: 250 }),
-    status = useAudioPlayerStatus(player),
-    active = Boolean(media && activeVoiceId === media.id);
-  useEffect(() => {
-    if (!active) player.pause();
-  }, [active, player]);
+    [failureMessage, setFailureMessage] = useState<string|null>(null),
+    [pollRetry, setPollRetry] = useState(0),
+    [readyHint, setReadyHint] = useState(false);
+  const autoplayRequested=useRef(false);
+  useEffect(()=>{
+    if(initialMedia)setMedia(initialMedia);
+  },[initialMedia?.id,initialMedia?.status,initialMedia?.signed_url]);
   useEffect(() => {
     if (!media || media.status === "ready" || media.status === "failed") return;
-    const timer = setTimeout(() => {
-      void refreshVoiceNote(media.id).then((result) => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+    const poll = async () => {
+      try {
+        const result = await refreshVoiceNote(media.id);
+        if (cancelled) return;
         setMedia(result.media);
-        setFailed(result.media.status === "failed");
-      }).catch(() => setFailed(true));
-    }, 1600);
-    return () => clearTimeout(timer);
-  }, [media]);
+        if (result.media.status === 'ready' && Platform.OS === 'web' && autoplayRequested.current) setReadyHint(true);
+        if (result.media.status === 'ready' && Platform.OS !== 'web' && autoplayRequested.current) {
+          autoplayRequested.current = false;
+          onVoiceActive(result.media.id);
+        }
+        if (result.media.status === 'ready' || result.media.status === 'failed') {
+          if (result.media.status === 'failed') setFailureMessage(result.media.failure_reason_safe ?? 'Voice note generation failed. Tap to retry.');
+          return;
+        }
+      } catch (caught) {
+        if (cancelled) return;
+        if (attempts >= 2) {
+          setFailureMessage(caught instanceof Error ? caught.message : 'Voice note status could not be checked.');
+          return;
+        }
+      }
+      attempts += 1;
+      if (attempts >= 30) {
+        setFailureMessage('Voice is taking longer than expected. Tap to check again.');
+        return;
+      }
+      timer = setTimeout(() => void poll(), 2000);
+    };
+    timer = setTimeout(() => void poll(), 1600);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [media?.id, media?.status, pollRetry, onVoiceActive]);
   const generate = async (hideFuture = false) => {
     setBusy(true);
-    setFailed(false);
+    setFailureMessage(null);
+    autoplayRequested.current = true;
     try {
       if (hideFuture) await hideVoiceNoteConfirmation();
-      const result = await requestVoiceNote(message.id, crypto.randomUUID());
-      if (result.media) setMedia(result.media);
+      const result = await requestVoiceNote(message.id, createClientRequestId());
+      if(result.status==='not_configured')throw new Error(result.message??"Voice isn't connected yet.");
+      if(result.media){
+        setMedia(result.media);
+        if(result.media.status==='ready' && Platform.OS==='web')setReadyHint(true);
+        if(result.media.status==='ready' && Platform.OS !== 'web'){
+          autoplayRequested.current=false;
+          onVoiceActive(result.media.id);
+        }
+        if(result.media.status==='failed')setFailureMessage(result.media.failure_reason_safe??'Voice note generation failed. Tap to retry.');
+      }else throw new Error('The voice note could not be started.');
       setQuote(null);
-    } catch {
-      setFailed(true);
+    } catch (caught) {
+      autoplayRequested.current = false;
+      setFailureMessage(caught instanceof Error?caught.message:'The voice note could not be generated.');
     } finally {
       setBusy(false);
     }
   };
-  const listen = async () => {
+  const request = async () => {
     if (!enabled) {
       navigateGroupSurface(subscriptionHref({intent:"voice"}));
       return;
     }
-    if (source && media) {
-      if (status.playing) {
-        player.pause();
-        onVoiceActive(null);
+    if (media && media.status !== 'failed') {
+      if (media.status === 'ready') {
+        setBusy(true);
+        try { const result = await refreshVoiceNote(media.id); setMedia(result.media); setFailureMessage(result.media.signed_url ? null : 'Audio could not be loaded. Tap to try again.'); if(result.media.signed_url)setReadyHint(true); }
+        catch (caught) { setFailureMessage(caught instanceof Error ? caught.message : 'Audio could not be loaded. Tap to try again.'); }
+        finally { setBusy(false); }
       } else {
-        onVoiceActive(media.id);
-        player.play();
+        setFailureMessage(null);
+        setPollRetry((current) => current + 1);
       }
       return;
     }
     setBusy(true);
-    setFailed(false);
+    setFailureMessage(null);
     try {
       const next = await quoteVoiceNote(message.id);
-      if (await isVoiceNoteConfirmationHidden()) {
+      if(!next.generationRequired){await generate();}
+      else if (await isVoiceNoteConfirmationHidden()) {
         if (next.canAfford) await generate();
         else setQuote(next);
       } else setQuote(next);
-    } catch {
-      setFailed(true);
+    } catch (caught) {
+      setFailureMessage(caught instanceof Error?caught.message:'The voice note could not be prepared.');
     } finally {
       setBusy(false);
     }
   };
-  useEffect(()=>{
-    if(requestToken<=0||handledRequestToken.current===requestToken)return;
-    handledRequestToken.current=requestToken;
-    void listen();
-  // listen intentionally reflects the current media/player state for this explicit request.
-  },[requestToken]);
-  return (
-    <>
-      {media||busy||failed?<Pressable
-        accessibilityLabel={status.playing
-          ? "Pause voice note"
-          : `${
-            failed || media?.status === "failed" ? "Retry" : "Listen to"
-          } ${name}`}
+  const refresh = async () => {
+    if (!media) return;
+    setBusy(true);
+    try {
+      const result = await refreshVoiceNote(media.id);
+      setMedia(result.media);
+      setFailureMessage(result.media.status === 'ready' && !result.media.signed_url ? 'Audio could not be loaded. Tap to try again.' : null);
+      if (result.media.signed_url && Platform.OS === 'web') setReadyHint(true);
+    } catch (caught) {
+      setFailureMessage(caught instanceof Error ? caught.message : 'Audio could not be loaded. Tap to try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return {
+    media,
+    readyHint,
+    failureMessage,
+    clearReadyHint: () => setReadyHint(false),
+    request,
+    refresh,
+    retryPending: () => { setFailureMessage(null); setPollRetry((current) => current + 1); },
+    requestControl: <Pressable
+        accessibilityRole='button'
+        accessibilityLabel={`Make voice note for ${name}`}
         disabled={busy}
-        onPress={() => void listen()}
+        onPress={() => void request()}
         style={voiceStyles.listen}
       >
-        {busy || media && !source && media.status !== "failed"
+        {busy
           ? <ActivityIndicator size="small" color={colors.rose} />
-          : source && status.playing
-          ? <Pause size={13} color={colors.rose} />
-          : source
-          ? <Play size={13} color={colors.rose} />
           : <Volume2 size={13} color={enabled ? colors.rose : colors.muted} />}
-        <Text
-          style={[
-            voiceStyles.listenText,
-            !enabled && voiceStyles.listenTextLocked,
-          ]}
-        >
-          {source
-            ? (status.playing ? "Pause" : "Play")
-            : !enabled
-            ? "Listen · Kivelle+"
-            : (failed || media?.status === "failed" ? "Retry" : "Listen")}
-        </Text>
-      </Pressable>:null}
+      </Pressable>,
+    requestStatus: !media && (busy || failureMessage) ? <Text accessibilityLiveRegion='polite' style={voiceStyles.listenText}>{busy ? 'Making voice…' : 'Voice unavailable · Retry'}</Text> : null,
+    purchaseModal: quote ? (
       <VoiceNotePurchaseModal
         visible={Boolean(quote)}
         name={name}
@@ -3736,8 +3915,8 @@ function GroupVoiceNote({
           navigateGroupSurface(subscriptionHref({intent:"credits"}));
         }}
       />
-    </>
-  );
+    ) : null,
+  };
 }
 function GroupChatLoadingSkeleton() {
   return <View accessibilityLabel="Loading group conversation" style={styles.loadingScreen}>
@@ -3885,17 +4064,17 @@ function escapeRegExp(value: string) {
 }
 
 const voiceStyles = StyleSheet.create({
+  listenRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   listen: {
-    alignSelf: "flex-start",
-    minHeight: 30,
-    marginTop: 7,
-    paddingHorizontal: 9,
-    flexDirection: "row",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
-    gap: 6,
-    borderRadius: 15,
-    backgroundColor: "rgba(216,62,234,.08)",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(216,62,234,.38)",
+    backgroundColor: "rgba(216,62,234,.14)",
   },
+  time: { color: colors.textSecondary, fontSize: 11, fontVariant: ['tabular-nums'] },
   listenText: { color: colors.rose, fontSize: 10, fontWeight: "900" },
-  listenTextLocked: { color: colors.muted },
 });

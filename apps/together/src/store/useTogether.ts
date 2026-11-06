@@ -1,10 +1,10 @@
 import { reconcileCompanion } from '../lib/companionReconciliation';
 import { create } from 'zustand';
-import { loadCharacterPresence, loadSnapshot } from '../lib/api';
+import { loadCharacterPresence, loadSnapshot } from '../lib/api/catalog';
 import type { CharacterInstance, Conversation, ConversationAction, GeneratedMedia, Location, Memory, Moment, Relationship, SceneSession, SharedPlan, Snapshot, SnapshotDelta } from '../types';
 import{beginPendingDialogue,finishPendingDialogue,type PendingDialogue,type PendingDialogueMap}from'../lib/pendingDialogue';
 import { mergeReconciledMedia } from '../lib/mediaReconciliation';
-import { mergeInboxConversations } from '../lib/messageInbox';
+import { mergeInboxConversations, preferNewerReadState } from '../lib/messageInbox';
 import { currentDailyMessageAllowance } from '../lib/dailyMessageAllowance';
 
 type State={
@@ -12,6 +12,7 @@ type State={
   browsedWorldId:string|null;
   loading:boolean;
   error:string|null;
+  errorCode:string|null;
   pendingDialogues:PendingDialogueMap;
   setSnapshot:(snapshot:Snapshot)=>void;
   setCoreState:(delta:Partial<Snapshot>)=>void;
@@ -43,17 +44,17 @@ let refreshGeneration=0;
 let refreshSequence=0;
 const presenceRequests=new Map<string,Promise<void>>();
 export const useTogether=create<State>((set)=>{
-  const patchSnapshot=(update:(snapshot:Snapshot)=>Snapshot)=>set((state)=>state.snapshot?{snapshot:update(state.snapshot),error:null}:state);
-  return {snapshot:null,browsedWorldId:null,loading:false,error:null,pendingDialogues:{},
+  const patchSnapshot=(update:(snapshot:Snapshot)=>Snapshot)=>set((state)=>state.snapshot?{snapshot:update(state.snapshot),error:null,errorCode:null}:state);
+  return {snapshot:null,browsedWorldId:null,loading:false,error:null,errorCode:null,pendingDialogues:{},
     setSnapshot:(snapshot)=>{
       // A completed mutation outranks reads that began before it.
       refreshGeneration+=1;refreshSequence+=1;refreshRequest=null;presenceRequests.clear();
-      set({snapshot,loading:false,error:null});
+      set({snapshot,loading:false,error:null,errorCode:null});
     },
     setCoreState:(delta)=>patchSnapshot((snapshot)=>({...snapshot,...delta})),
     updateCompanion:(companion)=>patchSnapshot((snapshot)=>({...snapshot,characters:upsert(snapshot.characters,reconcileCompanion(snapshot.characters.find((item)=>item.id===companion.id),companion))})),
     updateRelationship:(relationship)=>patchSnapshot((snapshot)=>({...snapshot,relationships:upsert(snapshot.relationships,relationship,'character_instance_id')})),
-    upsertConversation:(conversation)=>patchSnapshot((snapshot)=>snapshot.characters.some((character)=>character.id===conversation.character_instance_id)?({...snapshot,conversations:upsert(snapshot.conversations,conversation)}):snapshot),
+    upsertConversation:(conversation)=>patchSnapshot((snapshot)=>snapshot.characters.some((character)=>character.id===conversation.character_instance_id)?({...snapshot,conversations:upsert(snapshot.conversations,preferNewerReadState(conversation,snapshot.conversations.find((item)=>item.id===conversation.id)))}):snapshot),
     upsertMemory:(memory)=>patchSnapshot((snapshot)=>({...snapshot,memories:upsert(snapshot.memories,memory)})),
     removeMemory:(memoryId)=>patchSnapshot((snapshot)=>({...snapshot,memories:snapshot.memories.filter((item)=>item.id!==memoryId)})),
     upsertMoment:(moment)=>patchSnapshot((snapshot)=>({...snapshot,moments:upsert(snapshot.moments,moment)})),
@@ -64,7 +65,7 @@ export const useTogether=create<State>((set)=>{
       if(!snapshot||!owner||place.owner_user_id!==owner)return state;
       // A refresh begun before saving must not restore an old image or remove a new place.
       refreshGeneration+=1;refreshSequence+=1;refreshRequest=null;presenceRequests.clear();
-      return{snapshot:{...snapshot,locations:upsert(snapshot.locations,place)},loading:false,error:null};
+      return{snapshot:{...snapshot,locations:upsert(snapshot.locations,place)},loading:false,error:null,errorCode:null};
     }),
     upsertMedia:(media)=>patchSnapshot((snapshot)=>{
       const current=(snapshot.generatedMedia??[]).find((item)=>item.id===media.id);
@@ -109,8 +110,8 @@ export const useTogether=create<State>((set)=>{
     refresh:async(options)=>{
       if(demoMode){
         if(refreshRequest&&!options?.force)return refreshRequest;
-        set({loading:true,error:null});
-        const request=import('../demo').then(({demoSnapshot})=>set({snapshot:demoSnapshot,loading:false,error:null})).catch((error)=>set({loading:false,error:error instanceof Error?error.message:'Could not load the demo world.'})).finally(()=>{refreshRequest=null;});
+        set({loading:true,error:null,errorCode:null});
+        const request=import('../demo').then(({demoSnapshot})=>set({snapshot:demoSnapshot,loading:false,error:null,errorCode:null})).catch((error)=>set({loading:false,error:error instanceof Error?error.message:'Could not load the demo world.'})).finally(()=>{refreshRequest=null;});
         refreshRequest=request;
         return request;
       }
@@ -119,19 +120,19 @@ export const useTogether=create<State>((set)=>{
         const characterInstanceId=options.characterInstanceId;
         const existing=presenceRequests.get(characterInstanceId);
         if(existing&&!options.force)return existing;
-        const request=loadCharacterPresence(characterInstanceId).then((delta)=>set((state)=>generation===refreshGeneration&&state.snapshot&&state.snapshot.characters.some((character)=>character.id===characterInstanceId)?{snapshot:{...state.snapshot,characters:upsert(state.snapshot.characters,reconcileCompanion(state.snapshot.characters.find((item)=>item.id===delta.character.id),delta.character)),scheduleEvents:[...(state.snapshot.scheduleEvents??[]).filter((event)=>event.character_instance_id!==characterInstanceId),...delta.scheduleEvents],sceneSessions:delta.sceneSessions?[...(state.snapshot.sceneSessions??[]).filter((scene)=>scene.character_instance_id!==characterInstanceId),...delta.sceneSessions]:state.snapshot.sceneSessions},error:null}:state)).catch((error)=>{if(generation===refreshGeneration)set({error:error instanceof Error?error.message:'Companion presence could not be refreshed.'});}).finally(()=>{if(presenceRequests.get(characterInstanceId)===request)presenceRequests.delete(characterInstanceId);});
+        const request=loadCharacterPresence(characterInstanceId).then((delta)=>set((state)=>generation===refreshGeneration&&state.snapshot&&state.snapshot.characters.some((character)=>character.id===characterInstanceId)?{snapshot:{...state.snapshot,characters:upsert(state.snapshot.characters,reconcileCompanion(state.snapshot.characters.find((item)=>item.id===delta.character.id),delta.character)),scheduleEvents:[...(state.snapshot.scheduleEvents??[]).filter((event)=>event.character_instance_id!==characterInstanceId),...delta.scheduleEvents],sceneSessions:delta.sceneSessions?[...(state.snapshot.sceneSessions??[]).filter((scene)=>scene.character_instance_id!==characterInstanceId),...delta.sceneSessions]:state.snapshot.sceneSessions},error:null,errorCode:null}:state)).catch((error)=>{if(generation===refreshGeneration)set({error:error instanceof Error?error.message:'Companion presence could not be refreshed.'});}).finally(()=>{if(presenceRequests.get(characterInstanceId)===request)presenceRequests.delete(characterInstanceId);});
         presenceRequests.set(characterInstanceId,request);
         return request;
       }
       if(refreshRequest&&!options?.force)return refreshRequest;
       const generation=refreshGeneration;
       const sequence=++refreshSequence;
-      set({loading:true,error:null});
-      const request=(async()=>{try{const snapshot=await loadSnapshot();if(generation===refreshGeneration&&sequence===refreshSequence)set((state)=>({snapshot:{...snapshot,conversations:mergeInboxConversations(snapshot.conversations,state.snapshot?.activeContinuity?.id===snapshot.activeContinuity?.id?state.snapshot?.conversations??[]:[])},loading:false,error:null}));}catch(error){if(generation===refreshGeneration&&sequence===refreshSequence)set({loading:false,error:error instanceof Error?error.message:'Could not load Kivelle.'});}finally{if(generation===refreshGeneration&&sequence===refreshSequence)refreshRequest=null;}})();
+      set({loading:true,error:null,errorCode:null});
+      const request=(async()=>{try{const snapshot=await loadSnapshot();if(generation===refreshGeneration&&sequence===refreshSequence)set((state)=>({snapshot:{...snapshot,conversations:mergeInboxConversations(snapshot.conversations,state.snapshot?.activeContinuity?.id===snapshot.activeContinuity?.id?state.snapshot?.conversations??[]:[])},loading:false,error:null,errorCode:null}));}catch(error){if(generation===refreshGeneration&&sequence===refreshSequence)set({loading:false,error:error instanceof Error?error.message:'Could not load Kivelle.',errorCode:error&&typeof error==='object'&&'code' in error?String(error.code):null});}finally{if(generation===refreshGeneration&&sequence===refreshSequence)refreshRequest=null;}})();
       refreshRequest=request;
       return request;
     },
-    clear:()=>{refreshGeneration+=1;refreshSequence+=1;refreshRequest=null;presenceRequests.clear();set({snapshot:null,browsedWorldId:null,loading:false,error:null,pendingDialogues:{}});},
+    clear:()=>{refreshGeneration+=1;refreshSequence+=1;refreshRequest=null;presenceRequests.clear();set({snapshot:null,browsedWorldId:null,loading:false,error:null,errorCode:null,pendingDialogues:{}});},
   };
 });
 

@@ -27,6 +27,8 @@ import {
 } from "./OperationsPrimitives";
 import { SupportReplies } from "./SupportReplies";
 import { SupportCaseRecovery } from "./SupportCaseRecovery";
+import { SupportScreenshotGallery } from '../../features/support/SupportScreenshotGallery';
+import type { SupportAttachment } from '../../lib/operations';
 export function SupportWorkspace({
   data,
   detail,
@@ -43,6 +45,7 @@ export function SupportWorkspace({
     ticket: Record<string, unknown>;
     events: Array<Record<string, unknown>>;
     replies?: SupportReply[];
+    attachments?:SupportAttachment[];
     recovery?: SupportRecoveryContext;
   } | null;
   note: string;
@@ -116,6 +119,7 @@ export function SupportWorkspace({
           }`}
         >
           <Text style={styles.ticketMessage}>{String(ticket.message)}</Text>
+          <SupportScreenshotGallery attachments={detail.attachments?.filter(item=>!item.replyId)??[]}/>
           <Text style={styles.note}>
             Email notification: {String(
               (ticket.metadata as Record<string, unknown> | undefined)
@@ -173,6 +177,7 @@ export function SupportWorkspace({
             ticket.category === "billing"}
         />
         <SupportReplies
+          attachments={detail.attachments}
           key={id}
           ticketId={id}
           replies={detail.replies ?? []}

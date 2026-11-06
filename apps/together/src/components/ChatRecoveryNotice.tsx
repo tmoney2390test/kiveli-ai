@@ -2,9 +2,10 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { chatErrorPresentation } from '../lib/chatErrorPresentation';
 import { colors } from '../theme';
+import { contextualSupportHref } from '../lib/mediaSupportReference';
 
 /** Render an actual recovery action instead of making inert error copy tappable. */
-export function ChatRecoveryNotice({ error, onRetry, onDismiss }: { error: unknown; onRetry?: () => void; onDismiss: () => void }) {
+export function ChatRecoveryNotice({ error, onRetry, onDismiss,conversationId,messageId }: { error: unknown; onRetry?: () => void; onDismiss: () => void;conversationId?:string;messageId?:string }) {
   const presentation = chatErrorPresentation(error);
   const target = presentation.action === 'credits' ? '/subscription?intent=credits' : presentation.action === 'privacy' ? '/privacy' : presentation.action === 'signin' ? '/auth' : null;
   const label = presentation.action === 'credits' ? 'View credits' : presentation.action === 'privacy' ? 'Privacy settings' : presentation.action === 'signin' ? 'Sign in' : 'Try again';
@@ -13,7 +14,7 @@ export function ChatRecoveryNotice({ error, onRetry, onDismiss }: { error: unkno
     <Text style={s.body}>{presentation.message}</Text>
     <View style={s.actions}>
       {target || onRetry && presentation.retryable ? <Pressable accessibilityRole="button" onPress={() => target ? router.push(target as never) : onRetry?.()} style={s.action}><Text style={s.link}>{label}</Text></Pressable> : null}
-      <Pressable accessibilityRole="button" onPress={() => router.push('/support')} style={s.action}><Text style={s.link}>Get help</Text></Pressable>
+      <Pressable accessibilityRole="button" onPress={() => router.push(contextualSupportHref('conversation',{conversationId,messageId},error) as never)} style={s.action}><Text style={s.link}>Get help</Text></Pressable>
       <Pressable accessibilityRole="button" onPress={onDismiss} style={s.action}><Text style={s.body}>Dismiss</Text></Pressable>
     </View>
   </View>;

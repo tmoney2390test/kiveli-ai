@@ -2,7 +2,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { ArrowLeft, RefreshCw } from 'lucide-react-native';
-import { GradientButton, PageTitle, Screen, SectionHeader } from '../src/components';
+import { GradientButton, PageTitle, Screen, SectionHeader } from '../src/components/ui';
 import { colors, radius } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
 import { invoke, manageInteraction, manageMedia } from '../src/lib/api';

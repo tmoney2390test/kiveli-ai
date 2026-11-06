@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Check, KeyRound, Mail, ShieldCheck } from 'lucide-react-native';
-import { GradientButton, PageTitle } from '../src/components';
+import { GradientButton, PageTitle } from '../src/components/ui';
 import { colors, radius, spacing, typography } from '../src/theme';
 import { useAuth } from '../src/hooks/useAuth';
 import { authProviderState } from '../src/lib/authProviders';
@@ -12,6 +12,8 @@ import { validBirthdateEntry } from '../src/lib/pendingBirthdate';
 import { BirthdateField } from '../src/components/BirthdateField';
 import { useTogether } from '../src/store/useTogether';
 
+import {conversationPreferences,conversationPreferenceForPlatform} from '../src/lib/nativeContentPolicy';
+
 type Notice = { kind: 'success' | 'error'; message: string } | null;
 type BirthdateStatus = { dateOfBirth: string | null; canCorrect: boolean; correctedAt: string | null };
 type TextPreference = 'standard' | 'mature' | 'explicit';
@@ -19,17 +21,18 @@ type PrivacyChoices = { aiDataConsent: { decision: 'accepted' | 'declined' | 'wi
 
 export default function Account() {
   const refresh = useTogether((state) => state.refresh);
-  const { session, updateEmail, resendPendingEmailChange, signOutOthers } = useAuth();
+  const { session, updateEmail, requestPasswordReset, resendPendingEmailChange, signOutOthers } = useAuth();
   const provider = authProviderState(session?.user);
   const [newEmail, setNewEmail] = useState('');
-  const [busy, setBusy] = useState<'privacy' | 'birthdate' | 'email' | 'sessions' | 'resend' | null>(null);
+  const [busy, setBusy] = useState<'privacy' | 'birthdate' | 'email' | 'password' | 'sessions' | 'resend' | null>(null);
   const [birthdateStatus,setBirthdateStatus]=useState<BirthdateStatus|null>(null);
   const [birthdate,setBirthdate]=useState('');
   const [birthdateLoading,setBirthdateLoading]=useState(true);
   const [birthdateNotice,setBirthdateNotice]=useState<Notice>(null);
   const [emailNotice, setEmailNotice] = useState<Notice>(null);
+  const [passwordNotice, setPasswordNotice] = useState<Notice>(null);
   const [privacyChoices, setPrivacyChoices] = useState<PrivacyChoices | null>(null);
-  const [privacyPreference, setPrivacyPreference] = useState<TextPreference>('explicit');
+  const [privacyPreference, setPrivacyPreference] = useState<TextPreference>(conversationPreferenceForPlatform(null,Platform.OS));
   const [privacyNotice, setPrivacyNotice] = useState<Notice>(null);
   const [privacyLoading, setPrivacyLoading] = useState(true);
   const emailReady = validAccountEmail(newEmail);
@@ -39,7 +42,7 @@ export default function Account() {
     try {
       const status = await manageAccount<PrivacyChoices>({ action: 'privacy_choices_status' });
       setPrivacyChoices(status);
-      setPrivacyPreference(status.privateTextPreference ?? 'explicit');
+      setPrivacyPreference(conversationPreferenceForPlatform(status.privateTextPreference,Platform.OS));
     } catch (error) {
       setPrivacyNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Your AI choices could not be loaded.' });
     } finally { setPrivacyLoading(false); }
@@ -98,6 +101,18 @@ export default function Account() {
     finally { setBusy(null); }
   };
 
+  const sendPasswordLink = async () => {
+    const email = session?.user.email;
+    if (!email || !provider.verifiedEmail || busy) return;
+    setBusy('password'); setPasswordNotice(null);
+    try {
+      await requestPasswordReset(email);
+      setPasswordNotice({ kind: 'success', message: `Check ${email} for a secure link to set your password.` });
+    } catch (error) {
+      setPasswordNotice({ kind: 'error', message: error instanceof Error ? error.message : 'The password link could not be sent.' });
+    } finally { setBusy(null); }
+  };
+
   const otherSessions = () => Alert.alert('Sign out other sessions?', 'This device will stay signed in. Every other browser and mobile session will need to sign in again.', [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Sign out other sessions', style: 'destructive', onPress: () => { setBusy('sessions'); void signOutOthers().then(() => Alert.alert('Other sessions signed out', 'This device is still signed in.')).catch((error) => Alert.alert('Could not sign out other sessions', error instanceof Error ? error.message : 'Please try again.')).finally(() => setBusy(null)); } },
@@ -105,17 +120,17 @@ export default function Account() {
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to settings" hitSlop={10} onPress={() => router.canGoBack() ? router.back() : router.replace('/settings?section=account')} style={styles.back}><ArrowLeft color={colors.text} /></Pressable><PageTitle>Account & security</PageTitle></View>
-    <Text style={styles.lead}>Manage your verified email, birthdate, conversation setting, and active sessions.</Text>
+    <Text style={styles.lead}>Manage your verified email, password, birthdate, conversation setting, and active sessions.</Text>
 
     <View style={styles.summary}>
       <View style={styles.summaryIcon}><KeyRound color={colors.violet} /></View><View style={{ flex: 1 }}><Text style={styles.kicker}>{provider.label.toUpperCase()}</Text><Text style={styles.email}>{session?.user.email ?? 'Kivelle account'}</Text><View style={styles.verified}><Check size={13} color={provider.verifiedEmail ? colors.success : colors.warm} /><Text style={{ color: provider.verifiedEmail ? colors.success : colors.warm, fontSize: 12, fontWeight: '800' }}>{provider.verifiedEmail ? 'Verified email' : 'Email verification pending'}</Text></View>{provider.pendingEmail ? <Text style={styles.pending}>Pending change: {provider.pendingEmail}</Text> : null}</View>
     </View>
 
-    <Section title="Conversation Spiciness" body="Choose the upper boundary for your private text chats." />
+    <Section title="Conversation tone" body="Choose the upper boundary for your private text chats." />
     <View style={styles.card}>
       {privacyLoading ? <Text style={styles.loadingText}>Loading conversation settings…</Text> : <>
-        <View accessibilityRole="radiogroup" accessibilityLabel="Conversation Spiciness" style={styles.choiceRow}>
-          {(['standard', 'mature', 'explicit'] as const).map((choice) => <Pressable key={choice} accessibilityRole="radio" accessibilityState={{ checked: privacyPreference === choice, disabled: busy !== null }} disabled={busy !== null} onPress={() => { setPrivacyPreference(choice); setPrivacyNotice(null); }} style={[styles.choiceButton, privacyPreference === choice && styles.choiceButtonSelected]}><Text style={[styles.choiceText, privacyPreference === choice && styles.choiceTextSelected]}>{choice.charAt(0).toUpperCase() + choice.slice(1)}</Text></Pressable>)}
+        <View accessibilityRole="radiogroup" accessibilityLabel="Conversation tone" style={styles.choiceRow}>
+          {conversationPreferences(Platform.OS).map((choice) => <Pressable key={choice} accessibilityRole="radio" accessibilityState={{ checked: privacyPreference === choice, disabled: busy !== null }} disabled={busy !== null} onPress={() => { setPrivacyPreference(choice); setPrivacyNotice(null); }} style={[styles.choiceButton, privacyPreference === choice && styles.choiceButtonSelected]}><Text style={[styles.choiceText, privacyPreference === choice && styles.choiceTextSelected]}>{choice.charAt(0).toUpperCase() + choice.slice(1)}</Text></Pressable>)}
         </View>
         {privacyNotice ? <NoticeView notice={privacyNotice} /> : null}
         <GradientButton label={busy === 'privacy' ? 'Saving…' : 'Save conversation setting'} disabled={busy !== null || privacyChoices?.privateTextPreference === privacyPreference} onPress={() => void savePrivacyChoices()} />
@@ -142,6 +157,16 @@ export default function Account() {
       <GradientButton label={busy === 'email' ? 'Updating…' : 'Change email'} disabled={!emailReady || busy !== null} onPress={() => void changeEmail()} />
       {provider.pendingEmail ? <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy !== null }} disabled={busy !== null} onPress={() => void resend()} style={styles.textButton}><Mail size={17} color={colors.rose} /><Text style={styles.textButtonText}>{busy === 'resend' ? 'Sending…' : 'Resend email-change confirmation'}</Text></Pressable> : null}
     </View>
+
+    <Section title="Password sign-in" body="Create or change a password for this account. We’ll send a secure setup link to your verified email." />
+    <View style={styles.card}>
+      {passwordNotice ? <NoticeView notice={passwordNotice} /> : null}
+      <GradientButton label={busy === 'password' ? 'Sending link…' : 'Email password setup link'} disabled={busy !== null || !session?.user.email || !provider.verifiedEmail} onPress={() => void sendPasswordLink()} />
+      {!provider.verifiedEmail ? <Text style={styles.fieldHint}>Verify your email before setting a password.</Text> : null}
+    </View>
+
+    <Section title="Delete account" body="Permanently remove your Kivelli account and its data." />
+    <Pressable accessibilityRole="button" accessibilityLabel="Delete account" onPress={() => router.push('/privacy?delete=1')} style={styles.sessionRow}><Text style={{color:colors.danger,fontWeight:'800'}}>Delete account</Text></Pressable>
 
     <Section title="Sessions" body="Use this if you signed in on a device you no longer control." />
     <Pressable accessibilityRole="button" accessibilityLabel="Sign out other sessions" accessibilityState={{ disabled: busy !== null }} disabled={busy !== null} onPress={otherSessions} style={styles.sessionRow}><ShieldCheck color={colors.violet} /><View style={{ flex: 1 }}><Text style={styles.sessionTitle}>{busy === 'sessions' ? 'Signing out…' : 'Sign out other sessions'}</Text><Text style={styles.sessionBody}>Keep this device signed in and revoke every other active session.</Text></View></Pressable>

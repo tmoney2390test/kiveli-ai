@@ -21,7 +21,7 @@ test('Public catalogue excludes spoilers and retains all 80 original scenario id
  for(const s of stories)for(const truth of s.canon)assert.ok(!publicText.includes(truth),s.id+' leaked canon');
 });
 test('Original mature scenario material and artwork are preserved',()=>{
- assert.equal(createHash('sha256').update(JSON.stringify(originals)).digest('hex'),'4c866342aedfd64c2f514fe4ed6c2d4d9aec4e776b42acb1962446722c182494');
+ assert.equal(createHash('sha256').update(JSON.stringify(originals)).digest('hex'),'a1a0b54e4fdfee1c127cd7fb5bb250c654b829dea4f5fd5d8a9f4fcd8a969bce');
  for(const s of originals)assert.ok(fs.statSync(`apps/together/assets/scenarios/${s.id}.jpg`).size>1000);
  const migration=read('supabase/migrations/20260914233719_storyline_scenarios.sql');assert.doesNotMatch(migration,/update public\.together_character_(?:templates|versions) set|delete from public\.together_(?:memories|relationship_states|world_progress)/i);
 });

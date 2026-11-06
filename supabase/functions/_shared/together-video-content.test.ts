@@ -62,7 +62,19 @@ Deno.test("adult opening frames establish the requested composition without usin
   assertStringIncludes(prompt, "not the user or any real person");
   assertStringIncludes(prompt, "no censoring");
   assertStringIncludes(prompt, "couple embraces");
+  assertStringIncludes(prompt, "No visible phone, camera, selfie stick, reflection, or device-holding hand");
   assert(prompt.indexOf("couple embraces") < prompt.indexOf("Opening frame"));
+  assert(prompt.length <= 400);
+});
+
+Deno.test("safe direct-video opening frames keep capture devices out of the generated still", () => {
+  const prompt = directVideoOpeningFrameRequest({
+    prompt: "She smiles for a mirror selfie while holding her phone.",
+    locationName: "Aurora Spa",
+    contentLevel: "standard",
+    anonymousAdultPartner: false,
+  });
+  assertStringIncludes(prompt, "No visible phone, camera, selfie stick, reflection, or device-holding hand");
   assert(prompt.length <= 400);
 });
 

@@ -20,6 +20,9 @@ import {
   mergeInboxConversations,
   mergeInboxGroups,
   mergeInboxPages,
+  missingInboxCharacterIds,
+  preferNewerCompletedPreview,
+  preferNewerReadState,
   isConversationPinned,
   mostRecentChatHref,
   messagesInboxNavigationState,
@@ -113,6 +116,13 @@ describe("message inbox presentation", () => {
       restore_until: "2026-09-17T14:05:00.000Z",
     },
   ];
+
+  it("detects a chat opened on another device before its character reaches the local snapshot", () => {
+    const newChat = conversation("new-chat", "new-character", "2026-10-10T01:24:00.000Z", "Hi");
+    expect(missingInboxCharacterIds([newChat, newChat, conversations[0]!], characters)).toEqual(["new-character"]);
+    expect(buildInboxRows([newChat], characters, [], "", "all")).toEqual([]);
+    expect(buildInboxRows([newChat], [...characters, character("new-character", "new-template", "New")], [], "", "all")).toHaveLength(1);
+  });
 
   it("targets the native tab navigator when leaving a conversation", () => {
     expect(MESSAGES_INBOX_HREF).toBe("/chat-tab?inbox=1");
@@ -309,7 +319,7 @@ describe("message inbox presentation", () => {
     expect(inboxPreview({
       ...conversation("pending", "maya", "2026-08-18T12:00:00.000Z", "Hello"),
       reply_pending: true,
-    })).toBe("Typing…");
+    })).toBe("Someone is typing…");
     expect(inboxPreview({
       ...conversation("group-pending", "maya", "2026-08-18T12:00:00.000Z", "Hello"),
       kind: "group",
@@ -390,6 +400,44 @@ describe("message inbox presentation", () => {
       last_message_preview: "See you soon.",
       last_message_role: "assistant",
     });
+  });
+
+  it('keeps a completed background reply ahead of a stale inbox response', () => {
+    const server={...conversation('maya-chat','maya','2026-10-07T12:00:00Z','You: Hi'),reply_pending:true};
+    const completed={...server,last_message_at:'2026-10-07T12:01:00Z',last_message_preview:'Good to see you.',last_message_role:'assistant' as const,reply_pending:false};
+    expect(preferNewerCompletedPreview(server,completed)).toMatchObject({
+      last_message_preview:'Good to see you.',reply_pending:false,
+    });
+    expect(preferNewerCompletedPreview({...server,last_message_at:'2026-10-07T12:02:00Z'},completed).last_message_preview).toBe('You: Hi');
+  });
+
+  it('keeps a newer direct read clear through a stale inbox response', () => {
+    const old = {...conversation('maya-chat','maya','2026-10-07T12:01:00Z','Hello'),
+      last_message_role:'assistant' as const,last_assistant_message_at:'2026-10-07T12:01:00Z',
+      last_read_at:'2026-10-07T12:00:00Z',unread:true};
+    const read = {...old,last_read_at:'2026-10-07T12:02:00Z',unread:false};
+    expect(mergeInboxConversations([read],[old])[0]).toMatchObject({last_read_at:read.last_read_at,unread:false});
+    expect(preferNewerReadState(old,read)).toMatchObject({last_read_at:read.last_read_at,unread:false});
+  });
+
+  it('marks a reply after a read unread even when an old response arrives last', () => {
+    const read = {...conversation('maya-chat','maya','2026-10-07T12:00:00Z','Hi'),
+      last_read_at:'2026-10-07T12:01:00Z',unread:false};
+    const reply = {...read,last_message_at:'2026-10-07T12:02:00Z',
+      last_message_role:'assistant' as const,last_message_preview:'I’m here.',
+      last_assistant_message_at:'2026-10-07T12:02:00Z',unread:true};
+    expect(preferNewerReadState(reply,read).unread).toBe(true);
+    expect(preferNewerCompletedPreview(read,reply)).toMatchObject({unread:true,last_message_preview:'I’m here.'});
+  });
+
+  it('clears a group count after opening without hiding a later group reply', () => {
+    const group={...conversation('group','maya','2026-10-07T12:01:00Z','Hello'),kind:'group',
+      last_message_role:'assistant' as const,last_read_at:'2026-10-07T12:00:00Z',
+      last_assistant_message_at:'2026-10-07T12:01:00Z',unread:true,unread_count:3};
+    const read={...group,last_read_at:'2026-10-07T12:02:00Z',unread:false,unread_count:0};
+    expect(preferNewerReadState(group,read)).toMatchObject({unread:false,unread_count:0});
+    const later={...group,last_message_at:'2026-10-07T12:03:00Z',last_assistant_message_at:'2026-10-07T12:03:00Z'};
+    expect(preferNewerReadState(later,read)).toMatchObject({unread:true,unread_count:3});
   });
 
   it("forwards existing chat intents while leaving a plain tab visit in the inbox", () => {

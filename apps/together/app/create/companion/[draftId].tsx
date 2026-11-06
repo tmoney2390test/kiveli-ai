@@ -1,6 +1,7 @@
 import { CreatorDailyLifeEditor } from '../../../src/components/CreatorDailyLifeEditor';
 import { useQueryClient } from '@tanstack/react-query';
-import { subscriptionStatusQueryKey } from '../../../src/hooks/useSubscriptionStatus';
+import { subscriptionStatusKey } from '../../../src/lib/subscriptionQuery';
+import { useAuth } from '../../../src/hooks/useAuth';
 import type { SubscriptionStatus } from '../../../src/lib/subscription';
 import { styles } from '../../../src/styles/companionDraftStyles';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -9,7 +10,9 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowRight, Camera, Check, ChevronLeft, ChevronRight, MapPin, Plus, RefreshCw, Sparkles, Trash2, UserRound } from 'lucide-react-native';
-import { CreatorWizardShell, ErrorState, GradientButton, GlassCard, KivelleCreditIcon, LoadingSkeleton, Screen } from '../../../src/components';
+import { CreatorWizardShell } from '../../../src/components/CreatorWizardShell';
+import { ErrorState, GradientButton, GlassCard, LoadingSkeleton, Screen } from '../../../src/components/ui';
+import { KivelleCreditIcon } from '../../../src/components/KivelleCreditIcon';
 import { archiveCreatorDraft, authorizeCreatorAppearanceUpload, cancelCreatorAppearanceUpload, completeCreatorAppearanceUpload, finalizeCreatorDraft, generateCreatorAppearance, getCreatorDraft, meetCompanion, regenerateCreatorDraftSection, selectCreatorAppearance, selectCreatorFirstMeeting, updateCreatorDraftSections } from '../../../src/lib/api';
 import { CreatorModal, CreatorPicker, creatorGenders, creatorPronouns } from '../../../src/components/CreatorPicker';
 import { creditCost } from '@together/domain/src/entitlements';
@@ -38,6 +41,7 @@ export default function CreatorStudioRoute() {
   const { draftId } = useLocalSearchParams<{ draftId: string }>();
   const { width } = useWindowDimensions();
   const queryClient = useQueryClient();
+  const { session } = useAuth();
   const setSnapshot = useTogether((state) => state.setSnapshot);
   const [draft, setDraft] = useState<CreatorDraft | null>(null);
   const [identity, setIdentity] = useState<CreatorIdentityConfig | null>(null);
@@ -170,7 +174,7 @@ export default function CreatorStudioRoute() {
       const saved = await saveSection('appearance');
       appearanceRequestId.current ??= createClientRequestId();
       const result = await generateCreatorAppearance(saved.id, appearanceRequestId.current);
-      if (result.creditBalance) queryClient.setQueryData<SubscriptionStatus>(subscriptionStatusQueryKey, (current) => current ? { ...current, creditBalance: { ...current.creditBalance, ...result.creditBalance! } } : current);
+      if (result.creditBalance && session?.user.id) queryClient.setQueryData<SubscriptionStatus>(subscriptionStatusKey(session.user.id), (current) => current ? { ...current, creditBalance: { ...current.creditBalance, ...result.creditBalance! } } : current);
       appearanceRequestId.current = null;
       applyDraft(result.draft);
     } catch (caught) { showActionAlert('Could not generate looks', caught instanceof Error ? caught.message : 'Please try again.'); }

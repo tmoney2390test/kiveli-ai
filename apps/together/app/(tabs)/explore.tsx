@@ -1,4 +1,4 @@
-import {ScenarioBrowser} from '../../src/components/ScenarioBrowser';
+import {ScenarioBrowser} from '../../src/components/LazyScenarioBrowser';
 import { withComingSoonWorlds, isComingSoonWorld } from '../../src/lib/comingSoonWorlds';
 import { compareWorldSelectorOrder } from '../../src/lib/worldSelectorOrder';
 import {useCallback,useEffect,useMemo,useRef,useState,type ReactNode,type RefObject} from'react';
@@ -7,7 +7,8 @@ import{Image}from'expo-image';
 import{router,useFocusEffect,useLocalSearchParams}from'expo-router';
 import{AlertCircle,BookOpen,Check,ChevronDown,ChevronLeft,ChevronRight,LockKeyhole,MapPin,Search,Sparkles,UsersRound,X}from'lucide-react-native';
 import{useSafeAreaInsets}from'react-native-safe-area-context';
-import{EmptyState,LoadingSkeleton,PlaceCategoryFilters,Screen}from'../../src/components';
+import { EmptyState, LoadingSkeleton, Screen } from '../../src/components/ui';
+import { PlaceCategoryFilters } from '../../src/components/PlaceCategoryFilters';
 import{CompanionPortraitCard}from'../../src/components/CompanionPortraitCard';
 import{CompanionGenderToggle,useCompanionGenderPreference}from'../../src/components/CompanionGenderToggle';
 import{CompanionSpicePicker,type CompanionSpiceFilter}from'../../src/components/CompanionSpicePicker';
@@ -16,7 +17,8 @@ import{locationHeroAsset,worldHeroAsset}from'../../src/assets';
 import{colors,radius}from'../../src/theme';
 import{useTogether}from'../../src/store/useTogether';
 import{useAuth}from'../../src/hooks/useAuth';
-import{loadExploreCatalog,setCharacterFavorite}from'../../src/lib/api';
+import{loadExploreCatalog}from'../../src/lib/api/catalog';
+import{setCharacterFavorite}from'../../src/lib/api/companions';
 import{activeCompanion}from'../../src/lib/companionLife';
 import{canAccessWorld,characterCanPlanInWorld,characterResidentWorld}from'../../src/lib/place';
 import{buildExploreContext,exploreCompanionBadge,exploreEventStatus,locationsForExploreCategory,type ExploreCategoryId}from'../../src/lib/explore';
@@ -35,6 +37,10 @@ import{updateLocalRouteParamsOnWeb}from'../../src/lib/appNavigation';
 import{EXPLORE_VISIBLE_INTENTS,exploreIntentSections,exploreResponsiveLayout,normalizeVisibleExploreIntent}from'../../src/lib/exploreLayout';
 import{isSubscriberEarlyAccessWorld,isWorldCatalogVisible}from'@together/domain/src/world-access';
 import{subscriptionHref}from'../../src/lib/subscriptionPresentation';
+import{useWorldPulse}from'../../src/hooks/useWorldPulse';
+import{WorldPulseV2Section}from'../../src/components/home/WorldPulseV2Section';
+import{WorldPulseEventModal}from'../../src/components/WorldPulseEventModal';
+import type{WorldPulseV2Event}from'@together/domain/src/world-pulse-v2';
 
 const nav={
   push:(href:string)=>router.push(href as never),
@@ -59,6 +65,7 @@ export default function Explore(){
   const[sortMode,setSortMode]=useState<CompanionSortMode>('recommended');
   const heroReady=useSurfaceReadyTiming('explore','hero_image_ready',Boolean(snapshot&&snapshot.profile?.privacy_settings?.analytics!==false));
   const[worldPickerOpen,setWorldPickerOpen]=useState(false);
+  const[selectedPulseEvent,setSelectedPulseEvent]=useState<WorldPulseV2Event|null>(null);
   const[category,setCategory]=useState<ExploreCategoryId|null>(null);
   const[query,setQuery]=useState('');
   const[peopleLimit,setPeopleLimit]=useState(12);
@@ -87,6 +94,7 @@ export default function Explore(){
   const requestedWorld=accessibleWorlds.find((item)=>item.slug===params.world);
   const preferredWorld=accessibleWorlds.find((item)=>item.slug===preference.worldSlug);
   const selectedWorld=requestedWorld??preferredWorld??accessibleWorlds.find((item)=>item.id===browsedWorldId)??accessibleWorlds.find((item)=>item.id===companionWorld?.id)??accessibleWorlds[0];
+  const {data:pulseData}=useWorldPulse(selectedWorld?.id,catalogScope,Boolean(selectedWorld));
 
   useEffect(()=>{
     let active=true;
@@ -216,7 +224,8 @@ export default function Explore(){
       {selectedIntent==='scenarios'?<View accessibilityRole="toolbar" accessibilityLabel="Filter scenarios" style={styles.peopleFilters}><CompanionGenderToggle value={gender} onChange={setGender}/></View>:null}
       <ScenarioBrowser key={`${selectedWorld.id}:${selectedIntent}`} worldId={selectedWorld.id} gender={selectedIntent==='scenarios'?gender:'any'} limit={selectedIntent==='for_you'?3:undefined} query={query}/>
     </Section>:null}
-    {showEvents&&context.worldEvents.length?<Section title={hasActiveWorldEvent?'Happening now':'Coming up'} subtitle={hasActiveWorldEvent?`What is unfolding around ${selectedWorld.name}`:`What is next around ${selectedWorld.name}`} action="Explore places" onAction={()=>nav.push(`/world/places?world=${selectedWorld.slug}`)}><View style={styles.eventStack}>{context.worldEvents.slice(0,4).map((event,index)=>{const location=context.locations.find((item)=>item.id===event.location_id),title=naturalizeCharacterEventTitle(event.title,event.event_type),summary=naturalizeCharacterEventSummary(event.narrative_summary),status=exploreEventStatus(event);return <Pressable key={event.id} accessibilityRole="button" accessibilityLabel={`${status}: ${title}`} onPress={()=>discussionHandle?nav.push(`/(tabs)/chat-tab?character=${discussionHandle}&draft=${encodeURIComponent(`What's going on with ${title}?`)}`):location?openLocation(location):undefined} style={({pressed})=>[styles.eventCard,index===0&&styles.eventCardFeatured,pressed&&styles.pressed]}><View style={styles.eventIcon}><Sparkles size={16} color={colors.warm}/></View><View style={{flex:1}}><Text style={styles.eventKicker}>{status}</Text><Text style={styles.eventTitle}>{title}</Text><Text numberOfLines={2} style={styles.eventCopy}>{summary}</Text>{location?<Text style={styles.eventLocation}>{location.name}</Text>:null}</View><ChevronRight size={17} color={colors.muted}/></Pressable>;})}</View></Section>:null}
+    {showEvents&&pulseData?.version===2?<WorldPulseV2Section worldName={selectedWorld.name} events={pulseData.events} onOpen={setSelectedPulseEvent} onViewAll={()=>nav.push(`/world-pulse?world=${selectedWorld.slug}`)}/>:null}
+    {showEvents&&pulseData&&pulseData.version!==2&&context.worldEvents.length?<Section title={hasActiveWorldEvent?'Happening now':'Coming up'} subtitle={hasActiveWorldEvent?`What is unfolding around ${selectedWorld.name}`:`What is next around ${selectedWorld.name}`} action="Explore places" onAction={()=>nav.push(`/world/places?world=${selectedWorld.slug}`)}><View style={styles.eventStack}>{context.worldEvents.slice(0,4).map((event,index)=>{const location=context.locations.find((item)=>item.id===event.location_id),title=naturalizeCharacterEventTitle(event.title,event.event_type),summary=naturalizeCharacterEventSummary(event.narrative_summary),status=exploreEventStatus(event);return <Pressable key={event.id} accessibilityRole="button" accessibilityLabel={`${status}: ${title}`} onPress={()=>discussionHandle?nav.push(`/(tabs)/chat-tab?character=${discussionHandle}&draft=${encodeURIComponent(`What's going on with ${title}?`)}`):location?openLocation(location):undefined} style={({pressed})=>[styles.eventCard,index===0&&styles.eventCardFeatured,pressed&&styles.pressed]}><View style={styles.eventIcon}><Sparkles size={16} color={colors.warm}/></View><View style={{flex:1}}><Text style={styles.eventKicker}>{status}</Text><Text style={styles.eventTitle}>{title}</Text><Text numberOfLines={2} style={styles.eventCopy}>{summary}</Text>{location?<Text style={styles.eventLocation}>{location.name}</Text>:null}</View><ChevronRight size={17} color={colors.muted}/></Pressable>;})}</View></Section>:null}
 
     {showPeople?<Section title={searching?'People':fullPeopleCatalog?`People of ${selectedWorld.name}`:'People you might connect with'} subtitle={fullPeopleCatalog?`Meet the residents of ${selectedWorld.name}`:`Chosen from ${selectedWorld.name} for your interests and goals`} action={fullPeopleCatalog?undefined:'View all'} onAction={fullPeopleCatalog?undefined:()=>changeIntent('people')}>
       {fullPeopleCatalog?<View accessibilityRole="toolbar" accessibilityLabel="Filter and sort people" style={styles.peopleFilters}>
@@ -237,7 +246,7 @@ export default function Explore(){
 
     {sections.worlds&&searching&&matchingWorlds.length?<Section title={`Worlds · ${matchingWorlds.length}`}><HorizontalRail label="Matching Kivelle worlds" showControls={false} snapInterval={responsive.worldDiscoveryCardWidth+11} contentStyle={styles.worldRow}>{matchingWorlds.map((world)=><WorldCard key={world.id} world={world} width={responsive.worldDiscoveryCardWidth} accessible={accessibleWorldIds.has(world.id)} onPress={()=>chooseWorld(world)}/>)}</HorizontalRail></Section>:null}
     {sections.worlds&&!searching&&matchingWorlds.length?<Section title="Discover other worlds" subtitle="Different worlds bring different people, places, and possibilities" action="Choose a world" onAction={openAllWorlds}><HorizontalRail label="Discover other Kivelle worlds" showControls={false} snapInterval={responsive.worldDiscoveryCardWidth+11} contentStyle={styles.worldRow}>{matchingWorlds.map((world)=><WorldCard key={world.id} world={world} width={responsive.worldDiscoveryCardWidth} accessible={accessibleWorldIds.has(world.id)} onPress={()=>chooseWorld(world)}/>)}</HorizontalRail></Section>:null}
-  </Screen><WorldSwitcherSheet visible={worldPickerOpen} worlds={worlds} selectedWorldId={selectedWorld.id} accessibleWorldIds={accessibleWorldIds} homeWorldId={companionWorld?.id} loading={refreshing} error={refreshError} desktop={desktop} reducedMotion={reducedMotion} returnFocusRef={worldSelectorRef} onRetry={()=>void refreshCatalog(true)} onSelect={chooseWorld} onClose={closeWorldPicker}/></>;
+  </Screen><WorldSwitcherSheet visible={worldPickerOpen} worlds={worlds} selectedWorldId={selectedWorld.id} accessibleWorldIds={accessibleWorldIds} homeWorldId={companionWorld?.id} loading={refreshing} error={refreshError} desktop={desktop} reducedMotion={reducedMotion} returnFocusRef={worldSelectorRef} onRetry={()=>void refreshCatalog(true)} onSelect={chooseWorld} onClose={closeWorldPicker}/><WorldPulseEventModal eventId={selectedPulseEvent?.id??null} previewEvent={selectedPulseEvent} onClose={()=>setSelectedPulseEvent(null)} onNavigate={(href)=>{setSelectedPulseEvent(null);nav.push(href);}}/></>;
 }
 
 function WorldPersonCard({person,index,width,height,worldName,snapshot,onFeedback}:{person:FeaturedCompanion;index:number;width:number;height:number;worldName:string;snapshot:Snapshot;onFeedback:(message:string)=>void}){
@@ -277,6 +286,8 @@ function WorldSwitcherSheet({visible,worlds,selectedWorldId,accessibleWorldIds,h
   const mobile=!desktop&&width<768;
   const sheetWidth=mobile?width:Math.min(640,width-40);
   const cardWidth=Math.max(140,Math.floor((sheetWidth-(mobile?40:44)-10)/2));
+  const featuredWorld=worlds.length%2===1?worlds.find((world)=>world.id===selectedWorldId)??worlds[0]:undefined;
+  const displayedWorlds=featuredWorld?[featuredWorld,...worlds.filter((world)=>world.id!==featuredWorld.id)]:worlds;
   const closeRef=useRef(onClose);closeRef.current=onClose;
   const previouslyOpen=useRef(false);
   useEffect(()=>{
@@ -307,7 +318,7 @@ function WorldSwitcherSheet({visible,worlds,selectedWorldId,accessibleWorldIds,h
         <View style={styles.worldSheetHeader}><View style={{flex:1}}><Text style={styles.worldSheetKicker}>EXPLORE KIVELLE</Text><Text accessibilityRole="header" style={styles.worldSheetTitle}>Choose a world</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close world chooser" onPress={onClose} style={({pressed})=>[styles.worldSheetClose,pressed&&styles.pressed]}><X size={20} color={colors.text}/></Pressable></View>
         {loading?<View accessibilityLiveRegion="polite" style={styles.worldSheetStatus}><ActivityIndicator size="small" color={colors.rose}/><Text style={styles.worldSheetStatusText}>Refreshing worlds…</Text></View>:null}
         {error?<View accessibilityRole="alert" style={styles.worldSheetError}><AlertCircle size={17} color={colors.warm}/><Text style={styles.worldSheetErrorText}>{error}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry loading worlds" onPress={onRetry} style={styles.worldSheetRetry}><Text style={styles.worldSheetRetryText}>Retry</Text></Pressable></View>:null}
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.worldSheetGrid}>{worlds.length?worlds.map((world)=>{const selected=world.id===selectedWorldId,home=world.id===homeWorldId,accessible=accessibleWorldIds.has(world.id),early=isSubscriberEarlyAccessWorld(world.metadata);return <Pressable key={world.id} accessibilityRole="button" accessibilityLabel={`${isComingSoonWorld(world)?'Coming soon:':accessible?'Choose':'Unlock'} ${world.name}${home?', home world':''}${early?', subscriber early access':''}`} accessibilityState={{selected}} {...webSelectedState(selected)} onPress={()=>onSelect(world)} style={({pressed})=>[styles.worldSheetCard,{width:cardWidth},selected&&styles.worldSheetCardSelected,pressed&&styles.pressed]}><Image source={worldHeroAsset(world.slug)} style={StyleSheet.absoluteFill} contentFit="cover" loading="lazy" priority="low"/><View pointerEvents="none" style={styles.worldSheetCardShade}/><View style={styles.worldSheetCardTop}>{isComingSoonWorld(world)?<View style={styles.homeWorldBadge}><Text style={styles.homeWorldBadgeText}>COMING SOON</Text></View>:home?<View style={styles.homeWorldBadge}><Text style={styles.homeWorldBadgeText}>HOME WORLD</Text></View>:early?<View style={styles.homeWorldBadge}><Text style={styles.homeWorldBadgeText}>EARLY ACCESS</Text></View>:<View/>}{selected?<View style={styles.worldSelectedBadge}><Check size={15} strokeWidth={3} color="#281527"/></View>:!accessible?<View style={styles.worldLockedBadge}><LockKeyhole size={13} color="#FFF4FD"/></View>:null}</View><View style={styles.worldSheetCardCopy}><Text numberOfLines={2} style={styles.worldSheetCardName}>{world.name}</Text>{!accessible&&!isComingSoonWorld(world)?<Text style={styles.worldSheetCardAccess}>SUBSCRIBERS</Text>:null}</View></Pressable>}):!loading?<View style={styles.worldSheetEmpty}><Text style={styles.worldSheetEmptyTitle}>No worlds are available yet</Text><Text style={styles.worldSheetEmptyCopy}>Check back when the next world opens.</Text></View>:null}</ScrollView>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.worldSheetGrid}>{displayedWorlds.length?displayedWorlds.map((world)=>{const selected=world.id===selectedWorldId,home=world.id===homeWorldId,accessible=accessibleWorldIds.has(world.id),early=isSubscriberEarlyAccessWorld(world.metadata),featured=world.id===featuredWorld?.id;return <Pressable key={world.id} accessibilityRole="button" accessibilityLabel={`${isComingSoonWorld(world)?'Coming soon:':accessible?'Choose':'Unlock'} ${world.name}${home?', home world':''}${early?', subscriber early access':''}`} accessibilityState={{selected}} {...webSelectedState(selected)} onPress={()=>onSelect(world)} style={({pressed})=>[styles.worldSheetCard,{width:featured?cardWidth*2+10:cardWidth},selected&&styles.worldSheetCardSelected,pressed&&styles.pressed]}><Image source={worldHeroAsset(world.slug)} style={StyleSheet.absoluteFill} contentFit="cover" loading="lazy" priority="low"/><View pointerEvents="none" style={styles.worldSheetCardShade}/><View style={styles.worldSheetCardTop}>{isComingSoonWorld(world)?<View style={styles.homeWorldBadge}><Text style={styles.homeWorldBadgeText}>COMING SOON</Text></View>:home?<View style={styles.homeWorldBadge}><Text style={styles.homeWorldBadgeText}>HOME WORLD</Text></View>:early?<View style={styles.homeWorldBadge}><Text style={styles.homeWorldBadgeText}>EARLY ACCESS</Text></View>:<View/>}{selected?<View style={styles.worldSelectedBadge}><Check size={15} strokeWidth={3} color="#281527"/></View>:!accessible?<View style={styles.worldLockedBadge}><LockKeyhole size={13} color="#FFF4FD"/></View>:null}</View><View style={styles.worldSheetCardCopy}><Text numberOfLines={2} style={styles.worldSheetCardName}>{world.name}</Text>{!accessible&&!isComingSoonWorld(world)?<Text style={styles.worldSheetCardAccess}>SUBSCRIBERS</Text>:null}</View></Pressable>}):!loading?<View style={styles.worldSheetEmpty}><Text style={styles.worldSheetEmptyTitle}>No worlds are available yet</Text><Text style={styles.worldSheetEmptyCopy}>Check back when the next world opens.</Text></View>:null}</ScrollView>
       </View>
     </View>
   </Modal>;

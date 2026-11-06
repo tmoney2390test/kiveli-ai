@@ -48,6 +48,20 @@ describe('persisted auth session recovery', () => {
     expect(auth.signOut).not.toHaveBeenCalled();
   });
 
+  it('keeps a refreshed token if the prior token is rejected during startup', async () => {
+    const auth = authClient();
+    auth.getSession
+      .mockResolvedValueOnce({ data: { session: { access_token: 'old-token', user: { id: 'user-1' } } }, error: null })
+      .mockResolvedValueOnce({ data: { session: { access_token: 'new-token', user: { id: 'user-1' } } }, error: null });
+    auth.getUser
+      .mockResolvedValueOnce({ data: { user: null }, error: { code: 'bad_jwt', status: 401 } })
+      .mockResolvedValueOnce({ data: { user: { id: 'user-1' } }, error: null });
+
+    await expect(getValidatedPersistedSession(auth)).resolves.toMatchObject({ access_token: 'new-token' });
+    expect(auth.getUser).toHaveBeenCalledWith('new-token');
+    expect(auth.signOut).not.toHaveBeenCalled();
+  });
+
   it('does not strand startup when persisted-session validation hangs', async () => {
     vi.useFakeTimers();
     try {
@@ -77,11 +91,24 @@ describe('persisted auth session recovery', () => {
     await Promise.all([first, second]);
   });
 
-  it('clears locally for protected API authentication failures', async () => {
-    const auth = authClient();
+  it('clears locally when a protected API failure reveals a revoked session', async () => {
+    const auth = authClient({ user: null, userError: { code: 'session_not_found', status: 403 } });
     expect(shouldClearSessionForApiFailure(403, 'AUTH_REQUIRED')).toBe(true);
     await clearSessionForApiFailure(auth, 403, 'AUTH_REQUIRED');
     expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  it('keeps a refreshed session after an earlier request returns 401', async () => {
+    const auth = authClient({ session: { access_token: 'refreshed-token', user: { id: 'user-1' } } });
+    await clearSessionForApiFailure(auth, 401);
+    expect(auth.getUser).toHaveBeenCalledWith('refreshed-token');
+    expect(auth.signOut).not.toHaveBeenCalled();
+  });
+
+  it('keeps the session if a 401 cannot be verified during a network outage', async () => {
+    const auth = authClient({ user: null, userError: { message: 'Failed to fetch' } });
+    await clearSessionForApiFailure(auth, 401);
+    expect(auth.signOut).not.toHaveBeenCalled();
   });
 
   it('does not clear the session for entitlement or transient API failures', async () => {

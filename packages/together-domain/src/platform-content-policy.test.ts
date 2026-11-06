@@ -16,7 +16,14 @@ const participants = resolveParticipantAdultEligibility([
 const base = { privacyScope: 'private' as const, sexualContentLevel: 'explicit' as const, userAdultEligibility: adult, participantAdultEligibility: participants, safetyDecision: { allowed: true } };
 
 describe('platform content policy', () => {
-  it.each(['web', 'ios', 'android'] as ClientSurface[])('%s allows eligible explicit private text', (clientSurface) => {
+  it.each(['ios', 'native_or_unknown'] as ClientSurface[])('%s blocks explicit text for direct and group chats', (clientSurface) => {
+    for (const conversationMode of ['direct', 'group'] as const) {
+      const decision = resolvePlatformContentPolicy({...base, clientSurface, capability:'private_text', conversationMode});
+      expect(decision).toMatchObject({allowed:false,reasonCode:'ios_explicit_text_blocked',effectiveContentLevel:'mature_nonexplicit'});
+      expect(applyPrivateAdultTextRollout(decision,'on').generationAllowed).toBe(false);
+    }
+  });
+  it.each(['web', 'android'] as ClientSurface[])('%s allows eligible explicit private text', (clientSurface) => {
     expect(resolvePlatformContentPolicy({ ...base, clientSurface, capability: 'private_text', conversationMode: 'direct' })).toMatchObject({ allowed: true, providerRoute: 'explicit_dialogue' });
   });
   it.each(['general', 'mature_nonexplicit'] as const)('allows %s private text without adult eligibility', (sexualContentLevel) => {
@@ -82,7 +89,7 @@ describe('adult eligibility and character adulthood', () => {
 });
 
 describe('private adult text rollout', () => {
-  const allowed = resolvePlatformContentPolicy({ ...base, clientSurface: 'ios', capability: 'private_text' });
+  const allowed = resolvePlatformContentPolicy({ ...base, clientSurface: 'web', capability: 'private_text' });
   it('supports off, metadata-only shadow, and production-on behavior', () => {
     expect(applyPrivateAdultTextRollout(allowed, 'off')).toMatchObject({ generationAllowed: false, shadowEligible: false });
     expect(applyPrivateAdultTextRollout(allowed, 'shadow')).toMatchObject({ generationAllowed: false, shadowEligible: true });

@@ -18,6 +18,10 @@ describe('on-demand catalog artwork',()=>{
       const source=catalogArtwork(path);
       expect(source.uri).toMatch(new RegExp(`^${CATALOG_ARTWORK_BASE.replaceAll('.','\\.')}v1/[a-f0-9]{64}\\.webp$`));
       expect(source.cacheKey).toBe(`kivelli-catalog:${manifest[path].display.file}`);
+      for(const size of ['display','thumbnail'] as const){
+        const expected=manifest[path][size],image=catalogArtwork(path,size);
+        expect(image).toEqual({uri:CATALOG_ARTWORK_BASE+expected.file,width:expected.width,height:expected.height,cacheKey:'kivelli-catalog:'+expected.file});
+      }
       expect(source.width).toBeGreaterThan(0);
       expect(source.height).toBeGreaterThan(0);
     }

@@ -2,6 +2,7 @@ import { scheduleRunsOnDate } from '@together/domain/src/schedule-rotation';
 import type { CharacterInstance, CharacterScheduleEvent, ScheduleItem, Snapshot } from '../types';
 import { getScheduleEventPresentation, getScheduleHint } from './lifePresentation';
 import { naturalizeCharacterActivity } from '@together/domain/src/character-language';
+import { specificScheduleVariants } from '@together/domain/src/schedule-language';
 
 export type CharacterDayScheduleEntry = {
   id: string;
@@ -95,33 +96,53 @@ function generatedEntry(snapshot: Snapshot, event: CharacterScheduleEvent, now: 
   const startsAt = new Date(event.starts_at);
   const endsAt = new Date(event.ends_at);
   const presentation = getScheduleEventPresentation(event);
+  const home = isHomeScheduleEvent(event, getScheduleHint(event) ?? presentation.activity);
+  const location = snapshot.locations.find((item) => item.id === event.location_id);
   return {
     id: event.id,
     activity: getScheduleHint(event) ?? presentation.activity,
     time: `${formatTime(startsAt, timezone)}–${formatTime(endsAt, timezone)}`,
-    locationId: event.location_id ?? undefined,
-    location: displayLocation(event.metadata) ?? snapshot.locations.find((item) => item.id === event.location_id)?.name,
+    locationId: home && location && location.location_type !== 'residence' && location.category !== 'home' ? undefined : event.location_id ?? undefined,
+    location: home ? 'Home' : displayLocation(event.metadata) ?? location?.name,
     current: startsAt <= now && endsAt > now,
     past: endsAt <= now,
   };
 }
 
 function recurringEntry(snapshot: Snapshot, item: ScheduleItem, localMinute: number, dateKey: string): CharacterDayScheduleEntry {
+  const home = isHomeScheduleItem(item);
+  const location = snapshot.locations.find((place) => place.id === item.location_id);
   return {
     id: `routine:${item.id}`,
     activity: activityForDate(item, dateKey),
     time: `${formatMinute(item.start_minute)}–${formatMinute(item.end_minute)}`,
-    locationId: item.location_id ?? undefined,
-    location: displayLocation(item.metadata) ?? snapshot.locations.find((place) => place.id === item.location_id)?.name,
+    locationId: home && location && location.location_type !== 'residence' && location.category !== 'home' ? undefined : item.location_id ?? undefined,
+    location: home ? 'Home' : displayLocation(item.metadata) ?? location?.name,
     current: item.start_minute <= localMinute && item.end_minute > localMinute,
     past: item.end_minute <= localMinute,
   };
 }
 
+/** A schedule's explicit home activity wins over an old district-level location ID. */
+export function isAtHomeActivity(activity: string) {
+  return /\b(?:at|from) home\b/i.test(activity);
+}
+
+export function isHomeScheduleEvent(event: CharacterScheduleEvent, activity: string) {
+  return event.activity_key === 'sleep' || event.activity_key?.toLowerCase().startsWith('home')
+    || displayLocation(event.metadata)?.toLowerCase() === 'home'
+    || isAtHomeActivity(activity);
+}
+
+export function isHomeScheduleItem(item: ScheduleItem) {
+  const activityKey=String(item.metadata?.activityKey??'').toLowerCase();
+  return activityKey === 'sleep' || activityKey.startsWith('home')
+    || displayLocation(item.metadata)?.toLowerCase() === 'home'
+    || isAtHomeActivity(item.activity);
+}
+
 function activityForDate(item: ScheduleItem, dateKey: string) {
-  const variants = Array.isArray(item.metadata?.activityVariants)
-    ? item.metadata.activityVariants.filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
-    : [];
+  const variants = specificScheduleVariants(item.metadata?.activityVariants, item.activity);
   if (!variants.length) return naturalizeCharacterActivity(item.activity, { activityKey: metadataActivityKey(item) });
   return naturalizeCharacterActivity(variants[stableIndex(`${item.id}:${dateKey}`, variants.length)] ?? item.activity, { activityKey: metadataActivityKey(item) });
 }

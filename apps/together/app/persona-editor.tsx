@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Camera, Trash2 } from 'lucide-react-native';
-import { EmptyState, GradientButton, LoadingSkeleton, PageTitle, Screen } from '../src/components';
+import { EmptyState, GradientButton, LoadingSkeleton, PageTitle, Screen } from '../src/components/ui';
 import { useAuth } from '../src/hooks/useAuth';
 import { useProfileAvatarUrl } from '../src/hooks/useProfileAvatarUrl';
 import { confirmAction, showActionAlert } from '../src/lib/dialogs';

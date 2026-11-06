@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Animated, Easing, Platform, StyleSheet, Text, View } from "react-native";
 import { colors } from "../theme";
 
-export function ChatTypingIndicator({ name }: { name: string }) {
+export function ChatTypingIndicator({ name, waiting = false }: { name: string; waiting?: boolean }) {
   const dots = useRef([
     new Animated.Value(0),
     new Animated.Value(0),
@@ -44,7 +44,7 @@ export function ChatTypingIndicator({ name }: { name: string }) {
   }, [dots]);
 
   return <View
-    accessibilityLabel={`${name} is typing`}
+    accessibilityLabel={waiting ? `Waiting for ${name} to reply` : `${name} is typing`}
     accessibilityLiveRegion="polite"
     style={styles.typing}
   >
@@ -60,7 +60,7 @@ export function ChatTypingIndicator({ name }: { name: string }) {
         }]}
       />)}
     </View>
-    <Text style={styles.typingText}>{name} is typing</Text>
+    <Text style={styles.typingText}>{waiting ? `Waiting for ${name}…` : `${name} is typing`}</Text>
   </View>;
 }
 

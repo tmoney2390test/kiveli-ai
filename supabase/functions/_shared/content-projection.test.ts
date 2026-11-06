@@ -12,6 +12,7 @@ Deno.test('native projection collapses restricted text and attachment metadata i
   assertEquals(projected.map((row)=>row.id),['safe-1','bridge-adult-1-adult-2','safe-2']);
   assertEquals(serialized.includes('restricted dialogue')||serialized.includes('adult.webp')||serialized.includes('restricted prompt')||serialized.includes('restricted caption')||serialized.includes('private.test'),false);
   assertEquals(projected[1]?.role,'system');
+  assertEquals(projected[1]?.content,'Messages unavailable\n\nSome messages with Naomi are unavailable in this app.');
 });
 
 Deno.test('safe search fails closed for unknown rows and never returns restricted text',()=>{

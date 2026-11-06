@@ -170,7 +170,7 @@
       "science mystery",
       "romance"
     ],
-    "setup": "Kellan prepares a permitted survey flight after recognizing terrain from a journey he remembers differently from its official log. You join the ground analysis or take an authorized observer seat. A geometric feature appears in the new imagery, but its scale is smaller and its location subtly different.",
+    "setup": "Kellan spots a ridge he remembers from an old trip, but the official flight log puts him somewhere else. You can watch the new survey from the ground or ride along as an approved observer. The images show the same odd shape he remembers, only smaller and farther east.",
     "requiredState": null,
     "opening": "I have seen that shape before. I would feel considerably better if the records agreed about where.",
     "guidance": "Test whether mapping artifacts explain it, compare older survey passes, or request a later expedition with stronger instruments. Kellan must choose between the excitement of being believed and the discomfort of questioning his own memory.",
@@ -493,7 +493,7 @@
       "discovery",
       "Storyline"
     ],
-    "setup": "At the Observatory, Zuri plays the same short recording twice. A faint pulse returns at an interval she cannot dismiss. The next observation could establish a pattern—or expose an error.",
+    "setup": "Zuri plays you a short recording from the Observatory. The same faint pulse comes back at regular intervals. One more night of listening could tell her whether it is real.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -1174,7 +1174,7 @@
       "personal",
       "Storyline"
     ],
-    "setup": "At Domaine Vervelle, Lorenzo asks you to taste a wine before he shows you its label. An opportunity could establish his own work—or make it another footnote to the family name. He has a decision to make before the next release.",
+    "setup": "Lorenzo pours you a wine at Domaine Vervelle and hides the label until you have tasted it. He has a chance to release something under his own name, but the family expects a say.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -1678,7 +1678,7 @@
       "rivalry",
       "attraction"
     ],
-    "setup": "After a broadcast, Nia discovers that her apparently harmless interview has vanished from the station archive. A player had mentioned a charity payment that the sponsor insists never existed. You heard the live exchange and can help her reconstruct it over a competitive game at Pixel & Pint.",
+    "setup": "Nia's interview has vanished from the station archive. On air, a player mentioned a charity payment the sponsor now denies making. You heard it too, and Nia wants to compare notes over a game at Pixel & Pint.",
     "requiredState": null,
     "opening": "Tell me you heard that interview. Apparently, everyone with a salary has decided it never happened.",
     "guidance": "The discrepancy may implicate her own producer. Push for corroboration, confront the producer together, or protect the athlete from premature exposure. Nia's confidence slips when the story threatens someone she trusts.",
@@ -2128,7 +2128,7 @@
       "personal",
       "Storyline"
     ],
-    "setup": "At Central Station, Omar compares the approved accessibility design with the procurement list. A detail praised in the announcement has quietly disappeared. He wants to demonstrate who needs it before the order is finalized.",
+    "setup": "Omar checks the order for Central Station’s upgrade and finds that a promised accessibility feature has been cut. He wants the people who need it to speak up before the station buys the wrong equipment.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -2178,7 +2178,7 @@
       "personal",
       "Storyline"
     ],
-    "setup": "At the Rivermark, Caleb is being recruited for a prestigious role elsewhere. Every conversation seems to begin with how much the hotel needs him. He would like one that starts with what he wants from his own life.",
+    "setup": "Caleb has a job offer that would take him away from the Rivermark. Everyone keeps telling him how much the hotel needs him. He wants to talk about what he wants for once.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -2228,7 +2228,7 @@
       "personal",
       "Storyline"
     ],
-    "setup": "At City Hall, Reese has found accessibility moved into a later phase of a celebrated proposal. A public walk-through could make the exclusion clear. They want the people affected to have a voice, not become illustrations for someone else’s campaign.",
+    "setup": "Reese reads the city’s new plan and finds that accessible routes have been pushed to a later phase. They want to walk the route with the people who use it before City Hall celebrates the design.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -2278,7 +2278,7 @@
       "personal",
       "Storyline"
     ],
-    "setup": "On the overnight platform, Jules points out a small anomaly that keeps recurring. Colleagues have learned to work around it. An upcoming maintenance window offers a chance to establish a cause instead.",
+    "setup": "Jules has noticed the same odd problem on the overnight platform several times. The crew knows how to work around it, but a maintenance window is coming up. Jules wants to find the cause before the workaround becomes permanent.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -2328,7 +2328,7 @@
       "personal",
       "Storyline"
     ],
-    "setup": "At City Hall, Leila has been invited to a briefing with a shortcut she would struggle to defend in public. She wants to understand the full cost before the room calls it consensus. There is still time to ask an inconvenient question.",
+    "setup": "Leila gets invited to a private City Hall briefing where everyone seems ready to approve a shortcut. She wants to know who pays for it before she puts her name on the decision.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -2378,7 +2378,7 @@
       "personal",
       "Storyline"
     ],
-    "setup": "At Riverside Landing, Naomi has a budget proposal large enough to change the season. Its conditions would also narrow who feels welcome. She wants to hear how the place is used before choosing what the money should buy.",
+    "setup": "Naomi has been offered enough money to change Riverside Landing’s whole season. The catch: the new rules might shut out the people who use it now. She wants to hear from them before she signs.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -2428,7 +2428,7 @@
       "personal",
       "Storyline"
     ],
-    "setup": "At Juniper General, Talia is considering an executive role that would take her away from the emergency floor. Her team deserves a capable successor, and she deserves a future she chooses. Neither question has a ready answer.",
+    "setup": "Talia is offered an executive job at Juniper General. Taking it means leaving the emergency floor and the team she built. She wants to know who could take over before she decides.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -2750,7 +2750,7 @@
       "history",
       "Storyline"
     ],
-    "setup": "At Rialto Mountain Cinema, Sofia tests a damaged reel from the gondola opening. A few surviving frames show people missing from the familiar account. Restoring enough to identify their work would be a beginning, not the whole story.",
+    "setup": "Sofia finds a damaged film reel from the gondola opening. A few frames show workers left out of the usual story. She wants to restore enough film to learn their names.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -2807,7 +2807,7 @@
       "personal",
       "Storyline"
     ],
-    "setup": "At Halo Terrain Park, Mika is discussing a return after injury. Other people already have a story about what her comeback should look like. She wants room to decide what success means before a date goes on the calendar.",
+    "setup": "Mika is ready to talk about riding again after her injury, but everyone at Halo Terrain Park has an opinion about her comeback. She wants to choose the run and the date herself.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -2864,7 +2864,7 @@
       "infrastructure",
       "Storyline"
     ],
-    "setup": "At Sunrise Gondola, Mila shows you a retired cable sample whose wear does not match the removal note. The inspection records deserve a careful reading. Understanding the discrepancy could matter more than finding someone to blame.",
+    "setup": "Mila shows you a worn piece of cable from the Sunrise Gondola. The damage doesn’t match the reason given for replacing it. She wants to read the inspection notes before anyone rides on the next cable.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -2921,7 +2921,7 @@
       "discovery",
       "Storyline"
     ],
-    "setup": "At Vale & Pine Books, Tessa finds repeated directions on an old checkout card. They seem to lead toward Pine Lake, but the current guest maps offer no answer. She asks for help checking the route before anyone turns it into a legend.",
+    "setup": "Tessa finds directions scribbled several times on an old library card. They point toward Pine Lake, but no current map shows a cabin there. She wants to check the route before the rumor gets ahead of her.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -3182,7 +3182,7 @@
       "mystery",
       "Storyline"
     ],
-    "setup": "At the arrivals desk, Owen finds one check-in that a traveler cannot reconcile with their own journey. A quiet conversation may establish what happened without exposing someone who needs privacy.",
+    "setup": "Owen finds a check-in at the arrivals desk that a traveler swears they never made. He wants to ask a few questions before the record pulls someone into trouble.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -3232,7 +3232,7 @@
       "world",
       "Storyline"
     ],
-    "setup": "Sera brings a sample from Deepnail that does not behave like ordinary ore. Before another shift descends, she needs someone to help establish what the mine is cutting into.",
+    "setup": "Sera brings back a piece of Deepnail ore that behaves nothing like it should. She wants it tested before another crew goes down.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -3569,7 +3569,7 @@
       "world",
       "Storyline"
     ],
-    "setup": "Mirelle believes a lost charter may survive below the flooded palace. Before a descent can be proposed, someone must establish the tide, the risks and who would have a claim on the result.",
+    "setup": "Mirelle thinks a lost charter is still inside the flooded palace. She needs to check the tides and find out who would own the document before anyone dives for it.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",
@@ -4850,7 +4850,7 @@
       "world",
       "Storyline"
     ],
-    "setup": "In the Red Sash parlor, Bess rehearses a chorus about buying the house while Sabine quietly turns over the page containing the repair estimate.",
+    "setup": "Bess is rehearsing a song about buying the Red Sash when Sabine shows her the repair bill. The women may be able to own the house, but first they need to know what it will cost to keep it standing.",
     "requiredState": null,
     "opening": "",
     "guidance": "Let the lead open the conversation in their established voice. No outcome is settled yet.",

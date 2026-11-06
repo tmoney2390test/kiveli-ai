@@ -69,6 +69,7 @@ export function projectPublicCharacterConnections(input: {
     .filter((target) => characterTemplateVisibleToViewer(target, input.viewerUserId))
     .map((target) => [String(target.id), target]));
   const pairs = new Map<string, { outgoing?: Row; incoming?: Row }>();
+  const hiddenPairs = new Set<string>();
 
   for (const edge of input.edges) {
     if (String(edge.world_id) !== input.worldId) continue;
@@ -79,18 +80,23 @@ export function projectPublicCharacterConnections(input: {
     if (!outgoing && !incoming) continue;
     const otherId = outgoing ? targetId : sourceId;
     if (!targets.has(otherId)) continue;
+    if (edge.metadata?.profileVisible === false) {
+      hiddenPairs.add(otherId);
+      continue;
+    }
     const pair = pairs.get(otherId) ?? {};
     if (outgoing) pair.outgoing = edge;
     else pair.incoming = edge;
     pairs.set(otherId, pair);
   }
 
-  return [...pairs.entries()].map(([otherId, pair]) => {
+  return [...pairs.entries()].filter(([otherId]) => !hiddenPairs.has(otherId)).map(([otherId, pair]) => {
     const target = targets.get(otherId)!;
     const versions = Array.isArray(target.together_character_versions) ? target.together_character_versions : [];
     const version = versions.find((item: Row) => Number(item.version) === Number(target.current_published_version)) ?? versions[0] ?? {};
     const primary = pair.outgoing ?? pair.incoming ?? {};
-    const history = publicRelationshipHistory(primary.history);
+    const profile = primary.metadata && typeof primary.metadata === 'object' && !Array.isArray(primary.metadata) ? primary.metadata : {};
+    const history = publicRelationshipHistory(profile.profileSummary ?? primary.history);
     const scores = [pair.outgoing, pair.incoming].filter(Boolean) as Row[];
     const salience = Math.max(...scores.map((edge) => Math.abs(Number(edge.affinity ?? 50) - 50) + Math.abs(Number(edge.trust ?? 50) - 50)), 0)
       + (pair.outgoing && pair.incoming ? 20 : 0)
@@ -100,7 +106,7 @@ export function projectPublicCharacterConnections(input: {
         id: `${input.worldId}:${otherId}`,
         worldId: input.worldId,
         direction: pair.outgoing && pair.incoming ? 'mutual' as const : pair.outgoing ? 'outgoing' as const : 'incoming' as const,
-        relationshipLabel: publicRelationshipLabel(primary.relationship_type),
+        relationshipLabel: publicRelationshipLabel(profile.profileLabel ?? primary.relationship_type),
         history,
         character: {
           id: otherId,
@@ -162,9 +168,9 @@ export async function loadCharacterProfileDetails(db: SupabaseClient, viewerUser
   if (!worldId) return { characterTemplateId: template.id, characterVersionId: version.id, worldId: null, schedules: schedules ?? [], connections: [] };
 
   const [outgoing, incoming] = await Promise.all([
-    db.from('together_character_relationship_edges').select('world_id,source_template_id,target_template_id,relationship_type,affinity,trust,history')
+    db.from('together_character_relationship_edges').select('world_id,source_template_id,target_template_id,relationship_type,affinity,trust,history,metadata')
       .eq('world_id', worldId).eq('source_template_id', template.id).limit(100),
-    db.from('together_character_relationship_edges').select('world_id,source_template_id,target_template_id,relationship_type,affinity,trust,history')
+    db.from('together_character_relationship_edges').select('world_id,source_template_id,target_template_id,relationship_type,affinity,trust,history,metadata')
       .eq('world_id', worldId).eq('target_template_id', template.id).limit(100),
   ]);
   if (outgoing.error || incoming.error) throw new AppError('INTERNAL_ERROR', 'Character relationships could not be loaded right now.', 500, true);

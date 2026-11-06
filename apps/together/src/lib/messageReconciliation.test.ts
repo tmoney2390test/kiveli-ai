@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Message } from "../types";
-import { reconcileMessages, sameLogicalMessage } from "./messageReconciliation";
+import { messageRenderKey, reconcileMessages, sameLogicalMessage } from "./messageReconciliation";
 
 const message = (input: Partial<Message> & Pick<Message, "id" | "role">): Message => ({
   conversation_id: "conversation-1",
@@ -11,6 +11,16 @@ const message = (input: Partial<Message> & Pick<Message, "id" | "role">): Messag
 });
 
 describe("message reconciliation", () => {
+  it('keeps unchanged history by reference without serializing every old message again', () => {
+    let serializations = 0;
+    const history = Array.from({ length: 500 }, (_, index) => ({
+      ...message({ id: `m-${index}`, role: 'assistant', conversation_sequence: index + 1 }),
+      toJSON() { serializations++; return { id: this.id }; },
+    }));
+    const result = reconcileMessages(history, []);
+    expect(result).toBe(history);
+    expect(serializations).toBe(0);
+  });
   it('preserves joined data when a revision returns a base message row',()=>{
     const original=message({id:'reply',role:'assistant',together_message_reactions:[],provider_metadata:{oldField:true}});
     const revised=message({id:'reply',role:'assistant',content:'Revised',provider_metadata:{rewriteVersion:1}});
@@ -28,6 +38,13 @@ describe("message reconciliation", () => {
     const optimistic = message({ id: "local-1", role: "user", client_request_id: "request-1", delivery_status: "pending" });
     const canonical = message({ id: "server-1", role: "user", client_request_id: "request-1" });
     expect(reconcileMessages([optimistic], [canonical])).toEqual([canonical]);
+    expect(messageRenderKey(optimistic)).toBe(messageRenderKey(canonical));
+  });
+
+  it('does not reuse a render key across conversations or for a companion reply', () => {
+    const outgoing = message({ id: 'local-1', role: 'user', client_request_id: 'request-1' });
+    expect(messageRenderKey({ ...outgoing, conversation_id: 'conversation-2' })).not.toBe(messageRenderKey(outgoing));
+    expect(messageRenderKey(message({ id: 'reply-1', role: 'assistant', client_request_id: 'request-1' }))).not.toBe(messageRenderKey(outgoing));
   });
 
   it("never replaces a canonical server row with a late optimistic copy", () => {

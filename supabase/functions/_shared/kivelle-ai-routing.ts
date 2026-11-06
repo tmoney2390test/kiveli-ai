@@ -15,12 +15,15 @@ export function configuredDialogueProviders(){return{
   xaiExplicitEnabled:enabled('KIVELLE_XAI_EXPLICIT_ENABLED')&&privateAdultTextEnabled(),
 };}
 
-export function resolveDialogueRouting(input:{message:string;recentTurns?:Array<{role:string;content:string}>;routingHistory?:unknown[];requestedMode?:DialogueContentMode;ageVerified:boolean;adultAuthorized?:boolean;characterAge?:number|null;relationshipAllowsExplicit?:boolean;photoRequest?:boolean;photoAdultRequest?:boolean;photoSafetyBlocked?:boolean;adultAttachment?:boolean;clientSurface?:string;moderation?:NormalizedModerationResult}):DialogueRoutingDecision{
+export function resolveDialogueRouting(input:{message:string;recentTurns?:Array<{role:string;content:string}>;routingHistory?:unknown[];requestedMode?:DialogueContentMode;ageVerified:boolean;adultAuthorized?:boolean;characterAge?:number|null;relationshipAllowsExplicit?:boolean;photoRequest?:boolean;photoAdultRequest?:boolean;photoSafetyBlocked?:boolean;adultAttachment?:boolean;continuationFromExplicit?:boolean;clientSurface?:string;moderation?:NormalizedModerationResult}):DialogueRoutingDecision{
   const requestedMode:DialogueContentMode=input.adultAuthorized&&input.requestedMode==='explicit'?'explicit':input.requestedMode==='romance'?'romance':'mature';
   const freshClassification=classifyDialogueContent({message:input.message,requestedMode,moderation:input.moderation});
   // An attachment must never override a fresh safety block on its caption.
-  const classification=freshClassification==='hard_block'?'hard_block':input.adultAttachment&&input.adultAuthorized?'explicit_adult':classifyDialogueContent({message:input.message,recentTurns:input.recentTurns,requestedMode,moderation:input.moderation});
-  const adultRouting=adultRoutingEvidence({message:input.message,classification:freshClassification==='hard_block'?'hard_block':input.adultAttachment&&input.adultAuthorized?'explicit_adult':freshClassification,eligible:Boolean(input.adultAuthorized&&input.ageVerified&&requestedMode==='explicit'&&Number(input.characterAge)>=18&&input.relationshipAllowsExplicit!==false),photoRequest:input.photoRequest});
+  const classification=freshClassification==='hard_block'?'hard_block':input.continuationFromExplicit&&input.adultAuthorized?'explicit_adult':input.adultAttachment&&input.adultAuthorized?'explicit_adult':classifyDialogueContent({message:input.message,recentTurns:input.recentTurns,requestedMode,moderation:input.moderation});
+  // Continuing an assistant reply is an explicit user choice, but assistant prose
+  // must not renew the rolling user-turn evidence window on its own.
+  const evidenceClassification=input.continuationFromExplicit&&freshClassification!=='hard_block'?'standard':freshClassification==='hard_block'?'hard_block':input.adultAttachment&&input.adultAuthorized?'explicit_adult':freshClassification;
+  const adultRouting=adultRoutingEvidence({message:input.continuationFromExplicit?'Continue.':input.message,classification:evidenceClassification,eligible:Boolean(input.adultAuthorized&&input.ageVerified&&requestedMode==='explicit'&&Number(input.characterAge)>=18&&input.relationshipAllowsExplicit!==false),photoRequest:input.photoRequest});
   const carryoverTurnsRemaining=input.photoRequest?0:adultRoutingCarryover(adultRouting,input.routingHistory);
   const adultRequest=classification==='adult_intimacy'||classification==='explicit_adult'||classification==='adult_suggestive'||classification==='fictional_violence'||carryoverTurnsRemaining>0;
   // PhotoGen owns adult-media authorization after the request is recognized.

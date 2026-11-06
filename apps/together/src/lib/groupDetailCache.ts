@@ -1,4 +1,8 @@
-import type { GroupDetail } from "../types";
+import type { GroupDetail, MediaOffer, Message } from "../types";
+import { mergeGroupDetailRefresh } from './groupDetailReconciliation';
+import { isVisibleChatMessage } from './messageActions';
+import { reconcileMessages } from './messageReconciliation';
+import { preferNewerReadState } from './messageInbox';
 
 type GroupDetailCacheEntry = {
   detail: GroupDetail;
@@ -12,6 +16,7 @@ const SESSION_CACHE_PREFIX = "kivelle:group-summary:v1:";
 const SESSION_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const entries = new Map<string, GroupDetailCacheEntry>();
 const inFlight = new Map<string, Promise<GroupDetail>>();
+let cacheGeneration = 0;
 
 function cacheKey(scope: string, conversationId: string) {
   return `${scope}:${conversationId}`;
@@ -42,20 +47,21 @@ export function readCachedGroupDetail(
 export function cacheGroupDetailSummary(scope: string, detail: GroupDetail) {
   const key = cacheKey(scope, detail.conversation.id);
   const existing = entries.get(key);
+  const merged = { ...detail, conversation: preferNewerReadState(detail.conversation, existing?.detail.conversation) };
   entries.set(key, {
     detail: existing?.complete
       ? {
         ...existing.detail,
-        conversation: detail.conversation,
-        participants: detail.participants,
-        settings: detail.settings,
+        conversation: merged.conversation,
+        participants: merged.participants,
+        settings: merged.settings,
       }
-      : detail,
+      : merged,
     complete: existing?.complete ?? false,
     loadedAt: existing?.loadedAt ?? Date.now(),
     touchedAt: Date.now(),
   });
-  persistSessionSummary(scope, detail);
+  persistSessionSummary(scope, merged);
   trimCache();
 }
 
@@ -91,14 +97,111 @@ export function cacheInboxGroupSummary(
 }
 
 export function cacheCompleteGroupDetail(scope: string, detail: GroupDetail) {
+  const existing = entries.get(cacheKey(scope, detail.conversation.id));
+  const refreshed = existing?.complete && existing.detail !== detail
+    ? mergeGroupDetailRefresh(existing.detail, detail) : detail;
+  const merged = existing
+    ? { ...refreshed, conversation: preferNewerReadState(refreshed.conversation, existing.detail.conversation) }
+    : refreshed;
+  const latestVisible=[...merged.messages].reverse().find((message)=>
+    isVisibleChatMessage(message) && Boolean(message.content?.trim()) && message.delivery_status!=='failed');
+  const conversation=latestVisible && (!merged.conversation.last_message_at ||
+    Date.parse(latestVisible.created_at)>Date.parse(merged.conversation.last_message_at))
+    ? {...merged.conversation,last_message_at:latestVisible.created_at,
+      last_message_preview:latestVisible.content.replace(/\s+/g,' ').trim(),last_message_role:latestVisible.role}
+    : merged.conversation;
+  const cached=conversation===merged.conversation?merged:{...merged,conversation};
   entries.set(cacheKey(scope, detail.conversation.id), {
-    detail,
+    detail: cached,
     complete: true,
     loadedAt: Date.now(),
     touchedAt: Date.now(),
   });
-  persistSessionSummary(scope, detail);
+  persistSessionSummary(scope, cached);
   trimCache();
+}
+
+export function markCachedGroupRead(scope: string, conversationId: string, readAt: string) {
+  const entry = entries.get(cacheKey(scope, conversationId));
+  if (!entry) return;
+  entry.detail = {
+    ...entry.detail,
+    conversation: preferNewerReadState(entry.detail.conversation, {
+      ...entry.detail.conversation,
+      last_read_at: readAt,
+      unread: false,
+      unread_count: 0,
+    }),
+  };
+  entry.touchedAt = Date.now();
+  persistSessionSummary(scope, entry.detail);
+}
+
+export function groupDetailCacheGeneration(): number {
+  return cacheGeneration;
+}
+
+/** Keep a completed group reply ready for navigation after its screen is gone. */
+export function mergeGroupStreamMessage(
+  scope: string,
+  conversationId: string,
+  message: Message,
+  expectedGeneration: number,
+): boolean {
+  if (expectedGeneration !== cacheGeneration || message.conversation_id !== conversationId) return false;
+  const entry = entries.get(cacheKey(scope, conversationId));
+  if (!entry?.complete) return false;
+  const conversation = entry.detail.conversation;
+  const advancesPreview = isVisibleChatMessage(message) && Boolean(message.content.trim()) &&
+    (!conversation.last_message_at || Date.parse(message.created_at) >= Date.parse(conversation.last_message_at));
+  const speaker=message.role==='assistant'
+    ? entry.detail.participants.find((participant)=>participant.character_instance_id===message.speaker_character_instance_id)
+    : undefined;
+  entry.detail = {
+    ...entry.detail,
+    messages: reconcileMessages(entry.detail.messages, [message]),
+    conversation: advancesPreview ? {
+      ...conversation,
+      last_message_at: message.created_at,
+      last_message_preview: message.content.replace(/\s+/g, ' ').trim(),
+      last_message_role: message.role,
+      ...(message.role==='assistant'?{
+        last_assistant_message_at:message.created_at,
+        unread:Date.parse(message.created_at)>(conversation.last_read_at?Date.parse(conversation.last_read_at):0),
+        unread_count:Date.parse(message.created_at)>(conversation.last_read_at?Date.parse(conversation.last_read_at):0)
+          ? Math.max(1,conversation.unread_count??0) : 0,
+      }:{}),
+      ...(message.role==='assistant'?{reply_pending:false,reply_pending_speaker_name:null}:{}),
+      ...(speaker?{last_speaker_name:speaker.together_character_instances.together_character_templates.name,
+        last_speaker_character_instance_id:speaker.character_instance_id}:{}),
+    } : conversation,
+  };
+  entry.touchedAt = Date.now();
+  return true;
+}
+
+/** Keep a dismissed photo hidden in a warm group chat during rapid navigation. */
+export function hideCachedGroupPhotoOffer(
+  scope: string,
+  conversationId: string,
+  offerId: string,
+  removedMediaId?: string | null,
+) {
+  const entry = entries.get(cacheKey(scope, conversationId));
+  if (!entry) return;
+  entry.detail = {
+    ...entry.detail,
+    mediaOffers: entry.detail.mediaOffers.filter((offer) => offer.id !== offerId),
+    generatedMedia: removedMediaId
+      ? entry.detail.generatedMedia.filter((media) => media.id !== removedMediaId)
+      : entry.detail.generatedMedia,
+  };
+}
+
+export function restoreCachedGroupPhotoOffer(scope: string, conversationId: string, offer: MediaOffer) {
+  const entry = entries.get(cacheKey(scope, conversationId));
+  if (!entry || entry.detail.mediaOffers.some((item) => item.id === offer.id)) return;
+  entry.detail = { ...entry.detail, mediaOffers: [...entry.detail.mediaOffers, offer] };
 }
 
 /**
@@ -120,15 +223,17 @@ export function prefetchCompleteGroupDetail(
   if (current) return current;
   const request = loader()
     .then((detail) => {
+      if (inFlight.get(key) !== request) return detail;
       cacheCompleteGroupDetail(scope, detail);
-      return detail;
+      return readCachedGroupDetail(scope, conversationId)?.detail ?? detail;
     })
-    .finally(() => inFlight.delete(key));
+    .finally(() => { if (inFlight.get(key) === request) inFlight.delete(key); });
   inFlight.set(key, request);
   return request;
 }
 
 export function clearGroupDetailCache(scope?: string) {
+  cacheGeneration += 1;
   if (!scope) {
     entries.clear();
     inFlight.clear();

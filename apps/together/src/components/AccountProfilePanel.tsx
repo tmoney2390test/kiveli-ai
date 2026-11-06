@@ -1,10 +1,12 @@
 import {useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
-import {Image, type ImageSource} from 'expo-image';
+import type {ImageSource} from 'expo-image';
+import {MediaImage as Image} from './MediaImage';
 import {ArrowUpRight, Camera, ImageIcon, LockKeyhole, Pin, Play, Sparkles, UsersRound, Video} from 'lucide-react-native';
 import {PROFILE_HIGHLIGHT_LIMIT, profileHighlights, type ProfileHighlight} from '@together/domain/src/profile-showcase';
-import {loadMediaLibrary, manageAccount} from '../lib/api';
-import {generatedMediaImageSource, privateStoredImageSource} from '../lib/mediaImageSource';
+import {loadMediaLibrary} from '../lib/api/media';
+import {manageAccount} from '../lib/api/account';
+import {generatedMediaImageSource, generatedMediaPreviewSource, privateStoredImageSource} from '../lib/mediaImageSource';
 import {useTogether} from '../store/useTogether';
 import type {GeneratedMedia, Snapshot} from '../types';
 import {colors} from '../theme';
@@ -12,7 +14,7 @@ import {resolveCharacterPortraitSource} from './ui';
 import {mergeProfileGalleryMedia} from '../lib/profileGallery';
 
 type Tab = 'companion' | 'image' | 'video';
-type Tile = ProfileHighlight & {title: string; subtitle: string; source?: ImageSource | number; route: string; media?: GeneratedMedia};
+type Tile = ProfileHighlight & {title: string; subtitle: string; source?: ImageSource | number; previewSource?: ImageSource; route: string; media?: GeneratedMedia};
 const tabs = [{id:'companion', label:'Companions', Icon:UsersRound}, {id:'image', label:'Images', Icon:ImageIcon}, {id:'video', label:'Videos', Icon:Video}] as const;
 
 export function AccountProfilePanel({snapshot, avatar, avatarPath, name, busy, notice, email, onAvatar, onRemoveAvatar, onRoute}: {
@@ -98,7 +100,7 @@ export function AccountProfilePanel({snapshot, avatar, avatarPath, name, busy, n
   const mediaTiles: Tile[] = media.filter(item => ['image','video'].includes(item.media_type) && item.status === 'ready' && item.signed_url && item.metadata?.hiddenIntermediate !== true && item.metadata?.galleryPosterOnly !== true).map(item => {
     const companion = snapshot.characters.find(character => character.id === item.character_instance_id);
     const poster = item.media_type === 'video' ? media.find(photo => photo.id === item.parent_media_id && photo.signed_url) : item;
-    return {kind:item.media_type as 'image'|'video', id:item.id, title:companion?.together_character_templates.name ?? (item.media_type === 'video' ? 'Your video' : 'Your image'), subtitle:new Date(item.created_at).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}), source:poster ? generatedMediaImageSource(poster) : undefined, route:`/media/${item.id}?gallery=moments&character=all`, media:item};
+    return {kind:item.media_type as 'image'|'video', id:item.id, title:companion?.together_character_templates.name ?? (item.media_type === 'video' ? 'Your video' : 'Your image'), subtitle:new Date(item.created_at).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}), source:poster ? generatedMediaImageSource(poster) : undefined, previewSource:poster ? generatedMediaPreviewSource(poster) : undefined, route:`/media/${item.id}?gallery=moments&character=all`, media:item};
   });
   const all = [...companions, ...mediaTiles], tiles = all.filter(item => item.kind === tab);
   const open = (item:Tile) => {
@@ -160,7 +162,7 @@ function ContentTile({item,width,pinned,busy,onPin,onOpen}:{item:Tile;width:numb
   useEffect(() => { setImageFailed(false); }, [item.id, item.media?.signed_url]);
   return <View style={{width}}><View style={[s.tile,{height:width * 1.25}]}>
     <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.kind}: ${item.title}`} onPress={onOpen} style={StyleSheet.absoluteFill}>
-      {item.source && !imageFailed ? <Image source={item.source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" loading="lazy" recyclingKey={`${item.kind}:${item.id}`} onError={() => setImageFailed(true)}/> : <View style={s.tileFallback}>{item.kind==='video' ? <Video size={34} color="#BA95D8"/> : item.kind==='image' ? <ImageIcon size={34} color="#BA95D8"/> : <UsersRound size={34} color="#BA95D8"/>}</View>}
+      {item.source && !imageFailed ? <Image source={item.source} previewSource={item.previewSource} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" loading="lazy" recyclingKey={`${item.kind}:${item.id}`} onError={() => setImageFailed(true)}/> : <View style={s.tileFallback}>{item.kind==='video' ? <Video size={34} color="#BA95D8"/> : item.kind==='image' ? <ImageIcon size={34} color="#BA95D8"/> : <UsersRound size={34} color="#BA95D8"/>}</View>}
       <View pointerEvents="none" style={s.tileShade}/>
       {item.kind==='video' ? <View style={s.play}><Play size={23} color="#fff" fill="#fff"/></View> : null}
       <Text numberOfLines={2} style={s.tileTitle}>{item.title}</Text>

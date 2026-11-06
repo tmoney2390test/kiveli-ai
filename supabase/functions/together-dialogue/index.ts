@@ -1,4 +1,6 @@
+import {maybeOfferHomeVisit} from '../_shared/character-home-invitations.ts';
 import { assertPhotoRequestAllowed } from '../_shared/photo-request-policy.ts';
+import { declinedPhotoSourceMessageId, latestActionAnchor } from '../_shared/declined-photo-reply.ts';
 import { chatSpeedEnabled, ChatTimings } from '../_shared/kivelle-chat-latency.ts';
 import { stageContextAuthorization } from '../_shared/kivelle-context-authorization.ts';
 import { z } from "zod";
@@ -94,11 +96,13 @@ import { recordChatPlaceOpinions } from "../_shared/kivelle-place-perspective.ts
 import type { PlaceContext } from "../_shared/together-place.ts";
 import { applyChatTestRoute } from '../_shared/kivelle-chat-model-test.ts';
 import { resolveDialogueRouting } from "../_shared/kivelle-ai-routing.ts";
+import { assistantMessageRating } from '../_shared/assistant-message-rating.ts';
 import { loadAdultRoutingHistory } from '../_shared/kivelle-routing-history.ts';
 import { sharedSceneGenerationContext,type DialogueGenerationContext } from "../_shared/kivelle-chat-generation.ts";
 import type {
   DialogueContentMode,
   DialogueRoutingDecision,
+  NormalizedModerationResult,
 } from "../../../packages/together-domain/src/index.ts";
 import { enforcePhotoSharingEntitlement } from "../_shared/kivelle-subscription.ts";
 import {
@@ -170,7 +174,7 @@ const normalSchema = z.object({
   characterInstanceId: z.string().uuid(),
   focusPlanId: z.string().uuid().optional(),
   sceneActionId: z.string().uuid().optional(),
-  messageAction: z.enum(["continue"]).optional(),
+  messageAction: z.enum(["continue", "respond_to_declined_photo"]).optional(),
   anchorMessageId: z.string().uuid().optional(),
   messagePresentation: z.literal(ONE_TAP_SELFIE_MESSAGE_PRESENTATION).optional(),
   autoDialogueSuggestionId: z.string().min(8).max(120).optional(),
@@ -211,7 +215,7 @@ const normalSchema = z.object({
   (value) => value.message.trim().length > 0 || value.attachmentIds.length > 0,
   { message: "Write a message or attach a photo." },
 ).superRefine((value,ctx)=>{
-  if(value.messageAction==='continue'&&!value.anchorMessageId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['anchorMessageId'],message:'Choose the companion message to continue.'});
+  if(value.messageAction&&!value.anchorMessageId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['anchorMessageId'],message:'Choose the companion message to continue.'});
   if(!value.messageAction&&value.anchorMessageId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['messageAction'],message:'That message action is invalid.'});
   if(value.messagePresentation&&!isOneTapSelfiePhotoRequest(value.message))ctx.addIssue({code:z.ZodIssueCode.custom,path:['messagePresentation'],message:'That message presentation is invalid.'});
   if(value.messagePresentation&&value.messageAction)ctx.addIssue({code:z.ZodIssueCode.custom,path:['messagePresentation'],message:'That message presentation cannot be combined with another action.'});
@@ -263,19 +267,48 @@ Deno.serve(async (request) => {
         const chatLanguage=normalizeChatLanguage(conversation.metadata?.chatPreferences?.chatLanguage);
         const userText = normalizeChatMessage(input.message);
         const hideOneTapSelfie=input.messagePresentation===ONE_TAP_SELFIE_MESSAGE_PRESENTATION&&isOneTapSelfiePhotoRequest(userText);
-        const isContinuation=input.messageAction==='continue';
+        const isPhotoDeclineReply=input.messageAction==='respond_to_declined_photo';
+        const isContinuation=Boolean(input.messageAction);
         let continuationAnchor:Record<string,any>|null=null;
+        let declinedPhotoText:string|null=null;
+        let declinedPhotoOriginalId:string|null=null;
         if(isContinuation){
+          const{data:priorPhotoRetry}=isPhotoDeclineReply
+            ?await db.from('together_messages').select('id,provider_metadata').eq('user_id',user.id)
+              .eq('conversation_id',conversation.id)
+              .eq('character_instance_id',input.characterInstanceId).eq('client_request_id',input.clientRequestId)
+              .eq('role','user').maybeSingle()
+            :{data:null};
+          const replayingPhotoReply=priorPhotoRetry?.provider_metadata?.messageAction==='respond_to_declined_photo'&&
+            priorPhotoRetry.provider_metadata?.anchorMessageId===input.anchorMessageId;
           let latestQuery=db.from('together_messages').select('id,role,content,delivery_status,provider_metadata,speaker_character_instance_id,character_instance_id,conversation_sequence,created_at,content_rating,visibility_scope').eq('user_id',user.id).eq('conversation_id',conversation.id);
-          if(!authorizedPrivateAdultText)latestQuery=latestQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
+          // The declined photo's completed placeholder is intentionally hidden
+          // from discovery. Validate its place in the full owner-scoped timeline
+          // rather than treating the preceding visible user request as latest.
+          if(!authorizedPrivateAdultText&&!isPhotoDeclineReply)latestQuery=latestQuery.eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
           const{data:latestRows,error:latestError}=await latestQuery.order('conversation_sequence',{ascending:false,nullsFirst:false}).order('created_at',{ascending:false}).limit(20);
           if(latestError)throw new AppError('INTERNAL_ERROR','That message could not be continued.',500,true);
-          const latestVisible=(latestRows??[]).find((row)=>row.provider_metadata?.uiHidden!==true);
-          if(!latestVisible||latestVisible.id!==input.anchorMessageId||latestVisible.role!=='assistant'||latestVisible.delivery_status!=='complete')throw new AppError('CONFLICT','That reply is no longer the latest message. Continue from the newest reply instead.',409);
-          continuationAnchor=latestVisible;
+          const latestForAction=latestActionAnchor(latestRows??[],isPhotoDeclineReply);
+          const anchored=latestForAction?.id===input.anchorMessageId?latestForAction:replayingPhotoReply
+            ?(await db.from('together_messages').select('id,role,content,delivery_status,provider_metadata,speaker_character_instance_id,character_instance_id').eq('id',input.anchorMessageId).eq('user_id',user.id).eq('conversation_id',conversation.id).maybeSingle()).data
+            :null;
+          if(!anchored||(!replayingPhotoReply&&latestForAction?.id!==input.anchorMessageId)||anchored.role!=='assistant'||anchored.delivery_status!=='complete')throw new AppError('CONFLICT','That reply is no longer the latest message. Continue from the newest reply instead.',409);
+          continuationAnchor=anchored;
+          if(isPhotoDeclineReply){
+            if(anchored.provider_metadata?.mediaOnly!==true&&anchored.content!==PHOTO_ONLY_MESSAGE_CONTENT)throw new AppError('CONFLICT','That photo request is no longer available to discuss.',409);
+            const{data:offer,error:offerError}=await db.from('together_media_offers').select('offer_key,status,source,message_id').eq('user_id',user.id).eq('continuity_id',continuity.id).eq('conversation_id',conversation.id).eq('character_instance_id',input.characterInstanceId).eq('message_id',input.anchorMessageId).eq('status','declined').maybeSingle();
+            if(offerError)throw new AppError('INTERNAL_ERROR','That photo request could not be checked.',503,true);
+            const originalId=declinedPhotoSourceMessageId(offer,input.anchorMessageId!);
+            if(!originalId)throw new AppError('CONFLICT','Decline the photo before continuing the conversation.',409);
+            declinedPhotoOriginalId=originalId;
+            const{data:original,error:originalError}=await db.from('together_messages').select('content,role,provider_metadata').eq('id',originalId).eq('user_id',user.id).eq('conversation_id',conversation.id).eq('character_instance_id',input.characterInstanceId).maybeSingle();
+            if(originalError)throw new AppError('INTERNAL_ERROR','Your earlier message could not be loaded.',503,true);
+            if(original?.role!=='user'||original.provider_metadata?.uiHidden===true||!String(original.content??'').trim())throw new AppError('CONFLICT','Your earlier message is no longer available.',409);
+            declinedPhotoText=String(original.content);
+          }
         }
         let requestId = assertChatRequestId(input.clientRequestId);
-        const contextText = (isContinuation?String(continuationAnchor?.content??''):userText) ||
+        const contextText = (isPhotoDeclineReply?declinedPhotoText:isContinuation?String(continuationAnchor?.content??''):userText) ||
           "The user shared an image without a caption.";
         const photoIntent = classifyPhotoRequest(isContinuation?'':contextText);
         if (photoIntent.requested && !isContinuation) {
@@ -319,7 +352,7 @@ Deno.serve(async (request) => {
           fingerprint:requestFingerprint,
           requestId,
         });
-        const persistedContent = userText || "[Photo]";
+        const persistedContent = isPhotoDeclineReply ? '[Photo declined]' : userText || "[Photo]";
         const existingUserMessage = await findExistingChatRequest(db, {
           userId: user.id,
           conversationId: input.conversationId,
@@ -384,7 +417,7 @@ Deno.serve(async (request) => {
         }
 
         if (!existingUserMessage) {
-          await enforceGenerationGuardrails(db,user.id,"dialogue");
+          await enforceGenerationGuardrails(db,user.id,isPhotoDeclineReply?'provider_cost_only':"dialogue");
         }
         turnLease = await beginConversationTurn(db, {
           userId: user.id,
@@ -443,8 +476,8 @@ Deno.serve(async (request) => {
             3600,
           );
         }
-        const leased = (response: Response) =>
-          finishTurnWithResponse(db, turnLease!, response);
+        const leased = (response: Response, succeeded?: () => boolean) =>
+          finishTurnWithResponse(db, turnLease!, response, succeeded);
         if (input.focusPlanId) {
           const { data: focusedPlan } = await db.from("together_shared_plans")
             .select("id").eq("id", input.focusPlanId).eq("user_id", user.id)
@@ -497,7 +530,7 @@ Deno.serve(async (request) => {
             ...usageBase,
             metadata: { direction: "input" },
           }),
-          loadAdultRoutingHistory(db,user.id,input.conversationId,existingUserMessage?Number(existingUserMessage.conversation_sequence):undefined),
+          loadAdultRoutingHistory(db,user.id,input.conversationId,existingUserMessage?Number(existingUserMessage.conversation_sequence):undefined,Boolean(conversation.metadata?.branchId)),
         ]);
         const storedRequestedMode=requestedConversationDialogueContentMode(profile,conversation);
         let dialoguePolicy=resolvePrivateDialoguePolicy({
@@ -532,6 +565,7 @@ Deno.serve(async (request) => {
           photoAdultRequest: ['suggestive','mature','explicit'].includes(String(photoIntent.requestedContentLevel??'')),
           photoSafetyBlocked: photoSafety?.allowed===false,
           adultAttachment,
+          continuationFromExplicit:input.messageAction==='continue'&&continuationAnchor?.content_rating==='explicit',
           clientSurface: adultAccess.client_surface,
           moderation: inputSafety,
         });
@@ -648,7 +682,7 @@ Deno.serve(async (request) => {
               ...userMessagePolicy(route,adultAttachment),
               adultRouting: route.adultRouting,
               ...privateDialoguePolicyMetadata({policy:dialoguePolicy,access:adultAccess,conversationMode:'direct',providerRoute:route.provider}),
-              ...(isContinuation?{messageAction:'continue',anchorMessageId:input.anchorMessageId,uiHidden:true}:{}),
+              ...(isContinuation?{messageAction:input.messageAction,anchorMessageId:input.anchorMessageId,uiHidden:true,...(declinedPhotoOriginalId?{photoDeclineSourceMessageId:declinedPhotoOriginalId}:{})}:{}),
               ...(hideOneTapSelfie?{uiHidden:true,messagePresentation:ONE_TAP_SELFIE_MESSAGE_PRESENTATION}:{}),
               ...(input.autoDialogueSuggestionId
                 ? {
@@ -984,8 +1018,9 @@ Deno.serve(async (request) => {
         });
         (dialogueContext as Record<string,unknown>).contentAccess={authorizedWebAdult:adultAccess.authorized_web_adult,authorizedPrivateAdultText,clientSurface:adultAccess.client_surface};
         if(isContinuation){
-          dialogueContext.userMessage='';
-          (dialogueContext as Record<string,unknown>).continuationRequest={anchorMessageId:input.anchorMessageId,anchorSpeakerCharacterInstanceId:String(continuationAnchor?.speaker_character_instance_id??continuationAnchor?.character_instance_id??input.characterInstanceId)};
+          dialogueContext.userMessage=isPhotoDeclineReply?contextText:'';
+          if(isPhotoDeclineReply)(dialogueContext as Record<string,unknown>).photoDeclineReply=true;
+          else (dialogueContext as Record<string,unknown>).continuationRequest={anchorMessageId:input.anchorMessageId,anchorSpeakerCharacterInstanceId:String(continuationAnchor?.speaker_character_instance_id??continuationAnchor?.character_instance_id??input.characterInstanceId)};
         }
         const contextDurationMs = Math.round(
           performance.now() - contextStartedAt,
@@ -1130,6 +1165,7 @@ Deno.serve(async (request) => {
           photoAdultRequest: ['suggestive','mature','explicit'].includes(String(photoIntent.requestedContentLevel??'')),
           photoSafetyBlocked: photoSafety?.allowed===false,
           adultAttachment,
+          continuationFromExplicit:input.messageAction==='continue'&&continuationAnchor?.content_rating==='explicit',
           clientSurface: adultAccess.client_surface,
           moderation: inputSafety,
         };
@@ -1252,8 +1288,10 @@ Deno.serve(async (request) => {
           routeReason: route.reason,
           contentMode: route.resolvedMode,
         }, undefined, sceneCandidates.length > 1, sceneCandidates.length > 1 ? sharedSceneGenerationContext('primary',sceneCandidates.length) : undefined);
+        runOptions.preserveExplicitRoute=input.messageAction==='continue'&&continuationAnchor?.content_rating==='explicit'&&route.explicit;
         if (route.provider !== "deterministic") {
           timings.mark("preflightMs");
+          const streamOutcome = { failed: false };
           return leased(streamDialogue({
             timings,
             db,
@@ -1273,7 +1311,8 @@ Deno.serve(async (request) => {
             ageVerified: Boolean(profile?.age_verified_at),
             requestedMode,
             turnLease,
-          }));
+            streamOutcome,
+          }), () => !streamOutcome.failed);
         }
         const generated = await dialogue.generate(dialogueContext, runOptions);
         const outputSafety = await moderation.check(generated.text, {
@@ -1321,7 +1360,7 @@ Deno.serve(async (request) => {
             speakerSlug: characterTemplate.slug,
             directorUsed: dialogueContext.director?.used === true,
             ...(isContinuation?{continuationOfMessageId:input.anchorMessageId}:{}),
-            ...(outputSafety.allowed?assistantMessagePolicy(route):safeMessagePolicy('safe')),
+            ...(outputSafety.allowed?assistantMessagePolicy(route,safeText,outputSafety):safeMessagePolicy('safe')),
             ...privateDialoguePolicyMetadata({policy:dialoguePolicy,access:adultAccess,conversationMode:'direct',safetyDisposition:outputSafety.allowed?'allowed':'redirected',providerRoute:route.provider}),
           },
         });
@@ -1368,7 +1407,7 @@ Deno.serve(async (request) => {
             });
           }
           if(!isContinuation&&route.explicit)scheduleConversationEffects(async()=>{
-            await recordAdultSafeContext(db,user.id,input.conversationId,String(assistantMessage.created_at),String(userMessage.content??''),String(assistantMessage.content??''));
+            if(assistantMessage.content_rating==='explicit')await recordAdultSafeContext(db,user.id,input.conversationId,String(assistantMessage.created_at),String(userMessage.content??''),String(assistantMessage.content??''));
             await applyDeterministicTrustSignal(db,{userId:user.id,characterInstanceId:primarySpeakerId,sourceMessageId:String(userMessage.id),message:userText,recentAssistantMessages:(dialogueContext.recent??[]).filter((turn:any)=>turn.role==='assistant').map((turn:any)=>String(turn.content??'')),occurredAt:String(assistantMessage.created_at),correlationId,allowThreatClassification:false});
           },correlationId);
           if(!isContinuation&&!route.explicit)scheduleConversationEffects(async () => {
@@ -1916,13 +1955,14 @@ function dialogueRunOptions(
 }
 
 function safeMessagePolicy(rating:'safe'|'suggestive'='safe'):Record<string,unknown>{return{contentRating:rating,visibilityScope:'all',moderationVersion:'web-adult-v1'};}
-function projectReplyForAccess(message:Record<string,any>,authorized:boolean):Record<string,any>{if(authorized||isSafePolicy(message))return message;return{id:`bridge-${String(message.id)}`,conversation_id:message.conversation_id,role:'system',content:'Private exchange\n\nA portion of this conversation is unavailable in this app.',delivery_status:'complete',moderation_status:'approved',content_rating:'safe',visibility_scope:'all',moderation_version:'safe-bridge-v1',created_at:message.created_at,updated_at:message.updated_at,provider_metadata:{systemEvent:'restricted_bridge'}};}
+function projectReplyForAccess(message:Record<string,any>,authorized:boolean):Record<string,any>{if(authorized||isSafePolicy(message))return message;return{id:`bridge-${String(message.id)}`,conversation_id:message.conversation_id,role:'system',content:'Messages unavailable\n\nA portion of this conversation is unavailable in this app.',delivery_status:'complete',moderation_status:'approved',content_rating:'safe',visibility_scope:'all',moderation_version:'safe-bridge-v1',created_at:message.created_at,updated_at:message.updated_at,provider_metadata:{systemEvent:'restricted_bridge'}};}
 function userMessagePolicy(route:DialogueRoutingDecision,adultAttachment=false):Record<string,unknown>{
   const adult=adultAttachment||route.explicit&&(route.classification==='adult_intimacy'||route.classification==='explicit_adult'||route.classification==='fictional_violence');
   return adult?{contentRating:'explicit',visibilityScope:'all',moderationVersion:'private-adult-text-v1',adultAuthorized:true,safeBridge:'You and your companion shared a more intimate moment and grew closer.'}:safeMessagePolicy(route.resolvedMode==='standard'?'safe':'suggestive');
 }
-function assistantMessagePolicy(route:DialogueRoutingDecision):Record<string,unknown>{
-  return route.explicit?{contentRating:'explicit',visibilityScope:'all',moderationVersion:'private-adult-text-v1',adultAuthorized:true,safeBridge:'You and your companion shared a more intimate moment and grew closer.'}:safeMessagePolicy(route.resolvedMode==='standard'?'safe':'suggestive');
+function assistantMessagePolicy(route:DialogueRoutingDecision,text:string,outputSafety?:NormalizedModerationResult):Record<string,unknown>{
+  const rating=assistantMessageRating(route,text,outputSafety);
+  return rating==='explicit'?{contentRating:'explicit',visibilityScope:'all',moderationVersion:'private-adult-text-v1',adultAuthorized:true,safeBridge:'A portion of this conversation is unavailable in this app.'}:safeMessagePolicy(rating);
 }
 
 async function recordAdultSafeContext(db:any,userId:string,conversationId:string,at:string,userText:string,assistantText:string):Promise<void>{
@@ -2063,6 +2103,7 @@ function streamDialogue({
   ageVerified,
   requestedMode,
   turnLease,
+  streamOutcome,
 }: {
   timings: ChatTimings;
   db: any;
@@ -2082,6 +2123,7 @@ function streamDialogue({
   ageVerified: boolean;
   requestedMode: DialogueContentMode;
   turnLease: ConversationTurnLease;
+  streamOutcome: { failed: boolean };
 }): Response {
   let connectionOpen = true;
   const progressive=input.streamProtocol===2&&chatSpeedEnabled("STREAM_V2");
@@ -2258,6 +2300,18 @@ function streamDialogue({
         if(containsSecretLikeValue(content)){
           content=outputBoundaryResponse(String(context.character?.name??"Companion"),context.chatLanguage,context.userMessage);
         }
+        let carryoverOutputSafety:NormalizedModerationResult|undefined;
+        if(runOptions.route.reason==='adult_context_carryover'){
+          try{
+            carryoverOutputSafety=await moderation.check(content,{
+              ...runOptions.usageScope,
+              characterInstanceId:primarySpeakerId,
+              metadata:{direction:'output_rating',adultContextCarryover:true},
+            });
+          }catch{
+            // Missing classification keeps the conservative explicit rating.
+          }
+        }
         if (!await touchConversationTurn(db, turnLease)) {
           throw new AppError(
             "CONFLICT",
@@ -2288,7 +2342,7 @@ function streamDialogue({
             speakerSlug: context.character?.slug,
             directorUsed: context.director?.used === true,
             ...(input.messageAction==='continue'?{continuationOfMessageId:input.anchorMessageId}:{}),
-            ...assistantMessagePolicy(runOptions.route),
+            ...assistantMessagePolicy(runOptions.route,content,carryoverOutputSafety),
           },
         });
         const assistantMessage = assistantCommit.message;
@@ -2309,11 +2363,11 @@ function streamDialogue({
               characterInstanceId: primarySpeakerId,
             });
           }
-          if(input.messageAction!=='continue'&&runOptions.route.explicit)scheduleConversationEffects(async()=>{
-            await recordAdultSafeContext(db,user.id,input.conversationId,String(assistantMessage.created_at),String(userMessage.content??''),String(assistantMessage.content??''));
+          if(!input.messageAction&&runOptions.route.explicit)scheduleConversationEffects(async()=>{
+            if(assistantMessage.content_rating==='explicit')await recordAdultSafeContext(db,user.id,input.conversationId,String(assistantMessage.created_at),String(userMessage.content??''),String(assistantMessage.content??''));
             await applyDeterministicTrustSignal(db,{userId:user.id,characterInstanceId:primarySpeakerId,sourceMessageId:String(userMessage.id),message:String(context.userMessage??input.message),recentAssistantMessages:(context.recent??[]).filter((turn:any)=>turn.role==='assistant').map((turn:any)=>String(turn.content??'')),occurredAt:String(assistantMessage.created_at),correlationId,allowThreatClassification:false});
           },correlationId);
-          if(input.messageAction!=='continue'&&!runOptions.route.explicit)scheduleConversationEffects(async () => {
+          if(!input.messageAction&&!runOptions.route.explicit)scheduleConversationEffects(async () => {
             await safelyApplyConversationEffects(
               db,
               user.id,
@@ -2393,6 +2447,7 @@ function streamDialogue({
         });
       } catch (error) {
         if(primaryMessage){emit({type:"done",message:primaryMessage});return;}
+        streamOutcome.failed = true;
         console.error(
           JSON.stringify({
             level: "error",
@@ -3938,8 +3993,9 @@ async function applyConversationEffects(
     db,
     userId,
     conversationId,
-    conversationCount,
+    conversationRow?.metadata?.branchId ? 1 : conversationCount,
   );
+  try{await maybeOfferHomeVisit(db,{userId,characterInstanceId:instanceId,conversationId,userMessageId:sourceMessageId,assistantMessageId,worldNews:[...(context.worldPulse??[]).map(event=>({id:event.id,worldId:event.worldId,occurredAt:event.startsAt,endsAt:event.endsAt,status:event.status})),...(context.majorWorldIncidents??[]).map(event=>({id:event.id,worldId:context.place?.world.id??'',occurredAt:event.occurredAt}))]});}catch(error){console.warn('Home invitation skipped',error instanceof Error?error.name:'unknown');}
   // The relationship-state trigger invokes the canonical SQL evaluator. Do not
   // create milestones through a second compatibility path here.
 }
@@ -4232,20 +4288,31 @@ async function updateConversationSummary(
 ): Promise<void> {
   if (conversationCount !== 1 && conversationCount % 4 !== 0) return;
   const { data: conversation } = await db.from("together_conversations").select(
-    "summary,summary_through,summary_through_sequence,summary_message_count",
+    "summary,summary_through,summary_through_sequence,summary_message_count,metadata",
   ).eq("id", conversationId).eq("user_id", userId).maybeSingle();
   let query = db.from("together_messages").select("id,role,content,created_at,conversation_sequence")
     .eq("user_id", userId).eq("conversation_id", conversationId)
     .order("conversation_sequence", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: true })
     .order("id", { ascending: true }).limit(80);
-  if (conversation?.summary_through_sequence) {
-    query = query.gt("conversation_sequence", conversation.summary_through_sequence);
+  if (conversation?.summary_through_sequence || conversation?.metadata?.branchId) {
+    query = query.gt("conversation_sequence", Number(conversation.summary_through_sequence??0));
   } else if (conversation?.summary_through) {
     query = query.gt("created_at", conversation.summary_through);
   }
-  const { data: messages, error } = await query;
+  const { data: persisted, error } = await query;
   if (error) return;
+  let messages=persisted??[];
+  if(conversation?.metadata?.branchId){
+    let prefixQuery=db.from('together_chat_branch_prefix').select('id,role,content,created_at,conversation_sequence')
+      .eq('user_id',userId).eq('conversation_id',conversationId)
+      .order('conversation_sequence',{ascending:true}).limit(80);
+    if(conversation.summary_through_sequence)prefixQuery=prefixQuery.gt('conversation_sequence',conversation.summary_through_sequence);
+    const prefix=await prefixQuery;
+    if(prefix.error)return;
+    messages=[...(prefix.data??[]),...messages]
+      .sort((left:any,right:any)=>Number(left.conversation_sequence)-Number(right.conversation_sequence)).slice(0,80);
+  }
   if (messages?.length) {
     const previous = String(conversation?.summary ?? "").trim();
     const summary = mergeConversationSummary(previous, messages);

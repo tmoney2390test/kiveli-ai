@@ -1,5 +1,31 @@
 import { capabilitiesForTier, creditCosts } from '@together/domain/src/entitlements';
-import type { GeneratedMedia, MediaOffer } from '../types';
+import type { GeneratedMedia, MediaOffer, Message } from '../types';
+
+/** The server validates that a declined photo placeholder is still the latest turn. */
+export function declinedPhotoReplyAnchor(
+  offer: MediaOffer,
+  dismissed: MediaOffer,
+  _messages: Message[],
+): string | null {
+  void _messages; // Local history may lag the server's authoritative timeline.
+  if (offer.status !== 'pending' || dismissed.status !== 'declined' ||
+    offer.source !== 'user_request' || typeof offer.message_id !== 'string' ||
+    dismissed.id !== offer.id || dismissed.message_id !== offer.message_id) return null;
+  // The client can be missing or reordering the hidden placeholder while a
+  // history refresh is in flight. The dialogue endpoint owns the latest-turn
+  // check, so a stale offer cannot create an out-of-order reply.
+  return offer.message_id;
+}
+
+/** Quote a retry against the original request when it remains in the local timeline. */
+export function declinedPhotoReplayText(control: Message, messages: Message[]): string {
+  const sourceId=control.provider_metadata?.photoDeclineSourceMessageId;
+  if(control.provider_metadata?.messageAction!=='respond_to_declined_photo'||typeof sourceId!=='string')
+    return control.content;
+  const original=messages.find((message)=>message.id===sourceId&&message.role==='user'&&
+    message.conversation_id===control.conversation_id&&message.provider_metadata?.uiHidden!==true);
+  return original?.content?.trim()?original.content:control.content;
+}
 
 export async function withPhotoRequestTimeout<T>(operation: Promise<T>, timeoutMs = 15_000): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;

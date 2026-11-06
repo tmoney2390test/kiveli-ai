@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildClientPlaceContext, canAccessWorld, characterByRouteKey, characterCanPlanInWorld, characterCatalogForWorld, characterResidentWorld, charactersForWorld, charactersCurrentlyAtLocation, charactersCurrentlyInWorld, locationsForWorld, nearbyLocations, placePath, worldAccessLabel } from './place';
+import { buildClientPlaceContext, canAccessWorld, characterByRouteKey, characterCanPlanInWorld, characterCatalogForWorld, characterResidentWorld, charactersForWorld, charactersCurrentlyAtLocation, charactersCurrentlyInWorld, isCharacterHomeLocation, locationsForWorld, nearbyLocations, placePath, worldAccessLabel } from './place';
 import type { Snapshot } from '../types';
 
 const world=(id:string,name:string,access_type:'free'|'subscription'|'premium'='free',metadata:Record<string,unknown>={})=>({id,slug:name.toLowerCase().replaceAll(' ','-'),name,description:`${name} description`,access_type,timezone:id==='tokyo'?'Asia/Tokyo':'America/New_York',sort_order:0,featured:true,published:true,visual_context:{setting:name},metadata} as const);
@@ -20,5 +20,13 @@ describe('canonical place selectors',()=>{
   it('includes un-met published residents in the world catalog without making them physically present',()=>{expect(characterCatalogForWorld(snapshot,'juniper').map((entry)=>entry.template.name)).toEqual(['Maya','Resident']);expect(charactersCurrentlyInWorld(snapshot,'juniper').map((character)=>character.id)).toEqual(['maya']);expect(characterCatalogForWorld(snapshot,'tokyo').map((entry)=>entry.template.name)).toEqual(['Tokyo Person']);});
   it('does not turn a resident into another world citizen when she travels there',()=>{const traveling={...snapshot,characters:snapshot.characters.map((character)=>({...character,current_location_id:'arcade'}))} as Snapshot;expect(characterCatalogForWorld(traveling,'tokyo').map((entry)=>entry.template.name)).toEqual(['Tokyo Person']);expect(characterCatalogForWorld(traveling,'juniper').map((entry)=>entry.template.name)).toEqual(['Maya','Resident']);});
   it('keeps planning tied to the exact companion and her resident world',()=>{const maya=snapshot.characters[0]!;expect(characterByRouteKey(snapshot,'maya')).toBe(maya);expect(characterByRouteKey(snapshot,'maya-template')).toBe(maya);expect(characterResidentWorld(snapshot,maya)?.id).toBe('juniper');expect(characterCanPlanInWorld(snapshot,maya,'juniper')).toBe(true);expect(characterCanPlanInWorld(snapshot,maya,'tokyo')).toBe(false);});
+  it('does not mistake a geographic home anchor for the private room',()=>{
+    const maya=snapshot.characters[0]!;
+    const anchored={...snapshot,characterWorldPresence:[{...snapshot.characterWorldPresence![0]!,home_location_id:'alder'}]} as Snapshot;
+    expect(isCharacterHomeLocation(anchored,maya,'alder')).toBe(false);
+    const privateHome={...anchored,characterWorldPresence:[{...anchored.characterWorldPresence![0]!,home_location_id:'maya-home'}]} as Snapshot;
+    expect(isCharacterHomeLocation(privateHome,maya,'maya-home')).toBe(true);
+    expect(isCharacterHomeLocation(privateHome,maya,'riverhouse')).toBe(false);
+  });
 });
 

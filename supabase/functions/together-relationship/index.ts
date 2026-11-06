@@ -6,7 +6,7 @@ import { AppError } from '../_shared/types.ts';
 import { buildSnapshot, clampRelationship, track } from '../_shared/together.ts';
 import {activeContinuity}from'../_shared/together-continuity.ts';
 
-const schema = z.object({ milestoneId: z.string().uuid(), action: z.enum(['accept','defer','stay_friends','talk_it_out','give_space']) });
+const schema = z.object({ milestoneId: z.string().uuid(), action: z.enum(['accept','defer','dismiss','stay_friends','talk_it_out','give_space']) });
 const stageOrder = ['stranger','acquaintance','friend','flirting','dating','exclusive','long_term'];
 
 serve(async (request, correlationId) => {
@@ -16,11 +16,26 @@ serve(async (request, correlationId) => {
   const continuity=await activeContinuity(db,user.id);const { data: milestone } = await db.from('together_relationship_milestones').select('*').eq('id', input.milestoneId).eq('user_id', user.id).eq('continuity_id',continuity.id).maybeSingle();
   if (!milestone) throw new AppError('NOT_FOUND', 'That relationship moment is no longer available.', 404);
   if (milestone.status !== 'pending') throw new AppError('CONFLICT', 'That choice has already been handled.', 409);
+  if (input.action === 'dismiss') {
+    if (milestone.kind !== 'keep_in_touch') throw new AppError('VALIDATION_FAILED', 'This moment cannot be dismissed.', 400);
+    const now = new Date().toISOString();
+    const { data: dismissed, error } = await db.from('together_relationship_milestones')
+      .update({ status: 'declined', chosen_action: 'dismiss', deferred_until: null, resolved_at: now, updated_at: now })
+      .eq('id', milestone.id).eq('user_id', user.id).eq('continuity_id', continuity.id).eq('status', 'pending')
+      .select('id').maybeSingle();
+    if (error) throw new AppError('INTERNAL_ERROR', 'That moment could not be dismissed.', 500, true);
+    if (!dismissed) throw new AppError('CONFLICT', 'That choice has already been handled.', 409);
+    await track(db, user.id, 'relationship_milestone_dismissed', { milestoneId: milestone.id, kind: milestone.kind });
+    return json({ data: { snapshot: await buildSnapshot(db, user.id) }, correlationId }, 200, correlationId);
+  }
   const choices = Array.isArray(milestone.choices) ? milestone.choices as Array<{ id?: string }> : [];
   if (!choices.some((choice) => choice.id === input.action)) throw new AppError('VALIDATION_FAILED', 'That choice is not available for this moment.', 400);
 
   const now = new Date();
-  if (input.action === 'defer') {
+  // "Let's take it slowly" agrees to keep talking without a stronger bond.
+  // Treat that as the first acquaintance step so this exact prompt does not recur.
+  const slowContact = milestone.kind === 'keep_in_touch' && input.action === 'defer';
+  if (input.action === 'defer' && !slowContact) {
     await db.from('together_relationship_milestones').update({ status: 'deferred', chosen_action: input.action, deferred_until: new Date(now.getTime() + 3 * 86400000).toISOString(), resolved_at: now.toISOString(), updated_at: now.toISOString() }).eq('id', milestone.id).eq('status', 'pending');
     await track(db, user.id, 'relationship_milestone_deferred', { milestoneId: milestone.id, kind: milestone.kind });
     return json({ data: { snapshot: await buildSnapshot(db, user.id) }, correlationId }, 200, correlationId);
@@ -32,7 +47,7 @@ serve(async (request, correlationId) => {
   if (String(instance.relationship_stage) !== String(milestone.from_stage)) throw new AppError('CONFLICT', 'Your relationship has already moved beyond this moment.', 409);
 
   let nextStage = String(instance.relationship_stage);
-  if (input.action === 'accept' && milestone.to_stage) {
+  if ((input.action === 'accept' || slowContact) && milestone.to_stage) {
     const from = stageOrder.indexOf(nextStage);
     const to = stageOrder.indexOf(String(milestone.to_stage));
     if (from < 0 || to - from !== 1) throw new AppError('VALIDATION_FAILED', 'That relationship transition is not allowed.', 400);
@@ -63,7 +78,7 @@ serve(async (request, correlationId) => {
   const status = input.action === 'stay_friends' ? 'declined' : 'accepted';
   await db.from('together_relationship_milestones').update({ status, chosen_action: input.action, resolved_at: now.toISOString(), updated_at: now.toISOString() }).eq('id', milestone.id).eq('status', 'pending');
   await track(db, user.id, 'relationship_milestone_resolved', { milestoneId: milestone.id, kind: milestone.kind, action: input.action });
-  if (milestone.kind === 'keep_in_touch' && input.action === 'accept') await track(db, user.id, 'character_contact_added', { characterInstanceId: instance.id, source: 'milestone_choice' });
+  if (milestone.kind === 'keep_in_touch' && (input.action === 'accept' || slowContact)) await track(db, user.id, 'character_contact_added', { characterInstanceId: instance.id, source: 'milestone_choice' });
   if (nextStage !== instance.relationship_stage) await track(db, user.id, 'relationship_stage_changed', { characterInstanceId: instance.id, from: instance.relationship_stage, to: nextStage, source: 'milestone_choice' });
   return json({ data: { snapshot: await buildSnapshot(db, user.id) }, correlationId }, 200, correlationId);
 });

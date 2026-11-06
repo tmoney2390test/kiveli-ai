@@ -46,6 +46,57 @@ describe('character day schedule', () => {
     expect(['Starting slow at home', 'Getting ready for the river shift']).toContain(result.entries[0]?.activity);
   });
 
+  it('shows an explicit home routine as Home when old content points at a district', () => {
+    const districtSnapshot = {
+      ...snapshot,
+      scheduleEvents: [],
+      locations: [{ id: 'district', name: 'Civic Commons', location_type: 'district' }],
+      schedules: [{ id: 'sleep', character_version_id: 'maya-v1', day_of_week: 2, start_minute: 540, end_minute: 660,
+        location_id: 'district', activity: 'Sleeping at home', availability: 'busy', energy_delta: 0,
+        metadata: { scheduleMode: 'authored' } }],
+    } as unknown as Snapshot;
+    const result = buildCharacterDaySchedule({ snapshot: districtSnapshot, characterVersionId: 'maya-v1', now: new Date('2026-08-18T14:00:00.000Z') });
+    expect(result.currentStatus).toEqual({ activity: 'Sleeping at home', location: 'Home', locationId: undefined });
+  });
+
+  it('keeps a generated home activity at Home when its title omits the word home', () => {
+    const districtSnapshot = {
+      ...snapshot,
+      locations: [{ id: 'district', name: 'Civic Commons', location_type: 'district' }],
+      scheduleEvents: [{ ...baseEvent, location_id: 'district', activity_key: 'home', title: 'Cooking a meal' }],
+    } as unknown as Snapshot;
+    const result = buildCharacterDaySchedule({ snapshot: districtSnapshot, instance, characterVersionId: 'maya-v1', now: new Date('2026-08-18T14:00:00.000Z') });
+    expect(result.currentStatus).toEqual({ activity: 'Cooking a meal', location: 'Home', locationId: undefined });
+  });
+
+  it('treats private-quarters home_late blocks as home instead of a stale public place', () => {
+    const lateWorkerSnapshot = {
+      ...snapshot,
+      profile: { experience_timezone: 'UTC' },
+      scheduleEvents: [],
+      schedules: [{ id: 'late-home', character_version_id: 'maya-v1', day_of_week: 2,
+        start_minute: 60, end_minute: 150, location_id: 'studio',
+        activity: 'Returning to private quarters after the late hours', availability: 'limited', energy_delta: -1,
+        metadata: { scheduleMode: 'authored', activityKey: 'home_late', displayLocation: 'Private quarters in Crownspire' },
+      }],
+    } as unknown as Snapshot;
+    const result = buildCharacterDaySchedule({ snapshot: lateWorkerSnapshot, characterVersionId: 'maya-v1', now: new Date('2026-08-18T01:30:00.000Z') });
+    expect(result.currentStatus).toEqual({ activity: 'Returning to private quarters after the late hours', location: 'Home', locationId: undefined });
+  });
+
+  it('shows a specific authored activity when stale schedule variants contain filler', () => {
+    const staleSnapshot = {
+      ...snapshot,
+      scheduleEvents: [],
+      schedules: [{ id: 'clinic', character_version_id: 'maya-v1', day_of_week: 2, start_minute: 540, end_minute: 660,
+        location_id: 'studio', activity: 'Checking patient requests and preparing clinic doses', availability: 'busy', energy_delta: -1,
+        metadata: { scheduleMode: 'authored', activityVariants: ['Making time for a familiar routine', "Following the day's routine at an easy pace"] },
+      }],
+    } as unknown as Snapshot;
+    const result = buildCharacterDaySchedule({ snapshot: staleSnapshot, characterVersionId: 'maya-v1', timezone: 'America/New_York', now: new Date('2026-08-18T14:00:00.000Z') });
+    expect(result.entries[0]?.activity).toBe('Checking patient requests and preparing clinic doses');
+  });
+
   it('renders an on-demand authored routine before the user has met the character', () => {
     const discoveredSnapshot = {
       ...snapshot,

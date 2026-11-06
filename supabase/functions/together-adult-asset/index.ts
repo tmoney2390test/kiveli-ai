@@ -1,8 +1,9 @@
 import { adminClient } from '../_shared/context.ts';
+import { IMAGE_PREVIEW_TRANSFORM } from '../_shared/media-image-previews.ts';
 import { resolveSubscriptionAccess } from '../_shared/kivelle-subscription.ts';
 import { adultSessionTokenHash } from '../_shared/web-adult-access.ts';
 import { sniffImageContentType } from '../../../packages/together-domain/src/security.ts';
-import { adultAssetCorsHeaders,adultVideoResponseHeaders,resolveAdultVideoAsset,safeVideoRange } from '../_shared/adult-asset-delivery.ts';
+import { adultAssetCorsHeaders,adultVideoResponseHeaders,adultVoiceResponseHeaders,adultVoiceResponseSizeValid,resolveAdultVideoAsset,resolveAdultVoiceAsset,safeVideoRange } from '../_shared/adult-asset-delivery.ts';
 
 Deno.serve(async(request)=>{try{
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:corsHeaders(request)});
@@ -17,20 +18,24 @@ Deno.serve(async(request)=>{try{
   if(!session||session.adult_mode_enabled!==true||session.revoked_at||new Date(session.expires_at).getTime()<=Date.now())return unavailable();
   const[{data:profile},subscription]=await Promise.all([db.from('together_profiles').select('adult_eligible_at').eq('user_id',row.user_id).maybeSingle(),resolveSubscriptionAccess(db,String(row.user_id))]);
   if(!profile?.adult_eligible_at||subscription.tier==='free')return unavailable();
-  let storagePath:string|null=null,videoAsset:{storagePath:string;byteSize:number|null}|null=null;
-  if(row.generated_media_id){const{data:media}=await db.from('together_generated_media').select('storage_path,content_rating,visibility_scope,status,media_type,content_type,byte_size').eq('id',row.generated_media_id).eq('user_id',row.user_id).eq('content_rating','explicit').eq('visibility_scope','web_adult').eq('status','ready').in('media_type',['image','video']).maybeSingle();videoAsset=media?resolveAdultVideoAsset(media):null;storagePath=videoAsset?.storagePath??(media?.media_type==='image'?media?.storage_path??null:null);}
+  let storagePath:string|null=null,videoAsset:{storagePath:string;byteSize:number|null}|null=null,voiceAsset:{storagePath:string;contentType:'audio/mpeg'|'audio/wav'}|null=null;
+  if(row.generated_media_id){const{data:media}=await db.from('together_generated_media').select('storage_path,content_rating,visibility_scope,status,media_type,content_type,byte_size').eq('id',row.generated_media_id).eq('user_id',row.user_id).eq('content_rating','explicit').eq('visibility_scope','web_adult').eq('status','ready').in('media_type',['image','video','voice_note']).maybeSingle();videoAsset=media?resolveAdultVideoAsset(media):null;voiceAsset=media?resolveAdultVoiceAsset(media):null;storagePath=videoAsset?.storagePath??voiceAsset?.storagePath??(media?.media_type==='image'?media?.storage_path??null:null);}
   else if(row.attachment_id){const{data:attachment}=await db.from('together_conversation_attachments').select('storage_path,content_rating,visibility_scope,upload_status,kind').eq('id',row.attachment_id).eq('user_id',row.user_id).eq('content_rating','explicit').eq('visibility_scope','web_adult').eq('upload_status','uploaded').eq('kind','image').maybeSingle();storagePath=attachment?.storage_path??null;}
   if(!storagePath)return unavailable();
-  if(videoAsset){
+  if(videoAsset||voiceAsset){
     const requestedRange=request.headers.get('range'),range=safeVideoRange(requestedRange);
     if(requestedRange&&!range)return unavailable(416,request);
-    const{data:signed,error}=await db.storage.from('together-user-media').createSignedUrl(videoAsset.storagePath,120);
+    const{data:signed,error}=await db.storage.from('together-user-media').createSignedUrl(storagePath,120);
     if(error||!signed?.signedUrl)return unavailable();
     const upstream=await fetch(signed.signedUrl,{method:request.method,headers:range?{Range:range}:undefined,redirect:'follow'});
     if(!upstream.ok||![200,206].includes(upstream.status))return unavailable(upstream.status===416?416:404,request);
-    return new Response(request.method==='HEAD'?null:upstream.body,{status:upstream.status,headers:adultVideoResponseHeaders(upstream.headers,request)});
+    if(voiceAsset&&!adultVoiceResponseSizeValid(upstream.headers)){await upstream.body?.cancel();return unavailable(404,request);}
+    return new Response(request.method==='HEAD'?null:upstream.body,{status:upstream.status,headers:videoAsset?adultVideoResponseHeaders(upstream.headers,request):adultVoiceResponseHeaders(upstream.headers,request,voiceAsset!.contentType)});
   }
-  const downloaded=await db.storage.from('together-user-media').download(storagePath);if(downloaded.error||!downloaded.data)return unavailable();
+  const preview=new URL(request.url).searchParams.get('variant')==='preview';
+  let downloaded=await db.storage.from('together-user-media').download(storagePath,preview?{transform:IMAGE_PREVIEW_TRANSFORM}:undefined);
+  if(preview&&(downloaded.error||!downloaded.data))downloaded=await db.storage.from('together-user-media').download(storagePath);
+  if(downloaded.error||!downloaded.data)return unavailable();
   const bytes=new Uint8Array(await downloaded.data.arrayBuffer());
   const mimeType=sniffImageContentType(bytes);
   if(!mimeType||!bytes.byteLength||bytes.byteLength>25*1024*1024)return unavailable();

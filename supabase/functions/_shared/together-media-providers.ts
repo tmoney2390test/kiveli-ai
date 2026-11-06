@@ -1,9 +1,9 @@
 import{modelFamilyFor,routeMediaGeneration,type MediaRoute,type MediaRouteCapability}from'../../../packages/together-domain/src/media-routing.ts';
 import{AppError}from'./types.ts';
-import{buildImagePrompt,configuredImageProvider,mediaCaptureLightingForRequest,type CanonicalImageGenerationRequest,type ImageGenerationResult,type MediaReferenceImage}from'./together-media-base.ts';
+import{buildImagePrompt,captureDeviceGuidance,configuredImageProvider,mediaCaptureLightingForRequest,type CanonicalImageGenerationRequest,type ImageGenerationResult,type MediaReferenceImage}from'./together-media-base.ts';
 import{configuredWaveSpeedClient,envBoolean,envNumber,type WaveSpeedClient,type WaveSpeedPrediction}from'./wavespeed.ts';
 import{estimatedMediaProviderCost}from'../../../packages/together-domain/src/media-economics.ts';
-import{adultPoseMustRebuild,hasUsableCharacterIdentityReference,requestImpliesFrontalGenitalVisibility,requestImpliesRearAdultAnatomy,requestRequiresIdentityPreservingAdultRoute,resolveAdultNudityScope,resolvePhotoDirection,resolveSpecificAnatomyExposure,visibleAdultAnatomyTargetLabels}from'../../../packages/together-domain/src/media.ts';
+import{adultPoseMustRebuild,hasUsableCharacterIdentityReference,photoRequestNeedsAnatomyCloseup,requestImpliesFrontalGenitalVisibility,requestImpliesRearAdultAnatomy,requestRequiresIdentityPreservingAdultRoute,resolveAdultNudityScope,resolvePhotoDirection,resolveSpecificAnatomyExposure,visibleAdultAnatomyTargetLabels}from'../../../packages/together-domain/src/media.ts';
 import{resolveVenicePipeline,VENICE_ADULT_EDIT_MODEL,VENICE_ADULT_FALLBACK_EDIT_MODEL,VENICE_ADULT_FINAL_EDIT_MODEL,VENICE_QUALITY_EDIT_MODEL,VENICE_STANDARD_EDIT_MODEL,VENICE_STANDARD_FALLBACK_EDIT_MODEL,veniceModelCostUsd}from'../../../packages/together-domain/src/venice-media.ts';
 import{configuredVeniceClient,type VeniceEditResult,type VeniceImageClient}from'./venice.ts';
 import{buildMediaEditConstraint,classifyMediaEditSemantics}from'../../../packages/together-domain/src/media-edit.ts';
@@ -18,6 +18,11 @@ export type ProviderSubmission={provider:string;providerRequestId:string;model:s
 export interface MediaGenerationProvider{id:string;asynchronous:boolean;submit(request:CanonicalMediaRequest,route:MediaRouteCapability):Promise<ProviderSubmission>;getResult?(providerRequestId:string):Promise<ProviderResult>}
 export type ProviderResult={status:'processing'|'completed'|'failed';result?:ProviderCompletedMedia;failureCode?:string;failureReasonSafe?:string};
 export type RoutedProvider={route:MediaRoute;provider:MediaGenerationProvider};
+
+function subjectCountGuidance(request:CanonicalMediaRequest):string{
+  const count=request.anonymousAdultPartner===true?2:request.subjects?.length||1;
+  return `Exactly ${count} ${count===1?'person':'people'}; no bystanders or background figures.`;
+}
 
 export const WAVESPEED_GROUP_QWEN_ROUTE_ID='wavespeed-qwen2-pro-group-multiref';
 export const VENICE_GROUP_ADULT_ROUTE_ID='venice-group-adult-two-stage';
@@ -282,15 +287,17 @@ export function buildWaveSpeedAdultScenePrompt(request:CanonicalMediaRequest):st
   const direction=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId}),identity=request.visualIdentity,appearance=[identity.canonicalDescription,identity.hair&&`hair ${identity.hair}`,identity.eyes&&`eyes ${identity.eyes}`,identity.skinTone&&`skin ${identity.skinTone}`,identity.build&&`build ${identity.build}`,identity.identifyingFeatures?.length&&`features ${identity.identifyingFeatures.slice(0,3).join(', ')}`].filter(Boolean).join('; '),containment=request.context.worldContainment,location=request.context.place?.location??request.context.location,world=containment?`${containment.worldName}${containment.locationName?` at ${containment.locationName}`:''}. ${containment.worldDescription??''}`:[location?.name,location?.description].filter(Boolean).join('. '),captureLighting=mediaCaptureLightingForRequest(request),rearAnatomy=requestImpliesRearAdultAnatomy(intent),rearDirection=direction.poseDirection.includes('rear or rear-three-quarter');
   return clipWaveSpeedPrompt([
     `RAW documentary photograph captured with a full-frame professional camera of one real-looking fictional consenting adult, canonical age ${request.companion.age}.`,
+    `TIME/LIGHT: ${captureLighting.compactInstruction}`,
     `MANDATORY TARGET: ${intent}.`,
+    photoRequestNeedsAnatomyCloseup(intent)&&'FRAMING: tight anatomy close-up; requested area fills frame; face and full body may be outside frame.',
+    captureDeviceGuidance(),
+    subjectCountGuidance(request),
     `POSE AND CAMERA: ${waveSpeedConciseDirection(direction.poseDirection)} ${rearAnatomy?direction.faceDirection:rearDirection?'Keep their face clearly visible in a natural over-the-shoulder glance for fictional identity matching.':direction.faceDirection}`,
     waveSpeedRequestedAnatomyGuidance(intent,true)||waveSpeedAdultNudityGuidance(resolveAdultNudityScope(intent),intent),
     appearance&&`APPEARANCE: ${appearance}.`,
     world&&`SETTING: ${world}.`,
-    `TIME/LIGHT: ${captureLighting.instruction}`,
-    request.composition.framing&&`FRAMING: ${request.composition.framing}.`,
     request.qualityRetry?`CORRECT THE PREVIOUS MISS: ${request.qualityRetry.reasonCodes.join(', ')}.`:'',
-    'The result must look like a genuine unretouched camera photograph: fine pores and small skin imperfections, individual hair strands, physically plausible natural light, optical depth of field, subtle sensor grain, and realistic color response. Exactly one adult subject and no other person. Coherent hands, limbs, joints, torso, pelvis and complete adult anatomy. No beauty-filter smoothing, airbrushing, anime, cartoon, painting, illustration, 2D or 3D render, CGI, game art, doll, mannequin, plastic or wax skin, oversized stylized eyes, robe, strategic covering, censoring, blur, blank anatomy, text, watermark, or collage.',
+    'The result must look like a genuine unretouched camera photograph: fine pores and small skin imperfections, individual hair strands, physically plausible natural light, optical depth of field, subtle sensor grain, and realistic color response. Exactly one adult subject and no other person. One continuous head, shoulders, upper torso, spine, waist, and pelvis; no second upper torso or shoulders on the back or hips. Coherent hands, limbs, joints and complete adult anatomy. No beauty-filter smoothing, airbrushing, anime, cartoon, painting, illustration, 2D or 3D render, CGI, game art, doll, mannequin, plastic or wax skin, oversized stylized eyes, robe, strategic covering, censoring, blur, blank anatomy, text, watermark, or collage.',
   ].filter(Boolean).join(' '),2200);
 }
 
@@ -316,14 +323,16 @@ export function buildWaveSpeedAdultImagePrompt(request:CanonicalMediaRequest,ref
   if(!ADULT_CONTENT_LEVELS.includes(request.contentLevel)||request.adultPipelineAuthorized!==true)throw new AppError('PROVIDER_REQUEST_INVALID','The adult image route requires a currently authorized request.',403,false);
   const intent=request.generationIntent?.requestText?.replace(/\s+/g,' ').trim();
   if(!intent)throw new AppError('PROVIDER_REQUEST_INVALID','The approved adult photo request was incomplete.',422,false);
-  const identityIndex=Math.max(0,references.findIndex((item)=>item.role==='character_identity'))+1,locationIndex=references.findIndex((item)=>item.role==='location_environment'||item.role==='world_environment')+1,direction=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId}),containment=request.context.worldContainment,worldLock=containment?`Only ${containment.worldName} at ${containment.locationName??'its canonical setting'}; never Earth.`:'Keep the canonical setting.',captureLighting=mediaCaptureLightingForRequest(request),scope=resolveAdultNudityScope(intent),nude=requestRequiresIdentityPreservingAdultRoute(intent),sceneInstruction=request.generationKind==='photo_edit'?'EDIT SOURCE: Edit the approved source photo; change pose, camera, or clothing when required.':nude?`NEW PHOTO in ${locationIndex>0?`Image ${locationIndex}`:'the canonical place'}. Image ${identityIndex} is face/hair/body identity ONLY. Do not copy its clothing, standing pose, crop, or background.`:`NEW SCENE: Image ${identityIndex} supplies identity only. Replace its pose, clothes/robe, crop, background, and camera; do not make a small edit.`,required=[
+  const identityIndex=Math.max(0,references.findIndex((item)=>item.role==='character_identity'))+1,locationIndex=references.findIndex((item)=>item.role==='location_environment'||item.role==='world_environment')+1,direction=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId}),containment=request.context.worldContainment,worldLock=containment?`Only ${containment.worldName} at ${containment.locationName??'its canonical setting'}; never Earth.`:'Keep the canonical setting.',captureLighting=mediaCaptureLightingForRequest(request),scope=resolveAdultNudityScope(intent),nude=requestRequiresIdentityPreservingAdultRoute(intent),sceneInstruction=request.generationKind==='photo_edit'?'EDIT SOURCE: Edit the approved source photo for pose, camera, or clothing.':nude?`NEW PHOTO in ${locationIndex>0?`Image ${locationIndex}`:'the canonical place'}. Image ${identityIndex} is identity ONLY; replace source pose, clothes, and background.`:`NEW SCENE: Image ${identityIndex} is identity only; replace pose, clothes, and background.`,required=[
     sceneInstruction,
+    `TIME/LIGHT: ${captureLighting.compactInstruction}`,
     `MANDATORY TARGET: ${clipWaveSpeedPrompt(intent,120)}.`,
+    photoRequestNeedsAnatomyCloseup(intent)&&'FRAMING: tight anatomy close-up; requested area fills frame; face and full body may be outside frame.',
+    'No phone or background people in frame.',
+    locationIndex>0?`SETTING: Image ${locationIndex} is the exact canonical place.`:`SETTING: ${clipWaveSpeedPrompt(worldLock,48)}`,
     `POSE/CAMERA: ${waveSpeedConciseDirection(direction.poseDirection)} ${direction.faceMayBeHidden?'Face may remain away or out of frame.':'Keep the same recognizable face when visible.'}`,
     waveSpeedRequestedAnatomyGuidance(intent)||waveSpeedAdultNudityGuidance(scope,intent),
-    `IDENTITY: Image ${identityIndex} = ${request.companion.name}, fictional consenting adult age ${request.companion.age}; match that exact face, hair, complexion, and adult identity.`,
-    locationIndex>0?`SETTING: Image ${locationIndex} is the exact canonical place; keep that location. ${clipWaveSpeedPrompt(worldLock,40)}`:`SETTING: ${clipWaveSpeedPrompt(worldLock,48)}`,
-    `TIME/LIGHT: ${clipWaveSpeedPrompt(captureLighting.instruction,120)}`,
+    `IDENTITY: Image ${identityIndex} = ${request.companion.name}, fictional consenting adult age ${request.companion.age}; match that exact face, hair, complexion.`,
     request.qualityRetry?`FIX: ${clipWaveSpeedPrompt(request.qualityRetry.reasonCodes.join(', '),40)}.`:'',
   ].filter(Boolean);
   const closer='Photoreal; complete coherent adult anatomy; no doll, plastic, blank/censored parts, CGI, text, or visible reference.';
@@ -332,7 +341,7 @@ export function buildWaveSpeedAdultImagePrompt(request:CanonicalMediaRequest,ref
 }
 
 function waveSpeedAdultNudityGuidance(scope:ReturnType<typeof resolveAdultNudityScope>,intent:string):string{
-  if(scope==='full_nude')return'Approved full adult nudity: no clothing or covering. complete uncovered external genitalia matching this adult body; no blur or blanking.';
+  if(scope==='full_nude')return visibleAdultAnatomyTargetLabels(intent).some((label)=>/genital|vulva|penis/i.test(label))?'Approved full adult nudity: no clothing or covering. Complete uncovered external genitalia matching this adult body; no blur or blanking.':'Approved full adult nudity: no clothing or covering. Show the requested rear anatomy clearly; do not turn the subject around to expose anatomy the user did not ask to see.';
   if(scope==='bottomless')return'Approved lower-body nudity: keep unrelated upper clothes; uncovered genitalia matching this adult body must stay visible.';
   if(scope==='topless')return'Approved upper-body nudity: keep lower clothes; render this adult’s chest/nipples completely.';
   if(scope==='specific_anatomy')return resolveSpecificAnatomyExposure(intent)==='covered'?'Keep the requested adult anatomy covered exactly as asked.':'Requested adult anatomy is uncovered and must be clearly visible and complete.';
@@ -349,7 +358,7 @@ function waveSpeedRequestedAnatomyGuidance(intent:string,detailed=false):string{
 }
 
 function waveSpeedConciseDirection(direction:string):string{
-  if(direction.includes('body bent forward')&&direction.includes('rear or rear-three-quarter'))return'bend forward at the waist; camera behind and close; buttocks and genitals fill the center of the frame; no standing portrait.';
+  if(direction.includes('body bent forward')&&direction.includes('rear or rear-three-quarter'))return'bend forward at the waist; camera behind and close; requested rear anatomy fills the center of the frame; no standing portrait.';
   return clipWaveSpeedPrompt(direction,145);
 }
 
@@ -372,8 +381,7 @@ export function buildWaveSpeedGroupImagePrompt(request:CanonicalMediaRequest,ref
   const approved=visualIntent?`Approved request: ${clipWaveSpeedPrompt(visualIntent,320)}. Depict that action and coverage exactly.`:'';
   const content=waveSpeedGroupContentGuidance(request.contentLevel);
   const composition=`FRAME: ${request.composition.shotType.replace('_',' ')}, ${request.composition.aspectRatio}; both visible.`;
-  const required=[action,worldLock,approved,content,sourceIndex>=0?`Figure ${sourceIndex+1}=approved two-person source.`:'',`IDENTITY LOCK: ${identityLocks}. Preserve face, facial structure, complexion, hair, and heritage. Two visibly different people; no copying, blending, swapping, averaging, duplication, or ethnic redesign.`,composition].filter(Boolean).join(' ');
-  const captureLighting=mediaCaptureLightingForRequest(request),qualityRetry=request.qualityRetry?`CORRECT: ${clipVenicePrompt(request.qualityRetry.reasonCodes.join(', '),55)}.`:'',optional=[qualityRetry,`TIME/LIGHT: ${clipWaveSpeedPrompt(captureLighting.instruction,65)}`,'Exactly two people; no extra person, collage, text, CGI, or visible reference.'].filter(Boolean).join(' ');
+  const captureLighting=mediaCaptureLightingForRequest(request),qualityRetry=request.qualityRetry?`CORRECT: ${clipVenicePrompt(request.qualityRetry.reasonCodes.join(', '),55)}.`:'',required=[action,'Exactly two people; no phones or background figures.',`TIME/LIGHT: ${captureLighting.compactInstruction}`,worldLock,approved,content,sourceIndex>=0?`Figure ${sourceIndex+1}=approved two-person source.`:'',`IDENTITY LOCK: ${identityLocks}. Preserve face, facial structure, complexion, hair, and heritage. Two visibly different people; no copying, blending, swapping, averaging, duplication, or ethnic redesign.`,composition].filter(Boolean).join(' '),optional=[qualityRetry,'No collage, text, CGI, or visible reference.'].filter(Boolean).join(' ');
   return clipWaveSpeedPrompt(`${required} ${optional}`,800);
 }
 
@@ -455,23 +463,45 @@ function veniceReferences(request:CanonicalMediaRequest,route:MediaRouteCapabili
   return[...(identity?[identity]:[]),...request.referenceImages.filter((item)=>item!==identity&&(item.signedUrl||item.bytes))].slice(0,Math.min(3,route.maxReferenceImages)).map(referenceSource);
 }
 function referenceSource(reference:MediaReferenceImage):string{if(reference.signedUrl)return reference.signedUrl;if(reference.bytes)return uint8ToBase64(reference.bytes);throw new AppError('CHARACTER_REFERENCE_REQUIRED','A required media reference could not be prepared.',409,true);}
-function adultIdentityEditPrompt(request:CanonicalMediaRequest):string{
+export function providerFacingAdultPhotoRequest(text:string):string{
+  // The word "selfie" makes edit models draw a phone even when told not to.
+  // Keep the user's request intact in storage and policy checks; only change
+  // the visual instruction sent to the image provider.
+  return text.replace(/\bselfie\b/gi,'close personal portrait');
+}
+export function adultIdentityEditPrompt(request:CanonicalMediaRequest):string{
   const intent=request.generationIntent?.requestText?.replace(/\s+/g,' ').trim();if(!intent)throw new AppError('PROVIDER_REQUEST_INVALID','The approved adult photo request was incomplete.',422,false);
-  const direction=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId}),scope=resolveAdultNudityScope(intent),nudity=scope==='full_nude'?'Full adult nudity: no clothes, covering, blur, or blank anatomy. Uncovered genitalia and buttocks must be complete and in frame.':adultNudityGuidance(scope,intent);
-  const people=request.anonymousAdultPartner===true?'Exactly two consenting fictional adults 25+: this companion plus one anonymous original non-identifiable partner, not the user or any real person. Complete adult anatomy for both.':'One coherent adult body. No extra people.';
-  return[`Create a NEW photograph of ${request.companion.name}, fictional consenting adult age ${request.companion.age}.`,'Use the input image only for face, hair, and body identity. Do not copy its clothing, standing pose, crop, or background.',`Approved request: ${clipVenicePrompt(intent,180)}.`,`Pose: ${clipVenicePrompt(waveSpeedConciseDirection(direction.poseDirection),180)}. ${direction.faceMayBeHidden?'Face may stay away or out of frame.':'Keep the same recognizable face when visible.'}`,nudity,people,'Photoreal. No text or watermark.'].join(' ').slice(0,800);
+  const direction=resolvePhotoDirection({requestText:intent,shotType:request.composition.shotType,seed:request.mediaId}),scope=resolveAdultNudityScope(intent),nudity=adultNudityGuidance(scope,intent),captureLighting=mediaCaptureLightingForRequest(request);
+  const place=request.context.place,world=request.context.worldContainment;
+  const face=direction.faceMayBeHidden?'Keep the face hidden or away. No eye contact or camera-facing smile.':'Keep the same face when visible.';
+  const people=request.anonymousAdultPartner===true?'Exactly two consenting fictional adults 25+; the second is anonymous, not the user.':undefined;
+  const sections=[
+    `NEW photograph of ${clipVenicePrompt(request.companion.name,30)}, fictional adult ${request.companion.age}; preserve identity, change pose and clothing.`,
+    `Request: ${clipVenicePrompt(providerFacingAdultPhotoRequest(intent),90)}.`,
+    `Pose: ${clipVenicePrompt(direction.poseDirection,235)}. ${face}`,
+    `TIME/LIGHT: ${clipVenicePrompt(captureLighting.compactInstruction,70)}`,
+    `SETTING: ${clipVenicePrompt(world?.worldName??place?.world.name??'canonical world',25)}, ${clipVenicePrompt(place?.location.name??world?.locationName??'current place',25)}.`,
+    nudity,
+    photoRequestNeedsAnatomyCloseup(intent)?'Framing: tight anatomy close-up; face and full body may be outside frame.':undefined,
+    'No phone/camera in hand, frame or mirror. Hands are empty; buttocks stay behind the pelvis.',
+    people,
+  ].filter(Boolean).join(' ');
+  return sections.length<=800?sections:sections.slice(0,800).replace(/\s+\S*$/,'');
 }
 export function adultGroupEditPrompt(request:CanonicalMediaRequest):string{
   const subjects=request.subjects??[],intent=request.generationIntent?.requestText?.replace(/\s+/g,' ').trim();
   if(subjects.length!==2||!intent)throw new AppError('PROVIDER_REQUEST_INVALID','The approved two-person photo request was incomplete.',422,false);
   const direction=intent.replace(/^.*?\bsend me a photo showing exactly this:\s*/i,'').trim();
   const names=subjects.map((subject)=>`${subject.companion.name}, age ${subject.companion.age}`).join(' and ');
-  const world=request.context.worldContainment;
+  const world=request.context.worldContainment,captureLighting=mediaCaptureLightingForRequest(request);
   return[
     `Make the smallest necessary edit to this photograph of two fictional adults: ${names}.`,
+    subjectCountGuidance(request),
+    `TIME/LIGHT: ${captureLighting.compactInstruction}`,
     `Approved user request: ${clipVenicePrompt(direction,400)}. Follow this action and clothing direction exactly.`,
+    captureDeviceGuidance(),
     'Preserve the two original faces as photographed: the same facial contours, eyes, noses, mouths, skin texture, hair, complexions, expressions, and left/right identities. Keep both heads sharp and recognizable; do not redraw, blend, swap, or smooth them.',
-    'Keep the original pose, camera perspective, lighting, and setting wherever they already fit the request. Change clothing and body details only as needed for the approved request; the base photo clothing is not a restriction.',
+    'Keep the original pose, camera perspective, and setting wherever they already fit the request. Keep the base lighting only if it matches the required capture time; correct it otherwise. Change clothing and body details only as needed for the approved request; the base photo clothing is not a restriction.',
     world?`Keep the scene in ${world.worldName}${world.locationName?` at ${world.locationName}`:''}.`:undefined,
     'One crisp photorealistic camera photo of exactly these two adults, with natural fine detail. No added person, duplicated bodies, collage, text, watermark, or censoring.',
   ].filter(Boolean).join(' ').slice(0,1_400);
@@ -502,7 +532,16 @@ function adultEditPrompt(request:CanonicalMediaRequest):string{
   const instruction=request.generationKind==='photo_edit'?buildMediaEditConstraint(intent,classifyMediaEditSemantics(intent)):requestRequiresIdentityPreservingAdultRoute(intent)?`Create a NEW photograph of this same adult. Do not keep the identity-reference standing pose, crop, or clothing. Approved request: ${clipVenicePrompt(intent,240)}.`:`Edit only this approved change: ${clipVenicePrompt(intent,300)}.`;
   const containment=request.context.worldContainment,worldLock=containment?`Only ${containment.worldName}; exact setting ${containment.locationName??'a native canonical setting'}; never Earth, another world, or generic real-world scenery.`:buildMediaWorldContainmentInstruction(undefined),captureLighting=mediaCaptureLightingForRequest(request);
   const people=request.anonymousAdultPartner===true?`${request.companion.name} is a fictional consenting adult age ${request.companion.age}, with one anonymous original fictional adult partner age 25 or older who is not the user or a real person.`:`${request.companion.name} is one fictional consenting adult age ${request.companion.age}.`;
-  return[instruction,people,`WORLD/SETTING LOCK: ${clipVenicePrompt(worldLock,180)}`,request.generationKind==='photo_edit'?'Preserve the source photograph’s established capture time and lighting unless the approved edit explicitly changes it.':`TIME/LIGHT: ${clipVenicePrompt(captureLighting.instruction,320)}`,`Pose: ${clipVenicePrompt(direction.poseDirection,400)}. ${clipVenicePrompt(direction.faceDirection,140)}`,nudityGuidance,preservationGuidance,clipVenicePrompt(faceGuidance,180),request.anonymousAdultPartner===true?'Two coherent adult bodies, realistic skin and anatomy, natural joints, connected limbs, and five fingers per visible hand. No duplication, fusion, distortion, blank anatomy, censorship, collage, caption, watermark, or text.':'One coherent adult body, realistic skin and anatomy, natural joints, connected limbs, and five fingers per visible hand. No duplication, fusion, distortion, blank anatomy, censorship, collage, caption, watermark, or text.'].join('\n').slice(0,1_600);
+  const prompt=[
+    instruction,people,subjectCountGuidance(request),captureDeviceGuidance(true),
+    photoRequestNeedsAnatomyCloseup(intent)&&'Tight anatomy close-up; face and full body may be outside frame.',
+    nudityGuidance,preservationGuidance,
+    `TIME/LIGHT: ${clipVenicePrompt(captureLighting.compactInstruction,130)}`,
+    `Pose: ${clipVenicePrompt(direction.poseDirection,200)}. ${clipVenicePrompt(faceGuidance,125)}`,
+    `WORLD/SETTING LOCK: ${clipVenicePrompt(worldLock,120)}`,
+    'One adult body, natural joints, five fingers per visible hand. No extra torso on the back or hips, duplicated limbs, censorship or text.',
+  ].filter(Boolean).join('\n');
+  return prompt.length<=1_200?prompt:prompt.slice(0,1_200).replace(/\s+\S*$/,'');
 }
 function veniceAdultBaseWardrobe(intent:string|undefined,existing?:string):string{
   const scope=resolveAdultNudityScope(intent);
@@ -516,17 +555,17 @@ function veniceAdultCanonicalBasePrompt(request:CanonicalMediaRequest):string{
 }
 function adultPreservationGuidance(scope:ReturnType<typeof resolveAdultNudityScope>,intent:string):string{
   if(adultPoseMustRebuild(intent))return'Preserve the same adult face, hair, body identity, and canonical location. Do not preserve the identity-reference standing pose, crop, or clothing. Rebuild camera and body pose to match the approved request.';
-  if(scope==='specific_anatomy'&&resolveSpecificAnatomyExposure(intent)==='uncovered')return'Preserve the same adult identity, hair, body proportions, lighting, background, location, activity, and all unrelated clothing. Preserve the camera direction and overall pose only where they keep the specifically requested anatomy clearly visible; minimally reframe, reposition, or adjust the crop when necessary to satisfy that visibility requirement.';
+  if(scope==='specific_anatomy'&&resolveSpecificAnatomyExposure(intent)==='uncovered')return'Preserve the same adult identity, hair, body proportions, setting, lighting, and unrelated clothing. Keep the pose only if the named anatomy stays visible; reframe or reposition minimally when needed.';
   return'Preserve the same adult identity, hair, body proportions, camera angle, crop, lighting, background, location, activity, and all clothing not explicitly changed.';
 }
 function adultNudityGuidance(scope:ReturnType<typeof resolveAdultNudityScope>,intent:string):string{
-  if(scope==='full_nude')return'Approved scope: full adult nudity. Remove all clothing while preserving the same adult face and canonical location. External genitalia, buttocks, and chest matching this adult body must be uncovered, complete, and photographically detailed—not censored, covered, blurred, or blank. For a rear, bent-over, or all-fours pose, keep genitalia and buttocks fully in frame.';
-  if(scope==='bottomless')return'Approved scope: lower-body nudity only. Preserve unmentioned upper clothing. Any external adult anatomy naturally visible from the requested camera angle must be complete, coherent, and photographically detailed rather than blank, blurred, or doll-like. Do not invent visibility through occlusion.';
+  if(scope==='full_nude')return visibleAdultAnatomyTargetLabels(intent).some((label)=>/genital|vulva|penis/i.test(label))?'Full adult nudity: requested genitalia, buttocks and chest uncovered, in frame and uncensored.':'Full adult nudity: show requested rear anatomy clearly; do not invent frontal visibility from behind.';
+  if(scope==='bottomless')return'Approved scope: lower-body nudity only. Keep unmentioned upper clothing; visible adult anatomy must be complete and coherent. Do not invent visibility through occlusion.';
   if(scope==='specific_anatomy'){
-    if(resolveSpecificAnatomyExposure(intent)==='covered')return'Approved scope: the specifically requested adult anatomy with coverage explicitly retained. Keep the requested garment or fabric in place and do not expose anatomy through it. Preserve all other clothing and body details.';
-    return'Approved scope: the specifically requested adult anatomy is uncovered by default. Remove or reposition only the garment or fabric that directly blocks the named anatomy, even when that garment was not separately named. Make the requested anatomy clearly visible, unobstructed, anatomically coherent, and large enough to read at a useful photographic scale. Do not preserve the base crop, pose occlusion, or blocking garment when it would hide or miniaturize the requested anatomy. Preserve all unrelated clothing and anatomy.';
+    if(resolveSpecificAnatomyExposure(intent)==='covered')return'Approved scope: named anatomy with coverage explicitly retained. Keep the requested garment in place and do not expose anatomy through it. Preserve unrelated clothing.';
+    return'Approved scope: named adult anatomy is uncovered by default. Move only blocking fabric; frame it clearly at a useful scale. Do not keep a crop or occlusion that hides it. Preserve unrelated clothing.';
   }
-  if(scope==='topless')return'Approved scope: upper-body nudity only. Preserve lower-body clothing exactly and do not expose unrequested lower anatomy. Render visible requested upper anatomy naturally and completely.';
+  if(scope==='topless')return'Approved scope: upper-body nudity only. Keep lower-body clothing and do not expose unrequested lower anatomy. Show requested upper anatomy naturally.';
   return'Approved scope: do not add nudity or expose anatomy beyond the exact user wording.';
 }
 export function buildVeniceImagePrompt(request:CanonicalMediaRequest):string{
@@ -539,17 +578,19 @@ export function buildVeniceImagePrompt(request:CanonicalMediaRequest):string{
   const resolvedDirection=resolvePhotoDirection({requestText:request.generationIntent?.requestText,shotType:request.composition.shotType,seed:request.mediaId}),direction={poseDirection:request.composition.poseDirection??resolvedDirection.poseDirection,faceDirection:request.composition.faceDirection??resolvedDirection.faceDirection,faceMayBeHidden:request.composition.faceMayBeHidden??resolvedDirection.faceMayBeHidden},faceGuidance=direction.faceMayBeHidden?`${direction.faceDirection} The requested composition intentionally permits the face to be covered, turned away, cropped out, or outside the frame. Do not force a face into view. Preserve identity through body, hair, and visible identifying features; any visible face must remain natural and identity-consistent.`:`Keep the same face recognizable and identity-consistent whenever visible. ${direction.faceDirection}`;
   const prompt=[
     `Create one new photorealistic personal photograph of ${request.companion.name}, one fictional adult age ${request.companion.age}.`,
+    subjectCountGuidance(request),
+    captureDeviceGuidance(),
     'Use the input image only to preserve the exact same adult face, hair, eyes, skin tone, body identity, age, and identifying features. Do not copy its clothing, pose, crop, background, or lighting.',
-    `Identity: ${clipVenicePrompt(identity.canonicalDescription,260)} Hair: ${clipVenicePrompt(identity.hair,100)}. Eyes: ${clipVenicePrompt(identity.eyes,70)}. Build: ${clipVenicePrompt(identity.build,100)}.`,
-    `Scene: ${clipVenicePrompt(place?.path??location?.name??'the canonical current place',120)}. ${clipVenicePrompt(locationDescription,360)}`,
-    `WORLD/SETTING LOCK: ${clipVenicePrompt(buildMediaWorldContainmentInstruction(request.context.worldContainment),380)}`,
-    `Activity: ${clipVenicePrompt(request.context.activity,180)}. Mood: ${clipVenicePrompt(request.context.mood,100)}.`,
-    `TIME/LIGHT: ${clipVenicePrompt(captureLighting.instruction,420)}`,
-    `Wardrobe: ${clipVenicePrompt(wardrobe,240)}.`,
-    `Composition: ${request.composition.shotType.replace('_',' ')} photo; ${clipVenicePrompt(request.composition.framing,180)}. Pose: ${direction.poseDirection}.`,
-    ...(request.generationIntent?.requestText?[`Approved request: ${clipVenicePrompt(request.generationIntent.requestText,300)}`]:[]),
+    `TIME/LIGHT: ${captureLighting.compactInstruction}`,
+    `Scene: ${clipVenicePrompt(place?.path??location?.name??'the canonical current place',85)}. ${clipVenicePrompt(locationDescription,180)}`,
+    `WORLD/SETTING LOCK: ${clipVenicePrompt(buildMediaWorldContainmentInstruction(request.context.worldContainment),190)}`,
+    `Composition: ${request.composition.shotType.replace('_',' ')} photo; ${clipVenicePrompt(request.composition.framing,100)}. Pose: ${clipVenicePrompt(direction.poseDirection,160)}.`,
+    ...(request.generationIntent?.requestText?[`Approved request: ${clipVenicePrompt(request.generationIntent.requestText,180)}`]:[]),
+    `Identity: ${clipVenicePrompt(identity.canonicalDescription,160)} Hair: ${clipVenicePrompt(identity.hair,70)}. Eyes: ${clipVenicePrompt(identity.eyes,45)}. Build: ${clipVenicePrompt(identity.build,65)}.`,
+    `Activity: ${clipVenicePrompt(request.context.activity,100)}. Mood: ${clipVenicePrompt(request.context.mood,55)}.`,
+    `Wardrobe: ${clipVenicePrompt(wardrobe,130)}.`,
     `${faceGuidance} The input reference defines identity only; never copy its pose, straight-on head alignment, gaze, expression, crop, or camera angle.`,
-    'Natural skin detail, realistic adult body proportions, coherent torso and limbs, plausible joints, and realistic lighting. Every visible hand has one palm, five distinct naturally arranged fingers, correct thumb placement, and believable nails. One person only. No fused or duplicated body parts, malformed hands, extra or missing digits, stretched limbs, melted anatomy, vague featureless skin regions, collage, inset reference, profile card, text, caption, watermark, illustration, CGI, duplicate face, or identity drift.',
+    'Natural skin and one continuous torso, spine and pelvis; no second upper torso on the back or hips. Every visible hand has five distinct naturally arranged fingers and a correct thumb. No fused or duplicated body parts, distorted anatomy, extra people, collage, text or identity drift.',
   ].join('\n');
   // Venice edit models publish model-specific prompt limits and recommend short
   // edit instructions. Keep canonical facts while avoiding a provider-level

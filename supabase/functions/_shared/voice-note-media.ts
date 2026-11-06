@@ -8,6 +8,7 @@ type VoiceNoteMediaMutationInput = {
   requestKey: string;
   provider: string;
   canonicalText: string;
+  restricted: boolean;
   attemptNumber: number;
   metadata: Record<string, unknown>;
   updatedAt?: string;
@@ -33,10 +34,14 @@ export function buildVoiceNoteMediaMutation(
     conversation_id: input.conversationId,
     message_id: input.messageId,
     media_type: "voice_note",
+    // The database derives rating/scope from content_level on insert.
+    content_level: input.restricted ? "explicit" : "standard",
     status: "generating",
     request_key: input.requestKey,
     provider: input.provider,
     canonical_text: input.canonicalText,
+    content_rating: input.restricted ? "explicit" : "safe",
+    visibility_scope: input.restricted ? "web_adult" : "all",
     failure_code: null,
     failure_reason_safe: null,
     attempt_count: input.attemptNumber,

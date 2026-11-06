@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@1';
-import { jwtSubjectFromAccessToken, resolveServerSecret, serverSecretLooksUsable } from './context.ts';
+import { jwtSubjectFromAccessToken, jwtIssuedAt, resolveServerSecret, serverSecretLooksUsable } from './context.ts';
 
 function tokenWithPayload(payload:Record<string,unknown>):string{
   const encoded=btoa(JSON.stringify(payload)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -29,4 +29,10 @@ Deno.test('server credential resolution supports current and legacy deployment n
   assertEquals(resolveServerSecret((name)=>values[name]),'service-role');
   assertEquals(resolveServerSecret((name)=>name==='SUPABASE_SECRET_KEY'?'legacy-secret':undefined),'legacy-secret');
   assertEquals(resolveServerSecret(()=>undefined),null);
+});
+
+Deno.test('account recreation reads the verified token issue time and rejects missing timestamps',()=>{
+  assertEquals(jwtIssuedAt(tokenWithPayload({iat:1793830000})),1793830000);
+  assertEquals(jwtIssuedAt(tokenWithPayload({})),null);
+  assertEquals(jwtIssuedAt('invalid'),null);
 });

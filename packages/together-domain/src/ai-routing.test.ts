@@ -11,6 +11,19 @@ describe('Kivelle AI routing',()=>{
     expect(hasSexualDialogueLanguage('Take off your clothes.')).toBe(true);
     expect(hasSexualDialogueLanguage('I want to kiss you and hold you close.')).toBe(false);
   });
+  it.each(['cock', 'c0ck?', 'fuck!', 'fucking', 'dick', 'sex?'])('does not block a bare word as a sexual request: %s',(message)=>{
+    const moderation={allowed:false,flagged:true,categories:['sexual/adult'],categoryScores:{'sexual/adult':.9}};
+    expect(hasSexualDialogueLanguage(message)).toBe(false);
+    expect(classifyDialogueContent({message,requestedMode:'mature',moderation})).toBe('standard');
+    expect(routeKivelleDialogue({classification:classifyDialogueContent({message,requestedMode:'mature',moderation}),requestedMode:'mature',ageVerified:false,characterAge:29,providers})).toMatchObject({hardBlocked:false,provider:'openai'});
+  });
+  it.each(['What the fuck happened?', 'Fuck you.', 'I fucking hate this.'])('keeps nonsexual profanity in ordinary dialogue: %s',(message)=>{
+    expect(classifyDialogueContent({message})).toBe('standard');
+  });
+  it.each(['Fuck me.', 'I want to fuck you.', "Let's fuck.", 'So Adrian, we are down to fuck', 'Are you down to fuck?', 'Show me your cock.', 'Nice cock.'])('still recognizes a contextual sexual request: %s',(message)=>{
+    expect(hasSexualDialogueLanguage(message)).toBe(true);
+    expect(classifyDialogueContent({message})).toBe('explicit_adult');
+  });
   it.each([
     'The sword penetrates his armor and he falls dead on the battlefield.',
     'What the fuck did you just do? Guards, seize him.',

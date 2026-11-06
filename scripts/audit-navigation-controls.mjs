@@ -140,7 +140,9 @@ for (const file of auditRoots.flatMap(sourceFiles)) {
       if (/Button$/.test(tag) && tag !== "Pressable") {
         customButtonCount += 1;
         const hasSpread = node.attributes.properties.some(ts.isJsxSpreadAttribute);
-        if (!onPress && !hasSpread && !wrappedByLinkAsChild(node)) report(node, `${tag} has no onPress handler or Link wrapper.`);
+        const onSelect = jsxAttribute(node, "onSelect");
+        if (inertHandler(onSelect)) report(node, `${tag} has an empty selection handler.`);
+        if (!onPress && !onSelect && !hasSpread && !wrappedByLinkAsChild(node)) report(node, `${tag} has no onPress or onSelect handler or Link wrapper.`);
       }
       for (const attributeName of ["href", "route"]) {
         const href = jsxHref(jsxAttribute(node, attributeName));

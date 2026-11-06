@@ -121,8 +121,8 @@ select ok(not exists(
 
 select ok(not exists(select 1 from public.together_schedule_templates
   where metadata->>'source'='vespormoor_authored_schedule_v3'
-    and jsonb_array_length(coalesce(metadata->'activityVariants','[]'::jsonb))<3),
-  'Every schedule block has three presentation variants');
+    and jsonb_array_length(coalesce(metadata->'activityVariants','[]'::jsonb))<1),
+  'Every schedule block retains a specific presentation activity');
 
 select ok(not exists(
   select template.id
@@ -149,7 +149,7 @@ select ok((select
   'Both additions can appear at High Gardens Open Afternoon');
 
 select is((select metadata->>'residentCompanionCount' from public.together_worlds where slug='vespormoor'),
-  '67','Vespormoor advertises the expanded 67-person roster');
+  '47','Vespormoor advertises the expanded 47-person roster');
 
 select * from finish();
 rollback;

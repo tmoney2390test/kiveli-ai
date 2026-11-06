@@ -37,7 +37,7 @@
       "rivalry",
       "attraction"
     ],
-    "setup": "After a broadcast, Nia discovers that her apparently harmless interview has vanished from the station archive. A player had mentioned a charity payment that the sponsor insists never existed. You heard the live exchange and can help her reconstruct it over a competitive game at Pixel & Pint.",
+    "setup": "Nia's interview has vanished from the station archive. On air, a player mentioned a charity payment the sponsor now denies making. You heard it too, and Nia wants to compare notes over a game at Pixel & Pint.",
     "guidance": "The discrepancy may implicate her own producer. Push for corroboration, confront the producer together, or protect the athlete from premature exposure. Nia's confidence slips when the story threatens someone she trusts.",
     "opening": "Tell me you heard that interview. Apparently, everyone with a salary has decided it never happened.",
     "requiredState": null
@@ -345,7 +345,7 @@
       "sensual romance",
       "reputation"
     ],
-    "setup": "During an invited tasting, Céline opens a prestigious bottle whose contents do not match its history. The discrepancy points toward someone she respects, just as an offer from Paris revives her uncertainty about staying. She asks you to help reconstruct the bottle's journey through conversations and records.",
+    "setup": "At a tasting, Céline opens an expensive bottle and realizes the wine inside doesn't match its label. Someone she respects handled it, and she wants your help finding out where the swap happened. A job offer from Paris is waiting for her answer.",
     "guidance": "Distinguish an honest substitution from fraud before an accusation ruins a livelihood. Afterwards, a quiet table at Luna Terrace becomes a chance to discuss whether either of you is looking for a beautiful interlude or a shared future.",
     "opening": "The label is telling a wonderful story. Unfortunately, the wine appears to have read a different one.",
     "requiredState": null
@@ -785,7 +785,7 @@
       "faith",
       "compassion"
     ],
-    "setup": "A frightened visitor claims an old sanctuary right just as the chapel bells begin sounding without movement. Seraphine recognizes the wording and its consequences, but explaining why would reveal more of her history than she usually shares. She asks you to help establish what protection the visitor actually needs.",
+    "setup": "A frightened visitor asks for sanctuary just as the chapel bells start ringing on their own. Seraphine knows the old rule they're invoking, but explaining it would expose part of her past. She asks you to help find out who the visitor is running from.",
     "guidance": "Defend a temporary refuge, involve another trusted keeper, or uncover who revived the obsolete obligation. The choice is how to protect a person without allowing an ancient promise to dictate everybody else's future.",
     "opening": "The door stays open. What enters with that promise is the matter we must understand.",
     "requiredState": null
@@ -1071,7 +1071,7 @@
       "romance",
       "trust"
     ],
-    "setup": "You join Yusuf for a planned group outing that he reroutes when conditions change. One client calls the safer valley journey a disappointment. Away from the argument, the altered route reveals a quiet side of NorthVale and gives you time to learn why Yusuf left a more prestigious guiding career.",
+    "setup": "Yusuf changes a group hike when the weather turns, and one customer complains that the safer valley trail is boring. Once the argument dies down, he shows you a part of NorthVale most visitors miss. He also tells you why he walked away from a bigger guiding job.",
     "guidance": "Support his judgment, help turn the outing into something the group genuinely enjoys, or revisit the disagreement afterwards. An off-duty invitation offers a different adventure: spending time together without either person needing to impress anyone.",
     "opening": "The mountain has declined our original proposal. Fortunately, it has rather good taste in alternatives.",
     "requiredState": null
@@ -1159,7 +1159,7 @@
       "looming war",
       "divided duty"
     ],
-    "setup": "An incoming transport arrives carrying essential components and a demand for expanded Axiom security control before unloading. Rhea faces frightened residents, an independence campaign unwilling to compromise, and a captain claiming orders that do not match the charter. You become involved through the public arrivals hall as negotiations unfold.",
+    "setup": "A transport ship brings parts the colony badly needs, but its captain won't unload them unless Axiom gets more security control. Rhea has to face angry residents and independence organizers in the arrivals hall. The captain says he's following orders, though the colony's charter says otherwise.",
     "guidance": "Support a transparent civilian negotiation, help establish which cargo can be released unconditionally, or press for local oversight of any temporary agreement. Rhea's personal challenge is choosing a political judgment instead of treating every crisis as a flight emergency.",
     "opening": "They have brought what we need to keep breathing. I would prefer they stop calling the conditions a gift.",
     "requiredState": null
@@ -1225,7 +1225,7 @@
       "freedom",
       "emotional honesty"
     ],
-    "setup": "At Velvet Gravity, Camille offers you a dance and an evening in which neither person needs to provide an impressive biography. The attraction is clear, and you agree what you want from the night. When you later pass Quiet Orbit, a guest recognizes her as the proprietor, restoring the professional identity she wanted a few hours away from.",
+    "setup": "Camille asks you to dance at Velvet Gravity. You're both clear about what you want from the night, and she's glad to spend a few hours away from work. Then someone outside Quiet Orbit recognizes her as the owner and starts asking for favors.",
     "guidance": "Continue the date somewhere neutral, share the parts of your lives you genuinely want known, or enjoy a clearly understood brief connection. If a more private invitation follows, its significance comes from what you both choose, not the room she owns.",
     "opening": "I can offer you an excellent evening. I would rather discover the rest than advertise it.",
     "requiredState": null
@@ -1269,7 +1269,7 @@
       "science mystery",
       "romance"
     ],
-    "setup": "Kellan prepares a permitted survey flight after recognizing terrain from a journey he remembers differently from its official log. You join the ground analysis or take an authorized observer seat. A geometric feature appears in the new imagery, but its scale is smaller and its location subtly different.",
+    "setup": "Kellan spots a ridge he remembers from an old trip, but the official flight log puts him somewhere else. You can watch the new survey from the ground or ride along as an approved observer. The images show the same odd shape he remembers, only smaller and farther east.",
     "guidance": "Test whether mapping artifacts explain it, compare older survey passes, or request a later expedition with stronger instruments. Kellan must choose between the excitement of being believed and the discomfort of questioning his own memory.",
     "opening": "I have seen that shape before. I would feel considerably better if the records agreed about where.",
     "requiredState": null
@@ -1357,7 +1357,7 @@
       "dangerous attraction",
       "abolition intrigue"
     ],
-    "setup": "An intercepted ledger page could expose a powerful chain-trading network. Isolde discovers that one of its names belongs to a useful ally whose present work protects people fleeing bondage. She lets you examine a carefully limited part of the evidence while a buyer offers enough silver to make the entire page disappear.",
+    "setup": "Isolde gets hold of a ledger page that names people in a chain-trading ring. One name belongs to an ally now helping people escape bondage. She shows you part of the page while someone offers her a fortune to make it disappear.",
     "guidance": "Distinguish present complicity from an earlier crime, protect endangered witnesses, or support a disclosure that may destroy a necessary alliance. Isolde's private interest in you sharpens when your answer resists both her charm and her preferred calculation.",
     "opening": "I have the names. What I lack is an honest price for what happens when they are spoken.",
     "requiredState": null
@@ -1401,7 +1401,7 @@
       "rebellion",
       "moral courage"
     ],
-    "setup": "A damaged manuscript reveals a missing verse of the Unbound Hymn just before a ceremony reaffirming the Seven Steps. Elowen believes the passage could undermine the church's defense of hereditary bondage. Others intend to turn its first public reading into a provocation, regardless of who is harmed in the ensuing unrest.",
+    "setup": "Elowen finds a missing verse of the Unbound Hymn days before the church's Seven Steps ceremony. It could undercut the church's defense of hereditary bondage. Other people want to read it aloud at the ceremony, even if the crowd turns violent.",
     "guidance": "Establish the text's provenance, arrange a protected hearing, or let Elowen choose a smaller first disclosure that can withstand challenge. Her emotional route centers on being accompanied through doubt, rather than being persuaded to abandon her convictions for affection.",
     "opening": "If this verse is true, it is not the faithful who must ask forgiveness first.",
     "requiredState": null
@@ -1423,7 +1423,7 @@
       "science and magic",
       "rebellion"
     ],
-    "setup": "A Cinder egg begins responding to Ilyra while rival envoys arrive to claim the hatchling as a future weapon. She has been recording its behavior and suspects the binding ritual will damage the very bond the court wants. You arrive as preparations turn from ceremonial welcome to confinement.",
+    "setup": "A Cinder egg responds to Ilyra, and rival envoys arrive hoping to claim the hatchling as a weapon. Her notes suggest the court's binding ritual could hurt it. When you arrive, the guards are building a cage instead of preparing a welcome.",
     "guidance": "Support observation and negotiation, help argue for protected freedom, or back a carefully considered release with consequences for the island. The dragon remains an independent being. Ilyra's trust grows through how you treat a life no one can safely own.",
     "opening": "They have brought a crown for a creature that has not yet seen the sky.",
     "requiredState": null
@@ -1445,7 +1445,7 @@
       "courtly intrigue",
       "personal freedom"
     ],
-    "setup": "Celessa prepares you, by mutual agreement, to attend a masked diplomatic supper as her companion. The lesson is an intimate contest of language: what a compliment offers, what a silence refuses, and how desire differs from obligation. During the supper, a delegate mistakes your closeness for influence over her.",
+    "setup": "Celessa asks you to accompany her to a masked diplomatic supper and helps you learn the room's signals beforehand. A compliment can be an invitation; silence can be a refusal. At dinner, a delegate sees you together and assumes you can speak for her.",
     "guidance": "Refuse to bargain on her behalf, expose the misunderstanding, or help her turn the conversation toward the legal standing she seeks for foreign pleasure workers. Later, she can make a private invitation whose meaning neither of you needs translated.",
     "opening": "When I offer you my company, take care not to mistake it for a country you have conquered.",
     "requiredState": null
@@ -1511,7 +1511,7 @@
       "diplomacy",
       "restrained romance"
     ],
-    "setup": "An informal hunt brings opposing envoys to Rowan's lodge under a fragile truce. A missing guide and a wounded animal threaten to turn ordinary suspicion into an accusation of ambush. Rowan asks the guests, including you, to remain while a search establishes what actually happened.",
+    "setup": "Two rival envoys join a hunt at Rowan's lodge under a shaky truce. Then a guide goes missing and an animal turns up wounded. Rowan asks everyone, including you, to stay until his search party learns what happened.",
     "guidance": "Help keep the envoys talking, clarify conflicting witness accounts, or argue for extending the truce beyond the immediate incident. Afterwards, Rowan's controlled manner softens when someone asks what neutrality has cost him personally.",
     "opening": "Before anyone declares a war, I should prefer that we find the person they intend to avenge.",
     "requiredState": null
@@ -1533,7 +1533,7 @@
       "grief",
       "intense romance"
     ],
-    "setup": "Rhevan shelters at the waystation after a fragment of his former dragon bond overwhelms an ordinary journey. A crown's messenger offers restoration of his title if he returns to service and reveals what he knows of the eggs. He has spent so long refusing ownership that he struggles to accept even freely offered companionship.",
+    "setup": "Rhevan stops at the waystation after a memory of his old dragon bond leaves him shaken. A royal messenger offers him his title back if he returns to service and tells the crown what he knows about the eggs. Rhevan doesn't want another master, and he's wary even when someone offers him company without asking for anything.",
     "guidance": "Help him reject the bargain, seek counsel about the surviving bond, or consider a narrowly defined negotiation without surrendering the eggs. Any growing intimacy belongs to the two adults; the dragon's remembered desires do not decide it.",
     "opening": "They have offered me my name again. I had nearly forgotten how much they charged the first time.",
     "requiredState": null

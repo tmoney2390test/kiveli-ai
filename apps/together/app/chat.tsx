@@ -1,79 +1,115 @@
+
+import { changePlanActivity } from '../src/lib/commitments';
+import { authorizeReply } from '../src/features/chat/authorizeReply';
+import { uploadConversationImage } from '../src/features/chat/uploadConversationImage';
+import { recoverPersistedReply } from '../src/features/chat/recoverPersistedReply';
+import { useChatRequestScope } from '../src/features/chat/useChatRequestScope';
+import type { ChatRequestScope } from '../src/features/chat/requestScope';
+import { useScopedChatState } from '../src/features/chat/useScopedChatState';
+import { CONVERSATION_PAGE_SIZE as PAGE_SIZE, useDirectHistoryState, useDirectConversationHistory } from '../src/features/chat/useDirectConversationHistory';
+import { useConversationGallery } from '../src/features/chat/useConversationGallery';
 import { ChatRecoveryNotice } from '../src/components/ChatRecoveryNotice';
 import { canPreviewCharacterBlueprint } from '@together/domain/src/character-blueprint';
 import { createRealtimeChannel } from '../src/lib/realtimeChannel';
 import { SchedulePauseControl } from '../src/components/settings/SchedulePauseControl';
-import {ScenarioConversationBanner} from '../src/components/ScenarioConversationBanner';
-import { useTimelineReveal } from '../src/hooks/useTimelineReveal';
-import { coalescedRefresh } from '../src/lib/coalescedRefresh';
+import { ScenarioConversationBanner } from '../src/components/ScenarioConversationBanner';
+import { WorldPulseConversationBanner } from '../src/components/WorldPulseConversationBanner';
 import { photoRequestRestriction, PHOTO_CONTENT_BLOCKED, PHOTO_REQUEST_BLOCKED_MESSAGE } from '@together/domain/src/photo-request-policy';
 import { useChatInboxNavigation } from '../src/hooks/useChatInboxNavigation';
 import { styles } from '../src/styles/chatStyles';
 import { CatalogImage as Image } from '../src/components/CatalogImage';
-import { VeniceTestDiagnostics } from '../src/components/VeniceTestDiagnostics';
 import { useMessageRewrite } from '../src/hooks/useMessageRewrite';
+import { useIosExplicitDialogueAvailability } from '../src/hooks/useIosExplicitDialogueAvailability';
 import { useContextQuote } from '../src/hooks/useContextQuote';
 import { ContextCostConfirmation } from '../src/components/settings/ContextCostConfirmation';
-import { Children, isValidElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
-import { ActivityIndicator, Alert, Animated, AppState, FlatList, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type FlatListProps, type LayoutChangeEvent } from 'react-native';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { ActivityIndicator, Alert, Animated, AppState, type FlatList, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { type ImageSource } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Brain, CalendarDays, Camera, Check, ChevronRight, Copy, FastForward, Flag, Heart, Images, LockKeyhole, MapPin, MessageCircle, Mic, MoreHorizontal, Pause, Phone, Play, Send, Sparkles, Square, Trash2, Undo2, Volume2, Wand2, X } from 'lucide-react-native';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import * as Clipboard from 'expo-clipboard';
+import { Brain, CalendarDays, ChevronRight, LockKeyhole, MapPin, MessageCircle, Mic, Play, Send, Sparkles, Square, Trash2, Wand2, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MESSAGE_CHARACTER_LIMIT, messageCharacterLimitError } from '@together/domain/src/message-limits';
 import { ONE_TAP_SELFIE_MESSAGE_PRESENTATION, type OneTapSelfieMessagePresentation } from '@together/domain/src/media';
-import { isPhotoOnlyConversationMessage } from '../src/lib/chatMediaPresentation';
 import { shouldGroupChatMessages } from '@together/domain/src/group-chat';
 import { preservedPrependOffset, shouldKeepChatPinned, shouldLoadOlderChatMessages } from '../src/lib/chatScroll';
-import { CharacterAvatar, CharacterMentionText, ChatActionText, CharacterProfilePreviewModal, ChatConversationRail, ChatPhotoRequestCard, ChatTypingIndicator, ConnectionBanner, ConversationOverflowMenu, DateTimeFields, EndPlanConfirmation, ErrorState, FailedMessageRecovery, FrostedBackdrop, FrostedSurface, JumpToLatestButton, LoadingSkeleton, MediaRequestModal, MediaTile, MemorySavedToast, MessageActionSheet, MessageCharacterCounter, MobileChatContextCard, MobileChatMediaHeader, MomentQuickMenuButton, PhotoSharingPaywallModal, PlanDetailsModal, PlanJoinBar, VoiceNotePurchaseModal, resolveCharacterPortraitSource, type MessageActionDefinition } from '../src/components';
-import { characterAssets } from '../src/assets';
+import { CharacterAvatar, ErrorState, LoadingSkeleton, resolveCharacterPortraitSource } from '../src/components/ui';
+import { CharacterProfilePreviewModal } from '../src/components/CharacterProfilePreviewModal';
+import { ChatConversationRail } from '../src/components/ChatConversationRail';
+import { ChatPhotoRequestCard } from '../src/components/media/ChatPhotoRequestCard';
+import { ChatTypingIndicator } from '../src/components/ChatTypingIndicator';
+import { ConnectionBanner } from '../src/components/ConnectionBanner';
+import { ConversationOverflowMenu } from '../src/components/ConversationOverflowMenu';
+import { ChatBranchSwitcher } from '../src/components/ChatBranchSwitcher';
+import { DateTimeFields } from '../src/components/DateTimeFields';
+import { EndPlanConfirmation, PlanJoinBar } from '../src/components/ActivePlanBar';
+import { FrostedBackdrop, FrostedSurface } from '../src/components/FrostedGlass';
+import { JumpToLatestButton } from '../src/components/JumpToLatestButton';
+import { MediaRequestModal } from '../src/components/MediaRequestModal';
+import { CopyToast, MemorySavedToast } from '../src/components/MemorySavedToast';
+import { useRememberedMessages } from '../src/hooks/useRememberedMessages';
+import { MessageCharacterCounter } from '../src/components/MessageCharacterCounter';
+import { MobileChatContextCard } from '../src/components/MobileChatContextCard';
+import { MobileChatMediaHeader } from '../src/components/MobileChatMediaHeader';
+import { MomentQuickMenuButton } from '../src/components/MomentQuickMenuButton';
+import { PhotoSharingPaywallModal } from '../src/components/PhotoSharingPaywallModal';
+import { PlanDetailsModal } from '../src/components/PlanDetailsModal';
+import { VoiceNotePurchaseModal } from '../src/components/VoiceNotePurchaseModal';
+import { characterAssets, locationHeroAsset } from '../src/assets';
 import { locationImageSource } from '../src/lib/locationImageSource';
 import { colors } from '../src/theme';
 import { useTogether } from '../src/store/useTogether';
-import { ApiError, confirmConversationAction, confirmUserImage, createSharedPlan, deleteConversationAttachment, dismissConversationAction, loadConversationMediaGallery, loadPhotoOfferStatus, manageConversation, manageInteraction, manageMedia, manageSharedScene, meetCompanion, mutateMemory, openConversation, prepareUserImage, quoteVoiceNote, refreshVoiceNote, rememberMessage, removePendingAttachment, requestVoiceNote, resolveRelationshipMilestone, sendDialogue, sendSceneReaction, setCharacterFavorite, setConversationPinned, setMessageFavorite, simulate, suggestDialogue } from '../src/lib/api';
+import { ApiError } from '../src/lib/api/transport';
+import { confirmConversationAction, createSharedPlan, dismissConversationAction, manageInteraction, manageSharedScene } from '../src/lib/api/plans';
+import { deleteConversationAttachment, removePendingAttachment } from '../src/lib/api/multimodal';
+import { loadPhotoOfferStatus, manageMedia } from '../src/lib/api/media';
+import { manageConversation, openConversation, setConversationPinned, setMessageFavorite } from '../src/lib/api/conversations';
+import { managePersona } from '../src/lib/api/account';
+import { meetCompanion, resolveRelationshipMilestone, setCharacterFavorite, simulate } from '../src/lib/api/companions';
+import { mutateMemory, rememberMessage } from '../src/lib/api/memory';
+import { quoteVoiceNote, requestVoiceNote } from '../src/lib/api/voice';
+import { sendDialogue, sendSceneReaction, suggestDialogue } from '../src/lib/api/dialogue';
 import { supabase } from '../src/lib/supabase';
-import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInstance, CharacterInteractionProposal, ConversationAction, ConversationAttachment, ConversationEvent, GeneratedMedia, InteractionCandidate, MediaOffer,Message, MessageReaction, PlanExperience, RelationshipMilestone, SceneAction, SceneParticipant, SceneSession, SharedPlan, Snapshot } from '../src/types';
-import { mergeOlderMessages, scopedConversationMessages } from '../src/lib/conversation';
+import type { AutoDialoguePreference, AutoDialogueSuggestion, CharacterInstance, CharacterInteractionProposal, ConversationAction, ConversationAttachment, ConversationEvent, GeneratedMedia, InteractionCandidate, MediaOffer, Message, PlanExperience, RelationshipMilestone, SceneAction, SceneParticipant, SceneSession, SharedPlan, Snapshot } from '../src/types';
+import { scopedConversationMessages } from '../src/lib/conversation';
 import { resolveChatRoute, type ChatRouteParams } from '../src/lib/chatRoute';
 import { confirmAction } from '../src/lib/dialogs';
 import { FreshChatConfirmation } from '../src/components/FreshChatConfirmation';
+import { BranchChatConfirmation } from '../src/components/BranchChatConfirmation';
 import { defaultPlanTimeFields, parseCustomPlanTime, type PlanOption, type PlanTimingSelection } from '../src/lib/plans';
 import { PlanSelection } from '../src/components/PlanSelection';
 import { ChatSettingsModal } from '../src/components/ChatSettingsModal';
 import { ConversationTimelineSkeleton } from '../src/components/ConversationTimelineSkeleton';
-import { ReportMessageModal } from '../src/components/ReportMessageModal';
 import { buildClientConversationContext, type ClientConversationContext } from '../src/lib/conversationContext';
 import { chatMessageTypography, resolveChatBubbleColors } from '../src/lib/chatSettings';
-import { chatBubbleColorHex, chatBubbleTextColor, type ChatBubbleColor } from '@together/domain/src/chat-appearance';
 import { createClientRequestId } from '../src/lib/requestId';
 import { characterCatalogForWorld, characterResidentWorld, worldForLocation } from '../src/lib/place';
 import type { FeaturedCompanion } from '../src/lib/featuredCompanions';
 import { presentMemoryText } from '../src/lib/memoryPresentation';
-import { mediaWithoutActivePhotoOffer, photoMediaForOffer, photoOfferForMessage, photoOffersAtTimelineTail, shouldShowPhotoGenerationPending, visibleChatPhotoMedia } from '../src/lib/photoRequestPresentation';
+import { photoOfferForMessage, photoOffersAtTimelineTail, photoOffersForConversation, shouldShowPhotoGenerationPending } from '../src/lib/photoRequestPresentation';
 import { latestMediaOfferPreviewUri } from '../src/lib/mediaOfferPresentation';
-import { proposalHeading, sceneActionDividerLabel, sceneActionTimelineEntryFromAction, sceneActionTimelineEntryFromMessage, type SceneActionTimelineEntry } from '../src/lib/interactionPresentation';
+import { proposalHeading, sceneActionDividerLabel, sceneActionTimelineEntryFromAction, type SceneActionTimelineEntry } from '../src/lib/interactionPresentation';
 import { createProposalDecisionGuard, reactToSavedProposal } from '../src/lib/proposalDecision';
-import { DIALOGUE_RECOVERY_DELAYS_MS, dialogueFailureMayHavePersisted, dialogueRecoveryShouldContinue, latestUnansweredDialogueRequest, persistedDialogueResponseForRequest, staleDialogueReplayDelay } from '../src/lib/dialogueRecovery';
-import { subscribeToWebPageResume, waitForWebPageVisible } from '../src/lib/webPageLifecycle';
-import { reconcileMessages } from '../src/lib/messageReconciliation';
+import { dialogueFailureMayHavePersisted, dialogueRecoveryShouldContinue, latestUnansweredDialogueRequest, persistedDialogueResponseForRequest, staleDialogueReplayDelay } from '../src/lib/dialogueRecovery';
+import { messageRenderKey, reconcileMessages } from '../src/lib/messageReconciliation';
 import { endPlanExperience, getPlanExperience, joinCommitment, switchPlanExperience } from '../src/lib/commitments';
-import { activePlanForChat, attendedPlansForLifecycleReconciliation, collapsePlanTimelineEvents, isPlanLifecycleDividerEvent, joinablePlanForChat, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanConversationAction, shouldShowPlanTimelineEvent } from '../src/lib/planActions';
+import { activePlanForChat, attendedPlansForLifecycleReconciliation, isPlanLifecycleDividerEvent, joinablePlanForChat, planActionAvailability, planLifecycleDividerLabel, shouldShowPlanConversationAction, shouldShowPlanTimelineEvent } from '../src/lib/planActions';
 import { hideVoiceNoteConfirmation, isVoiceNoteConfirmationHidden } from '../src/lib/voiceNoteConfirmation';
-import { chatSessionRouteKey, conversationWithLastMessage, isConversationPinned } from '../src/lib/messageInbox';
-import { clearChatScrollPosition, readChatScrollPosition, restoredChatOffset, saveChatScrollPosition, shouldRestoreChatScrollPosition, type ChatScrollPosition } from '../src/lib/chatNavigationState';
-import { withPhotoRequestTimeout, createOptimisticPhotoRequest, matchingServerPhotoOffer, queueOptimisticPhotoOfferAcceptance, queueServerPhotoOfferAcceptance, waitForMatchingServerPhotoOffer, waitForPhotoOfferStatus, type OptimisticPhotoRequest } from '../src/lib/photoOfferOptimism';
+import { chatSessionRouteKey, conversationWithLastMessage, isConversationPinned, preferNewerReadState } from '../src/lib/messageInbox';
+import { cacheConversationOffers, readCachedConversationOffers } from '../src/lib/conversationOfferWarmup';
+import { chatAdvancedSincePosition, clearChatScrollPosition, newestChatTimestamp, readChatScrollPosition, restoredChatOffset, saveChatScrollPosition, shouldRestoreChatScrollPosition, type ChatScrollPosition } from '../src/lib/chatNavigationState';
+import { declinedPhotoReplyAnchor, declinedPhotoReplayText, withPhotoRequestTimeout, createOptimisticPhotoRequest, matchingServerPhotoOffer, queueOptimisticPhotoOfferAcceptance, queueServerPhotoOfferAcceptance, waitForMatchingServerPhotoOffer, waitForPhotoOfferStatus, type OptimisticPhotoRequest } from '../src/lib/photoOfferOptimism';
+import { clearOptimisticPhotoDecline, clearPhotoDecline, photoDeclineHandoffKey, readOptimisticPhotoDecline, readPhotoDecline, rememberOptimisticPhotoDecline, rememberPhotoDecline, settlePhotoDecline, startPhotoDeclineReply } from '../src/lib/photoDeclineHandoff';
 import { mergeDictationTranscript } from '../src/lib/dictation';
 import { useChatDictation, type ChatDictationPhase } from '../src/hooks/useChatDictation';
 import { cleanupNormalizedImage, normalizeUserImage, userImagePickerOptions } from '../src/lib/imageUploads';
 import { photoUploadPresentation, type PhotoUploadPhase } from '../src/lib/photoUploadPresentation';
 import { mediaOfferActionBusy } from '../src/lib/mediaOfferBusy';
-import { privateStoredImageSource } from '../src/lib/mediaImageSource';
-import { chatMediaGalleryItems, chatMediaVideoPreview, type ChatMediaGalleryItem } from '../src/lib/chatMediaGallery';
-import { VideoMomentThumbnail } from '../src/components/VideoMomentThumbnail';
+import { chatMediaGalleryItems } from '../src/lib/chatMediaGallery';
 import { isTransientMediaFetchFailure, mediaReconciliationComplete, mergeGeneratedMediaCollections, missingMediaIds } from '../src/lib/mediaReconciliation';
+import { resolveSceneBeforeSend } from '../src/lib/sceneResolveDeadline';
+import { stalledPendingDialogueDelay } from '../src/lib/pendingDialogue';
 import { shouldConsumeComposerEnter, shouldSendComposerOnEnter } from '../src/lib/composerKeyboard';
 import { useAuth } from '../src/hooks/useAuth';
 import { useNetworkStatus } from '../src/providers/NetworkStatusProvider';
@@ -81,42 +117,48 @@ import { usePersistentMessageDraft } from '../src/hooks/usePersistentMessageDraf
 import { useMobileChatKeyboardPin } from '../src/hooks/useMobileChatKeyboardPin';
 import { ChatKeyboardFrame } from '../src/components/ChatKeyboardFrame';
 import { ChatComposerFrame } from '../src/components/ChatComposerFrame';
-import { wasUnreadWhenChatOpened } from '../src/lib/chatUnreadWindow';
 import { latestConversationHeaderImage } from '../src/lib/chatHeaderMedia';
 import { newGroupPrefillHref } from '../src/lib/groupInvite';
-import { canContinueMessage, isMessageFavorite } from '../src/lib/messageActions';
+import { canContinueMessage, isMessageFavorite, isVisibleChatMessage } from '../src/lib/messageActions';
+import { canOfferChatBranch } from '../src/lib/chatBranch';
+import { chatBranchPaths, type ChatBranchPath, type ChatBranchSummary } from '../src/lib/chatBranchPaths';
 import { handlePhotoSharingTap } from '../src/lib/photoSharing';
 import { subscriptionHref } from '../src/lib/subscriptionPresentation';
-import { conversationLocationHref, mediaViewerHref, navigateLocalRouteOnWeb } from '../src/lib/conversationNavigation';
-import { loadConversationMessagePage, readConversationMessagePage, writeConversationMessagePage } from '../src/lib/conversationMessageWarmup';
+import { conversationLocationHref, mediaViewerHref } from '../src/lib/conversationNavigation';
+import { conversationMessageCacheGeneration, latestCachedConversationMessageAt, mergeConversationMessagePage, writeConversationMessagePage } from '../src/lib/conversationMessageWarmup';
 import { hasCoherentConversationTimeline } from '../src/lib/conversationTimelineVisibility';
-import { hidePlanInteractionTray, isPlanInteractionTrayHidden, shouldShowPlanInteractionTray } from '../src/lib/planInteractionTrayPreference';
 import { CHAT_PRESENCE_FALLBACK_REFRESH_MS, nextChatPresenceTickDelay } from '../src/lib/chatPresence';
-import { uploadPreparedChatPhoto } from '../src/lib/chatPhotoStorageUpload';
 import { DailyMessageAllowanceNotice } from '../src/components/DailyMessageAllowanceNotice';
 import { isDailyMessageAllowanceExhausted } from '../src/lib/dailyMessageAllowance';
 import type { MediaMomentMode } from '../src/lib/mediaMomentPicker';
+import { type Feedback, type VoiceNoteRequestResult } from '../src/features/chat/types';
+import { navigateChatSurface } from '../src/features/chat/navigation';
+import { eventsInLoadedHistory, mergeChatTimeline } from '../src/features/chat/timeline';
+import { VirtualizedConversationList } from '../src/features/chat/components/VirtualizedConversationList';
+import { ChatAmbientGlow, ChatHeader } from '../src/features/chat/components/ChatHeader';
+import { ConversationHistoryFailure, EmptyConversation, RelationshipMomentCard, StoryFeedback } from '../src/features/chat/components/ConversationNotices';
+import { ChatPlaceInfoModal } from '../src/features/chat/components/ChatPlaceInfoModal';
+import { ChatMediaGalleryModal } from '../src/features/chat/components/ChatMediaGalleryModal';
+import { MessageBubble, StreamingBubble } from '../src/features/chat/components/MessageBubble';
+import { useChatQuickActions } from '../src/hooks/useChatQuickActions';
+import type { ChatQuickAction } from '../src/lib/chatQuickActions';
+import { VoiceCallEventRow } from '../src/features/chat/components/VoiceMessage';
 
-type Feedback = { kind: 'memory'|'moment'|'plan'; title: string; body: string; id?: string };
 type PendingImage={uri:string;mimeType:'image/jpeg';byteSize:number;width:number;height:number;fileName:string;temporary:true;requestId:string};
 type PlanMutationResult={kind:'shared_plan'|'date';commitment:{id:string};experience?:PlanExperience};
 type ConversationActionMutation={applied:boolean;candidateId:string;result?:PlanMutationResult};
 type SharedSceneCharacter={id:string;current_location_id?:string|null;together_character_templates:{name:string;slug:string;public_handle?:string|null};together_character_versions?:{portrait_asset_url?:string|null;visual_identity?:Record<string,unknown>}|null};
 type SharedSceneRoster={scene:SceneSession|null;participants:Array<SceneParticipant&{together_character_instances?:SharedSceneCharacter|null}>;availableCharacters:Array<SharedSceneCharacter&{presence?:Record<string,unknown>}>};
+type InlineLocationCard={anchorMessageId:string;character:CharacterInstance;context:ClientConversationContext;source:ImageSource;roster:SharedSceneRoster|null;statusLabel?:string};
 type ChatParams=ChatRouteParams&{group?:string;id?:string};
-type VoiceNoteRequestResult={status?:string;providerStatus?:string;message?:string;media?:GeneratedMedia};
 type VoiceNotePrompt={messageId:string;name:string;creditCost:number;creditBalance:number;shortened:boolean};
-type MemorySavedNotice={id:number;name:string};
-type DirectMessageAction={messageAction:'continue';anchorMessageId:string};
+type MemorySavedNotice={id:number;name:string;characterSlug:string};
+type DirectMessageAction={messageAction:'continue'|'respond_to_declined_photo';anchorMessageId:string};
 type QueuedPhotoOfferDecision={requestId:string;action:'accept'|'decline';paymentMethod?:'credits'|'daily_included'};
 type ConversationMessagePage={messages:Message[];hasMore:boolean;replyStatus?:{pending:boolean;requestId:string|null}};
 const GroupChatScreen=lazy(()=>import('./group-chat'));
-const PAGE_SIZE = 50;
 
-function navigateChatSurface(href:string,mode:'push'|'replace'='push'){
-  if(Platform.OS==='web'&&navigateLocalRouteOnWeb(href,mode))return;
-  if(mode==='replace')router.replace(href as never);else router.push(href as never);
-}
+const PlanActivityPicker = lazy(() => import('../src/components/PlanActivityPicker').then(module => ({ default: module.PlanActivityPicker })));
 
 export default function Chat() {
   const params=useLocalSearchParams<ChatParams>();
@@ -128,6 +170,7 @@ export default function Chat() {
 }
 
 function ChatSession() {
+  const iosExplicitAvailable = useIosExplicitDialogueAvailability(true);
   const openMessagesInbox = useChatInboxNavigation();
   const params = useLocalSearchParams<ChatParams>();
   const { width } = useWindowDimensions();
@@ -135,8 +178,14 @@ function ChatSession() {
   const showLeft = width >= 1080;
   const showRight = width >= 920;
   const { snapshot, refresh, setSnapshot, setCoreState, updateCompanion, upsertConversation, upsertPlan, upsertMedia, removeMedia, upsertSceneSession, upsertConversationAction, removeConversationAction, applyServerDelta, pendingDialogues, beginPendingDialogue, finishPendingDialogue, consumeDailyMessageAllowance, exhaustDailyMessageAllowance } = useTogether();
+  const [branching,setBranching]=useState(false);
+  const [branchCandidateId,setBranchCandidateId]=useState<string|null>(null);
+  const [branchError,setBranchError]=useState('');
+  const branchInFlight=useRef(false);
+  const branchRequest=useRef<{anchorId:string;requestId:string}|null>(null);
   const{session}=useAuth(),{online,phase:connectionPhase}=useNetworkStatus();
   const {character,conversation}=resolveChatRoute(snapshot,params);
+  const quickActionPreference=useChatQuickActions(session?.user.id,conversation?.id,'direct',conversation?.metadata?.chatQuickActions,conversation?.metadata?.chatQuickActionsVersion);
   const activeSharedPlan=snapshot&&character?activePlanForChat(snapshot.sharedPlans??[],character.id):null;
   const slug = character?.together_character_templates.slug ?? '';
   const characterHandle=character?.together_character_templates.public_handle??slug;
@@ -144,36 +193,46 @@ function ChatSession() {
   const creditsSubscriptionHref=subscriptionHref({intent:'credits',returnTo:subscriptionReturnTo});
   const photoSharingSubscriptionHref=subscriptionHref({intent:'photo_sharing',returnTo:`${subscriptionReturnTo}${subscriptionReturnTo.includes('?')?'&':'?'}sharePhoto=1`});
   const dailyMessageExhausted=isDailyMessageAllowanceExhausted(snapshot?.dailyMessageAllowance);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [verifiedHistoryId,setVerifiedHistoryId]=useState<string|null>(null);
+  const chatScope=useChatRequestScope(session?.user.id,snapshot?.activeContinuity?.id,conversation?.id);
+  const photoDeclineKey=photoDeclineHandoffKey(session?.user.id,snapshot?.activeContinuity?.id,conversation?.id);
+  const history=useDirectHistoryState(chatScope,session?.user.id,conversation?.id);
+  const {messages,setMessages,verifiedHistoryId,loadedConversationId,loading,loadingOlder,hasMore,historyLoadFailed}=history;
+  const visibleMessages=conversation?scopedConversationMessages(messages,conversation.id,loadedConversationId,loading):[];
+  const latestKnownMessageAt=newestChatTimestamp(conversation?.last_message_at,visibleMessages.at(-1)?.created_at,
+    session?.user.id&&conversation?.id?latestCachedConversationMessageAt(session.user.id,conversation.id):null);
+  const rememberedMessages=useRememberedMessages({
+    userId:session?.user.id,
+    continuityId:snapshot?.activeContinuity?.id,
+    conversationId:conversation?.id,
+    messages:visibleMessages,
+    enabled:snapshot?.entitlements?.entitlement_keys?.includes('memory_manual_control')===true,
+  });
   const [activeVoiceNoteId,setActiveVoiceNoteId]=useState<string|null>(null);
   const [voiceNotePrompt,setVoiceNotePrompt]=useState<VoiceNotePrompt|null>(null);
   const [voiceNotePromptBusy,setVoiceNotePromptBusy]=useState(false);
   const voiceNotePromptResolver=useRef<((decision:{hideFuture:boolean}|null)=>void)|null>(null);
-  const [loadedConversationId, setLoadedConversationId] = useState<string|null>(null);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [stream, setStream] = useState('');
+  const [sending, setSending] = useScopedChatState(chatScope,false);
+  const [stream, setStream] = useScopedChatState(chatScope,'');
   const [error, setError] = useState('');
   const [blockedPhoto, setBlockedPhoto] = useState<{text:string;message:string}|null>(null);
   const [feedback, setFeedback] = useState<Feedback|null>(null);
   const [memorySavedNotice,setMemorySavedNotice]=useState<MemorySavedNotice|null>(null);
+  const [copyNotice,setCopyNotice]=useScopedChatState<number|null>(chatScope,null);
   const [showPlans, setShowPlans] = useState(params.plan === '1');
-  const [planning, setPlanning] = useState(false);
-  const planRequestIdRef=useRef(createClientRequestId());
+  const [planning, setPlanning] = useScopedChatState(chatScope,false);
+  const planRequestIdRef=useMemo(()=>({current:createClientRequestId()}),[chatScope]);
   const realtimeScopeRef=useRef(createClientRequestId());
-  const [pendingActionId,setPendingActionId]=useState<string|null>(null);
+  const [pendingActionId,setPendingActionId]=useScopedChatState<string|null>(chatScope,null);
   const [initialPlanTimingChoice,setInitialPlanTimingChoice]=useState<'custom'|null>(null);
   const [focusPlanId,setFocusPlanId]=useState<string|null>(params.planId??null);
   const [focusDismissed,setFocusDismissed]=useState(false);
-  const [showPhotoRequests, setShowPhotoRequests] = useState(false);
-  const [mediaRequestMode,setMediaRequestMode]=useState<MediaMomentMode>('photo');
+  const [showPhotoRequests, setShowPhotoRequests] = useScopedChatState(chatScope,false);
+  const [mediaRequestMode,setMediaRequestMode]=useScopedChatState<MediaMomentMode>(chatScope,'photo');
   useEffect(()=>{if(!showPhotoRequests)setMediaRequestMode('photo');},[showPhotoRequests]);
-  const [showPhotoPaywall,setShowPhotoPaywall]=useState(false);
-  const [showInteractions, setShowInteractions] = useState(false);
-  const [dismissedInteractionPlanId,setDismissedInteractionPlanId]=useState<string|null>(null);
-  const [interactionTrayPreferenceReady,setInteractionTrayPreferenceReady]=useState(false);
+  const [showPhotoPaywall,setShowPhotoPaywall]=useScopedChatState(chatScope,false);
+  const [showActivities,setShowActivities]=useScopedChatState(chatScope,false);
+  const activityRequestRef=useRef<{activity:string;requestId:string}|null>(null);
   const [interactionCandidates, setInteractionCandidates] = useState<InteractionCandidate[]>([]);
   const [movementCandidates, setMovementCandidates] = useState<InteractionCandidate[]>([]);
   const [interactionScene, setInteractionScene] = useState<SceneSession|null>(null);
@@ -187,27 +246,33 @@ function ChatSession() {
   const proposalScopeActive=useRef(true);
   useEffect(()=>{proposalScopeActive.current=true;return()=>{proposalScopeActive.current=false;};},[]);
   const [showConversationMenu, setShowConversationMenu] = useState(false);
+  const [showBranchSwitcher, setShowBranchSwitcher] = useState(false);
+  const [branchSummaries,setBranchSummaries]=useState<{conversationId:string;paths:ChatBranchSummary[]}|null>(null);
+  const openBranchSwitcher=()=>{Keyboard.dismiss();setShowConversationMenu(false);setShowBranchSwitcher(true);};
   const [showFreshChat, setShowFreshChat] = useState(false);
   const [showChatSettings, setShowChatSettings] = useState(false);
   const [showPlaceInfo,setShowPlaceInfo]=useState(false);
+  const [inlineLocationCard,setInlineLocationCard]=useScopedChatState<InlineLocationCard|null>(chatScope,null);
+  const locationPeekRequest=useRef(0);
   const [showChatMedia,setShowChatMedia]=useState(false);
-  const [loadedGalleryMedia,setLoadedGalleryMedia]=useState<GeneratedMedia[]>([]),[loadedGalleryAttachments,setLoadedGalleryAttachments]=useState<ConversationAttachment[]>([]),[galleryLoading,setGalleryLoading]=useState(false),[galleryError,setGalleryError]=useState('');
-  const galleryRequest=useRef(0);
+  const {media:loadedGalleryMedia,attachments:loadedGalleryAttachments,loading:galleryLoading,error:galleryError,load:loadChatGallery}=useConversationGallery({scope:chatScope,conversationId:conversation?.id,visible:showChatMedia,onMedia:upsertMedia});
   const [characterPreview,setCharacterPreview]=useState<FeaturedCompanion|null>(null);
-  const [pendingImage,setPendingImage]=useState<PendingImage|null>(null);
-  const [photoUploadPhase,setPhotoUploadPhase]=useState<PhotoUploadPhase>('idle');
+  const [pendingImage,setPendingImage]=useScopedChatState<PendingImage|null>(chatScope,null);
+  const [photoUploadPhase,setPhotoUploadPhase]=useScopedChatState<PhotoUploadPhase>(chatScope,'idle');
   const pendingImageRef=useRef<PendingImage|null>(null);
-  const [awaitingPhotoOffer,setAwaitingPhotoOffer]=useState(false);
-  const [optimisticPhotoRequest,setOptimisticPhotoRequest]=useState<OptimisticPhotoRequest|null>(null);
+  const [awaitingPhotoOffer,setAwaitingPhotoOffer]=useScopedChatState(chatScope,false);
+  const [optimisticPhotoRequest,setOptimisticPhotoRequest]=useScopedChatState<OptimisticPhotoRequest|null>(chatScope,null);
   const optimisticPhotoRequestRef=useRef<OptimisticPhotoRequest|null>(null);
   const queuedPhotoOfferDecisionRef=useRef<QueuedPhotoOfferDecision|null>(null);
   const optimisticPhotoDecisionInFlight=useRef(new Set<string>());
   const optimisticPhotoDecisionDispatched=useRef(new Set<string>());
   const resolveOptimisticPhotoOfferRef=useRef<(offers:MediaOffer[])=>void>(()=>undefined);
-  const [reconcilingMediaId,setReconcilingMediaId]=useState<string|null>(null);
-  const [mediaOffers,setMediaOffers]=useState<MediaOffer[]>([]);
-  const [mediaOfferBusy,setMediaOfferBusy]=useState<string|null>(null);
-  const [mediaRetryBusyId,setMediaRetryBusyId]=useState<string|null>(null);
+  const [reconcilingMediaId,setReconcilingMediaId]=useScopedChatState<string|null>(chatScope,null);
+  const [mediaOffers,setMediaOffers]=useScopedChatState<MediaOffer[]>(chatScope,
+    readCachedConversationOffers(session?.user.id,snapshot?.activeContinuity?.id,conversation?.id));
+  const [mediaOfferBusy,setMediaOfferBusy]=useScopedChatState<string|null>(chatScope,null);
+  const [declinedPhotoReply,setDeclinedPhotoReply]=useScopedChatState<{offer:MediaOffer;dismissed:MediaOffer;queuedAt:number}|null>(chatScope,null);
+  const [mediaRetryBusyId,setMediaRetryBusyId]=useScopedChatState<string|null>(chatScope,null);
   const [autoDialogue,setAutoDialogue]=useState<AutoDialogueSuggestion|null>(null);
   const [autoDialogueBusy,setAutoDialogueBusy]=useState(false);
   const [showAutoDialogueOptions,setShowAutoDialogueOptions]=useState(false);
@@ -216,17 +281,13 @@ function ChatSession() {
   const [pinBusy,setPinBusy]=useState(false);
   const [showJumpToLatest,setShowJumpToLatest]=useState(false);
   const [planModal,setPlanModal]=useState<{planId:string;confirmCancel?:boolean}|null>(null);
-  const [planActionBusyId,setPlanActionBusyId]=useState<string|null>(null);
+  const [planActionBusyId,setPlanActionBusyId]=useScopedChatState<string|null>(chatScope,null);
   const [planEndTarget,setPlanEndTarget]=useState<SharedPlan|null>(null);
   const [switchPlanId,setSwitchPlanId]=useState<string|null>(null);
   const [conversationBootstrapError,setConversationBootstrapError]=useState('');
   const [conversationBootstrapAttempt,setConversationBootstrapAttempt]=useState(0);
-  const [historyLoadFailed,setHistoryLoadFailed]=useState(false);
-  const [historyLoadAttempt,setHistoryLoadAttempt]=useState(0);
   const [showSendConnectionNotice,setShowSendConnectionNotice]=useState(false);
   const [presenceNow,setPresenceNow]=useState(()=>Date.now());
-  const [loadingOlder, setLoadingOlder] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
   const clearStoredDraft=usePersistentMessageDraft({userId:session?.user.id,conversationId:conversation?.id,kind:'direct',value:input,setValue:setInput,routeDraft:params.draft});
   const pendingDialogue=conversation?pendingDialogues[conversation.id]:undefined;
   const messageRewrite=useMessageRewrite({profile:snapshot?.profile,userId:session?.user.id,conversation,messages,pending:sending||Boolean(pendingDialogue),characterInstanceId:character?.id,onMessage:(message)=>setMessages(current=>reconcileMessages(current,[message])),onError:setError,onFinished:()=>{void refresh();}});
@@ -236,17 +297,8 @@ function ChatSession() {
   const contextPricing=useContextQuote({userId:session?.user.id,activationId:(conversation?.metadata?.chatPreferences as {contextCostActivationId?:string}|undefined)?.contextCostActivationId,preference:(conversation?.metadata?.chatPreferences as {contextPreference?:string}|undefined)?.contextPreference,draft:{conversationId:conversation?.id,characterInstanceId:character?.id,message:input,focusPlanId:focusPlanId??undefined},revision:JSON.stringify([conversation?.metadata?.chatPreferences,messages.at(-1)?.id]),paused:replyPending,hasPendingPhoto:Boolean(pendingImage)});
   const conversationReady=!loading&&hasCoherentConversationTimeline({activeConversationId:conversation?.id,loadedConversationId});
   useEffect(()=>{if(connectionPhase==='online')setShowSendConnectionNotice(false);},[connectionPhase]);
-  useEffect(()=>{galleryRequest.current+=1;setShowSendConnectionNotice(false);setShowPlaceInfo(false);setShowChatMedia(false);setLoadedGalleryMedia([]);setLoadedGalleryAttachments([]);setGalleryLoading(false);setGalleryError('');},[conversation?.id]);
-  useEffect(()=>{
-    const userId=session?.user.id,planId=activeSharedPlan?.id;
-    let cancelled=false;
-    setShowInteractions(false);
-    setDismissedInteractionPlanId(null);
-    if(!userId||!planId){setInteractionTrayPreferenceReady(true);return()=>{cancelled=true;};}
-    setInteractionTrayPreferenceReady(false);
-    void isPlanInteractionTrayHidden(userId,planId).then((hidden)=>{if(cancelled)return;setDismissedInteractionPlanId(hidden?planId:null);setInteractionTrayPreferenceReady(true);});
-    return()=>{cancelled=true;};
-  },[session?.user.id,activeSharedPlan?.id]);
+  useEffect(()=>{setShowSendConnectionNotice(false);setShowPlaceInfo(false);setShowChatMedia(false);},[conversation?.id]);
+  useEffect(()=>{setShowActivities(false);activityRequestRef.current=null;},[conversation?.id,activeSharedPlan?.id]);
   const scroll = useRef<FlatList<ReactElement>>(null);
   const latestConversationScroller=useRef<((animated:boolean)=>void)|null>(null);
   const sendInFlightRef = useRef(false);
@@ -269,29 +321,16 @@ function ChatSession() {
   const programmaticScrollUntil = useRef(0);
   const viewportHeight = useRef(0);
   const pendingScrollRestore = useRef<ChatScrollPosition|null>(null);
+  const scrollPositionAtOpen = useRef<ChatScrollPosition|null>(null);
   const autoDialogueRequest=useRef<AbortController|null>(null);
   const mediaRetryInFlight=useRef(new Set<string>());
   const currentInput=useRef('');
   const latestTimelineMessageId=useRef<string|null>(null);
-  const lastFocusedConversationId=useRef<string|null>(null);
-  const observedPendingRequest=useRef<string|null>(null);
   const resumedSharePhoto=useRef<string|null>(null);
   const seamlessCompletionIds=useRef(new Set<string>());
   const staleDialogueReplayAttempts=useRef(new Set<string>());
   const replayPersistedDialogueRef=useRef<(message:Message)=>void>(()=>undefined);
   const unreadWindow=useRef<{conversationId:string|null;lastReadAt:string|null;openedAt:string}>({conversationId:null,lastReadAt:null,openedAt:new Date().toISOString()});
-  const loadChatGallery=useCallback(async()=>{
-    const conversationId=conversation?.id;if(!conversationId)return;
-    const request=++galleryRequest.current;setGalleryLoading(true);setGalleryError('');
-    try{
-      const result=await loadConversationMediaGallery(conversationId,160);
-      if(request!==galleryRequest.current)return;
-      setLoadedGalleryMedia(result.media??[]);setLoadedGalleryAttachments(result.attachments??[]);
-      for(const item of result.media??[]){if(item.metadata?.hiddenIntermediate!==true)upsertMedia(item);}
-    }catch(error){if(request===galleryRequest.current)setGalleryError(error instanceof Error?error.message:'Conversation media could not be loaded.');}
-    finally{if(request===galleryRequest.current)setGalleryLoading(false);}
-  },[conversation?.id,upsertMedia]);
-  useEffect(()=>{if(showChatMedia)void loadChatGallery();},[loadChatGallery,showChatMedia]);
   const openChatGallery=useCallback(()=>setShowChatMedia(true),[]);
   const mentionCharacters=useMemo<FeaturedCompanion[]>(()=>{
     if(!snapshot||!character)return[];
@@ -350,10 +389,11 @@ function ChatSession() {
   },[awaitingPhotoOffer,character?.id,conversation?.id,fetchPendingMediaOffers]);
   useEffect(()=>resolveOptimisticPhotoOfferRef.current(mediaOffers),[mediaOffers]);
   const markConversationRead=useCallback(async(conversationId:string)=>{
+    const isCurrent=chatScope.capture();
     const result=await manageConversation<{last_read_at:string}>({action:'read',conversationId});
     const current=useTogether.getState().snapshot?.conversations.find((item)=>item.id===conversationId);
-    if(current)upsertConversation({...current,last_read_at:result.last_read_at,unread:false});
-  },[upsertConversation]);
+    if(isCurrent()&&current)upsertConversation(preferNewerReadState(current,{...current,last_read_at:result.last_read_at,unread:false}));
+  },[chatScope,upsertConversation]);
   useEffect(()=>{
     if(!snapshot||!character||conversation)return;
     let cancelled=false;
@@ -461,7 +501,8 @@ function ChatSession() {
   const prepareConversationScroll=useCallback((conversationId:string)=>{
     bottomAlignedConversation.current=null;
     const saved=readChatScrollPosition(conversationId);
-    if(shouldRestoreChatScrollPosition(saved)){
+    scrollPositionAtOpen.current=saved;
+    if(shouldRestoreChatScrollPosition(saved,96,latestKnownMessageAt)){
       cancelInitialBottomPin();
       pendingScrollRestore.current=saved;
       keepPinnedToBottom.current=false;
@@ -471,48 +512,71 @@ function ChatSession() {
     pendingScrollRestore.current=null;
     beginInitialBottomPin(conversationId);
     setShowJumpToLatest(false);
-  },[beginInitialBottomPin,cancelInitialBottomPin]);
+  },[beginInitialBottomPin,cancelInitialBottomPin,latestKnownMessageAt]);
   useEffect(()=>()=>{if(bottomPinReleaseTimer.current)clearTimeout(bottomPinReleaseTimer.current);if(initialBottomPinReleaseTimer.current)clearTimeout(initialBottomPinReleaseTimer.current);for(const timer of bottomPinSettleTimers.current)clearTimeout(timer);bottomPinSettleTimers.current.clear();},[]);
-  const loadOlder = async () => {
-    const oldest=messages[0];
-    if(!conversation||!oldest||loadingOlder||!hasMore)return;
-    setLoadingOlder(true);
-    try{
-      const result=await manageConversation<{messages:Message[];hasMore:boolean}>({action:'messages',conversationId:conversation.id,limit:PAGE_SIZE,...(oldest.conversation_sequence?{beforeSequence:oldest.conversation_sequence}:{before:oldest.created_at})});
-      const page=result.messages;
-      setHasMore(result.hasMore);
-      if(page.length){
-        previousHeight.current=contentHeight.current;
-        previousOffsetY.current=scrollOffsetY.current;
-        prepending.current=true;
-        setMessages((current)=>mergeOlderMessages(page,current));
-      }
-    }finally{setLoadingOlder(false);}
+  const recoverInterruptedDialogue=async(conversationId:string,characterInstanceId:string,optimistic:Message,clientRequestId:string,expectsPhotoOffer=false):Promise<boolean>=>{
+    const isCurrent=chatScope.capture();
+    const recovered=await recoverPersistedReply({
+      requestId:clientRequestId,isCurrent,
+      load:async()=>{const page=await manageConversation<ConversationMessagePage>({action:'messages',conversationId,limit:PAGE_SIZE,includeReplyStatus:true});return {...page,messages:[...page.messages].reverse()};},
+      messages:(page)=>page.messages,
+      shouldContinue:(page)=>dialogueRecoveryShouldContinue(page.replyStatus,clientRequestId),
+      acceptResponse:async(_page,response)=>{
+        if(!expectsPhotoOffer)return true;
+        const offers=await fetchPendingMediaOffers(characterInstanceId,conversationId);
+        if(!isCurrent()||!offers.some((offer)=>offer.message_id===response.id))return false;
+        setMediaOffers(offers);setAwaitingPhotoOffer(false);return true;
+      },
+    });
+    if(!isCurrent()||recovered.status==='cancelled')return false;
+    if(recovered.latest)setMessages((current)=>reconcileMessages(current,recovered.latest!.messages,[optimistic.id]));
+    if(recovered.status==='recovered')void refresh().catch(()=>undefined);
+    return recovered.status==='recovered';
   };
-  const recoverInterruptedDialogue=async(conversationId:string,characterInstanceId:string,optimistic:Message,clientRequestId:string,expectsPhotoOffer=false):Promise<boolean>=>{let latestCanonical:Message[]|null=null;await waitForWebPageVisible();for(const delay of DIALOGUE_RECOVERY_DELAYS_MS){await new Promise((resolve)=>setTimeout(resolve,delay));try{const result=await manageConversation<ConversationMessagePage>({action:'messages',conversationId,limit:PAGE_SIZE,includeReplyStatus:true}),canonical=[...result.messages].reverse(),response=persistedDialogueResponseForRequest(canonical,clientRequestId);latestCanonical=canonical;if(!response){if(!dialogueRecoveryShouldContinue(result.replyStatus,clientRequestId))break;continue;}if(expectsPhotoOffer){const offers=await fetchPendingMediaOffers(characterInstanceId,conversationId),matchingOffer=offers.find((offer)=>offer.message_id===response.id);if(!matchingOffer)continue;setMediaOffers(offers);setAwaitingPhotoOffer(false);}setMessages((current)=>reconcileMessages(current,canonical,[optimistic.id]));void refresh().catch(()=>undefined);return true;}catch{continue;}}if(latestCanonical)setMessages((current)=>reconcileMessages(current,latestCanonical!,[optimistic.id]));return false;};
-  useEffect(() => {
-    if(!conversation){setLoading(false);setLoadedConversationId(null);return;}
-    const conversationId=conversation.id,userId=session?.user.id,cached=userId?readConversationMessagePage(userId,conversationId):null;
-    let cancelled=false;
-    setVerifiedHistoryId(null);
-    prepareConversationScroll(conversationId);
-    setBlockedPhoto(null);setError('');setHistoryLoadFailed(false);setStream('');setSending(false);setFeedback(null);setMemorySavedNotice(null);setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;optimisticPhotoDecisionInFlight.current.clear();optimisticPhotoDecisionDispatched.current.clear();setPendingImage(null);setMediaOffers([]);setPendingSceneAction(null);setCharacterProposal(null);setPendingActionId(null);setFocusDismissed(false);setFocusPlanId(params.planId??null);setShowPlans(params.plan==='1');setShowPhotoRequests(false);setShowInteractions(false);setShowConversationMenu(false);setShowChatSettings(false);setPlanModal(null);setPlanActionBusyId(null);setPlanEndTarget(null);setSwitchPlanId(params.switchPlanId??null);setInput('');
-    if(cached){setMessages(cached.messages);setHasMore(cached.hasMore);setLoadedConversationId(conversationId);setLoading(false);}
-    else{setMessages([]);setHasMore(true);setLoadedConversationId(null);setLoading(true);}
-    if(__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true'){setMessages([]);setHasMore(false);setLoadedConversationId(conversationId);setLoading(false);return;}
-    void (async()=>{
-      let result:{messages:Message[];hasMore:boolean};try{result=userId?await loadConversationMessagePage(userId,conversationId,()=>manageConversation({action:'messages',conversationId,limit:PAGE_SIZE}),{maxAgeMs:1_500}):await manageConversation({action:'messages',conversationId,limit:PAGE_SIZE});}catch{if(cancelled)return;if(!cached){setError('Conversation history could not be loaded.');setHistoryLoadFailed(true);setLoadedConversationId(null);}setLoading(false);return;}
-      if(cancelled)return;
-      const page=userId?result.messages:[...result.messages].reverse();
-      if(cancelled)return;
-      const hasOlder=result.hasMore;
-      if(userId)writeConversationMessagePage(userId,conversationId,{messages:page,hasMore:hasOlder});
-      setVerifiedHistoryId(conversationId);setMessages((current)=>reconcileMessages(current,page));setHasMore(hasOlder);setLoadedConversationId(conversationId);setLoading(false);
-      void markConversationRead(conversationId).catch(()=>undefined);
-    })();
-    return()=>{cancelled=true;};
-  },[conversation?.id,historyLoadAttempt,markConversationRead,prepareConversationScroll,session?.user.id]);
-  useEffect(()=>{if(loadedConversationId&&session?.user.id)writeConversationMessagePage(session.user.id,loadedConversationId,{messages,hasMore},readConversationMessagePage(session.user.id,loadedConversationId)?.loadedAt??0);},[hasMore,loadedConversationId,messages,session?.user.id]);
+  useEffect(()=>{
+    if(!conversation?.id||!pendingDialogue)return;
+    const conversationId=conversation.id,requestId=pendingDialogue.clientRequestId,isCurrent=chatScope.capture();
+    const timer=setTimeout(()=>{
+      if(!isCurrent()||useTogether.getState().pendingDialogues[conversationId]?.clientRequestId!==requestId)return;
+      // A request stranded by a suspended tab can outlive both the network
+      // timeout and the server lease. Give its local row a retry action while
+      // reading the authoritative timeline in case the reply actually landed.
+      activeSendRequest.current=null;sendInFlightRef.current=false;setSending(false);setStream('');
+      chatScope.start('reply',true)?.release();
+      finishPendingDialogue(conversationId,requestId);
+      setMessages((current)=>current.map((message)=>message.client_request_id===requestId&&message.id.startsWith('local-')?{...message,delivery_status:'failed'}:message));
+      setError('That reply took too long. Check the latest message or tap to retry.');
+      void manageConversation<ConversationMessagePage>({action:'messages',conversationId,limit:PAGE_SIZE,includeReplyStatus:true}).then((page)=>{
+        if(!isCurrent())return;
+        const canonical=[...page.messages].reverse();
+        setMessages((current)=>reconcileMessages(current,canonical));
+        if(persistedDialogueResponseForRequest(canonical,requestId))setError('');
+      }).catch(()=>undefined);
+    },stalledPendingDialogueDelay(pendingDialogue));
+    return()=>clearTimeout(timer);
+  },[conversation?.id,pendingDialogue?.clientRequestId,pendingDialogue?.startedAt,finishPendingDialogue]);
+  const {loadOlder,refresh:refreshHistory}=useDirectConversationHistory({
+    scope:chatScope,history,userId:session?.user.id,conversationId:conversation?.id,
+    connectionPhase,pendingRequestId:pendingDialogue?.clientRequestId,
+    demo:__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true',
+    onReset:(id)=>{prepareConversationScroll(id);setBlockedPhoto(null);setError('');setStream('');setSending(false);setFeedback(null);setMemorySavedNotice(null);setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;optimisticPhotoDecisionInFlight.current.clear();optimisticPhotoDecisionDispatched.current.clear();setPendingImage(null);setMediaOffers(readCachedConversationOffers(session?.user.id,snapshot?.activeContinuity?.id,id));setPendingSceneAction(null);setCharacterProposal(null);setPendingActionId(null);setFocusDismissed(false);setFocusPlanId(params.planId??null);setShowPlans(params.plan==='1');setShowPhotoRequests(false);setShowConversationMenu(false);setShowBranchSwitcher(false);setShowChatSettings(false);setPlanModal(null);setPlanActionBusyId(null);setPlanEndTarget(null);setSwitchPlanId(params.switchPlanId??null);setInput('');},
+    onRead:markConversationRead,onError:setError,
+    onRecovered:()=>setError((current)=>current&&dialogueFailureMayHavePersisted(new Error(current))?'':current),
+    onBeforePrepend:()=>{previousHeight.current=contentHeight.current;previousOffsetY.current=scrollOffsetY.current;prepending.current=true;},
+    onInitialPage:(id,page)=>{
+      const saved=scrollPositionAtOpen.current;
+      scrollPositionAtOpen.current=null;
+      if(!saved||!chatAdvancedSincePosition(saved,page.at(-1)?.created_at))return;
+      pendingScrollRestore.current=null;
+      bottomAlignedConversation.current=null;
+      clearChatScrollPosition(id);
+      beginInitialBottomPin(id);
+    },
+  });
+  useEffect(()=>{
+    if(!conversation?.id||loadedConversationId!==conversation.id)return;
+    cacheConversationOffers(session?.user.id,snapshot?.activeContinuity?.id,conversation.id,mediaOffers);
+  },[conversation?.id,loadedConversationId,mediaOffers,session?.user.id,snapshot?.activeContinuity?.id]);
   useEffect(()=>{
     if(!conversation||loadedConversationId!==conversation.id)return;
     const latest=[...messages].reverse().find((message)=>message.delivery_status!=='failed'&&Boolean(message.content.trim()));
@@ -522,91 +586,6 @@ function ChatSession() {
     if(current.last_message_at===latest.created_at&&current.last_message_preview===preview&&current.last_message_role===latest.role)return;
     upsertConversation(conversationWithLastMessage(current,latest));
   },[conversation?.id,loadedConversationId,messages,upsertConversation]);
-  useFocusEffect(useCallback(()=>{
-    const conversationId=conversation?.id;
-    if(!conversationId||(__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true'))return;
-    if(lastFocusedConversationId.current!==conversationId){lastFocusedConversationId.current=conversationId;return;}
-    let active=true;
-    void (async()=>{
-      const userId=session?.user.id;
-      let result:{messages:Message[];hasMore:boolean};try{result=userId?await loadConversationMessagePage(userId,conversationId,()=>manageConversation({action:'messages',conversationId,limit:PAGE_SIZE}),{maxAgeMs:-1}):await manageConversation({action:'messages',conversationId,limit:PAGE_SIZE});}catch{return;}
-      if(!active)return;
-      const page=userId?result.messages:[...result.messages].reverse();
-      if(!active)return;
-      const hasOlder=result.hasMore;
-      if(userId)writeConversationMessagePage(userId,conversationId,{messages:page,hasMore:hasOlder});
-      // A focus refresh may have started just before the user sent a message.
-      // Merge its canonical page instead of replacing the live timeline, or a
-      // fast reply can be erased by the older response and only reappear after
-      // a manual refresh.
-      setMessages((current)=>reconcileMessages(current,page));setHasMore(hasOlder);setLoadedConversationId(conversationId);setLoading(false);
-      await markConversationRead(conversationId).catch(()=>undefined);
-    })();
-    return()=>{active=false;};
-  },[conversation?.id,markConversationRead,prepareConversationScroll,session?.user.id]));
-  useFocusEffect(useCallback(()=>{
-    const conversationId=conversation?.id;
-    if(!conversationId||(__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true'))return;
-    let cancelled=false;
-    const refreshMessages=coalescedRefresh(async()=>{
-      const userId=session?.user.id;
-      const result=userId?await loadConversationMessagePage(userId,conversationId,()=>manageConversation({action:'messages',conversationId,limit:PAGE_SIZE}),{maxAgeMs:-1}):await manageConversation<{messages:Message[];hasMore:boolean}>({action:'messages',conversationId,limit:PAGE_SIZE});
-      if(cancelled)return;
-      const page=userId?result.messages:[...result.messages].reverse();
-      setMessages((current)=>reconcileMessages(current,page));
-      await markConversationRead(conversationId).catch(()=>undefined);
-    });
-    const reconcilePersistedMessages=refreshMessages.schedule;
-    // Fetch through the conversation API rather than trusting the realtime
-    // payload so web/native content projection and ownership checks still apply.
-    const channel=createRealtimeChannel(supabase, `kivelle-messages-${conversationId}-${realtimeScopeRef.current}`)
-      .on('postgres_changes',{event:'*',schema:'public',table:'together_messages',filter:`conversation_id=eq.${conversationId}`},reconcilePersistedMessages)
-      .subscribe();
-    return()=>{cancelled=true;refreshMessages.dispose();void supabase.removeChannel(channel);};
-  },[conversation?.id,markConversationRead,session?.user.id]));
-  useEffect(()=>{
-    const conversationId=conversation?.id;
-    if(!conversationId||(__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true'))return;
-    let cancelled=false,timer:ReturnType<typeof setTimeout>|undefined;
-    const reconcileAfterResume=()=>{
-      if(timer)clearTimeout(timer);
-      timer=setTimeout(()=>void (async()=>{
-        try{
-          const result=await manageConversation<{messages:Message[];hasMore:boolean}>({action:'messages',conversationId,limit:PAGE_SIZE});
-          if(cancelled)return;
-          const page=[...result.messages].reverse();
-          setMessages((current)=>reconcileMessages(current,page));
-          setHasMore(result.hasMore);setLoadedConversationId(conversationId);setLoading(false);setHistoryLoadFailed(false);
-          if(session?.user.id)writeConversationMessagePage(session.user.id,conversationId,{messages:page,hasMore:result.hasMore});
-          setError((current)=>current&&dialogueFailureMayHavePersisted(new Error(current))?'':current);
-          await markConversationRead(conversationId).catch(()=>undefined);
-        }catch{/* Resume can race browser radio wake-up; realtime and recovery retry it. */}
-      })(),180);
-    };
-    const unsubscribe=subscribeToWebPageResume(reconcileAfterResume);
-    if(connectionPhase==='reconnected')reconcileAfterResume();
-    return()=>{cancelled=true;if(timer)clearTimeout(timer);unsubscribe();};
-  },[connectionPhase,conversation?.id,markConversationRead,session?.user.id]);
-  useEffect(()=>{
-    const currentRequest=pendingDialogue?.clientRequestId??null;
-    const previousRequest=observedPendingRequest.current;
-    observedPendingRequest.current=currentRequest;
-    if(!conversation?.id||currentRequest||!previousRequest||(__DEV__&&process.env.EXPO_PUBLIC_TOGETHER_DEMO_MODE==='true'))return;
-    const conversationId=conversation.id;
-    let cancelled=false;
-    void (async()=>{
-      let result:{messages:Message[];hasMore:boolean};try{result=await manageConversation({action:'messages',conversationId,limit:PAGE_SIZE});}catch{return;}
-      if(cancelled)return;
-      const page=[...result.messages].reverse();
-      if(cancelled)return;
-      // Reconcile the canonical rows into the mounted timeline. Replacing the
-      // whole array here can make FlatList discard its bottom anchor exactly
-      // when an optimistic send becomes canonical (especially in long chats).
-      setMessages((current)=>reconcileMessages(current,page));
-      await markConversationRead(conversationId).catch(()=>undefined);
-    })();
-    return()=>{cancelled=true;};
-  },[conversation?.id,markConversationRead,pendingDialogue?.clientRequestId]);
   useEffect(()=>{autoDialogueRequest.current?.abort();autoDialogueRequest.current=null;setAutoDialogue(null);setAutoDialogueBusy(false);setShowAutoDialogueOptions(false);},[conversation?.id]);
   useEffect(()=>()=>autoDialogueRequest.current?.abort(),[]);
   useEffect(()=>{
@@ -721,14 +700,43 @@ function ChatSession() {
     const timer=setTimeout(()=>{if(keepPinnedToBottom.current||activeBottomPinRequest.current!==null||forcePinnedUntil.current>Date.now())scrollToLatest(activeBottomPinRequest.current===null&&forcePinnedUntil.current<=Date.now());},40);
     return()=>clearTimeout(timer);
   },[conversation?.id,conversationReady,feedback,mediaOffers.length,messages,stream,replyPending,scrollToLatest]);
+  useEffect(()=>{
+    if(!showBranchSwitcher||!conversation?.id)return;
+    let cancelled=false;
+    const conversationId=conversation.id;
+    void manageConversation<{paths:ChatBranchSummary[]}>({action:'branch_paths',conversationId}).then((result)=>{
+      if(!cancelled)setBranchSummaries({conversationId,paths:result.paths});
+    }).catch(()=>undefined);
+    return()=>{cancelled=true;};
+  },[showBranchSwitcher,conversation?.id]);
 
   if (!snapshot) return <LoadingSkeleton label="Opening your conversation…" />;
   if (!character) return <ErrorState message="This conversation is not available yet." />;
   if (!conversation) return conversationBootstrapError
     ? <ErrorState message={conversationBootstrapError} onRetry={()=>setConversationBootstrapAttempt((value)=>value+1)} />
     : <LoadingSkeleton label={`Opening your conversation with ${character.together_character_templates.name}…`} />;
-  const visibleMessages=scopedConversationMessages(messages,conversation.id,loadedConversationId,loading);
   const chatContext=buildClientConversationContext(snapshot,character,new Date(presenceNow),conversation.id);
+  const openLocationPeek=(messageId:string)=>{
+    const request=++locationPeekRequest.current;
+    const isCurrent=chatScope.capture();
+    setInlineLocationCard({anchorMessageId:messageId,character,context:chatContext,source:sceneVisualSource(snapshot,character,chatContext),roster:sharedSceneRoster,statusLabel:'CHECKING LOCATION'});
+    setPresenceNow(Date.now());
+    void refresh({scope:'presence',characterInstanceId:character.id})
+      .then(()=>{
+        if(!isCurrent()||locationPeekRequest.current!==request)return;
+        const current=useTogether.getState();
+        const updatedSnapshot=current.snapshot;
+        const updatedCharacter=updatedSnapshot?.characters.find((person)=>person.id===character.id);
+        if(!updatedSnapshot||!updatedCharacter||current.error){setInlineLocationCard((card)=>card?.anchorMessageId===messageId?{...card,statusLabel:'LAST KNOWN LOCATION'}:card);return;}
+        const context=buildClientConversationContext(updatedSnapshot,updatedCharacter,new Date(),conversation.id);
+        setInlineLocationCard((card)=>card?.anchorMessageId===messageId?{...card,character:updatedCharacter,context,source:sceneVisualSource(updatedSnapshot,updatedCharacter,context),statusLabel:undefined}:card);
+      })
+      .catch(()=>{if(isCurrent()&&locationPeekRequest.current===request)setInlineLocationCard((card)=>card?.anchorMessageId===messageId?{...card,statusLabel:'LAST KNOWN LOCATION'}:card);});
+  };
+  const dismissLocationPeek=()=>{
+    locationPeekRequest.current+=1;
+    setInlineLocationCard(null);
+  };
   const joinableSharedPlan=joinablePlanForChat(snapshot.sharedPlans??[],character.id);
   const location = chatContext.scene.location;
   const generatedMedia=(snapshot.generatedMedia??[]).filter((item)=>item.conversation_id===conversation.id);
@@ -743,13 +751,94 @@ function ChatSession() {
   const sharedSceneReactionNames=Object.fromEntries((sharedSceneRoster?.participants??[]).map((participant)=>[participant.character_instance_id,participant.together_character_instances?.together_character_templates.name.split(' ')[0]??'Companion']));
   const mediaOfferPreviewUri=latestMediaOfferPreviewUri(snapshot.generatedMedia??[],character.id,conversation.id);
   const mediaOfferPreviewSource=mediaOfferPreviewUri?{uri:mediaOfferPreviewUri}:resolveCharacterPortraitSource(character.together_character_templates,character.together_character_versions,slug);
+  const visibleMediaOffers=photoOffersForConversation(mediaOffers,conversation.id,character.id,snapshot.activeContinuity?.id);
   const visibleMessageIds=new Set(visibleMessages.map((message)=>message.id));
-  const orphanMediaOffers=conversationReady?photoOffersAtTimelineTail(mediaOffers,visibleMessageIds,visibleMessages.map((message)=>message.created_at)):[];
+  const orphanMediaOffers=conversationReady?photoOffersAtTimelineTail(visibleMediaOffers,visibleMessageIds,visibleMessages.map((message)=>message.created_at)):[];
   const isFavorite=(snapshot.favoriteCharacterTemplateIds??[]).includes(character.character_template_id);
-  const milestone = snapshot.relationshipMilestones?.find((item) => item.character_instance_id === character.id);
+  const milestone = snapshot.relationshipMilestones?.find((item) => item.character_instance_id === character.id && item.status === 'pending');
   const prompts = chatContext.prompts;
   const latestPersistedMessage=[...visibleMessages].reverse().find((message)=>!message.id.startsWith('local-'));
   const latestAssistantMessage=latestPersistedMessage?.role==='assistant'&&latestPersistedMessage.delivery_status==='complete'&&latestPersistedMessage.content.trim()&&latestPersistedMessage.content!=='[Photo]'?latestPersistedMessage:null;
+  const subscriberCanBranch=snapshot.entitlements?.tier==='kivelle_plus'||snapshot.entitlements?.tier==='kivelle_max';
+  const branchSourceLifeId=typeof conversation.metadata?.branchSourceContinuityId==='string'?conversation.metadata.branchSourceContinuityId:null;
+  const branchSourceConversationId=typeof conversation.metadata?.branchSourceConversationId==='string'?conversation.metadata.branchSourceConversationId:null;
+  const branchPaths=chatBranchPaths({continuities:snapshot.continuities??[],activeContinuityId:snapshot.activeContinuity?.id??'',conversation,companionName:character.together_character_templates.name,summaries:branchSummaries?.conversationId===conversation.id?branchSummaries.paths:[]});
+  const branchFromLatest=(message:Message)=>{
+    if(!subscriberCanBranch){navigateChatSurface(subscriptionHref({intent:'plans',returnTo:subscriptionReturnTo}));return;}
+    if(branching)return;
+    setBranchCandidateId(message.id);
+    setBranchError(replyPending||pendingImage?'Wait for the current reply or photo to finish before branching.':message.id!==latestAssistantMessage?.id?'Choose the latest completed reply to start a branch.':'');
+  };
+  const createBranch=async()=>{
+    const anchorId=branchCandidateId;
+    if(!anchorId||branchInFlight.current)return;
+    if(replyPending||pendingImage){setBranchError('Wait for the current reply or photo to finish before branching.');return;}
+    if(anchorId!==latestAssistantMessage?.id){setBranchError('This is no longer the latest reply. Close this window and select the newest reply.');return;}
+    branchInFlight.current=true;setBranching(true);setBranchError('');
+    try{
+      if(branchRequest.current?.anchorId!==anchorId)branchRequest.current={anchorId,requestId:createClientRequestId()};
+      const result=await manageConversation<{continuityId:string;conversationId:string;characterInstanceId:string}>({action:'branch',conversationId:conversation.id,anchorMessageId:anchorId,requestId:branchRequest.current.requestId,...(quickActionPreference.ready?{quickActions:quickActionPreference.selected}:{})});
+      await refresh({force:true});
+      setBranchCandidateId(null);
+      navigateChatSurface(`/chat?character=${encodeURIComponent(result.characterInstanceId)}&conversationId=${encodeURIComponent(result.conversationId)}`,'replace');
+    }catch(caught){setBranchError(caught instanceof Error?caught.message:'The alternate path could not be created. Please try again.');}
+    finally{branchInFlight.current=false;setBranching(false);}
+  };
+  const returnToOriginal=async()=>{
+    if(!branchSourceLifeId||!branchSourceConversationId||branching)return;
+    setBranching(true);
+    try{
+      setSnapshot(await managePersona<Snapshot>({action:'switch_life',continuityId:branchSourceLifeId}));
+      navigateChatSurface(`/chat?conversationId=${encodeURIComponent(branchSourceConversationId)}`,'replace');
+    }catch(caught){Alert.alert('Could not switch paths',caught instanceof Error?caught.message:'Please try again.');}
+    finally{setBranching(false);}
+  };
+  const openAlternatePath=async(lifeId:string,conversationId:string)=>{
+    if(branching)return;
+    setBranching(true);
+    try{
+      setSnapshot(await managePersona<Snapshot>({action:'switch_life',continuityId:lifeId}));
+      navigateChatSurface(`/chat?conversationId=${encodeURIComponent(conversationId)}`,'replace');
+    }catch(caught){Alert.alert('Could not switch paths',caught instanceof Error?caught.message:'Please try again.');}
+    finally{setBranching(false);}
+  };
+  const selectBranchPath=(path:ChatBranchPath)=>{
+    if(path.current){setShowBranchSwitcher(false);return;}
+    setShowBranchSwitcher(false);
+    if(path.original)void returnToOriginal();
+    else void openAlternatePath(path.continuityId,path.conversationId);
+  };
+  const deleteBranchPath=(path:ChatBranchPath)=>{
+    if(path.original||branching)return;
+    confirmAction({
+      title:`Delete ${path.title}?`,
+      message:'This permanently deletes this path, its messages, memories, and media. The original conversation and other paths stay intact.',
+      confirmLabel:'Delete path',
+      destructive:true,
+      onConfirm:async()=>{
+        if(branching)return;
+        setBranching(true);
+        try{
+          const next=await managePersona<Snapshot>({action:'delete_life',continuityId:path.continuityId,confirmation:'DELETE LIFE'});
+          setSnapshot(next);
+          if(path.current){
+            setShowBranchSwitcher(false);
+            if(next.activeContinuity?.id===branchSourceLifeId&&branchSourceConversationId){
+              navigateChatSurface(`/chat?conversationId=${encodeURIComponent(branchSourceConversationId)}`,'replace');
+            }else openMessagesInbox();
+          }
+        }catch(caught){Alert.alert('Could not delete path',caught instanceof Error?caught.message:'Please try again.');}
+        finally{setBranching(false);}
+      },
+    });
+  };
+  const createPathFromSwitcher=()=>{
+    if(!subscriberCanBranch){setShowBranchSwitcher(false);navigateChatSurface(subscriptionHref({intent:'plans',returnTo:subscriptionReturnTo}));return;}
+    if(branchSourceLifeId){setShowBranchSwitcher(false);void returnToOriginal();return;}
+    if(!latestAssistantMessage)return;
+    setShowBranchSwitcher(false);
+    branchFromLatest(latestAssistantMessage);
+  };
   currentInput.current=input;
   latestTimelineMessageId.current=latestPersistedMessage?.id??null;
   const pendingActions=conversationReady?(snapshot.conversationActions??[]).filter((item)=>item.status==='pending'&&item.character_instance_id===character.id&&item.conversation_id===conversation.id&&shouldShowPlanConversationAction(item,chatContext.scene.locationId,Boolean(activeSharedPlan))):[];
@@ -762,15 +851,24 @@ function ChatSession() {
   const startTimelinePlan=async(plan:SharedPlan)=>{
     const availability=planActionAvailability(plan);
     if(!availability.primaryEnabled){setPlanModal({planId:plan.id});return;}
+    const request=chatScope.start('plan-mutation');
+    if(!request)return;
     setPlanActionBusyId(plan.id);setError('');
-    try{const experience=await joinCommitment(plan.id,plan.character_instance_id);applyStartedPlan(experience,plan.id);void refresh({force:true});if(Platform.OS!=='web')void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);}
-    catch(caught){setError(caught instanceof Error?caught.message:'The plan could not be started.');setPlanModal({planId:plan.id});}
-    finally{setPlanActionBusyId(null);}
+    try{const experience=await joinCommitment(plan.id,plan.character_instance_id);if(!request.isCurrent())return;applyStartedPlan(experience,plan.id);void refresh({force:true});if(Platform.OS!=='web')void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);}
+    catch(caught){if(request.isCurrent()){setError(caught instanceof Error?caught.message:'The plan could not be started.');setPlanModal({planId:plan.id});}}
+    finally{if(request.isCurrent())setPlanActionBusyId(null);request.release();}
+  };
+  const openActivityPicker=()=>{setShowConversationMenu(false);setShowActivities(true);};
+  const savePlanActivity=async(activity:string)=>{
+    if(!activeSharedPlan||replyPending||sendInFlightRef.current)throw new Error('Wait for the current reply to finish.');
+    const request=chatScope.start('plan-mutation');if(!request)throw new Error('Another plan change is still finishing.');
+    if(activityRequestRef.current?.activity!==activity)activityRequestRef.current={activity,requestId:createClientRequestId()};
+    try{const experience=await changePlanActivity(activeSharedPlan.id,conversation.id,activity,activityRequestRef.current.requestId);if(!request.isCurrent())return;applyStartedPlan(experience);setCharacterProposal(null);activityRequestRef.current=null;void refresh().catch(()=>undefined);}
+    finally{request.release();}
   };
   const openPlanPicker=()=>{setPendingActionId(null);setInitialPlanTimingChoice(null);setSwitchPlanId(activeSharedPlan?.source==='date'?null:activeSharedPlan?.id??null);setShowPlans(true);};
-  const dismissPlanInteractionTray=()=>{const planId=activeSharedPlan?.id;if(!planId)return;setDismissedInteractionPlanId(planId);setShowInteractions(false);const userId=session?.user.id;if(userId)void hidePlanInteractionTray(userId,planId);};
   const requestEndPlan=(plan:SharedPlan)=>{if(!planActionAvailability(plan).canEnd)return;setPlanEndTarget(plan);setError('');};
-  const confirmEndPlan=async()=>{const plan=planEndTarget;if(!plan||planActionBusyId)return;setPlanActionBusyId(plan.id);setError('');try{await endPlanExperience(plan.id,character.id,interactionScene?.id);setPlanEndTarget(null);setFocusPlanId(null);setFocusDismissed(true);setInteractionScene(null);setInteractionCandidates([]);setMovementCandidates([]);await refresh();if(Platform.OS!=='web')void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);}catch(caught){setError(caught instanceof Error?caught.message:'The plan could not be ended.');}finally{setPlanActionBusyId(null);}};
+  const confirmEndPlan=async()=>{const plan=planEndTarget;if(!plan)return;const request=chatScope.start('plan-mutation');if(!request)return;setPlanActionBusyId(plan.id);setError('');try{await endPlanExperience(plan.id,character.id,interactionScene?.id);if(!request.isCurrent())return;setPlanEndTarget(null);setFocusPlanId(null);setFocusDismissed(true);setInteractionScene(null);setInteractionCandidates([]);setMovementCandidates([]);await refresh();if(request.isCurrent()&&Platform.OS!=='web')void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);}catch(caught){if(request.isCurrent())setError(caught instanceof Error?caught.message:'The plan could not be ended.');}finally{if(request.isCurrent())setPlanActionBusyId(null);request.release();}};
   const stageManualInput=(value:string)=>{autoDialogueRequest.current?.abort();autoDialogueRequest.current=null;setAutoDialogueBusy(false);setAutoDialogue(null);setInput(value);currentInput.current=value;setTimeout(()=>composerInput.current?.focus(),20);};
   const changeComposerInput=(value:string)=>{if(autoDialogueRequest.current){autoDialogueRequest.current.abort();autoDialogueRequest.current=null;setAutoDialogueBusy(false);}if(!value.trim())setAutoDialogue(null);setInput(value);currentInput.current=value;};
   const clearAutoDialogue=()=>{autoDialogueRequest.current?.abort();autoDialogueRequest.current=null;setAutoDialogueBusy(false);setAutoDialogue(null);setInput('');currentInput.current='';setTimeout(()=>composerInput.current?.focus(),20);};
@@ -803,9 +901,11 @@ function ChatSession() {
     }finally{if(autoDialogueRequest.current===controller){autoDialogueRequest.current=null;setAutoDialogueBusy(false);}}
   };
   const acceptOffer=async(offer:MediaOffer,paymentMethod:'credits'|'daily_included'='credits')=>{
+    const request=chatScope.start('photo-offer-action');
+    if(!request)return;
     const offerText=typeof offer.preview_metadata?.requestText==='string'?offer.preview_metadata.requestText:'';
     if(Platform.OS!=='web'&&photoRequestRestriction({requestText:offerText,requestedContentLevel:offer.content_level as "standard"|"romance"|"suggestive"|"mature"|"explicit",adultPipelineAuthorized:false})) {
-      setBlockedPhoto({text:offerText,message:PHOTO_REQUEST_BLOCKED_MESSAGE});setError('');return;
+      setBlockedPhoto({text:offerText,message:PHOTO_REQUEST_BLOCKED_MESSAGE});setError('');request.release();return;
     }
     setMediaOfferBusy(offer.id);
     // A tap is immediately visible, but `accepted` is reserved for the
@@ -816,6 +916,7 @@ function ChatSession() {
     const acceptanceRequestId=createClientRequestId();
     try{
       const result=await withPhotoRequestTimeout(manageMedia<{state:'accepted'|'needs_credits'|'daily_unavailable'|'expired';offer:MediaOffer;media?:GeneratedMedia;creditBalance:number;required?:number;dailyPhotoAllowanceRemaining?:number}>({action:'accept_offer',offerId:offer.id,requestId:acceptanceRequestId,paymentMethod}));
+      if(!request.isCurrent())return;
       if(result.state==='daily_unavailable'){
         setMediaOffers((current)=>current.map((item)=>item.id===offer.id?{...result.offer,status:'pending',preview_metadata:{...result.offer.preview_metadata,dailyPhotoAllowanceRemaining:0}}:item.source==='user_request'&&item.status==='pending'?{...item,preview_metadata:{...item.preview_metadata,dailyPhotoAllowanceRemaining:0}}:item));
         Alert.alert('Included photos used','You have used today’s included photos. You can still create this one with Credits.');return;
@@ -829,12 +930,14 @@ function ChatSession() {
       setMediaOffers((current)=>current.map((item)=>item.id===offer.id?{...result.offer,preview_metadata:{...result.offer.preview_metadata,dailyPhotoAllowanceRemaining:dailyRemaining}}:paymentMethod==='daily_included'&&item.source==='user_request'&&item.status==='pending'?{...item,preview_metadata:{...item.preview_metadata,dailyPhotoAllowanceRemaining:dailyRemaining}}:item));
       if(result.media){upsertMedia(result.media);setReconcilingMediaId(result.media.id);}
     }catch(caught){
+      if(!request.isCurrent())return;
       if(caught instanceof ApiError&&caught.code===PHOTO_CONTENT_BLOCKED){setMediaOffers((current)=>current.filter((item)=>item.id!==offer.id));setBlockedPhoto({text:offerText,message:caught.message});setError('');return;}
       // An interrupted response may still have accepted, charged, and queued
       // the request. Reconcile the server-owned offer/media link before making
       // the card actionable again so a successful request cannot remain on
       // "Starting…" or be submitted twice.
       const recovered=await waitForPhotoOfferStatus({loadStatus:()=>loadPhotoOfferStatus(offer.id)});
+      if(!request.isCurrent())return;
       if(recovered){
         setMediaOffers((current)=>current.map((item)=>item.id===offer.id?recovered.offer:item));
         if(recovered.media){upsertMedia(recovered.media);if(!mediaReconciliationComplete(recovered.media))setReconcilingMediaId(recovered.media.id);}
@@ -843,14 +946,42 @@ function ChatSession() {
       }
       setMediaOffers((current)=>current.map((item)=>item.id===offer.id?offer:item));
       setError(caught instanceof Error?caught.message:'The photo could not be prepared.');
-      void fetchPendingMediaOffers(character.id,conversation.id).then(setMediaOffers).catch(()=>undefined);
-    }finally{setMediaOfferBusy(null);}
+      try{const offers=await fetchPendingMediaOffers(character.id,conversation.id);if(request.isCurrent())setMediaOffers(offers);}catch{/* Keep the visible offer for a later refresh. */}
+    }finally{if(request.isCurrent())setMediaOfferBusy(null);request.release();}
   };
   const declineOffer=async(offer:MediaOffer)=>{
+    const request=chatScope.start('photo-offer-action');
+    if(!request)return;
+    rememberPhotoDecline(photoDeclineKey,offer);
     setMediaOfferBusy(offer.id);setMediaOffers((current)=>current.filter((item)=>item.id!==offer.id));
-    try{const result=await manageMedia<{offer:MediaOffer;removedMediaId:string|null}>({action:'dismiss_offer',offerId:offer.id});if(result.removedMediaId)removeMedia(result.removedMediaId);}
-    catch(caught){setMediaOffers((current)=>current.some((item)=>item.id===offer.id)?current:[offer,...current]);setError(caught instanceof Error?caught.message:'The offer could not be dismissed.');}
-    finally{setMediaOfferBusy(null);}
+    try{
+      const result=await manageMedia<{offer:MediaOffer;removedMediaId:string|null}>({action:'dismiss_offer',offerId:offer.id});
+      settlePhotoDecline(photoDeclineKey,result.offer);
+      if(typeof offer.preview_metadata?.clientRequestId==='string')clearOptimisticPhotoDecline(photoDeclineKey,offer.preview_metadata.clientRequestId);
+      if(!request.isCurrent())return;
+      if(result.removedMediaId)removeMedia(result.removedMediaId);
+      if(offer.status==='pending'&&result.offer.status==='declined'&&offer.source==='user_request'&&typeof offer.message_id==='string')
+        setDeclinedPhotoReply({offer,dismissed:result.offer,queuedAt:Date.now()});
+    }
+    catch(caught){clearPhotoDecline(photoDeclineKey,offer.id);if(typeof offer.preview_metadata?.clientRequestId==='string')clearOptimisticPhotoDecline(photoDeclineKey,offer.preview_metadata.clientRequestId);if(request.isCurrent()){setMediaOffers((current)=>current.some((item)=>item.id===offer.id)?current:[offer,...current]);setError(caught instanceof Error?caught.message:'The offer could not be dismissed.');}}
+    finally{if(request.isCurrent())setMediaOfferBusy(null);request.release();}
+  };
+  const dismissPhotoOfferAfterSwitch=async(offer:MediaOffer,requestId:string)=>{
+    if(readPhotoDecline(photoDeclineKey)?.offer.id===offer.id)return;
+    const isCurrent=chatScope.capture();
+    rememberPhotoDecline(photoDeclineKey,offer);
+    try{
+      const result=await manageMedia<{offer:MediaOffer}>({action:'dismiss_offer',offerId:offer.id});
+      settlePhotoDecline(photoDeclineKey,result.offer);
+      clearOptimisticPhotoDecline(photoDeclineKey,requestId);
+      if(isCurrent()){
+        setMediaOffers((current)=>current.filter((item)=>item.id!==offer.id));
+        if(result.offer.status==='declined')setDeclinedPhotoReply({offer,dismissed:result.offer,queuedAt:Date.now()});
+      }
+    }catch{
+      clearPhotoDecline(photoDeclineKey,offer.id);
+      // The intent stays available if the user returns to this chat.
+    }
   };
   const dispatchOptimisticPhotoDecision=(requestId:string,offer:MediaOffer,decision:QueuedPhotoOfferDecision)=>{
     if(decision.requestId!==requestId||queuedPhotoOfferDecisionRef.current?.requestId!==requestId||optimisticPhotoRequestRef.current?.requestId!==requestId||optimisticPhotoDecisionDispatched.current.has(requestId))return false;
@@ -879,7 +1010,10 @@ function ChatSession() {
   const decideOptimisticPhotoOffer=(action:'accept'|'decline',paymentMethod?:'credits'|'daily_included')=>{
     const request=optimisticPhotoRequestRef.current;
     if(!request)return;
+    const isCurrent=chatScope.capture();
     const decision:QueuedPhotoOfferDecision={requestId:request.requestId,action,paymentMethod};
+    if(action==='decline')rememberOptimisticPhotoDecline(photoDeclineKey,request);
+    else clearOptimisticPhotoDecline(photoDeclineKey,request.requestId);
     queuedPhotoOfferDecisionRef.current=decision;
     // The authoritative offer may already be in state even though the
     // optimistic card is still visible. Consume it from this user gesture so
@@ -900,19 +1034,37 @@ function ChatSession() {
     void waitForMatchingServerPhotoOffer({
       request,
       loadOffers:()=>fetchPendingMediaOffers(request.offer.character_instance_id,String(request.offer.conversation_id)),
+      // The source message can still be saving when the user declines its
+      // temporary card. Keep looking until the normal photo request settles.
+      ...(action==='decline'?{delays:[0,900,1_800,3_600,5_000,6_000]}:{}),
     }).then(({offer,offers})=>{
-      if(offers.length)setMediaOffers(offers);
-      if(offer){dispatchOptimisticPhotoDecision(request.requestId,offer,decision);return;}
+      if(isCurrent()&&offers.length)setMediaOffers(offers);
+      if(offer){
+        if(isCurrent()&&dispatchOptimisticPhotoDecision(request.requestId,offer,decision))return;
+        if(action==='decline'&&readOptimisticPhotoDecline(photoDeclineKey)?.requestId===request.requestId)
+          void dismissPhotoOfferAfterSwitch(offer,request.requestId);
+        return;
+      }
+      if(!isCurrent())return;
       if(queuedPhotoOfferDecisionRef.current?.requestId===request.requestId){
         queuedPhotoOfferDecisionRef.current=null;
+        if(action==='decline'){
+          clearOptimisticPhotoDecline(photoDeclineKey,request.requestId);
+          optimisticPhotoRequestRef.current=null;
+        }
         setOptimisticPhotoRequest((current)=>current?.requestId===request.requestId
           ? {...current,offer:{...current.offer,preview_metadata:{...current.offer.preview_metadata,acceptQueued:false}}}
           : current);
-        setError(action==='decline'?'The photo request could not be dismissed. Tap the close button again.':'The photo confirmation has not been confirmed. Check the existing request before trying again.');
+        setError(action==='decline'?'The photo request could not be confirmed. Your message is still in the chat; send a follow-up to continue.':'The photo confirmation has not been confirmed. Check the existing request before trying again.');
       }
     }).catch((caught)=>{
+      if(!isCurrent())return;
       if(queuedPhotoOfferDecisionRef.current?.requestId!==request.requestId)return;
       queuedPhotoOfferDecisionRef.current=null;
+      if(action==='decline'){
+        clearOptimisticPhotoDecline(photoDeclineKey,request.requestId);
+        optimisticPhotoRequestRef.current=null;
+      }
       setOptimisticPhotoRequest((current)=>current?.requestId===request.requestId
         ? {...current,offer:{...current.offer,preview_metadata:{...current.offer.preview_metadata,acceptQueued:false}}}
         : current);
@@ -942,7 +1094,7 @@ function ChatSession() {
   useEffect(()=>{pendingImageRef.current=pendingImage;},[pendingImage]);
   useEffect(()=>()=>cleanupNormalizedImage(pendingImageRef.current?.uri),[]);
 
-  const send = async (retryText?: string,retryRequestId?:string,retryMessageId?:string,messageAction?:DirectMessageAction,preserveComposer=false,messagePresentation?:OneTapSelfieMessagePresentation) => {
+  const send = async (retryText?: string,retryRequestId?:string,retryMessageId?:string,messageAction?:DirectMessageAction,preserveComposer=false,messagePresentation?:OneTapSelfieMessagePresentation,onStarted?:()=>void) => {
     const draft = retryMessageId&&retryText==='[Photo]'&&pendingImage ? '' : retryText ?? input;
     if (draft.length > MESSAGE_CHARACTER_LIMIT) { setError(messageCharacterLimitError()); return; }
     const text = draft.trim(); if ((!text&&!pendingImage) || replyPending || sendInFlightRef.current) return;
@@ -950,12 +1102,24 @@ function ChatSession() {
       setBlockedPhoto({text,message:PHOTO_REQUEST_BLOCKED_MESSAGE});setError('');return;
     }
     setBlockedPhoto(null);
-    if(!retryMessageId&&dailyMessageExhausted){setError('You’ve used today’s free messages.');return;}
+    if(!retryMessageId&&dailyMessageExhausted&&messageAction?.messageAction!=='respond_to_declined_photo'){setError('You’ve used today’s free messages.');return;}
     if(connectionPhase!=='online')setShowSendConnectionNotice(true);
     if(!online){setError('You’re offline. Your draft is saved and ready when you reconnect.');return;}
-    const contextAuthorization=await contextPricing.authorize({conversationId:conversation.id,characterInstanceId:character.id,message:text,focusPlanId:focusPlanId??undefined,...(messageAction?{messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:{})});
-    if(!contextAuthorization||isSceneReplyPending())return;
+    let attempt;
+    try {
+      attempt=await authorizeReply(chatScope,()=>messageAction?.messageAction==='respond_to_declined_photo'
+        ? Promise.resolve({contextPreference:'included' as const})
+        : contextPricing.authorize({conversationId:conversation.id,characterInstanceId:character.id,message:text,focusPlanId:focusPlanId??undefined,...(messageAction?{messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:{})}));
+    } catch(caught) {
+      setError(caught instanceof Error?caught.message:'The message could not be prepared. Please try again.');
+      return;
+    }
+    if(!attempt)return;
+    const {authorization:contextAuthorization,request}=attempt;
+    if(isSceneReplyPending()){request.release();return;}
+    const isCurrent=chatScope.capture();
     sendInFlightRef.current=true;
+    onStarted?.();
     const sentAutoDialogue=!retryText&&!messageAction?autoDialogue:null;
     const retrySource=retryMessageId?messages.find((message)=>message.id===retryMessageId):undefined;
     const effectiveMessagePresentation=messagePresentation??(retrySource?.provider_metadata?.messagePresentation===ONE_TAP_SELFIE_MESSAGE_PRESENTATION?ONE_TAP_SELFIE_MESSAGE_PRESENTATION:undefined);
@@ -968,6 +1132,9 @@ function ChatSession() {
     const selectedImage=messageAction?null:pendingImage;if(!preserveComposer)setInput(''); setError(''); setSending(true); setStream(''); setFeedback(null);
     let preparedAttachmentId:string|undefined;let sentAttachment:ConversationAttachment|undefined;let sceneActionId:string|undefined;
     const clientRequestId=retryRequestId??createClientRequestId();
+    const messageCacheGeneration=conversationMessageCacheGeneration();
+    const sentUserId=session?.user.id;
+    const sentLifeId=snapshot.activeContinuity?.id;
     activeSendRequest.current=clientRequestId;
     let primaryComplete=false;
     if(expectsPhotoOffer){
@@ -985,40 +1152,67 @@ function ChatSession() {
     activeBottomPinRequest.current=clientRequestId;
     forcePinnedUntil.current=Date.now()+1_200;
     const optimistic: Message = { id: retryMessageId??`local-${Date.now()}`, conversation_id: conversation.id, role: 'user', content: text||'[Photo]', client_request_id:clientRequestId,delivery_status: 'pending', created_at: retrySource?.created_at??new Date().toISOString(),provider_metadata:retrySource?.provider_metadata??(messageAction?{uiHidden:true,messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:effectiveMessagePresentation?{uiHidden:true,messagePresentation:effectiveMessagePresentation}:undefined),attachments:selectedImage?[pendingImageAttachment(selectedImage,conversation.id)]:retryAttachments };
+    if(sentUserId&&!selectedImage)mergeConversationMessagePage(sentUserId,conversation.id,[optimistic],messageCacheGeneration);
+    const persistCompletedReply=(incoming:Message[])=>{
+      if(!sentUserId)return;
+      const cached=mergeConversationMessagePage(sentUserId,conversation.id,[{...optimistic,delivery_status:'complete',attachments:sentAttachment?[sentAttachment]:optimistic.attachments},...incoming],messageCacheGeneration);
+      if(!cached||useTogether.getState().snapshot?.activeContinuity?.id!==sentLifeId)return;
+      const latest=[...incoming].reverse().find((message)=>message.conversation_id===conversation.id&&message.role==='assistant'&&isVisibleChatMessage(message)&&Boolean(message.content.trim()));
+      if(!latest)return;
+      const current=useTogether.getState().snapshot?.conversations.find((item)=>item.id===conversation.id)??conversation;
+      if(current.last_message_at&&Date.parse(current.last_message_at)>Date.parse(latest.created_at))return;
+      useTogether.getState().upsertConversation(conversationWithLastMessage(current,latest));
+    };
     beginPendingDialogue({conversationId:conversation.id,characterInstanceId:character.id,clientRequestId,startedAt:new Date().toISOString(),showTyping:!expectsPhotoOffer});
     setMessages((current) => retryMessageId?current.map((item)=>item.id===retryMessageId?optimistic:item):[...current, optimistic]);
     settleSentMessageAtBottom(clientRequestId);
     try {
-      if(selectedImage){setPhotoUploadPhase('preparing');const prepared=await prepareUserImage({conversationId:conversation.id,characterInstanceId:character.id,mimeType:selectedImage.mimeType,byteSize:selectedImage.byteSize,width:selectedImage.width,height:selectedImage.height,requestId:selectedImage.requestId});preparedAttachmentId=prepared.attachment.id;setPhotoUploadPhase('uploading');const blob=await fetch(selectedImage.uri).then((response)=>response.blob());await uploadPreparedChatPhoto({storage:supabase.storage.from(prepared.upload.bucket),upload:prepared.upload,body:blob,contentType:selectedImage.mimeType});setPhotoUploadPhase('processing');const confirmed=await confirmUserImage(prepared.attachment.id,text);sentAttachment={...confirmed.attachment,signed_url:confirmed.attachment.signed_url??selectedImage.uri};setPhotoUploadPhase('sending');}
+      if(selectedImage){
+        const attachment=await uploadConversationImage({image:selectedImage,conversationId:conversation.id,characterInstanceId:character.id,text,isCurrent,onPhase:setPhotoUploadPhase,onPrepared:(id)=>{preparedAttachmentId=id;}});
+        if(!attachment)return;
+        sentAttachment=attachment;
+      }
       // A clear free-text action is matched only against the server's current
       // scene candidates, then executed before the dialogue context is built.
       // This gives the normal companion response the real scene change to
       // react to, while questions and vague ideas remain ordinary chat.
       if(isCoPresent&&!messageAction&&!contextAuthorization.contextQuoteId&&!contextAuthorization.contextCostAuthorization){
         try{
-          const sceneResult=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[];intentMatch?:InteractionCandidate;characterProposal?:CharacterInteractionProposal}>({action:'resolve',characterInstanceId:character.id,conversationId:conversation.id,intentText:text});
-          markInteractionSceneHydrated(sceneResult.scene);setInteractionScene(sceneResult.scene?.id?sceneResult.scene:null);
-          setInteractionCandidates(sceneResult.interactions??[]);
-          setMovementCandidates(sceneResult.destinations??[]);
-          setCharacterProposal(sceneResult.characterProposal??null);
-          if(sceneResult.intentMatch){const sceneAction=await executeInteraction(sceneResult.intentMatch,'defer_to_current_message');sceneActionId=sceneAction?.id;}
+          const sceneResult=await resolveSceneBeforeSend((signal)=>manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[];intentMatch?:InteractionCandidate;characterProposal?:CharacterInteractionProposal}>({action:'resolve',characterInstanceId:character.id,conversationId:conversation.id,intentText:text},{signal}));
+          if(!isCurrent())return;
+          if(sceneResult){
+            markInteractionSceneHydrated(sceneResult.scene);setInteractionScene(sceneResult.scene?.id?sceneResult.scene:null);
+            setInteractionCandidates(sceneResult.interactions??[]);
+            setMovementCandidates(sceneResult.destinations??[]);
+            setCharacterProposal(sceneResult.characterProposal??null);
+            if(sceneResult.intentMatch){const sceneAction=await executeInteraction(sceneResult.intentMatch,'defer_to_current_message');sceneActionId=sceneAction?.id;}
+          }
         }catch{/* The sent message is still valid if the scene changed. */}
       }
-      const result = await sendDialogue({ ...contextAuthorization, conversationId: conversation.id, characterInstanceId: character.id, message: text,attachmentIds:preparedAttachmentId?[preparedAttachmentId]:retryAttachmentIds, clientRequestId,focusPlanId:focusPlanId??undefined,...(sceneActionId?{sceneActionId}:{}),...(messageAction?{messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:{}),...(effectiveMessagePresentation?{messagePresentation:effectiveMessagePresentation}:{}),...(sentAutoDialogue?{autoDialogueSuggestionId:sentAutoDialogue.suggestionId,autoDialogueSuggestionSource:sentAutoDialogue.source,autoDialogueSuggestionEdited:text!==sentAutoDialogue.text.trim(),autoDialogueSuggestionIntent:sentAutoDialogue.intent,autoDialogueSuggestionPreference:sentAutoDialogue.preference}:{}) }, (token) => {if(activeSendRequest.current!==clientRequestId)return;if(activeBottomPinRequest.current===clientRequestId)forcePinnedUntil.current=Date.now()+1_200;setStream((current) => current + token);}, {
+      if(!isCurrent())return;
+      const result = await sendDialogue({ ...contextAuthorization, conversationId: conversation.id, characterInstanceId: character.id, message: text,attachmentIds:preparedAttachmentId?[preparedAttachmentId]:retryAttachmentIds, clientRequestId,focusPlanId:focusPlanId??undefined,...(sceneActionId?{sceneActionId}:{}),...(messageAction?{messageAction:messageAction.messageAction,anchorMessageId:messageAction.anchorMessageId}:{}),...(effectiveMessagePresentation?{messagePresentation:effectiveMessagePresentation}:{}),...(sentAutoDialogue?{autoDialogueSuggestionId:sentAutoDialogue.suggestionId,autoDialogueSuggestionSource:sentAutoDialogue.source,autoDialogueSuggestionEdited:text!==sentAutoDialogue.text.trim(),autoDialogueSuggestionIntent:sentAutoDialogue.intent,autoDialogueSuggestionPreference:sentAutoDialogue.preference}:{}) }, (token) => {if(!isCurrent()||activeSendRequest.current!==clientRequestId)return;if(activeBottomPinRequest.current===clientRequestId)forcePinnedUntil.current=Date.now()+1_200;setStream((current) => current + token);}, {
         onPrimary:(message)=>{
-          if(activeSendRequest.current!==clientRequestId)return;
+          if(messageAction?.messageAction==='respond_to_declined_photo'){clearPhotoDecline(photoDeclineKey,clientRequestId);setDeclinedPhotoReply(null);}
+          persistCompletedReply([message]);
           primaryComplete=true;
+          if(!isCurrent()||activeSendRequest.current!==clientRequestId)return;
           seamlessCompletionIds.current.add(message.id);
           setMessages(current=>reconcileMessages(current,[{...optimistic,delivery_status:'complete',attachments:sentAttachment?[sentAttachment]:optimistic.attachments},message]));
           cleanupNormalizedImage(selectedImage?.uri);setPendingImage(null);setPhotoUploadPhase('idle');setStream('');
-          sendInFlightRef.current=false;setSending(false);finishPendingDialogue(conversation.id,clientRequestId);
+          request.release();sendInFlightRef.current=false;setSending(false);finishPendingDialogue(conversation.id,clientRequestId);
           settleSentMessageAtBottom(clientRequestId);
         },
-        onMessage:(message)=>{if(activeSendRequest.current===clientRequestId)setMessages(current=>reconcileMessages(current,[message]));},
+        onMessage:(message)=>{persistCompletedReply([message]);if(isCurrent()&&activeSendRequest.current===clientRequestId)setMessages(current=>reconcileMessages(current,[message]));},
       });
-      if(activeSendRequest.current!==clientRequestId)return;
+      if(messageAction?.messageAction==='respond_to_declined_photo'){clearPhotoDecline(photoDeclineKey,clientRequestId);setDeclinedPhotoReply(null);}
+      persistCompletedReply([result.message,...(result.additionalMessages??[])]);
+      if(!isCurrent()||activeSendRequest.current!==clientRequestId)return;
       seamlessCompletionIds.current.add(result.message.id);
       if(!primaryComplete){cleanupNormalizedImage(selectedImage?.uri);setPendingImage(null);setPhotoUploadPhase('idle');}setStream(''); setMessages((current) => reconcileMessages(current,[{...optimistic,delivery_status:'complete',attachments:sentAttachment?[sentAttachment]:optimistic.attachments},result.message,...(result.additionalMessages??[])]));settleSentMessageAtBottom(clientRequestId);
+      // The stream is the fast path. Verify the durable transcript once it
+      // finishes so a dropped terminal event or stale warm page cannot leave
+      // a completed companion reply absent from this open chat.
+      void refreshHistory().catch(()=>undefined);
       void markConversationRead(conversation.id).catch(()=>undefined);
       if(result.generatedMedia){upsertMedia(result.generatedMedia);setReconcilingMediaId(result.generatedMedia.id);}
       if(result.mediaOffer){
@@ -1032,31 +1226,44 @@ function ChatSession() {
       // The dialogue response already owns the canonical offer. A second
       // eventually-consistent list read can be empty and must not erase it.
       if(expectsPhotoOffer&&!result.photoRequestError&&!result.mediaOffer){
-        try{const offers=await fetchPendingMediaOffers(character.id,conversation.id);setMediaOffers(offers);resolveOptimisticPhotoOfferRef.current(offers);if(!matchingServerPhotoOffer(offers,{requestId:clientRequestId,startedAt:optimistic.created_at,offer:{character_instance_id:character.id,conversation_id:conversation.id}})){optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);setError('The photo confirmation did not appear. Please try the request again.');}}
-        catch(caught){if(!isTransientMediaFetchFailure(caught))setError('The photo confirmation could not be loaded. Please try again.');}
+        try{const offers=await fetchPendingMediaOffers(character.id,conversation.id);if(!isCurrent())return;setMediaOffers(offers);resolveOptimisticPhotoOfferRef.current(offers);if(!matchingServerPhotoOffer(offers,{requestId:clientRequestId,startedAt:optimistic.created_at,offer:{character_instance_id:character.id,conversation_id:conversation.id}})){optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);setError('The photo confirmation did not appear. Please try the request again.');}}
+        catch(caught){if(isCurrent()&&!isTransientMediaFetchFailure(caught))setError('The photo confirmation could not be loaded. Please try again.');}
       }
+      if(!isCurrent())return;
       if(result.delta)applyServerDelta(result.delta);
-      if(!retryMessageId)consumeDailyMessageAllowance();
+      if(!retryMessageId&&messageAction?.messageAction!=='respond_to_declined_photo')consumeDailyMessageAllowance();
       if(!preserveComposer&&!currentInput.current.trim())await clearStoredDraft();
+      if(!isCurrent())return;
       showNewStoryFeedback(before, useTogether.getState().snapshot, character.id, character.together_character_templates.name, setFeedback);
     } catch (caught) {
-      if(activeSendRequest.current!==clientRequestId||primaryComplete)return;
+      if(messageAction?.messageAction==='respond_to_declined_photo'&&caught instanceof ApiError&&caught.code==='CONFLICT'){clearPhotoDecline(photoDeclineKey,clientRequestId);setDeclinedPhotoReply(null);}
+      if(!primaryComplete&&sentUserId)mergeConversationMessagePage(sentUserId,conversation.id,[{...optimistic,delivery_status:'failed'}],messageCacheGeneration);
+      if(!isCurrent()||activeSendRequest.current!==clientRequestId||primaryComplete)return;
       if(expectsPhotoOffer){optimisticPhotoRequestRef.current=null;queuedPhotoOfferDecisionRef.current=null;setAwaitingPhotoOffer(false);setOptimisticPhotoRequest(null);}
       if(caught instanceof ApiError&&caught.code===PHOTO_CONTENT_BLOCKED){setBlockedPhoto({text:draft,message:caught.message});setError('');setStream('');setInput(draft);currentInput.current=draft;setMessages((current)=>current.filter((item)=>item.id!==optimistic.id));return;}
       const recovered=dialogueFailureMayHavePersisted(caught)?await recoverInterruptedDialogue(conversation.id,character.id,optimistic,clientRequestId,expectsPhotoOffer):false;
-      if(recovered){if(!retryMessageId)consumeDailyMessageAllowance();cleanupNormalizedImage(selectedImage?.uri);setPendingImage(null);setPhotoUploadPhase('idle');setStream('');setError('');await clearStoredDraft();return;}
+      if(!isCurrent())return;
+      if(recovered){if(messageAction?.messageAction==='respond_to_declined_photo'){clearPhotoDecline(photoDeclineKey,clientRequestId);setDeclinedPhotoReply(null);}if(!retryMessageId&&messageAction?.messageAction!=='respond_to_declined_photo')consumeDailyMessageAllowance();cleanupNormalizedImage(selectedImage?.uri);setPendingImage(null);setPhotoUploadPhase('idle');setStream('');setError('');if(!preserveComposer)await clearStoredDraft();return;}
       if(preparedAttachmentId)void removePendingAttachment(preparedAttachmentId).catch(()=>undefined);
+      if(selectedImage&&caught instanceof ApiError&&caught.code==='PROVIDER_CONTENT_BLOCKED'){
+        setPhotoUploadPhase('blocked');setStream('');setError(caught.message);
+        setMessages((current)=>current.filter((item)=>item.id!==optimistic.id));
+        if(!preserveComposer){setInput(draft);currentInput.current=draft;}
+        return;
+      }
       if(selectedImage)setPhotoUploadPhase('failed');
       setStream(''); setError(caught instanceof Error ? caught.message : 'The reply was interrupted.');
       if(!messageAction&&!preserveComposer&&!effectiveMessagePresentation){setInput(draft);currentInput.current=draft;}
       if(caught instanceof ApiError&&caught.code==='CONVERSATION_ARCHIVED')await refresh();
+      if(!isCurrent())return;
       if(caught instanceof ApiError&&caught.code==='PLAN_LIMIT_REACHED'){exhaustDailyMessageAllowance();if(expectsPhotoOffer)setShowPhotoPaywall(true);}
       setMessages((current) => current.map((item) => item.id === optimistic.id ? { ...item, delivery_status: 'failed' } : item));
     } finally {
+      request.release();
       finishPendingDialogue(conversation.id,clientRequestId);
-      if(activeSendRequest.current===clientRequestId){sendInFlightRef.current=false;setSending(false);}
-      if(activeSendRequest.current===clientRequestId&&expectsPhotoOffer&&!optimisticPhotoRequestRef.current)setAwaitingPhotoOffer(false);
-      if(activeBottomPinRequest.current===clientRequestId){
+      if(isCurrent()&&activeSendRequest.current===clientRequestId){sendInFlightRef.current=false;setSending(false);}
+      if(isCurrent()&&activeSendRequest.current===clientRequestId&&expectsPhotoOffer&&!optimisticPhotoRequestRef.current)setAwaitingPhotoOffer(false);
+      if(isCurrent()&&activeBottomPinRequest.current===clientRequestId){
         forcePinnedUntil.current=Date.now()+1_000;
         bottomPinReleaseTimer.current=setTimeout(()=>{if(activeBottomPinRequest.current!==clientRequestId)return;scrollToLatest(false);activeBottomPinRequest.current=null;forcePinnedUntil.current=Date.now()+500;},1_200);
       }
@@ -1065,26 +1272,112 @@ function ChatSession() {
   replayPersistedDialogueRef.current=(message)=>{
     if(!message.client_request_id)return;
     const messagePresentation=message.provider_metadata?.messagePresentation===ONE_TAP_SELFIE_MESSAGE_PRESENTATION?ONE_TAP_SELFIE_MESSAGE_PRESENTATION:undefined;
-    void send(message.content,message.client_request_id,message.id,undefined,true,messagePresentation);
+    const photoDecline=message.provider_metadata?.messageAction==='respond_to_declined_photo'&&typeof message.provider_metadata.anchorMessageId==='string'
+      ? {messageAction:'respond_to_declined_photo' as const,anchorMessageId:message.provider_metadata.anchorMessageId} : undefined;
+    void send(declinedPhotoReplayText(message,messages),message.client_request_id,message.id,photoDecline,true,messagePresentation);
   };
 
-  const openCreatedPlan=async(result:PlanMutationResult|undefined,timing:PlanTimingSelection)=>{
+  const openCreatedPlan=async(result:PlanMutationResult|undefined,timing:PlanTimingSelection,isCurrent:()=>boolean)=>{
     if(timing.choice!=='now'||!result?.commitment.id)return;
+    if(!isCurrent())return;
     if(result.kind==='date'){navigateChatSurface(`/date/${result.commitment.id}`);return;}
-    try{const experience=result.experience??await joinCommitment(result.commitment.id,character.id);applyStartedPlan(experience,result.commitment.id);}
-    catch(caught){setError(`The plan was saved, but it could not start yet: ${caught instanceof Error?caught.message:'try again from its plan card.'}`);}
+    try{const experience=result.experience??await joinCommitment(result.commitment.id,character.id);if(isCurrent())applyStartedPlan(experience,result.commitment.id);}
+    catch(caught){if(isCurrent())setError(`The plan was saved, but it could not start yet: ${caught instanceof Error?caught.message:'try again from its plan card.'}`);}
   };
+  useEffect(()=>{
+    const intent=readOptimisticPhotoDecline(photoDeclineKey);
+    if(!intent||!character?.id||!conversation?.id)return;
+    void waitForMatchingServerPhotoOffer({
+      request:intent,
+      loadOffers:()=>fetchPendingMediaOffers(character.id,conversation.id),
+    }).then(({offer})=>{
+      if(offer&&readOptimisticPhotoDecline(photoDeclineKey)?.requestId===intent.requestId)
+        void dismissPhotoOfferAfterSwitch(offer,intent.requestId);
+    }).catch(()=>undefined);
+  // Resume once for this conversation; an in-flight lookup remains safe after navigation.
+  },[chatScope,photoDeclineKey,character?.id,conversation?.id,fetchPendingMediaOffers]);
+  useEffect(()=>{
+    const pending=readPhotoDecline(photoDeclineKey);
+    if(!pending)return;
+    let cancelled=false,timer:ReturnType<typeof setTimeout>|undefined;
+    const resume=async()=>{
+      const current=readPhotoDecline(photoDeclineKey);
+      if(!current||cancelled)return;
+      if(current.startedAt&&Date.now()-current.startedAt<20_000){
+        timer=setTimeout(()=>void resume(),20_000-(Date.now()-current.startedAt));
+        return;
+      }
+      try{
+        const dismissed=current.dismissed??(await manageMedia<{offer:MediaOffer}>({action:'dismiss_offer',offerId:current.offer.id})).offer;
+        settlePhotoDecline(photoDeclineKey,dismissed);
+        if(!cancelled&&dismissed.status==='declined')setDeclinedPhotoReply({offer:current.offer,dismissed,queuedAt:Date.now()});
+      }catch(caught){
+        if(cancelled)return;
+        clearPhotoDecline(photoDeclineKey,current.offer.id);
+        setError(caught instanceof Error?caught.message:'The declined photo could not continue.');
+      }
+    };
+    void resume();
+    return()=>{cancelled=true;if(timer)clearTimeout(timer);};
+  },[chatScope,photoDeclineKey,setDeclinedPhotoReply]);
+  useEffect(()=>{
+    if(!declinedPhotoReply)return;
+    const {offer,dismissed,queuedAt}=declinedPhotoReply;
+    const anchor=declinedPhotoReplyAnchor(offer,dismissed,messages);
+    if(!anchor){setDeclinedPhotoReply(null);return;}
+    if(!online)return;
+    if(Date.now()-queuedAt>60_000){setDeclinedPhotoReply(null);setError('The photo was declined, but the chat reply could not start. Send a message to continue.');return;}
+    const timer=setTimeout(()=>setDeclinedPhotoReply((current)=>current?.offer.id===offer.id?{...current}:current),1_500);
+    if(replyPending||sendInFlightRef.current)return()=>clearTimeout(timer);
+    const startedAt=readPhotoDecline(photoDeclineKey)?.startedAt;
+    if(startedAt&&Date.now()-startedAt<20_000)return()=>clearTimeout(timer);
+    const originalMessage=messages.find((message)=>message.role==='user'&&
+      message.client_request_id===offer.preview_metadata?.clientRequestId&&message.provider_metadata?.uiHidden!==true);
+    // The server loads the original request by offer key. A stale or partial
+    // local transcript must not prevent that authoritative continuation.
+    const requestText=originalMessage?.content?.trim()||'Continue after the declined photo request.';
+    void send(requestText,offer.id,undefined,{messageAction:'respond_to_declined_photo',anchorMessageId:anchor},true,undefined,()=>{
+      startPhotoDeclineReply(photoDeclineKey,offer.id);
+    });
+    return()=>clearTimeout(timer);
+  },[declinedPhotoReply,messages,replyPending,online,photoDeclineKey,setDeclinedPhotoReply]);
   const plan = async (option:PlanOption,timing:PlanTimingSelection) => {
+    const request=chatScope.start('plan-mutation');
+    if(!request)return;
     setPlanning(true); setError('');
     try {
       const timingInput=timing.choice==='custom'?{timingChoice:'custom' as const,startsAt:timing.startsAt}:{timingChoice:timing.choice};
-      if(switchPlanId){if(timing.choice!=='now')throw new Error('Choose Switch Now to replace the active plan.');const result=await switchPlanExperience<PlanMutationResult>({currentPlanId:switchPlanId,characterInstanceId:character.id,activityKey:option.activityKey,locationId:option.locationId,sourceConversationId:conversation.id,sceneId:interactionScene?.id,requestId:planRequestIdRef.current});planRequestIdRef.current=createClientRequestId();setSwitchPlanId(null);setFocusPlanId(null);setFocusDismissed(true);setInteractionScene(null);setInteractionCandidates([]);setMovementCandidates([]);router.setParams({plan:undefined,location:undefined,world:undefined,activity:undefined,switchPlanId:undefined});setShowPlans(false);if(result.experience)applyStartedPlan(result.experience,result.commitment.id);void refresh();}
-      else if(pendingActionId){const result=await confirmConversationAction<ConversationActionMutation>(pendingActionId,{activityKey:option.activityKey,locationId:option.locationId,...timingInput});removeConversationAction(pendingActionId);setPendingActionId(null);setInitialPlanTimingChoice(null);setShowPlans(false);await openCreatedPlan(result.result,timing);void refresh();}
-      else{const result=await createSharedPlan<PlanMutationResult>({activityKey:option.activityKey,locationId:option.locationId,characterInstanceId:character.id,...timingInput,requestId:planRequestIdRef.current,source:params.location?'location':'manual_planner',sourceConversationId:conversation.id});planRequestIdRef.current=createClientRequestId();setInitialPlanTimingChoice(null);setShowPlans(false);await openCreatedPlan(result,timing);void refresh();}
-      if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      if(switchPlanId){if(timing.choice!=='now')throw new Error('Choose Switch Now to replace the active plan.');const result=await switchPlanExperience<PlanMutationResult>({currentPlanId:switchPlanId,characterInstanceId:character.id,activityKey:option.activityKey,locationId:option.locationId,sourceConversationId:conversation.id,sceneId:interactionScene?.id,requestId:planRequestIdRef.current});if(!request.isCurrent())return;planRequestIdRef.current=createClientRequestId();setSwitchPlanId(null);setFocusPlanId(null);setFocusDismissed(true);setInteractionScene(null);setInteractionCandidates([]);setMovementCandidates([]);router.setParams({plan:undefined,location:undefined,world:undefined,activity:undefined,switchPlanId:undefined});setShowPlans(false);if(result.experience)applyStartedPlan(result.experience,result.commitment.id);void refresh();}
+      else if(pendingActionId){const result=await confirmConversationAction<ConversationActionMutation>(pendingActionId,{activityKey:option.activityKey,locationId:option.locationId,...timingInput});if(!request.isCurrent())return;removeConversationAction(pendingActionId);setPendingActionId(null);setInitialPlanTimingChoice(null);setShowPlans(false);await openCreatedPlan(result.result,timing,request.isCurrent);if(request.isCurrent())void refresh();}
+      else{const result=await createSharedPlan<PlanMutationResult>({activityKey:option.activityKey,locationId:option.locationId,characterInstanceId:character.id,...timingInput,requestId:planRequestIdRef.current,source:params.location?'location':'manual_planner',sourceConversationId:conversation.id});if(!request.isCurrent())return;planRequestIdRef.current=createClientRequestId();setInitialPlanTimingChoice(null);setShowPlans(false);await openCreatedPlan(result,timing,request.isCurrent);if(request.isCurrent())void refresh();}
+      if(request.isCurrent()&&Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    catch (caught) { setError(caught instanceof Error ? caught.message : 'The plan could not be saved.'); }
-    finally { setPlanning(false); }
+    catch (caught) { if(request.isCurrent())setError(caught instanceof Error ? caught.message : 'The plan could not be saved.'); }
+    finally { if(request.isCurrent())setPlanning(false);request.release(); }
+  };
+  const confirmPlanSuggestion=async(action:ConversationAction,planId?:string)=>{
+    const proposed=typeof action.payload.proposedStartsAt==='string'?action.payload.proposedStartsAt:null;
+    const validProposed=Boolean(proposed&&new Date(proposed).getTime()>=Date.now()+10*60000);
+    const direct=['plan_cancel','cancel_plan'].includes(action.candidate_type)||validProposed||Boolean(planId);
+    if(!direct){setPendingActionId(action.id);setSwitchPlanId(null);setShowPlans(true);return;}
+    const request=chatScope.start('plan-mutation');
+    if(!request)return;
+    setPlanning(true);
+    try{
+      await confirmConversationAction(action.id,{planId,startsAt:validProposed?proposed??undefined:undefined});
+      if(!request.isCurrent())return;
+      removeConversationAction(action.id);
+      void refresh().catch(()=>undefined);
+    }catch(caught){if(request.isCurrent())setError(caught instanceof Error?caught.message:'That action could not be completed.');}
+    finally{if(request.isCurrent())setPlanning(false);request.release();}
+  };
+  const dismissPlanSuggestion=async(action:ConversationAction)=>{
+    const request=chatScope.start('plan-mutation');
+    if(!request)return;
+    removeConversationAction(action.id);
+    try{await dismissConversationAction(action.id);}
+    catch(caught){if(request.isCurrent()){upsertConversationAction(action);setError(caught instanceof Error?caught.message:'That suggestion could not be dismissed.');}}
+    finally{request.release();}
   };
   const undoMemory = async () => { if (!feedback?.id) return; await mutateMemory({ action:'forget', memoryId:feedback.id }); await refresh(); setFeedback(null); };
   const applySceneDelta = (scene:SceneSession|null|undefined) => {
@@ -1096,7 +1389,7 @@ function ChatSession() {
     if(interactionLoading||(reactionMode==='generate'&&replyPending))return;
     const previousCandidates=interactionCandidates,previousProposal=characterProposal;
     let action:SceneAction|undefined;
-    setInteractionLoading(true);setError('');setShowInteractions(false);setCharacterProposal(null);
+    setInteractionLoading(true);setError('');setCharacterProposal(null);
     setInteractionCandidates((current)=>current.filter((item)=>item.interactionKey!==candidate.interactionKey));
     if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try{
@@ -1105,7 +1398,7 @@ function ChatSession() {
       action=result.action;
       if(reactionMode==='generate'&&action?.id)setPendingSceneAction({...sceneActionTimelineEntryFromAction(action,candidate.label),createdAt:action.created_at});
     }catch(caught){
-      setInteractionCandidates(previousCandidates);setCharacterProposal(previousProposal);setPendingSceneAction(null);setShowInteractions(true);
+      setInteractionCandidates(previousCandidates);setCharacterProposal(previousProposal);setPendingSceneAction(null);
       setError(caught instanceof Error?caught.message:'That option is no longer available.');return undefined;
     }finally{setInteractionLoading(false);}
     if(reactionMode==='generate'&&action?.id)await generateSceneReaction(action.id);
@@ -1162,7 +1455,7 @@ function ChatSession() {
   const moveScene = async (candidate:InteractionCandidate) => {
     const destinationId=typeof candidate.effects.destinationLocationId==='string'?candidate.effects.destinationLocationId:null;if(!destinationId)return;
     if(interactionLoading)return;setInteractionLoading(true);setError('');
-    try{const result=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[]}>({action:'move',characterInstanceId:character.id,conversationId:conversation.id,sceneId:interactionScene?.id,destinationLocationId:destinationId,requestId:createClientRequestId()});markInteractionSceneHydrated(result.scene);setInteractionScene(result.scene?.id?result.scene:null);applySceneDelta(result.scene);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);setCharacterProposal(null);setShowInteractions(false);if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);}catch(caught){setError(caught instanceof Error?caught.message:'That place is no longer available right now.');}finally{setInteractionLoading(false);}
+    try{const result=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[]}>({action:'move',characterInstanceId:character.id,conversationId:conversation.id,sceneId:interactionScene?.id,destinationLocationId:destinationId,requestId:createClientRequestId()});markInteractionSceneHydrated(result.scene);setInteractionScene(result.scene?.id?result.scene:null);applySceneDelta(result.scene);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);setCharacterProposal(null);if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);}catch(caught){setError(caught instanceof Error?caught.message:'That place is no longer available right now.');}finally{setInteractionLoading(false);}
   };
   const addSceneParticipant=async(person:SharedSceneCharacter)=>{
     const sceneId=sharedSceneRoster?.scene?.id;if(!sceneId)return;
@@ -1171,7 +1464,7 @@ function ChatSession() {
     catch(caught){setError(caught instanceof Error?caught.message:`${person.together_character_templates.name} is no longer here.`);}
     finally{setInteractionLoading(false);}
   };
-  const resolveMilestone = async (action:RelationshipMilestone['choices'][number]['id']) => { if(!milestone||resolvingMilestone)return;setResolvingMilestone(true);setError('');try{const result=await resolveRelationshipMilestone(milestone.id,action);setSnapshot(result.snapshot);if(milestone.kind==='first_date_invitation'&&action==='accept')setFeedback({kind:'moment',title:`${milestone.title} unlocked`,body:'Your shared experience is ready in Dates.'});}catch(caught){setError(caught instanceof Error?caught.message:'That choice could not be saved.');}finally{setResolvingMilestone(false);} };
+  const resolveMilestone = async (action:RelationshipMilestone['choices'][number]['id']) => { if(!milestone||resolvingMilestone)return;setResolvingMilestone(true);setError('');try{const result=await resolveRelationshipMilestone(milestone.id,action);setSnapshot(result.snapshot);if(milestone.kind==='first_date_invitation'&&action==='accept')setFeedback({kind:'moment',title:`${milestone.title} unlocked`,body:'Your shared experience is ready in Dates.'});}catch(caught){const message=caught instanceof Error?caught.message:'That choice could not be saved.';if(/already been handled|no longer available/i.test(message)){try{await refresh({force:true});}catch{setError('That moment changed. Please reopen this chat.');}}else setError(message);}finally{setResolvingMilestone(false);} };
   const startNewConversation=()=>{setShowConversationMenu(false);setShowFreshChat(true);};
   const toggleMessageSaved=async(message:Message)=>{
     if(message.id.startsWith('local-'))return;
@@ -1179,6 +1472,10 @@ function ChatSession() {
     setMessages((current)=>current.map((item)=>item.id===message.id?{...item,user_metadata:{...(item.user_metadata??{}),favorite}}:item));
     try{const updated=await setMessageFavorite(conversation.id,message.id,favorite);setMessages((current)=>current.map((item)=>item.id===message.id?{...item,...updated}:item));}
     catch(caught){setMessages((current)=>current.map((item)=>item.id===message.id?{...item,user_metadata:previous}:item));setError(caught instanceof Error?caught.message:'That message could not be saved.');}
+  };
+  const changeQuickActions=(value:ChatQuickAction[])=>{
+    quickActionPreference.change(value);
+    if(conversation){const current=useTogether.getState().snapshot?.conversations.find((item)=>item.id===conversation.id)??conversation;upsertConversation({...current,metadata:{...current.metadata,chatQuickActions:value,chatQuickActionsVersion:3}});}
   };
   const deleteConversation=()=>confirmAction({title:'Delete this conversation?',message:`It will disappear from Messages and conversation history, but you can restore the text from Settings → Archived Chats for 30 days.\n\nUploaded photos are removed immediately and cannot be restored. ${character.together_character_templates.name} will still remember separately saved memories, and your relationship and Moments remain.`,confirmLabel:'Delete conversation',destructive:true,onConfirm:async()=>{try{const archived=await manageConversation<Snapshot['conversations'][number]>({action:'delete',conversationId:conversation.id});setMessages([]);setShowConversationMenu(false);await refresh();const latest=useTogether.getState().snapshot;if(latest)useTogether.getState().setCoreState({conversations:latest.conversations.map((item)=>item.id===archived.id?archived:item)});openMessagesInbox();}catch(caught){setError(caught instanceof Error?caught.message:'The conversation could not be archived.');}}});
 
@@ -1188,7 +1485,7 @@ function ChatSession() {
   const photoSharingEntitled=snapshot.entitlements?.entitlement_keys?.includes('photo_sharing')===true;
   const choosePhoto=async(source:'camera'|'library')=>{if(!photoSharingEntitled){setShowPhotoRequests(false);setShowPhotoPaywall(true);return;}try{if(Platform.OS!=='web'){const permission=source==='camera'?await ImagePicker.requestCameraPermissionsAsync():await ImagePicker.requestMediaLibraryPermissionsAsync();if(!permission.granted){setError(source==='camera'?'Camera access is needed to take a photo.':'Photo access is needed to choose a photo.');return;}}const options=userImagePickerOptions(source),result=source==='camera'?await ImagePicker.launchCameraAsync(options):await ImagePicker.launchImageLibraryAsync(options);setShowPhotoRequests(false);if(result.canceled||!result.assets[0])return;const asset=result.assets[0],normalized=await normalizeUserImage({uri:asset.uri,width:asset.width,height:asset.height,fileSize:asset.fileSize,fileName:asset.fileName},.88);cleanupNormalizedImage(pendingImage?.uri);setPendingImage({...normalized,requestId:createClientRequestId()});setPhotoUploadPhase('idle');setError('');composerInput.current?.focus();}catch(caught){setShowPhotoRequests(false);setError(caught instanceof Error?caught.message:'That photo could not be opened.');}};
   const requestSharePhoto=(source:'camera'|'library')=>handlePhotoSharingTap(photoSharingEntitled,{openPicker:()=>void choosePhoto(source),openPaywall:()=>{setShowPhotoRequests(false);setShowPhotoPaywall(true);}});
-  const clearPendingImage=()=>{cleanupNormalizedImage(pendingImage?.uri);setPendingImage(null);setPhotoUploadPhase('idle');};
+  const clearPendingImage=()=>{cleanupNormalizedImage(pendingImage?.uri);setPendingImage(null);setPhotoUploadPhase('idle');setError('');};
   const deleteSharedPhoto=(attachment:ConversationAttachment)=>confirmAction({title:'Delete this photo?',message:'The private file and its derived visual description will be removed immediately. This cannot be undone.',confirmLabel:'Delete photo',destructive:true,onConfirm:async()=>{try{await deleteConversationAttachment(attachment.id);setMessages((current)=>current.map((message)=>({...message,attachments:(message.attachments??message.together_conversation_attachments??[]).filter((item)=>item.id!==attachment.id),together_conversation_attachments:(message.together_conversation_attachments??[]).filter((item)=>item.id!==attachment.id)})));}catch(caught){setError(caught instanceof Error?caught.message:'The photo could not be deleted.');}}});
   const invitePreviewToGroup=async(person:FeaturedCompanion)=>{
     let currentSnapshot=snapshot;
@@ -1240,15 +1537,18 @@ function ChatSession() {
           mediaCount={chatGalleryItems.length}
           onMedia={openChatGallery}
           onFeaturedMedia={latestHeaderMedia?()=>navigateChatSurface(mediaViewerHref(latestHeaderMedia.id,subscriptionReturnTo)):undefined}
+          onBranches={openBranchSwitcher}
+          branchCount={Math.max(0,branchPaths.length-1)}
         />:<ChatHeader character={character} location={location} mediaCount={chatGalleryItems.length} onBack={openMessagesInbox} onMedia={openChatGallery} onCall={()=>navigateChatSurface(`/call?character=${character.id}&conversation=${conversation.id}`)} onMenu={()=>setShowConversationMenu((value)=>!value)} />}
         <ConnectionBanner sendFailed={messages.some((item)=>item.delivery_status==='failed')} sendScoped={showSendConnectionNotice}/>
         {!showRight&&width>=720?<MobileChatContextCard identityKey={conversation.id} name={character.together_character_templates.name} location={chatContext.scene.location} activity={chatContext.scene.activity} next={chatContext.nextCommitment?{title:chatContext.nextCommitment.title,detail:new Date(chatContext.nextCommitment.startsAt).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'}),onPress:chatContext.nextCommitment.kind==='plan'?()=>navigateChatSurface(`/plan/${chatContext.nextCommitment!.id}`):undefined}:null} memoryCount={snapshot.memoryCounts?.[character.id]??snapshot.memories.filter((item)=>item.character_instance_id===character.id).length} memoryLocked={snapshot.entitlements?.entitlement_keys?.includes('memory_inspector')!==true} onMemory={()=>navigateChatSurface(`/memories?character=${slug}`)} onPlan={activeSharedPlan?undefined:openPlanPicker}/>:null}
         {showFreshChat && session?.user.id ? <FreshChatConfirmation key={`${session.user.id}:${conversation.id}`} userId={session.user.id} characterInstanceId={character.id} conversationId={conversation.id} name={character.together_character_templates.name} onClose={()=>setShowFreshChat(false)} onComplete={()=>{setShowFreshChat(false);void refresh();}} /> : null}
+        {branchCandidateId ? <BranchChatConfirmation name={character.together_character_templates.name} busy={branching} error={branchError} onConfirm={()=>void createBranch()} onClose={()=>{setBranchCandidateId(null);setBranchError('');}} /> : null}
         {showConversationMenu ? <ConversationOverflowMenu
           scheduleControl={<SchedulePauseControl character={character} conversation={conversation} compact/>}
           title={character.together_character_templates.name}
           kind="direct"
-          hasActivePlan={Boolean(activeSharedPlan)}
+          hasActivePlan={Boolean(activeSharedPlan&&activeSharedPlan.source!=='date')}
           favorite={isFavorite}
           favoriteBusy={favoriteBusy}
           pinned={isConversationPinned(conversation)}
@@ -1261,6 +1561,8 @@ function ChatSession() {
           onMemory={()=>{setShowConversationMenu(false);navigateChatSurface(`/memories?character=${slug}`);}}
           onBlueprint={canPreviewCharacterBlueprint(session?.user.id)?()=>{setShowConversationMenu(false);navigateChatSurface(`/memories?character=${slug}&blueprint=1`);}:undefined}
           onHistory={()=>{setShowConversationMenu(false);navigateChatSurface(`/conversations/${character.id}`);}}
+          onBranches={openBranchSwitcher}
+          onActivity={openActivityPicker}
           onCreatePlan={()=>{openPlanPicker();setShowConversationMenu(false);}}
           onChangePlan={()=>{if(activeSharedPlan)openPlanPicker();setShowConversationMenu(false);}}
           onEndPlan={()=>{setShowConversationMenu(false);if(activeSharedPlan)requestEndPlan(activeSharedPlan);}}
@@ -1269,7 +1571,7 @@ function ChatSession() {
           onAdvanced={()=>{setShowConversationMenu(false);navigateChatSurface(`/conversation-controls?character=${encodeURIComponent(character.id)}`);}}
           onDelete={deleteConversation}
         /> : null}
-        <ChatSettingsModal visible={showChatSettings} conversation={conversation} character={character} onClose={()=>setShowChatSettings(false)} />
+        <ChatBranchSwitcher visible={showBranchSwitcher} name={character.together_character_templates.name} paths={branchPaths} busy={branching} canCreate={Boolean(conversationReady&&latestAssistantMessage&&!replyPending&&!pendingImage&&!branchSourceLifeId)} subscriberCanBranch={subscriberCanBranch} onClose={()=>setShowBranchSwitcher(false)} onSelect={selectBranchPath} onCreate={createPathFromSwitcher} onDelete={deleteBranchPath}/>
         <ChatMediaGalleryModal visible={showChatMedia} items={chatGalleryItems} generatedMedia={galleryGeneratedMedia} companionName={character.together_character_templates.name} returnTo={subscriptionReturnTo} loading={galleryLoading} error={galleryError} onRetry={()=>void loadChatGallery()} onClose={()=>setShowChatMedia(false)}/>
         <ChatPlaceInfoModal
           visible={showPlaceInfo&&Boolean(activePlace)}
@@ -1306,7 +1608,7 @@ function ChatSession() {
             const native=event.nativeEvent,offsetY=native.contentOffset.y,now=Date.now(),forced=initialBottomPinConversation.current===conversation.id||activeBottomPinRequest.current!==null||forcePinnedUntil.current>now,previousOffset=scrollOffsetY.current;
             keepPinnedToBottom.current=shouldKeepChatPinned({contentHeight:native.contentSize.height,viewportHeight:native.layoutMeasurement.height,offsetY},forced?Number.POSITIVE_INFINITY:forcePinnedUntil.current,now);
             viewportHeight.current=native.layoutMeasurement.height;
-            saveChatScrollPosition(conversation.id,{offsetY,contentHeight:native.contentSize.height,viewportHeight:native.layoutMeasurement.height});
+            saveChatScrollPosition(conversation.id,{offsetY,contentHeight:native.contentSize.height,viewportHeight:native.layoutMeasurement.height,latestMessageAt:latestKnownMessageAt});
             setShowJumpToLatest(!forced&&!keepPinnedToBottom.current);
             scrollOffsetY.current=offsetY;
             const userReachedHistoryStart=shouldLoadOlderChatMessages({bottomAligned:bottomAlignedConversation.current===conversation.id,forcedBottomPin:forced,programmaticScrollUntil:programmaticScrollUntil.current,now,offsetY,previousOffsetY:previousOffset});
@@ -1338,267 +1640,106 @@ function ChatSession() {
             if(conversationReady&&(keepPinnedToBottom.current||activeBottomPinRequest.current!==null||forcePinnedUntil.current>Date.now()))scrollToLatest(false);
           }}
         >
-          {!conversationReady?(historyLoadFailed?<ConversationHistoryFailure onRetry={()=>{setHistoryLoadFailed(false);setError('');setLoading(true);setHistoryLoadAttempt((value)=>value+1);}}/>:<ConversationTimelineSkeleton label={`Loading conversation with ${character.together_character_templates.name}`}/>):null}
+          {!conversationReady?(historyLoadFailed?<ConversationHistoryFailure onRetry={()=>{setError('');history.retry();}}/>:<ConversationTimelineSkeleton label={`Loading conversation with ${character.together_character_templates.name}`}/>):null}
           {conversationReady&&(loadingOlder?<Text style={styles.olderLoading}>Loading earlier messages…</Text>:!hasMore&&visibleMessages.length?<Text style={styles.historyStart}>Beginning of this conversation</Text>:null)}
-          {conversationReady?<SceneCard character={character} context={chatContext} snapshot={snapshot} roster={sharedSceneRoster} />:null}
+          {conversationReady&&!hasMore?<SceneCard character={character} context={chatContext} snapshot={snapshot} roster={sharedSceneRoster} />:null}
           {conversationReady&&isCoPresent&&sharedSceneRoster?.availableCharacters.length?<SharedSceneInvite people={sharedSceneRoster.availableCharacters} busy={interactionLoading} onJoin={(person)=>void addSceneParticipant(person)}/>:null}
           {conversationReady&&visibleMessages.length===0?<EmptyConversation character={character} prompts={prompts} onPrompt={stageManualInput} />:null}
-          {conversationReady&&mergeChatTimeline(visibleMessages,pendingActions,(snapshot.conversationEvents??[]).filter((event)=>event.conversation_id===conversation.id&&shouldShowPlanTimelineEvent(event)),unreadWindow.current.lastReadAt,unreadWindow.current.openedAt,seamlessCompletionIds.current,pendingSceneAction).map((item,index,timeline)=>item.kind==='separator'?<Text key={item.key} style={[styles.day,item.label==='NEW'&&{color:colors.rose}]}>{item.label}</Text>:item.kind==='scene_action'?<SceneActionDivider key={`scene-action-${item.value.id}`} event={item.value} companionName={character.together_character_templates.name}/>:item.kind==='message'?<MessageBubble canSpice={messageRewrite.available(item.value)} onSpice={()=>messageRewrite.spice(item.value)} onRestore={()=>messageRewrite.restore(item.value)} key={item.value.id} desktop={desktopChat} online={online} message={item.value} character={character} mentionCharacters={mentionCharacters} onCharacterMention={setCharacterPreview} media={generatedMedia.filter((media)=>media.message_id===item.value.id)} photoOffer={photoOfferForMessage(mediaOffers,item.value.id)} photoPreviewSource={mediaOfferPreviewSource} photoOfferBusy={mediaOfferActionBusy(mediaOfferBusy,photoOfferForMessage(mediaOffers,item.value.id),mediaRetryBusyId)} grouped={index>0&&timeline[index-1]?.kind==='message'&&shouldGroupChatMessages((timeline[index-1] as {kind:'message';value:Message}).value,item.value)} textStyle={messageTypography} bubbleColors={bubbleColors} reactionNames={sharedSceneReactionNames} voiceVisible={snapshot.profile?.multimodal_preferences?.companionVoiceNotes!==false} voiceEnabled={snapshot.experienceCapabilities?.voiceNotes!==false} memoryManualControl={snapshot.entitlements?.entitlement_keys?.includes('memory_manual_control')===true} favorite={isMessageFavorite(item.value)} canContinue={canContinueMessage(item.value,visibleMessages)&&!replyPending&&!pendingImage} onFavorite={()=>toggleMessageSaved(item.value)} onContinue={()=>send('Continue.',undefined,undefined,{messageAction:'continue',anchorMessageId:item.value.id})} onSuggest={()=>requestAutoDialogue()} onPlan={openPlanPicker} onPhoto={()=>setShowPhotoRequests(true)} seamlessCompletion={seamlessCompletionIds.current.has(item.value.id)} activeVoiceNoteId={activeVoiceNoteId} onVoiceActivate={setActiveVoiceNoteId} onVoiceRequest={requestVoiceWithConfirmation} onRemember={async(messageId)=>{try{await rememberMessage(messageId,character.id);await refresh();setMemorySavedNotice({id:Date.now(),name:character.together_character_templates.name});}catch(caught){Alert.alert('Could not remember that',caught instanceof Error?caught.message:'Please try again.');}}} onDeletePhoto={deleteSharedPhoto} onPhotoOfferAccept={(offer,paymentMethod)=>void acceptOffer(offer,paymentMethod)} onPhotoOfferDecline={(offer)=>void declineOffer(offer)} onMediaRetry={retryGeneratedMedia} onFailedRetry={item.value.delivery_status==='failed'?()=>void send(item.value.content,item.value.client_request_id??undefined,item.value.id):undefined} onFailedEdit={item.value.delivery_status==='failed'?()=>{setMessages((current)=>current.filter((message)=>message.id!==item.value.id));stageManualInput(item.value.content);setError('');}:undefined} onFailedDiscard={item.value.delivery_status==='failed'?()=>{setMessages((current)=>current.filter((message)=>message.id!==item.value.id));if(currentInput.current.trim()===item.value.content.trim()){setInput('');currentInput.current='';}setError('');}:undefined}/>:item.kind==='voice_call'?<VoiceCallEventRow key={item.value.id} value={item.value}/>:item.kind==='action'?<ConversationActionCard key={item.value.id} action={item.value} busy={planning} onConfirm={async(planId)=>{const proposed=typeof item.value.payload.proposedStartsAt==='string'?item.value.payload.proposedStartsAt:null,validProposed=Boolean(proposed&&new Date(proposed).getTime()>=Date.now()+10*60000),direct=['plan_cancel','cancel_plan'].includes(item.value.candidate_type)||validProposed||Boolean(planId);if(!direct){setPendingActionId(item.value.id);setSwitchPlanId(null);setShowPlans(true);return;}setPlanning(true);try{await confirmConversationAction(item.value.id,{planId,startsAt:validProposed?proposed??undefined:undefined});await refresh();}catch(caught){setError(caught instanceof Error?caught.message:'That action could not be completed.');}finally{setPlanning(false);}}} onChange={()=>{setPendingActionId(item.value.id);setSwitchPlanId(null);setShowPlans(true);}} onDismiss={()=>{const action=item.value;removeConversationAction(action.id);void dismissConversationAction(action.id).catch((caught)=>{upsertConversationAction(action);setError(caught instanceof Error?caught.message:'That suggestion could not be dismissed.');});}}/>:isPlanLifecycleDividerEvent(item.value)?<PlanLifecycleDivider key={item.value.id} event={item.value} companionName={character.together_character_templates.name}/>:<PlanTimelineCard key={item.value.id} event={item.value} plan={(snapshot.sharedPlans??[]).find((plan)=>plan.id===item.value.entity_id)} locationName={snapshot.locations.find((location)=>location.id===(snapshot.sharedPlans??[]).find((plan)=>plan.id===item.value.entity_id)?.location_id)?.name} busy={planActionBusyId===item.value.entity_id||planning} onOpen={(plan)=>setPlanModal({planId:plan.id})} onStart={(plan)=>void startTimelinePlan(plan)} onEnd={requestEndPlan} onCancel={(plan)=>setPlanModal({planId:plan.id,confirmCancel:true})}/>) }
+          {conversationReady&&mergeChatTimeline(visibleMessages,pendingActions,eventsInLoadedHistory((snapshot.conversationEvents??[]).filter((event)=>event.conversation_id===conversation.id&&shouldShowPlanTimelineEvent(event)),visibleMessages,hasMore),unreadWindow.current.lastReadAt,unreadWindow.current.openedAt,seamlessCompletionIds.current,pendingSceneAction).map((item,index,timeline)=>{const row=item.kind==='separator'?<Text key={item.key} style={[styles.day,item.label==='NEW'&&{color:colors.rose}]}>{item.label}</Text>:item.kind==='scene_action'?<SceneActionDivider key={`scene-action-${item.value.id}`} event={item.value} companionName={character.together_character_templates.name}/>:item.kind==='message'?<MessageBubble awaitingReply={Boolean(pendingDialogue?.clientRequestId&&pendingDialogue.clientRequestId===item.value.client_request_id)} photoUploadPhase={pendingImage&&activeSendRequest.current===item.value.client_request_id?photoUploadPhase:undefined} quickActions={quickActionPreference.selected} quickActionsReady={quickActionPreference.ready} onQuickActionsChange={changeQuickActions} canBranch={conversationReady&&canOfferChatBranch({conversationKind:conversation.kind,isBranch:Boolean(branchSourceLifeId),latestAssistantMessageId:latestAssistantMessage?.id??null,candidateMessageId:item.value.id,candidateIsPrefix:Boolean(item.value.provider_metadata?.branchPrefix),replyPending,pendingImage:Boolean(pendingImage),branching})} branchLocked={!subscriberCanBranch} onBranch={()=>branchFromLatest(item.value)} canSpice={iosExplicitAvailable&&messageRewrite.available(item.value)&&!item.value.provider_metadata?.branchPrefix} onSpice={()=>messageRewrite.spice(item.value)} onRestore={()=>messageRewrite.restore(item.value)} key={messageRenderKey(item.value)} desktop={desktopChat} online={online} message={item.value} character={character} mentionCharacters={mentionCharacters} onCharacterMention={setCharacterPreview} media={generatedMedia.filter((media)=>media.message_id===item.value.id)} photoOffer={photoOfferForMessage(visibleMediaOffers,item.value.id)} photoPreviewSource={mediaOfferPreviewSource} photoOfferBusy={mediaOfferActionBusy(mediaOfferBusy,photoOfferForMessage(visibleMediaOffers,item.value.id),mediaRetryBusyId)} grouped={index>0&&timeline[index-1]?.kind==='message'&&shouldGroupChatMessages((timeline[index-1] as {kind:'message';value:Message}).value,item.value)} textStyle={messageTypography} bubbleColors={bubbleColors} reactionNames={sharedSceneReactionNames} voiceEnabled={snapshot.experienceCapabilities?.voiceNotes!==false} memoryManualControl={snapshot.entitlements?.entitlement_keys?.includes('memory_manual_control')===true} remembered={rememberedMessages.isRemembered(item.value.id,character.id)} favorite={isMessageFavorite(item.value)} canContinue={canContinueMessage(item.value,visibleMessages)&&!replyPending&&!pendingImage} onFavorite={()=>toggleMessageSaved(item.value)} onContinue={()=>send('Continue.',undefined,undefined,{messageAction:'continue',anchorMessageId:item.value.id})} hasActivePlan={Boolean(activeSharedPlan&&activeSharedPlan.source!=='date')} onActivity={openActivityPicker} onPlan={()=>activeSharedPlan&&activeSharedPlan.source!=='date'?requestEndPlan(activeSharedPlan):openPlanPicker()} onLocation={()=>openLocationPeek(item.value.id)} onCopied={()=>{setMemorySavedNotice(null);setCopyNotice((current)=>(current??0)+1);}} onPhoto={()=>setShowPhotoRequests(true)} seamlessCompletion={seamlessCompletionIds.current.has(item.value.id)} activeVoiceNoteId={activeVoiceNoteId} onVoiceActivate={setActiveVoiceNoteId} onVoiceRequest={requestVoiceWithConfirmation} onRemember={async(messageId)=>{const memoryId=rememberedMessages.memoryIdFor(messageId,character.id);if(memoryId){await mutateMemory({action:'forget',memoryId});rememberedMessages.unmarkRemembered(messageId,character.id);void refresh().catch(()=>{});return;}const saved=await rememberMessage(messageId,character.id);rememberedMessages.markRemembered(messageId,character.id,saved.id);setCopyNotice(null);setMemorySavedNotice({id:Date.now(),name:character.together_character_templates.name,characterSlug:slug});void refresh().catch(()=>{});}} onDeletePhoto={deleteSharedPhoto} onPhotoOfferAccept={(offer,paymentMethod)=>void acceptOffer(offer,paymentMethod)} onPhotoOfferDecline={(offer)=>void declineOffer(offer)} onMediaRetry={retryGeneratedMedia} onFailedRetry={item.value.delivery_status==='failed'&&(((item.value.attachments??[]).length===0&&item.value.content!=='[Photo]')||Boolean(pendingImage&&activeSendRequest.current===item.value.client_request_id))?()=>void send(item.value.content,item.value.client_request_id??undefined,item.value.id):undefined} onFailedEdit={item.value.delivery_status==='failed'?()=>{setMessages((current)=>current.filter((message)=>message.id!==item.value.id));stageManualInput(item.value.content==='[Photo]'?'':item.value.content);setError('');}:undefined} onFailedDiscard={item.value.delivery_status==='failed'?()=>{setMessages((current)=>current.filter((message)=>message.id!==item.value.id));if(currentInput.current.trim()===item.value.content.trim()){setInput('');currentInput.current='';}setError('');}:undefined}/>:item.kind==='voice_call'?<VoiceCallEventRow key={item.value.id} value={item.value}/>:item.kind==='action'?<ConversationActionCard key={item.value.id} action={item.value} scope={chatScope} busy={planning} onConfirm={(planId)=>void confirmPlanSuggestion(item.value,planId)} onChange={()=>{setPendingActionId(item.value.id);setSwitchPlanId(null);setShowPlans(true);}} onDismiss={()=>void dismissPlanSuggestion(item.value)}/>:isPlanLifecycleDividerEvent(item.value)?<PlanLifecycleDivider key={item.value.id} event={item.value} companionName={character.together_character_templates.name}/>:<PlanTimelineCard key={item.value.id} event={item.value} plan={(snapshot.sharedPlans??[]).find((plan)=>plan.id===item.value.entity_id)} locationName={snapshot.locations.find((location)=>location.id===(snapshot.sharedPlans??[]).find((plan)=>plan.id===item.value.entity_id)?.location_id)?.name} busy={planActionBusyId===item.value.entity_id||planning} onOpen={(plan)=>setPlanModal({planId:plan.id})} onStart={(plan)=>void startTimelinePlan(plan)} onEnd={requestEndPlan} onCancel={(plan)=>setPlanModal({planId:plan.id,confirmCancel:true})}/>;return item.kind==='message'&&item.value.id===inlineLocationCard?.anchorMessageId?[row,<SceneCard key={'location-'+item.value.id} character={inlineLocationCard.character} context={inlineLocationCard.context} snapshot={snapshot} roster={inlineLocationCard.roster} sourceOverride={inlineLocationCard.source} statusLabel={inlineLocationCard.statusLabel} onDismiss={dismissLocationPeek}/>]:row;}) }
           {conversationReady?orphanMediaOffers.map((offer)=><ChatPhotoRequestCard key={offer.id} offer={offer} media={generatedMedia.find((item)=>item.id===offer.generated_media_id)} previewSource={mediaOfferPreviewSource} busy={mediaOfferActionBusy(mediaOfferBusy,offer,mediaRetryBusyId)} onAccept={(paymentMethod)=>void acceptOffer(offer,paymentMethod)} onDecline={()=>void declineOffer(offer)} onBuyCredits={()=>navigateChatSurface(creditsSubscriptionHref)} onRetry={offer.generated_media_id?()=>void retryGeneratedMedia(String(offer.generated_media_id)):undefined}/>):null}
           {conversationReady&&awaitingPhotoOffer&&optimisticPhotoRequest?<ChatPhotoRequestCard offer={optimisticPhotoRequest.offer} previewSource={mediaOfferPreviewSource} preparing busy={false} onAccept={(paymentMethod)=>decideOptimisticPhotoOffer('accept',paymentMethod)} onDecline={()=>decideOptimisticPhotoOffer('decline')} onBuyCredits={()=>navigateChatSurface(creditsSubscriptionHref)}/>:null}
           {conversationReady&&stream ? <StreamingBubble desktop={desktopChat} character={character} content={stream} textStyle={messageTypography} bubbleColor={bubbleColors.companion} reserveVoiceControl={snapshot.profile?.multimodal_preferences?.companionVoiceNotes!==false} /> : null}
           {conversationReady&&replyPending && !stream && !awaitingPhotoOffer && pendingDialogue?.showTyping!==false ? <ChatTypingIndicator name={character.together_character_templates.name} /> : null}
-          {conversationReady&&milestone ? <RelationshipMomentCard milestone={milestone} busy={resolvingMilestone} onChoose={(action)=>void resolveMilestone(action)} /> : null}
+          {conversationReady&&milestone ? <RelationshipMomentCard milestone={milestone} busy={resolvingMilestone} onChoose={(action)=>void resolveMilestone(action)} onDismiss={()=>void resolveMilestone('dismiss')} /> : null}
           {conversationReady&&characterProposal&&!proposalDecisions.isHidden(characterProposal.actionId)?<CharacterProposalCard name={character.together_character_templates.name} proposal={characterProposal} busy={interactionLoading} onAccept={()=>void acceptCharacterProposal()} onDismiss={()=>void dismissCharacterProposal()}/>:null}
           {conversationReady&&feedback ? <StoryFeedback feedback={feedback} onView={() => navigateChatSurface(feedback.kind === 'memory' ? '/memories' : feedback.kind==='plan'? '/dates':'/moments')} onUndo={feedback.kind === 'memory' ? () => void undoMemory() : undefined} onDismiss={() => setFeedback(null)} /> : null}
           {blockedPhoto ? <View accessibilityRole="alert" style={styles.retry}><Text style={styles.retryText}>{blockedPhoto.message}</Text><View style={{flexDirection:'row',gap:24,paddingTop:12}}><Pressable accessibilityRole="button" onPress={()=>{setInput(blockedPhoto.text);currentInput.current=blockedPhoto.text;setBlockedPhoto(null);composerInput.current?.focus();}}><Text style={styles.retryText}>Edit request</Text></Pressable><Pressable accessibilityRole="button" onPress={()=>setBlockedPhoto(null)}><Text style={styles.retryText}>Dismiss</Text></Pressable></View></View> : null}
-          {error&&!blockedPhoto&&!historyLoadFailed ? <ChatRecoveryNotice error={error} onDismiss={()=>setError('')} onRetry={pendingSceneAction ? ()=>void generateSceneReaction(pendingSceneAction.id) : visibleMessages.some(item=>item.delivery_status==='failed') ? ()=>{const failed=[...visibleMessages].reverse().find(item=>item.delivery_status==='failed');if(failed)void send(failed.content,failed.client_request_id??undefined,failed.id);} : undefined} /> : null}
+          {error&&!blockedPhoto&&!historyLoadFailed ? <ChatRecoveryNotice conversationId={conversation?.id} error={error} onDismiss={()=>setError('')} onRetry={photoUploadPhase==='blocked'?undefined:pendingSceneAction?()=>void generateSceneReaction(pendingSceneAction.id):undefined} /> : null}
         </VirtualizedConversationList>}
         <JumpToLatestButton visible={!showPlans&&showJumpToLatest} bottom={width<720?floatingComposerHeight+12:92} onPress={jumpToLatest}/>
-        {showInteractions?<InteractionTray name={character.together_character_templates.name} location={location} loading={interactionLoading||replyPending} interactions={interactionCandidates} destinations={movementCandidates} onInteraction={(candidate)=>void executeInteraction(candidate)} onMove={(candidate)=>void moveScene(candidate)} onClose={()=>setShowInteractions(false)} />:isCoPresent&&interactionCandidates.length&&shouldShowPlanInteractionTray({activePlanId:activeSharedPlan?.id,dismissedPlanId:dismissedInteractionPlanId,preferenceReady:interactionTrayPreferenceReady})?<ContextualInteractionTray loading={interactionLoading||replyPending} interactions={interactionCandidates.slice(0,3)} onOpen={()=>setShowInteractions(true)} onInteraction={(candidate)=>void executeInteraction(candidate)} onDismiss={activeSharedPlan?dismissPlanInteractionTray:undefined} />:null}
-        {conversation?<ScenarioConversationBanner conversationId={conversation.id} scope={snapshot.activeContinuity?.id??''}/>:null}
+        {showActivities&&activeSharedPlan?<Suspense fallback={null}><PlanActivityPicker key={`${conversation.id}:${activeSharedPlan.id}`} currentActivity={activeSharedPlan.activity_key} locationName={activeSharedPlan.together_locations?.name??location} options={snapshot.locations.find(place=>place.id===activeSharedPlan.location_id)?.possible_activities??interactionCandidates.map(item=>item.label)} disabled={replyPending||interactionLoading||Boolean(planActionBusyId)} onSave={savePlanActivity} onClose={()=>setShowActivities(false)}/></Suspense>:null}
+        {conversation?<><ScenarioConversationBanner conversationId={conversation.id} scope={snapshot.activeContinuity?.id??''}/>{conversation.metadata?.worldPulseOccurrenceId?<WorldPulseConversationBanner conversationId={conversation.id} continuityId={snapshot.activeContinuity?.id??''}/>:null}</>:null}
         {!activeSharedPlan&&joinableSharedPlan?<PlanJoinBar plan={joinableSharedPlan} locationName={snapshot.locations.find((item)=>item.id===joinableSharedPlan.location_id)?.name} busy={planActionBusyId===joinableSharedPlan.id||planning} onJoin={()=>void startTimelinePlan(joinableSharedPlan)} onDetails={()=>setPlanModal({planId:joinableSharedPlan.id})}/>:null}
         {focusPlanId&&focusPlanId!==activeSharedPlan?.id?<PlanFocusChip plan={(snapshot.sharedPlans??[]).find((item)=>item.id===focusPlanId)} onOpen={(id)=>navigateChatSurface(`/plan/${id}`)} onClose={()=>{setFocusPlanId(null);setFocusDismissed(true);}}/>:null}
-        {memorySavedNotice?<MemorySavedToast key={memorySavedNotice.id} name={memorySavedNotice.name} onDismiss={()=>setMemorySavedNotice(null)}/>:null}
-        <ContextCostConfirmation pricing={contextPricing}/><DailyMessageAllowanceNotice allowance={snapshot.dailyMessageAllowance} onUpgrade={()=>navigateChatSurface(subscriptionHref({intent:'plans',returnTo:subscriptionReturnTo}))}/><Composer compact={width<720} desktop={desktopChat} inputRef={composerInput} conversationId={conversation.id} character={character} input={input} onChangeInput={changeComposerInput} onDictation={(text)=>stageManualInput(mergeDictationTranscript(currentInput.current,text))} onDictationError={setError} onDictationStart={()=>setActiveVoiceNoteId(null)} pendingImage={pendingImage} photoUploadPhase={photoUploadPhase} onAddPhoto={()=>void requestSharePhoto('library')} onRemovePhoto={clearPendingImage} sending={replyPending||!conversationReady||contextPricing.blocked||dailyMessageExhausted} onSend={() => void send()} onMoment={(mode)=>{setMediaRequestMode(mode);setShowPhotoRequests(true);}} autoDialogue={autoDialogue} autoDialogueBusy={autoDialogueBusy} canSuggest={Boolean(conversationReady&&latestAssistantMessage&&!replyPending&&!pendingImage)} onSuggest={()=>void requestAutoDialogue()} onSuggestOptions={openAutoDialogueOptions} onClearSuggestion={clearAutoDialogue} onFocus={onMobileComposerFocus} onLayout={(event)=>{if(Platform.OS==='web'&&width<720){const next=Math.ceil(event.nativeEvent.layout.height);setFloatingComposerHeight((current)=>current===next?current:next);if(document.activeElement?.id==='chat-message-composer')pinLatestForMobileKeyboard();}const requestId=activeBottomPinRequest.current;if(requestId)settleSentMessageAtBottom(requestId);}} />
+        <ContextCostConfirmation pricing={contextPricing}/><DailyMessageAllowanceNotice allowance={snapshot.dailyMessageAllowance} onUpgrade={()=>navigateChatSurface(subscriptionHref({intent:'plans',returnTo:subscriptionReturnTo}))}/><Composer compact={width<720} desktop={desktopChat} inputRef={composerInput} conversationId={conversation.id} character={character} input={input} onChangeInput={changeComposerInput} onDictation={(text)=>stageManualInput(mergeDictationTranscript(currentInput.current,text))} onDictationError={setError} onDictationStart={()=>setActiveVoiceNoteId(null)} pendingImage={pendingImage} photoUploadPhase={photoUploadPhase} onAddPhoto={()=>void requestSharePhoto('library')} onRemovePhoto={clearPendingImage} sending={replyPending||!conversationReady||contextPricing.blocked||dailyMessageExhausted} onSend={() => void send()} onMoment={(mode)=>{setMediaRequestMode(mode);setShowPhotoRequests(true);}} autoDialogue={autoDialogue} autoDialogueBusy={autoDialogueBusy} canSuggest={Boolean(conversationReady&&latestAssistantMessage&&!replyPending&&!pendingImage)} onSuggest={()=>void requestAutoDialogue()} onSuggestOptions={openAutoDialogueOptions} onClearSuggestion={clearAutoDialogue} onFocus={onMobileComposerFocus} onLayout={(event)=>{{const next=Math.ceil(event.nativeEvent.layout.height);setFloatingComposerHeight((current)=>current===next?current:next);if(Platform.OS==='web'&&width<720&&document.activeElement?.id==='chat-message-composer')pinLatestForMobileKeyboard();}const requestId=activeBottomPinRequest.current;if(requestId)settleSentMessageAtBottom(requestId);}} />
+        {memorySavedNotice?<MemorySavedToast key={memorySavedNotice.id} name={memorySavedNotice.name} bottomOffset={floatingComposerHeight+12} onDismiss={()=>setMemorySavedNotice(null)} onView={()=>navigateChatSurface(`/memories?character=${memorySavedNotice.characterSlug}`)}/>:null}
+        {copyNotice!==null?<CopyToast key={copyNotice} bottomOffset={floatingComposerHeight+12} onDismiss={()=>setCopyNotice(null)}/>:null}
+        <ChatSettingsModal visible={showChatSettings} conversation={conversation} character={character} onClose={()=>setShowChatSettings(false)} />
       </View>
       {showRight ? <ContextRail snapshot={snapshot} character={character} context={chatContext} activePlan={activeSharedPlan} onPrompt={stageManualInput} onPlan={openPlanPicker} /> : null}
     </View>
   </ChatKeyboardFrame>;
 }
 
-type VirtualizedConversationListProps=Omit<FlatListProps<ReactElement>,'data'|'renderItem'|'keyExtractor'>&{
-  children:ReactNode;
-  timelineKey:string;
-  ready:boolean;
-  listRef:RefObject<FlatList<ReactElement>|null>;
-  latestScrollerRef:RefObject<((animated:boolean)=>void)|null>;
-};
-
-function VirtualizedConversationList({children,listRef,latestScrollerRef,timelineKey,ready,...props}:VirtualizedConversationListProps){
-  const rows=Children.toArray(children).filter(isValidElement);
-  const reveal=useTimelineReveal(timelineKey,ready);
-  latestScrollerRef.current=(animated:boolean)=>{
-    listRef.current?.scrollToEnd({animated});
-  };
-  return <View style={{flex:1}}><FlatList
-    {...props}
-    key={ready?timelineKey:'loading'}
-    ref={listRef}
-    style={[props.style,reveal.hidden&&{opacity:0}]}
-    accessibilityElementsHidden={reveal.hidden}
-    importantForAccessibility={reveal.hidden?'no-hide-descendants':'auto'}
-    onContentSizeChange={(width,height)=>{props.onContentSizeChange?.(width,height);reveal.settled();}}
-    onLayout={(event)=>{props.onLayout?.(event);reveal.settled();}}
-    data={rows}
-    keyExtractor={(item,index)=>String(item.key??`timeline-${index}`)}
-    renderItem={({item})=>item}
-    initialNumToRender={Math.min(rows.length,60)}
-    maxToRenderPerBatch={12}
-    updateCellsBatchingPeriod={24}
-    windowSize={9}
-    removeClippedSubviews={Platform.OS!=='web'}
-  />{reveal.hidden?<View pointerEvents="none" style={[StyleSheet.absoluteFill,{alignItems:"center",justifyContent:"center"}]}><ActivityIndicator accessibilityLabel="Opening conversation" color={colors.rose}/></View>:null}</View>;
-}
-
-function ChatAmbientGlow({compact}:{compact:boolean}) {
-  return <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.chatGlowLayer}>
-    <View style={[styles.chatGlow,styles.chatGlowRose,compact&&styles.chatGlowRoseCompact]} />
-    <View style={[styles.chatGlow,styles.chatGlowViolet,compact&&styles.chatGlowVioletCompact]} />
-    <View style={[styles.chatGlow,styles.chatGlowCenter,compact&&styles.chatGlowCenterCompact]} />
-  </View>;
-}
-
-function ChatHeader({character,location,mediaCount,onBack,onMedia,onCall,onMenu}:{character:CharacterInstance;location:string;mediaCount:number;onBack:()=>void;onMedia:()=>void;onCall:()=>void;onMenu:()=>void}) { const slug=character.together_character_templates.slug,locationStatus=location.trim().toLowerCase()==='home'?'At home':`At ${location}`;return <View style={[styles.header, Platform.OS === 'web' && styles.webHeader]}><Pressable accessibilityRole="button" accessibilityLabel="Back to Messages" onPress={onBack} style={styles.icon}><ArrowLeft color={colors.text}/></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`View ${character.together_character_templates.name}'s profile`} onPress={()=>navigateChatSurface(`/character/${slug}`)}><CharacterAvatar slug={slug} name={character.together_character_templates.name} size={42}/></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`View ${character.together_character_templates.name}'s profile`} onPress={()=>navigateChatSurface(`/character/${slug}`)} style={styles.headerIdentity}><Text numberOfLines={1} style={[styles.name,styles.desktopHeaderName]}>{character.together_character_templates.name}</Text><Text numberOfLines={1} style={[styles.status,styles.desktopHeaderStatus]}>{locationStatus}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Open ${character.together_character_templates.name} conversation media${mediaCount?`, ${mediaCount} items`:''}`} onPress={onMedia} style={styles.icon}><Images size={19} color={colors.text}/>{mediaCount?<View style={styles.headerMediaCount}><Text style={styles.headerMediaCountText}>{mediaCount>99?'99+':mediaCount}</Text></View>:null}</Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Call ${character.together_character_templates.name}`} onPress={onCall} style={styles.icon}><Phone size={18} color={colors.text}/></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Conversation menu" onPress={onMenu} style={styles.icon}><MoreHorizontal color={colors.text}/></Pressable></View>; }
-
-
-function ConversationHistoryFailure({onRetry}:{onRetry:()=>void}){return <View accessibilityLiveRegion="polite" style={styles.conversationLoadFailure}><Text style={styles.conversationLoadFailureTitle}>Messages didn’t load</Text><Text style={styles.conversationLoadFailureBody}>Your conversation is safe. Try loading its history again.</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry loading conversation messages" onPress={onRetry} style={styles.conversationLoadRetry}><Text style={styles.conversationLoadRetryText}>Try again</Text></Pressable></View>;}
-
 function ContextRail({snapshot,character,context,activePlan,onPrompt,onPlan}:{snapshot:Snapshot;character:CharacterInstance;context:ClientConversationContext;activePlan:SharedPlan|null;onPrompt:(value:string)=>void;onPlan:()=>void}) {
   const memories=snapshot.memories.filter((item)=>item.character_instance_id===character.id).slice(0,3),memoryInspector=snapshot.entitlements?.entitlement_keys?.includes('memory_inspector')===true,memoryCount=snapshot.memoryCounts?.[character.id]??memories.length;
   const locationId=context.scene.locationId??character.current_location_id,location=snapshot.locations.find((item)=>item.id===locationId),world=location?worldForLocation(snapshot,location.id):undefined;
   const characterRouteKey=character.together_character_templates.public_handle??character.together_character_templates.slug??character.id;
-  const locationHref=location?conversationLocationHref(location.slug,{worldSlug:world?.slug,character:characterRouteKey}):null;
+  const locationHref=location&&!context.scene.home?conversationLocationHref(location.slug,{worldSlug:world?.slug,character:characterRouteKey}):null;
   const placeSource=sceneVisualSource(snapshot,character,context),category=location?.category?.replace(/[_-]+/g,' ');
-  const placeHero=<View style={styles.contextPlaceHero}><Image source={placeSource} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center"/><View style={styles.contextPlaceShade}/><View style={styles.contextPlaceCopy}><Text style={styles.contextPlaceKicker}>{[world?.name,category].filter(Boolean).join(' · ').toUpperCase()}</Text><Text style={styles.contextPlaceName}>{context.scene.location}</Text><Text numberOfLines={2} style={styles.contextPlaceActivity}>{context.scene.activity}</Text>{locationHref?<View style={styles.contextPlaceAction}><MapPin size={13} color="#fff"/><Text style={styles.contextPlaceActionText}>View place</Text></View>:null}</View></View>;
+  const placeHero=<View style={styles.contextPlaceHero}>{!context.scene.home?<Image source={placeSource} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center"/>:null}<View style={styles.contextPlaceShade}/><View style={styles.contextPlaceCopy}><Text style={styles.contextPlaceKicker}>{[world?.name,context.scene.home?'PRIVATE HOME':category].filter(Boolean).join(' · ').toUpperCase()}</Text><Text style={styles.contextPlaceName}>{context.scene.location}</Text><Text numberOfLines={3} style={styles.contextPlaceActivity}>{context.scene.home?context.scene.summary:context.scene.activity}</Text>{locationHref?<View style={styles.contextPlaceAction}><MapPin size={13} color="#fff"/><Text style={styles.contextPlaceActionText}>View place</Text></View>:null}</View></View>;
   return <ScrollView style={styles.rightRail} contentContainerStyle={styles.rightContent}>{locationHref?<Pressable accessibilityRole="link" accessibilityLabel={`Open ${context.scene.location}`} onPress={()=>navigateChatSurface(locationHref)} style={({pressed})=>[styles.contextPlaceLink,pressed&&styles.contextLocationLinkPressed]}>{placeHero}</Pressable>:placeHero}{context.nextCommitment?<ContextSection title="NEXT TOGETHER"><Pressable onPress={()=>context.nextCommitment?.kind==='plan'&&navigateChatSurface(`/plan/${context.nextCommitment.id}`)}><ContextLine icon={<CalendarDays size={15} color={colors.rose}/>} title={context.nextCommitment.title} body={`${new Date(context.nextCommitment.startsAt).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'})}${context.nextCommitment.location?` · ${context.nextCommitment.location}`:''}`}/></Pressable></ContextSection>:null}{context.story?<ContextSection title="CURRENT STORY"><ContextLine icon={<Sparkles size={15} color={colors.violet}/>} title={context.story.title} body={context.story.chapter}/></ContextSection>:null}{context.thread?<Pressable onPress={()=>onPrompt(context.thread!.prompt)} style={styles.threadCard}><CalendarDays size={16} color={colors.rose}/><View style={{flex:1}}><Text style={[styles.threadTitle,styles.desktopThreadTitle]}>FOLLOW UP</Text><Text style={[styles.contextCopy,styles.desktopContextCopy]}>{context.thread.label}</Text></View><ChevronRight size={16} color={colors.muted}/></Pressable>:null}<ContextSection title={`WHAT ${character.together_character_templates.name.toUpperCase()} REMEMBERS`}>{memoryInspector?(memories.length?memories.map((memory)=><Pressable key={memory.id} onPress={()=>navigateChatSurface(`/memories?character=${character.together_character_templates.slug}`)} style={styles.memoryLine}><Brain size={14} color={memory.pinned?colors.rose:colors.violet}/><Text style={[styles.contextCopy,styles.desktopContextCopy]} numberOfLines={2}>{presentMemoryText(memory.canonical_text,character.together_character_templates.name)}</Text></Pressable>):<Text style={[styles.contextMuted,styles.desktopContextCopy]}>Meaningful details will collect here.</Text>):<Pressable onPress={()=>navigateChatSurface(`/memories?character=${character.together_character_templates.slug}`)} style={styles.memoryLine}><LockKeyhole size={14} color={colors.violet}/><Text style={[styles.contextCopy,styles.desktopContextCopy]}>{memoryCount} saved {memoryCount===1?'detail':'details'} · Kivelle+</Text></Pressable>}</ContextSection>{!activePlan?<Pressable onPress={onPlan} style={styles.planButton}><CalendarDays size={17} color="#fff"/><Text style={[styles.planButtonText,styles.desktopContextButtonText]}>Plan something</Text></Pressable>:null}<Pressable onPress={()=>navigateChatSurface(`/memories?character=${character.together_character_templates.slug}`)} style={styles.secondaryButton}>{memoryInspector?<Brain size={17} color={colors.rose}/>:<LockKeyhole size={17} color={colors.rose}/>}<Text style={[styles.secondaryButtonText,styles.desktopContextButtonText]}>{memoryInspector?'Memory Center':'Memory Center · Kivelle+'}</Text></Pressable></ScrollView>;
 }
 
 function sceneVisualSource(snapshot:Snapshot,character:CharacterInstance,context:ClientConversationContext):ImageSource{
   const location=snapshot.locations.find((item)=>item.id&&(context.scene.locationId??character.current_location_id)===item.id);
   const world=location?worldForLocation(snapshot,location.id):characterResidentWorld(snapshot,character);
+  if(context.scene.home)return locationHeroAsset(world?.slug);
   return locationImageSource(world?.slug,location,{sceneMediaUrl:context.scene.mediaUrl});
 }
 
-function SceneCard({character,context,snapshot,roster}:{character:CharacterInstance;context:ClientConversationContext;snapshot:Snapshot;roster:SharedSceneRoster|null}) { const source=sceneVisualSource(snapshot,character,context);const participantCharacters=(roster?.participants??[]).map((participant)=>participant.together_character_instances).filter((person):person is SharedSceneCharacter=>Boolean(person)).filter((person,index,all)=>all.findIndex((item)=>item.id===person.id)===index);const people=participantCharacters.length?participantCharacters:[{id:character.id,together_character_templates:{name:character.together_character_templates.name,slug:character.together_character_templates.slug}}];const peopleLabel=people.length>1?people.map((person)=>person.together_character_templates.name).join(' · '):`${character.together_character_templates.name} · ${character.current_mood}`;return <View style={[styles.scene,context.interactionMode==='co_present'&&{borderColor:colors.rose}]}><Image source={source} style={StyleSheet.absoluteFill} contentFit="cover"/><View style={styles.sceneShade}><View style={styles.sceneTop}><Text style={styles.sceneKicker}>{context.interactionMode==='co_present'?'TOGETHER NOW':`${character.together_character_templates.name.toUpperCase()} RIGHT NOW`}</Text><Text style={styles.sceneTime}>{context.scene.localTime}</Text></View><Text style={styles.sceneTitle}>{context.scene.location}</Text><Text style={styles.sceneCopy}>{context.scene.summary}</Text><View style={styles.scenePeople}><View style={styles.sceneAvatarStack}>{people.slice(0,3).map((person,index)=><View key={person.id} style={[styles.sceneStackedAvatar,index>0&&styles.sceneStackedAvatarOverlap]}><CharacterAvatar slug={person.together_character_templates.slug} name={person.together_character_templates.name} size={28}/></View>)}</View><Text style={styles.scenePeopleText}>{peopleLabel}</Text></View></View></View>; }
-
-function ChatPlaceInfoModal({visible,name,worldName,category,description,activity,activities,source,onClose,onOpen}:{visible:boolean;name:string;worldName?:string;category?:string;description:string;activity:string;activities:string[];source:ImageSource|number;onClose:()=>void;onOpen?:()=>void}){
-  const categoryLabel=category?.replace(/[_-]+/g,' ').replace(/^./,(value)=>value.toUpperCase());
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-    <Pressable accessibilityLabel="Close place information" style={[styles.mediaModalBackdrop,styles.placeModalBackdrop]} onPress={onClose}>
-      <FrostedBackdrop intensity={36}/>
-      <Pressable accessibilityViewIsModal style={styles.placeModalFrame} onPress={()=>undefined}>
-        <FrostedSurface intensity={88} style={styles.placeModal}>
-          <View style={styles.placeModalHero}>
-            <Image source={source} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center"/>
-            <View pointerEvents="none" style={styles.placeModalHeroShade}/>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close place information" onPress={onClose} style={styles.placeModalClose}><X size={18} color="#fff"/></Pressable>
-            <View style={styles.placeModalHeroCopy}>
-              <Text style={styles.placeModalKicker}>{[worldName,categoryLabel].filter(Boolean).join(' · ').toUpperCase()}</Text>
-              <Text style={styles.placeModalTitle}>{name}</Text>
-            </View>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.placeModalBody}>
-            <View style={styles.placeNow}><MapPin size={17} color={colors.warm}/><View style={{flex:1,minWidth:0}}><Text style={styles.placeNowLabel}>HERE RIGHT NOW</Text><Text style={styles.placeNowText}>{activity}</Text></View></View>
-            <Text style={styles.placeModalDescription}>{description}</Text>
-            {activities.length?<View><Text style={styles.placeActivitiesLabel}>WHAT FITS HERE</Text><View style={styles.placeActivities}>{activities.slice(0,5).map((item)=><View key={item} style={styles.placeActivityChip}><Sparkles size={12} color={colors.violet}/><Text style={styles.placeActivityText}>{item}</Text></View>)}</View></View>:null}
-            {onOpen?<Pressable accessibilityRole="button" accessibilityLabel={`Open full place page for ${name}`} onPress={onOpen} style={styles.placeOpenButton}><Text style={styles.placeOpenText}>Explore this place</Text><ChevronRight size={17} color="#fff"/></Pressable>:null}
-          </ScrollView>
-        </FrostedSurface>
-      </Pressable>
-    </Pressable>
-  </Modal>;
-}
-
-function ChatMediaGalleryModal({visible,items,generatedMedia,companionName,returnTo,loading,error,onRetry,onClose}:{visible:boolean;items:ChatMediaGalleryItem[];generatedMedia:GeneratedMedia[];companionName:string;returnTo:string;loading:boolean;error:string;onRetry:()=>void;onClose:()=>void}){
-  const generatedById=new Map(generatedMedia.map((item)=>[item.id,item]));
-  const openItem=(item:ChatMediaGalleryItem)=>{
-    onClose();
-    if(item.kind==='generated'){navigateChatSurface(mediaViewerHref(item.media.id,returnTo));return;}
-    if(item.attachment.signed_url)void Linking.openURL(item.attachment.signed_url);
-  };
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-    <View style={styles.chatMediaBackdrop}>
-      <FrostedBackdrop intensity={38}/>
-      <Pressable accessibilityLabel="Close conversation media" onPress={onClose} style={StyleSheet.absoluteFill}/>
-      <FrostedSurface intensity={94} style={styles.chatMediaModal}>
-        <View style={styles.chatMediaHeader}><View style={{flex:1,minWidth:0}}><Text style={styles.chatMediaKicker}>CONVERSATION MEDIA</Text><Text numberOfLines={1} style={styles.chatMediaTitle}>You + {companionName}</Text><View style={styles.chatMediaSubtitleRow}><Text style={styles.chatMediaSubtitle}>{items.length?`${items.length} ${items.length===1?'photo or video':'photos and videos'}`:'Photos and videos will collect here.'}</Text>{loading&&items.length?<ActivityIndicator size="small" color={colors.rose}/>:null}</View></View><Pressable accessibilityRole="button" accessibilityLabel="Close conversation media" onPress={onClose} style={styles.chatMediaClose}><X size={19} color={colors.text}/></Pressable></View>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.chatMediaContent}>
-          {error?<Pressable accessibilityRole="button" accessibilityLabel="Retry loading conversation media" onPress={onRetry} style={styles.chatMediaError}><Text style={styles.chatMediaErrorText}>{error}</Text><Text style={styles.chatMediaRetry}>Try again</Text></Pressable>:null}
-          {items.length?<View style={styles.chatMediaGrid}>{items.map((item)=>{
-            const generated=item.kind==='generated'?item.media:null,attachment=item.kind==='attachment'?item.attachment:null,isVideo=generated?.media_type==='video'||attachment?.kind==='video',videoPreview=chatMediaVideoPreview(item,generatedById),poster=videoPreview.poster,posterUri=poster?.signed_url??null,uri=generated?.signed_url??attachment?.signed_url??null,pending=generated?.status==='queued'||generated?.status==='generating';
-            return <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Open ${isVideo?'video':'photo'} from ${new Date(item.createdAt).toLocaleDateString()}`} onPress={()=>openItem(item)} style={({pressed})=>[styles.chatMediaTile,pressed&&styles.chatMediaTilePressed]}>
-              {isVideo?<><View style={styles.chatMediaVideoFallback}><Play size={32} color={colors.dimmed}/></View>{posterUri?<ConversationMediaPhoto uri={posterUri} storagePath={poster?.storage_path}/>:null}{visible&&videoPreview.uri?<VideoMomentThumbnail uri={videoPreview.uri} posterUri={posterUri} contentFit="contain"/>:null}<View style={styles.chatMediaPlay}>{pending?<ActivityIndicator size="small" color="#fff"/>:<Play size={16} color="#fff" fill="#fff"/>}</View></>:uri?<ConversationMediaPhoto uri={uri} storagePath={generated?.storage_path??attachment?.storage_path}/>:<View style={styles.chatMediaVideoFallback}>{pending?<ActivityIndicator color={colors.rose}/>:null}</View>}<View style={styles.chatMediaTileShade}/><View style={styles.chatMediaTileMeta}><Text style={styles.chatMediaType}>{pending?'CREATING':isVideo?'VIDEO':'PHOTO'}</Text><Text style={styles.chatMediaDate}>{new Date(item.createdAt).toLocaleDateString([],{month:'short',day:'numeric'})}</Text></View>
-            </Pressable>;
-          })}</View>:loading?<View accessibilityLiveRegion="polite" style={styles.chatMediaEmpty}><ActivityIndicator color={colors.rose}/><Text style={styles.chatMediaEmptyTitle}>Gathering your media…</Text><Text style={styles.chatMediaEmptyCopy}>The gallery is open now; photos and videos will fill in as they arrive.</Text></View>:<View style={styles.chatMediaEmpty}><Images size={34} color={colors.dimmed}/><Text style={styles.chatMediaEmptyTitle}>No shared media yet</Text><Text style={styles.chatMediaEmptyCopy}>Generated and shared photos and videos from this conversation will appear here.</Text></View>}
-        </ScrollView>
-      </FrostedSurface>
+function SceneCard({character,context,snapshot,roster,statusLabel,onDismiss,sourceOverride}:{character:CharacterInstance;context:ClientConversationContext;snapshot:Snapshot;roster:SharedSceneRoster|null;statusLabel?:string;onDismiss?:()=>void;sourceOverride?:ImageSource}) {
+  const source=sourceOverride??sceneVisualSource(snapshot,character,context);
+  const participantCharacters=(roster?.participants??[]).map((participant)=>participant.together_character_instances).filter((person):person is SharedSceneCharacter=>Boolean(person)).filter((person,index,all)=>all.findIndex((item)=>item.id===person.id)===index);
+  const people=participantCharacters.length?participantCharacters:[{id:character.id,together_character_templates:{name:character.together_character_templates.name,slug:character.together_character_templates.slug}}];
+  const peopleLabel=people.length>1?people.map((person)=>person.together_character_templates.name).join(' · '):`${character.together_character_templates.name} · ${character.current_mood}`;
+  return <View style={[styles.scene,context.interactionMode==='co_present'&&{borderColor:colors.rose}]}>
+    {!context.scene.home?<Image source={source} style={StyleSheet.absoluteFill} contentFit="cover"/>:null}
+    <View style={styles.sceneShade}>
+      <View style={styles.sceneTop}><Text style={[styles.sceneKicker,{flex:1,paddingRight:8}]}>{statusLabel??(context.interactionMode==='co_present'?'TOGETHER NOW':`${character.together_character_templates.name.toUpperCase()} RIGHT NOW`)}</Text>{onDismiss?<Pressable accessibilityRole="button" accessibilityLabel="Remove location card" hitSlop={8} onPress={onDismiss} style={{width:32,height:32,borderRadius:16,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(12,10,22,.55)'}}><X size={16} color={colors.text}/></Pressable>:null}</View>
+      <Text style={styles.sceneTitle}>{context.scene.location}</Text>
+      <Text style={styles.sceneCopy}>{context.scene.summary}</Text>
+      <View style={styles.scenePeople}><View style={styles.sceneAvatarStack}>{people.slice(0,3).map((person,index)=><View key={person.id} style={[styles.sceneStackedAvatar,index>0&&styles.sceneStackedAvatarOverlap]}><CharacterAvatar slug={person.together_character_templates.slug} name={person.together_character_templates.name} size={28}/></View>)}</View><Text style={styles.scenePeopleText}>{peopleLabel}</Text></View>
     </View>
-  </Modal>;
-}
-
-function ConversationMediaPhoto({uri,storagePath}:{uri:string;storagePath?:string|null}){
-  const source=privateStoredImageSource(uri,storagePath);
-  return <View style={StyleSheet.absoluteFill}>
-    <Image accessible={false} source={source} style={[StyleSheet.absoluteFill,styles.chatMediaPhotoBackdrop]} contentFit="cover" contentPosition="center" blurRadius={24} cachePolicy="memory-disk"/>
-    <View pointerEvents="none" style={styles.chatMediaPhotoMatte}/>
-    <Image source={source} style={StyleSheet.absoluteFill} contentFit="contain" contentPosition="center" cachePolicy="memory-disk" transition={0}/>
   </View>;
 }
 
 function SharedSceneInvite({people,busy,onJoin}:{people:SharedSceneCharacter[];busy:boolean;onJoin:(person:SharedSceneCharacter)=>void}){return <View style={styles.sharedSceneInvite}><View style={{flex:1,minWidth:0}}><Text style={styles.sharedSceneInviteKicker}>ALSO HERE</Text><Text numberOfLines={2} style={styles.sharedSceneInviteText}>{people.map((person)=>person.together_character_templates.name).join(' and ')} {people.length===1?'is':'are'} nearby.</Text></View>{people.slice(0,2).map((person)=><Pressable key={person.id} disabled={busy} accessibilityLabel={`Invite ${person.together_character_templates.name} into this scene`} onPress={()=>onJoin(person)} style={[styles.sharedSceneInviteButton,busy&&styles.sendDisabled]}><Text style={styles.sharedSceneInviteButtonText}>Join {person.together_character_templates.name}</Text></Pressable>)}</View>}
 function sceneActivityLabel(scene:SceneSession){const key=String(scene.state?.currentActivityKey??scene.activity_key??'together').replace(/[_-]+/g,' ').trim();return key&&key!=='together'?key.replace(/^./,(character)=>character.toUpperCase()):'Spending time together';}
 
-function ConversationActionCard({action,busy,onConfirm,onChange,onDismiss}:{action:ConversationAction;busy:boolean;onConfirm:(planId?:string)=>void;onChange:()=>void;onDismiss:()=>void}){
-  if(action.payload.trigger==='assistant_location_mention')return <LocationMentionPlanCard action={action} busy={busy} onDismiss={onDismiss}/>;
+function ConversationActionCard({action,scope,busy,onConfirm,onChange,onDismiss}:{action:ConversationAction;scope:ChatRequestScope;busy:boolean;onConfirm:(planId?:string)=>void;onChange:()=>void;onDismiss:()=>void}){
+  if(action.payload.trigger==='assistant_location_mention')return <LocationMentionPlanCard action={action} scope={scope} busy={busy} onDismiss={onDismiss}/>;
   const cancel=['plan_cancel','cancel_plan'].includes(action.candidate_type),reschedule=['plan_reschedule','reschedule_plan'].includes(action.candidate_type),options=Array.isArray(action.payload.options)?action.payload.options as Array<Record<string,unknown>>:[];
   const title=String(action.payload.proposedTitle??action.payload.title??(cancel?'Cancel this plan?':reschedule?'Change this plan?':'Make this a real plan?')),rawStarts=action.payload.proposedStartsAt??action.payload.startsAt,starts=rawStarts&&new Date(String(rawStarts)).getTime()>=Date.now()+10*60000?rawStarts:null,locationLabel=action.payload.proposedLocation?String(action.payload.proposedLocation):action.payload.location?String(action.payload.location):'';
   const detail=starts?`${new Date(String(starts)).toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}${locationLabel?` · ${locationLabel}`:''}`:'Choose the time before anything is saved.';
   return <View style={styles.actionCard}><View style={styles.actionIcon}><CalendarDays size={18} color={colors.rose}/></View><View style={{flex:1}}><Text style={styles.actionKicker}>{cancel?'CANCEL PLAN':reschedule?'CHANGE PLAN':'MAKE A PLAN'}</Text><Text style={styles.actionTitle}>{options.length?'Which plan?':title}</Text>{options.length?options.map((option)=><Pressable key={String(option.planId)} disabled={busy} onPress={()=>onConfirm(String(option.planId))} style={styles.planTarget}><Text style={styles.planOptionTitle}>{String(option.title)}</Text><Text style={styles.contextMuted}>{new Date(String(option.startsAt)).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'})} · {String(option.location??'City Life')}</Text></Pressable>):<Text style={styles.contextMuted}>{detail}</Text>}{!options.length?<View style={styles.actionButtons}><Pressable disabled={busy} onPress={()=>onConfirm()} style={styles.actionPrimary}><Text style={styles.actionPrimaryText}>{busy?'Working…':cancel?'Cancel plan':starts?(reschedule?'Save change':'Save plan'):'Choose time'}</Text></Pressable>{!cancel?<Pressable disabled={busy} onPress={onChange} style={styles.actionSecondary}><Text style={styles.actionSecondaryText}>Change</Text></Pressable>:null}<Pressable disabled={busy} onPress={onDismiss} style={styles.actionSecondary}><Text style={styles.actionSecondaryText}>Not now</Text></Pressable></View>:null}</View></View>;
 }
 
-function LocationMentionPlanCard({action,busy,onDismiss}:{action:ConversationAction;busy:boolean;onDismiss:()=>void}){
+function LocationMentionPlanCard({action,scope,busy,onDismiss}:{action:ConversationAction;scope:ChatRequestScope;busy:boolean;onDismiss:()=>void}){
   const defaults=defaultPlanTimeFields();
   const[customOpen,setCustomOpen]=useState(false),[dateValue,setDateValue]=useState(defaults.date),[timeValue,setTimeValue]=useState(defaults.time),[saving,setSaving]=useState(false),[localError,setLocalError]=useState('');
   const{refresh,removeConversationAction,snapshot}=useTogether();
   const location=String(action.payload.location??'that place'),locationSlug=typeof action.payload.locationSlug==='string'?action.payload.locationSlug:undefined,worldSlug=typeof action.payload.worldSlug==='string'?action.payload.worldSlug:undefined,disabled=busy||saving;
-  const save=async(timingChoice:'now'|'in_one_hour'|'custom',startsAt?:string)=>{setSaving(true);setLocalError('');try{const result=await confirmConversationAction<ConversationActionMutation>(action.id,{timingChoice,...(startsAt?{startsAt}:{})});removeConversationAction(action.id);if(timingChoice==='now'&&result.result?.kind==='date'&&result.result.commitment.id)navigateChatSurface(`/date/${result.result.commitment.id}`);void refresh();if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);}catch(caught){setLocalError(caught instanceof Error?caught.message:'That plan could not be saved.');}finally{setSaving(false);}};
+  const save=async(timingChoice:'now'|'in_one_hour'|'custom',startsAt?:string)=>{
+    const request=scope.start('plan-mutation');
+    if(!request)return;
+    setSaving(true);setLocalError('');
+    try{
+      const result=await confirmConversationAction<ConversationActionMutation>(action.id,{timingChoice,...(startsAt?{startsAt}:{})});
+      if(!request.isCurrent())return;
+      removeConversationAction(action.id);
+      if(timingChoice==='now'&&result.result?.kind==='date'&&result.result.commitment.id)navigateChatSurface(`/date/${result.result.commitment.id}`);
+      void refresh().catch(()=>undefined);
+      if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }catch(caught){if(request.isCurrent())setLocalError(caught instanceof Error?caught.message:'That plan could not be saved.');}
+    finally{if(request.isCurrent())setSaving(false);request.release();}
+  };
   const saveCustom=()=>{const value=parseCustomPlanTime(dateValue,timeValue);if(!value||value.getTime()<Date.now()+10*60000){setLocalError('Choose a time at least 10 minutes from now.');return;}void save('custom',value.toISOString());};
   return <View style={styles.locationPlanCard}>
     <View style={styles.locationPlanHero}><Image source={locationImageSource(worldSlug,snapshot?.locations.find((place)=>place.id===action.payload.locationId)??{slug:locationSlug??''})} style={StyleSheet.absoluteFill} contentFit="cover"/><View style={styles.locationPlanShade}/><View style={styles.locationPlanHeroContent}><View style={styles.locationPlanKickerRow}><Text style={styles.locationPlanKicker}>PLAN A DATE</Text><Pressable accessibilityLabel="Dismiss date suggestion" disabled={disabled} onPress={onDismiss} style={styles.locationPlanClose}><X size={16} color="#fff"/></Pressable></View><Text style={styles.locationPlanTitle}>Go to {location} together?</Text><Text style={styles.locationPlanCopy}>Choose when you want to make it happen.</Text></View></View>
     <View style={styles.locationPlanBody}><View style={styles.locationPlanQuickRow}><Pressable disabled={disabled} onPress={()=>void save('now')} style={styles.locationPlanPrimary}><Text style={styles.locationPlanPrimaryText}>{saving?'SAVING…':'NOW'}</Text></Pressable><Pressable disabled={disabled} onPress={()=>void save('in_one_hour')} style={styles.locationPlanSecondary}><Text style={styles.locationPlanSecondaryText}>IN 1 HOUR</Text></Pressable></View><Pressable disabled={disabled} accessibilityState={{expanded:customOpen}} onPress={()=>{setCustomOpen((value)=>!value);setLocalError('');}} style={styles.locationPlanCustom}><CalendarDays size={15} color={colors.rose}/><Text style={styles.locationPlanCustomText}>PICK ANOTHER TIME</Text><ChevronRight size={15} color={colors.muted} style={customOpen?{transform:[{rotate:'90deg'}]}:undefined}/></Pressable>{customOpen?<View style={styles.locationPlanFields}><DateTimeFields date={dateValue} time={timeValue} onDateChange={setDateValue} onTimeChange={setTimeValue}/><Pressable disabled={disabled} onPress={saveCustom} style={styles.locationPlanPrimary}><Text style={styles.locationPlanPrimaryText}>{saving?'SAVING…':'SAVE DATE'}</Text></Pressable></View>:null}{localError?<Text style={styles.locationPlanError}>{localError}</Text>:null}</View>
   </View>;
 }
-
-function MessageBubble({canSpice,onSpice,onRestore,desktop,message,character,mentionCharacters,onCharacterMention,media,photoOffer,photoPreviewSource,photoOfferBusy,grouped,textStyle,bubbleColors,reactionNames,voiceVisible,voiceEnabled,memoryManualControl,favorite,canContinue,onFavorite,onContinue,onSuggest,onPlan,onPhoto,seamlessCompletion,activeVoiceNoteId,onVoiceActivate,onVoiceRequest,onRemember,onDeletePhoto,onPhotoOfferAccept,onPhotoOfferDecline,onMediaRetry,onFailedRetry,onFailedEdit,onFailedDiscard}:{canSpice:boolean;onSpice:()=>void|Promise<void>;onRestore:()=>void|Promise<void>;desktop:boolean;online?:boolean;message:Message;character:CharacterInstance;mentionCharacters:FeaturedCompanion[];onCharacterMention:(character:FeaturedCompanion)=>void;media:GeneratedMedia[];photoOffer:MediaOffer|null;photoPreviewSource?:ImageSource|number;photoOfferBusy:boolean;grouped:boolean;textStyle:{fontSize:number;lineHeight:number};bubbleColors:{user:ChatBubbleColor;companion:ChatBubbleColor};reactionNames:Record<string,string>;voiceVisible:boolean;voiceEnabled:boolean;memoryManualControl:boolean;favorite:boolean;canContinue:boolean;onFavorite:()=>void|Promise<void>;onContinue:()=>void|Promise<void>;onSuggest:()=>void|Promise<void>;onPlan:()=>void;onPhoto:()=>void;seamlessCompletion:boolean;activeVoiceNoteId:string|null;onVoiceActivate:(id:string|null)=>void;onVoiceRequest:(messageId:string,name:string)=>Promise<VoiceNoteRequestResult|null>;onRemember:(messageId:string)=>Promise<void>;onDeletePhoto:(attachment:ConversationAttachment)=>void;onPhotoOfferAccept:(offer:MediaOffer,paymentMethod:'credits'|'daily_included')=>void;onPhotoOfferDecline:(offer:MediaOffer)=>void;onMediaRetry:(id:string)=>Promise<void>;onFailedRetry?:()=>void;onFailedEdit?:()=>void;onFailedDiscard?:()=>void}) {
-  const[actionsOpen,setActionsOpen]=useState(false),[reportOpen,setReportOpen]=useState(false),[voiceBusy,setVoiceBusy]=useState(false),[localVoice,setLocalVoice]=useState<GeneratedMedia|undefined>();const opacity=useRef(new Animated.Value(seamlessCompletion?1:0)).current;const translate=useRef(new Animated.Value(seamlessCompletion?0:8)).current;const completionControlsOpacity=useRef(new Animated.Value(seamlessCompletion?0:1)).current;
-  useEffect(()=>{
-    if(seamlessCompletion){Animated.timing(completionControlsOpacity,{toValue:1,duration:140,useNativeDriver:Platform.OS!=='web'}).start();return;}
-    Animated.parallel([Animated.timing(opacity,{toValue:1,duration:220,useNativeDriver:Platform.OS!=='web'}),Animated.timing(translate,{toValue:0,duration:220,useNativeDriver:Platform.OS!=='web'})]).start();
-  },[completionControlsOpacity,opacity,seamlessCompletion,translate]);
-  const assistant=message.role==='assistant',photoOnly=isPhotoOnlyConversationMessage(message),attachments=message.attachments??message.together_conversation_attachments??[],images=visibleChatPhotoMedia(media),voice=localVoice??media.find((item)=>item.media_type==='voice_note'),speakerName=String(message.provider_metadata?.speakerName??character.together_character_templates.name),speakerSlug=String(message.provider_metadata?.speakerSlug??character.together_character_templates.slug),bubbleColor=assistant?bubbleColors.companion:bubbleColors.user,customBubbleColor=chatBubbleColorHex(bubbleColor),bubbleTextColor=chatBubbleTextColor(bubbleColor);
-  const photoMedia=photoMediaForOffer(media,photoOffer?.generated_media_id);
-  // The active offer owns its pending and failed presentation. Excluding its
-  // linked media here prevents the legacy MediaTile loader from appearing
-  // beside the blurred inline offer card.
-  const standaloneImages=mediaWithoutActivePhotoOffer(images,photoOffer?photoMedia?.id:null);
-  if(photoOnly&&!photoMedia&&!photoOffer)return null;
-  if(photoOnly)return <Animated.View style={[{width:'100%',maxWidth:430,alignSelf:'flex-start',marginVertical:2},{opacity,transform:[{translateY:translate}]}]}><ChatPhotoRequestCard offer={photoOffer} media={photoMedia} previewSource={photoPreviewSource} busy={photoOfferBusy} onAccept={(paymentMethod)=>{if(photoOffer)onPhotoOfferAccept(photoOffer,paymentMethod);}} onDecline={()=>{if(photoOffer)onPhotoOfferDecline(photoOffer);}} onBuyCredits={()=>navigateChatSurface(subscriptionHref({intent:'credits'}))} onRetry={photoMedia||photoOffer?.generated_media_id?()=>void onMediaRetry(photoMedia?.id??String(photoOffer?.generated_media_id)):undefined}/></Animated.View>;
-  const onVoice=async()=>{if(voiceBusy)return;setVoiceBusy(true);try{const result=await onVoiceRequest(message.id,speakerName);if(!result)return;if(result.status==='not_configured'){Alert.alert('Voice note',result.message??"Voice isn't connected yet.");return;}if(result.media){setLocalVoice(result.media);if(result.media.status==='ready'&&Platform.OS!=='web')onVoiceActivate(result.media.id);}}catch(caught){Alert.alert('Voice note',caught instanceof Error?caught.message:'The voice note could not be generated.');}finally{setVoiceBusy(false);}};
-  const refreshVoice=async()=>{if(!voice)return;const result=await refreshVoiceNote(voice.id);setLocalVoice(result.media);};
-  const voiceAction=()=>{if(!voiceEnabled){navigateChatSurface(subscriptionHref({intent:'voice'}));return;}if(voice){onVoiceActivate(activeVoiceNoteId===voice.id?null:voice.id);return;}return onVoice();};
-  const actionItems:MessageActionDefinition[]=[
-    ...(canSpice?[{key:'spice',label:'Spice',icon:<Text style={{fontSize:23}}>🌶</Text>,onPress:onSpice},...(message.provider_metadata?.canRestoreOriginal?[{key:'restore',label:'Restore original',icon:<Undo2 size={23} color={colors.textSecondary}/>,onPress:onRestore}]:[])]:[]),
-    ...(assistant&&canContinue?[{key:'continue',label:'Continue',icon:<FastForward size={23} color={colors.textSecondary}/>,onPress:onContinue}]:[]),
-    ...(memoryManualControl&&!message.id.startsWith('local-')?[{key:'memory',label:'Memory',icon:<Brain size={23} color={colors.textSecondary}/>,onPress:()=>onRemember(message.id)}]:[]),
-    {key:'copy',label:'Copy',icon:<Copy size={23} color={colors.textSecondary}/>,onPress:()=>Clipboard.setStringAsync(message.content)},
-    ...(!message.id.startsWith('local-')?[{key:'favorite',label:favorite?'Favorited':'Favorite',icon:<Heart size={23} color={favorite?colors.rose:colors.textSecondary} fill={favorite?colors.rose:'transparent'}/>,selected:favorite,onPress:onFavorite}]:[]),
-    ...(assistant&&voiceVisible&&message.provider_metadata?.rewriteAction!=='spice'?[{key:'voice',label:voice?'Voice':'Listen',icon:<Volume2 size={23} color={voiceEnabled?colors.textSecondary:colors.muted}/>,onPress:voiceAction}]:[]),
-    ...(assistant&&canContinue?[{key:'suggest',label:'Suggest reply',icon:<Wand2 size={23} color={colors.textSecondary}/>,onPress:onSuggest}]:[]),
-    ...(assistant?[{key:'plan',label:'Plan something',icon:<CalendarDays size={23} color={colors.textSecondary}/>,onPress:onPlan},{key:'photo',label:'Ask for photo',icon:<Camera size={23} color={colors.textSecondary}/>,onPress:onPhoto}]:[]),
-    ...(!assistant&&attachments.length&&!message.id.startsWith('local-')?[{key:'delete-photo',label:'Delete photo',icon:<Trash2 size={23} color={colors.danger}/>,destructive:true,onPress:()=>onDeletePhoto(attachments[0]!)}]:[]),
-    ...(assistant&&!message.id.startsWith('local-')?[{key:'report',label:'Report',icon:<Flag size={23} color={colors.muted}/>,onPress:()=>setReportOpen(true)}]:[]),
-    ...(message.delivery_status==='failed'&&onFailedRetry?[{key:'retry',label:'Retry send',icon:<Undo2 size={23} color={colors.rose}/>,onPress:onFailedRetry}]:[]),
-  ];
-  return <><Animated.View style={[styles.messageRow,desktop&&styles.messageRowDesktop,assistant?styles.assistantRow:styles.userRow,{opacity,transform:[{translateY:translate}]}]}>
-    {assistant&&!grouped?<CharacterAvatar slug={speakerSlug} size={28}/>:assistant?<View style={{width:28}}/>:null}
-    <View style={styles.messageStack}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${assistant?speakerName:'Your'} message. Tap for actions.`} onPress={()=>setActionsOpen(true)} onLongPress={()=>setActionsOpen(true)} style={[styles.bubble,desktop&&styles.bubbleDesktop,assistant?styles.assistantBubble:styles.userBubble,customBubbleColor?{backgroundColor:customBubbleColor}:null,message.delivery_status==='failed'&&styles.failed]}>
-        {!photoOnly&&message.content!=='[Photo]'?(assistant?<CharacterMentionText text={message.content} characters={mentionCharacters} excludeSlug={speakerSlug} onCharacterPress={onCharacterMention} style={[styles.messageText,textStyle,{color:bubbleTextColor}]}/>:<Text style={[styles.messageText,textStyle,{color:bubbleTextColor}]}>{message.content}</Text>):!assistant&&!attachments.length?<Text style={[styles.messageText,textStyle,{color:bubbleTextColor,opacity:.66}]}>Photo deleted</Text>:null}
-        {attachments.map((attachment)=><Pressable key={attachment.id} accessibilityRole="button" accessibilityLabel="Open shared photo" onPress={()=>attachment.signed_url&&void Linking.openURL(attachment.signed_url)}><Image source={privateStoredImageSource(attachment.signed_url,attachment.storage_path)} style={styles.userAttachment} contentFit="cover" cachePolicy="memory-disk" priority="low" recyclingKey={attachment.id}/></Pressable>)}
-        {standaloneImages.map((item)=><MediaTile key={item.id} media={item} style={styles.messageMedia} showFreeBadge onRetry={()=>void onMediaRetry(item.id)}/>)}
-        {assistant&&!photoOnly&&voiceVisible&&message.provider_metadata?.rewriteAction!=='spice'&&(voice||voiceBusy)?<Animated.View style={[styles.listenControlSlot,{opacity:completionControlsOpacity}]}>{voice?<VoiceNoteInline media={voice} active={activeVoiceNoteId===voice.id} onActivate={()=>onVoiceActivate(activeVoiceNoteId===voice.id?null:voice.id)} onRetry={()=>void onVoice()} onRefresh={()=>void refreshVoice()}/>:<View style={styles.voiceNote}><ActivityIndicator size="small" color={colors.rose}/><Text style={styles.voiceNoteText}>Generating voice…</Text></View>}</Animated.View>:null}
-        <View style={styles.messageMeta}><Text style={[styles.timestamp,desktop&&styles.timestampDesktop,{color:bubbleTextColor,opacity:.58}]}>{new Date(message.created_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</Text></View>
-      </Pressable>
-      {assistant?<VeniceTestDiagnostics metadata={message.provider_metadata}/>:null}
-      {message.together_message_reactions?.length?<View style={styles.messageReactions}>{message.together_message_reactions.map((reaction:MessageReaction)=><View key={reaction.id} style={styles.messageReaction}><Text style={styles.messageReactionEmoji}>{reaction.reaction}</Text><Text style={styles.messageReactionName}>{reactionNames[reaction.reactor_character_instance_id]??String(reaction.metadata?.reactorName??'Companion').split(' ')[0]}</Text></View>)}</View>:null}
-      {assistant&&photoOffer?<ChatPhotoRequestCard offer={photoOffer} media={photoMedia} previewSource={photoPreviewSource} busy={photoOfferBusy} onAccept={(paymentMethod)=>onPhotoOfferAccept(photoOffer,paymentMethod)} onDecline={()=>onPhotoOfferDecline(photoOffer)} onBuyCredits={()=>navigateChatSurface(subscriptionHref({intent:'credits'}))} onRetry={photoMedia||photoOffer.generated_media_id?()=>void onMediaRetry(photoMedia?.id??String(photoOffer.generated_media_id)):undefined}/>:null}
-      {message.delivery_status==='failed'&&onFailedRetry&&onFailedEdit&&onFailedDiscard?<FailedMessageRecovery onRetry={onFailedRetry} onEdit={onFailedEdit} onDiscard={onFailedDiscard}/>:null}
-    </View>
-  </Animated.View><MessageActionSheet contextCredits={typeof (message.provider_metadata?.contextCharge as {credits?:number}|undefined)?.credits==='number'?(message.provider_metadata!.contextCharge as {credits:number}).credits:undefined} visible={actionsOpen} message={message.content} senderName={speakerName} sentAt={message.created_at} userMessage={!assistant} actions={actionItems} onClose={()=>setActionsOpen(false)}/><ReportMessageModal visible={reportOpen} messageId={message.id} onClose={()=>setReportOpen(false)}/></>;
-}
-
-function VoiceNoteInline({media,active,onActivate,onRetry,onRefresh}:{media:GeneratedMedia;active:boolean;onActivate:()=>void;onRetry:()=>void;onRefresh:()=>void}){
-  const source=media.status==='ready'&&media.signed_url?media.signed_url:null;
-  const player=useAudioPlayer(source,{updateInterval:250});
-  const status=useAudioPlayerStatus(player);
-  const refreshAttempted=useRef(false);
-  useEffect(()=>{if(!active){player.pause();return;}if(Platform.OS!=='web'&&source){if(status.didJustFinish)void player.seekTo(0);player.play();}},[active,player,source,status.didJustFinish]);
-  useEffect(()=>{if(!active||!source||status.isLoaded||refreshAttempted.current)return;const timer=setTimeout(()=>{if(!status.isLoaded){refreshAttempted.current=true;onRefresh();}},1800);return()=>clearTimeout(timer);},[active,source,status.isLoaded,onRefresh]);
-  if(media.status==='failed')return <View style={styles.voiceNote}><Volume2 size={15} color={colors.muted}/><View style={styles.voiceProgressWrap}><Text style={styles.voiceNoteText}>{media.failure_reason_safe??'Voice note unavailable.'}</Text><Pressable accessibilityLabel="Retry companion voice note" onPress={onRetry}><Text style={styles.listenText}>Retry</Text></Pressable></View></View>;
-  if(!source)return <View style={styles.voiceNote}><ActivityIndicator size="small" color={colors.rose}/><Text accessibilityLiveRegion="polite" style={styles.voiceNoteText}>Generating voice…</Text></View>;
-  const duration=status.duration||Number(media.duration_ms??0)/1000;
-  const current=Math.min(status.currentTime||0,duration||0);
-  const progress=duration>0?Math.min(1,current/duration):0;
-  const toggle=()=>{
-    if(status.playing){player.pause();onActivate();return;}
-    // Calling play directly from the press handler preserves the browser user
-    // gesture. Starting it later from a React effect is rejected by web
-    // autoplay policy and expo-audio does not surface that rejected promise.
-    if(status.didJustFinish)void player.seekTo(0);
-    onActivate();
-    player.play();
-  };
-  return <View style={styles.voiceNote}><Pressable accessibilityLabel={status.playing?'Pause companion voice note':'Play companion voice note'} accessibilityRole="button" onPress={toggle} style={styles.voicePlayButton}>{status.playing?<Pause size={14} color="#fff" fill="#fff"/>:<Play size={14} color="#fff" fill="#fff"/>}</Pressable><View style={styles.voiceProgressWrap}><Pressable accessibilityLabel="Seek voice note" accessibilityRole="adjustable" onPress={(event)=>{if(!duration)return;const width=event.nativeEvent.locationX;void player.seekTo(Math.max(0,Math.min(duration,(width/180)*duration)));}} style={styles.voiceProgress}><View style={[styles.voiceProgressFill,{width:`${Math.round(progress*100)}%`}]}/></Pressable><Text accessibilityLiveRegion="polite" style={styles.voiceDuration}>{status.error?'Audio could not load · tap again':status.isBuffering?'Loading…':!status.isLoaded?'Ready · tap play':`${formatVoiceTime(current)} / ${formatVoiceTime(duration)}`}</Text></View></View>;
-}
-
-function VoiceCallEventRow({value}:{value:VoiceCallTimelineValue}){const[expanded,setExpanded]=useState(false),first=value.messages[0],last=value.messages.at(-1),fallbackMs=new Date(last?.created_at??value.at).getTime()-new Date(first?.created_at??value.at).getTime(),duration=Math.max(0,Math.round((value.durationMs||fallbackMs)/60_000)),hasTranscript=value.messages.length>0;return <View style={styles.voiceCallEvent}><Pressable accessibilityRole="button" accessibilityState={{expanded}} accessibilityLabel={`Voice call, ${duration||1} minutes.${hasTranscript?` ${expanded?'Hide':'Show'} transcript`:''}`} onPress={()=>hasTranscript&&setExpanded((current)=>!current)} style={styles.voiceCallEventHeader}><View style={styles.voiceCallEventIcon}><Phone size={15} color={colors.rose}/></View><View style={{flex:1}}><Text style={styles.voiceCallEventTitle}>Voice call · {duration||1} min</Text><Text style={styles.voiceCallEventMeta}>{hasTranscript?`${value.messages.length} transcript turns`:'No transcript turns'} · {new Date(value.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</Text></View>{hasTranscript?<ChevronRight size={16} color={colors.muted} style={expanded?{transform:[{rotate:'90deg'}]}:undefined}/>:null}</Pressable>{expanded?<View style={styles.voiceCallTranscript}>{value.messages.map((message)=><View key={message.id} style={styles.voiceCallTurn}><Text style={styles.voiceCallSpeaker}>{message.role==='assistant'?'COMPANION':'YOU'}</Text><Text style={styles.voiceCallText}>{message.content}</Text></View>)}</View>:null}</View>;}
-
-function formatVoiceTime(seconds:number){const safe=Number.isFinite(seconds)?Math.max(0,Math.floor(seconds)):0;return`${Math.floor(safe/60)}:${String(safe%60).padStart(2,'0')}`;}
-
-function StreamingBubble({desktop,character,content,textStyle,bubbleColor,reserveVoiceControl}:{desktop:boolean;character:CharacterInstance;content:string;textStyle:{fontSize:number;lineHeight:number};bubbleColor:ChatBubbleColor;reserveVoiceControl:boolean}) { const backgroundColor=chatBubbleColorHex(bubbleColor),textColor=chatBubbleTextColor(bubbleColor);return <View style={[styles.messageRow,desktop&&styles.messageRowDesktop,styles.assistantRow]}><CharacterAvatar slug={character.together_character_templates.slug} size={28}/><View style={styles.messageStack}><View style={[styles.bubble,desktop&&styles.bubbleDesktop,styles.assistantBubble,backgroundColor?{backgroundColor}:null]}><ChatActionText text={content} style={[styles.messageText,textStyle,{color:textColor}]} trailing={<Text style={styles.cursor}>▍</Text>}/>{reserveVoiceControl?<View aria-hidden style={styles.listenPlaceholder}/>:null}<View style={styles.messageMeta}><Text style={[styles.timestamp,desktop&&styles.timestampDesktop,{color:textColor}]}>Now</Text></View></View></View></View>; }
-function RelationshipMomentCard({milestone,busy,onChoose}:{milestone:RelationshipMilestone;busy:boolean;onChoose:(action:RelationshipMilestone['choices'][number]['id'])=>void}) { return <View style={[styles.milestoneCard,milestone.kind==='repair'&&styles.milestoneTense]}><View style={styles.milestoneIcon}><Heart size={18} color={milestone.kind==='repair'?colors.warm:colors.rose} fill={milestone.kind==='repair'?'transparent':'rgba(216,62,234,.25)'}/></View><Text style={styles.milestoneKicker}>{milestone.kind==='repair'?'A MOMENT TO REPAIR':'YOUR STORY IS CHANGING'}</Text><Text style={styles.milestoneTitle}>{milestone.title}</Text><Text style={styles.milestoneBody}>{milestone.body}</Text><Text style={styles.milestonePrompt}>{milestone.prompt}</Text><View style={styles.milestoneChoices}>{milestone.choices.map((choice)=><Pressable key={choice.id} disabled={busy} onPress={()=>onChoose(choice.id)} style={[styles.milestoneChoice,choice.tone==='primary'&&styles.milestoneChoicePrimary,busy&&styles.sendDisabled]}><Text style={[styles.milestoneChoiceText,choice.tone==='primary'&&styles.milestoneChoicePrimaryText]}>{choice.label}</Text></Pressable>)}</View></View>; }
-function EmptyConversation({character,prompts,onPrompt}:{character:CharacterInstance;prompts:string[];onPrompt:(value:string)=>void}) { return <View style={styles.empty}><MessageCircle color={colors.rose}/><Text style={styles.emptyTitle}>The city is already in motion.</Text><Text style={styles.emptyCopy}>Start with what is actually happening around {character.together_character_templates.name}.</Text>{prompts.map((prompt)=><Pressable key={prompt} onPress={()=>onPrompt(prompt)} style={styles.emptyPrompt}><Text style={styles.suggestionText}>{prompt}</Text><ChevronRight size={15} color={colors.rose}/></Pressable>)}</View>; }
 
 function PlanFocusChip({plan,onOpen,onClose}:{plan?:SharedPlan;onOpen:(id:string)=>void;onClose:()=>void}){if(!plan||!isRelevantFocusPlan(plan))return null;return <View style={styles.focusChip}><Pressable accessibilityLabel={`Talking about ${plan.title}`} onPress={()=>onOpen(plan.id)} style={styles.focusChipMain}><MessageCircle size={13} color={colors.rose}/><Text style={styles.focusLabel}>Talking about</Text><Text numberOfLines={1} style={styles.focusTitle}>{plan.title} · {new Date(plan.starts_at).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'})}</Text></Pressable><Pressable accessibilityLabel="Stop talking about this plan" onPress={onClose} style={styles.focusClose}><Text style={styles.focusCloseText}>×</Text></Pressable></View>}
 
@@ -1613,11 +1754,6 @@ function isRelevantFocusPlan(plan:SharedPlan){
   const ends=new Date(plan.ends_at).getTime();
   return !Number.isFinite(ends)||ends>Date.now();
 }
-
-function LegacyComposer({character,compact,input,setInput,sending,onSend,onPlan,onPhoto,onInteraction,onMove,coPresent}:{character:CharacterInstance;compact:boolean;input:string;setInput:(value:string)=>void;sending:boolean;onSend:()=>void;onPlan:()=>void;onPhoto:()=>void;onInteraction:()=>void;onMove:()=>void;coPresent:boolean}) {
-  void onInteraction; void onMove; void coPresent;
-  const overLimit=input.length>MESSAGE_CHARACTER_LIMIT;
-  return <View style={styles.composerWrap}><View style={styles.quickActions}><Pressable onPress={onPhoto} style={[styles.quickAction,styles.quickActionFitted]}><Camera size={14} color={colors.rose}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>{compact?'Photo':'Ask for a photo'}</Text></Pressable><Pressable onPress={onPlan} style={[styles.quickAction,styles.quickActionFitted]}><CalendarDays size={14} color={colors.warm}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>{compact?'Plan':'Plan something'}</Text></Pressable><Pressable onPress={()=>navigateChatSurface('/memories')} style={[styles.quickAction,styles.quickActionFitted]}><Brain size={14} color={colors.violet}/><Text numberOfLines={1} style={[styles.quickText,styles.quickTextFitted]}>Memories</Text></Pressable></View><View style={styles.composer}><TextInput value={input} onChangeText={setInput} placeholder={`Message ${character.together_character_templates.name}…`} placeholderTextColor={colors.dimmed} multiline style={[styles.input,styles.inputFitted]} textAlignVertical="top"/><Pressable accessibilityLabel="Send message" onPress={onSend} disabled={!input.trim()||sending||overLimit} style={[styles.send,(!input.trim()||sending||overLimit)&&styles.sendDisabled]}><Send color="#fff" size={19}/></Pressable></View><MessageCharacterCounter value={input}/></View>; }
 
 function AutoDialogueOptionsModal({visible,name,hasSuggestion,onChoose,onClose}:{visible:boolean;name:string;hasSuggestion:boolean;onChoose:(preference:AutoDialoguePreference)=>void;onClose:()=>void}){
   const options:Array<{value:AutoDialoguePreference;label:string;detail:string}>=[
@@ -1639,13 +1775,11 @@ function AutoDialogueOptionsModal({visible,name,hasSuggestion,onChoose,onClose}:
     </Pressable>
   </Modal>;
 }
-
-void LegacyComposer;
 function Composer({compact,desktop,inputRef,conversationId,character,input,onChangeInput,onDictation,onDictationError,onDictationStart,pendingImage,photoUploadPhase,onAddPhoto,onRemovePhoto,sending,onSend,onMoment,autoDialogue,autoDialogueBusy,canSuggest,onSuggest,onSuggestOptions,onClearSuggestion,onFocus,onLayout}:{compact:boolean;desktop:boolean;inputRef:{current:TextInput|null};conversationId:string;character:CharacterInstance;input:string;onChangeInput:(value:string)=>void;onDictation:(text:string)=>void;onDictationError:(message:string)=>void;onDictationStart:()=>void;pendingImage:PendingImage|null;photoUploadPhase:PhotoUploadPhase;onAddPhoto:()=>void;onRemovePhoto:()=>void;sending:boolean;onSend:()=>void;onMoment:(mode:MediaMomentMode)=>void;autoDialogue:AutoDialogueSuggestion|null;autoDialogueBusy:boolean;canSuggest:boolean;onSuggest:()=>void;onSuggestOptions:()=>void;onClearSuggestion:()=>void;onFocus?:()=>void;onLayout?:(event:LayoutChangeEvent)=>void}) {
   const insets=useSafeAreaInsets();
   const [composerFocused,setComposerFocused]=useState(false);
   const dictation=useChatDictation({conversationId,characterInstanceId:character.id,disabled:sending||autoDialogueBusy,onBeforeStart:onDictationStart,onTranscript:onDictation,onError:onDictationError});
-  const dictationBusy=dictation.phase!=='idle',overLimit=input.length>MESSAGE_CHARACTER_LIMIT,suggestMode=!input.trim()&&!pendingImage,actionDisabled=sending||autoDialogueBusy||dictationBusy||overLimit||(suggestMode&&!canSuggest),autoDialogueEdited=Boolean(autoDialogue&&input!==autoDialogue.text);
+  const dictationBusy=dictation.phase!=='idle',overLimit=input.length>MESSAGE_CHARACTER_LIMIT,suggestMode=!input.trim()&&!pendingImage,actionDisabled=sending||autoDialogueBusy||dictationBusy||overLimit||Boolean(pendingImage&&photoUploadPhase==='blocked')||(suggestMode&&!canSuggest),autoDialogueEdited=Boolean(autoDialogue&&input!==autoDialogue.text);
   const counter=<MessageCharacterCounter value={input}/>;
   return <ChatComposerFrame owner="direct" floating={compact} bottomInset={insets.bottom} onLayout={onLayout} style={styles.composerWrap}>
     {pendingImage?<PhotoAttachmentPreview image={pendingImage} phase={photoUploadPhase} sending={sending} onReplace={onAddPhoto} onRemove={onRemovePhoto}/>:null}
@@ -1655,7 +1789,7 @@ function Composer({compact,desktop,inputRef,conversationId,character,input,onCha
   </ChatComposerFrame>;
 }
 
-function PhotoAttachmentPreview({image,phase,sending,onReplace,onRemove}:{image:PendingImage;phase:PhotoUploadPhase;sending:boolean;onReplace:()=>void;onRemove:()=>void}){const state=photoUploadPresentation(phase);return <View accessibilityLiveRegion="polite" accessibilityLabel={`Selected photo. ${state.label}${state.retry?'. Send again to retry.':''}`} style={styles.attachmentPreview}><Image source={{uri:image.uri}} style={styles.attachmentPreviewImage} contentFit="contain"/><View style={{flex:1,minWidth:0}}><Text style={styles.attachmentPreviewTitle}>{state.label}</Text><Text style={styles.attachmentPreviewMeta}>{image.fileName??'Selected image'} · {Math.max(1,Math.round(image.byteSize/1024))} KB</Text>{state.busy?<View accessibilityRole="progressbar" accessibilityValue={{min:0,max:100,now:Math.round(state.progress*100)}} style={styles.attachmentProgressTrack}><View style={[styles.attachmentProgressFill,{width:`${Math.round(state.progress*100)}%`}]}/></View>:null}<View style={styles.attachmentPreviewActions}><Pressable accessibilityRole="button" accessibilityLabel="Replace selected photo" disabled={sending} onPress={onReplace} style={styles.attachmentTextButton}><Text style={styles.attachmentReplace}>Replace</Text></Pressable>{state.retry?<Text style={styles.attachmentRetry}>Tap Send to retry</Text>:null}</View></View>{sending?<ActivityIndicator color={colors.rose}/>:<Pressable accessibilityRole="button" accessibilityLabel="Remove selected photo" onPress={onRemove} style={styles.attachmentRemove}><X size={16} color={colors.text}/></Pressable>}</View>;}
+function PhotoAttachmentPreview({image,phase,sending,onReplace,onRemove}:{image:PendingImage;phase:PhotoUploadPhase;sending:boolean;onReplace:()=>void;onRemove:()=>void}){const state=photoUploadPresentation(phase);return <View accessibilityLiveRegion="polite" accessibilityLabel={`Selected photo. ${state.label}${state.retry?'. Send again to retry.':''}`} style={styles.attachmentPreview}><Image source={{uri:image.uri}} style={styles.attachmentPreviewImage} contentFit="contain"/><View style={{flex:1,minWidth:0}}><Text style={styles.attachmentPreviewTitle}>{state.label}</Text><Text style={styles.attachmentPreviewMeta}>{image.fileName??'Selected image'} · {Math.max(1,Math.round(image.byteSize/1024))} KB</Text>{phase==='blocked'?<Text style={{color:colors.danger,fontSize:11,lineHeight:15,marginTop:4}}>Remove or replace this photo to keep chatting.</Text>:null}{state.busy?<View accessibilityRole="progressbar" accessibilityValue={{min:0,max:100,now:Math.round(state.progress*100)}} style={styles.attachmentProgressTrack}><View style={[styles.attachmentProgressFill,{width:`${Math.round(state.progress*100)}%`}]}/></View>:null}<View style={styles.attachmentPreviewActions}><Pressable accessibilityRole="button" accessibilityLabel="Replace selected photo" disabled={sending} onPress={onReplace} style={styles.attachmentTextButton}><Text style={styles.attachmentReplace}>Replace</Text></Pressable>{state.retry?<Text style={styles.attachmentRetry}>Tap Send to retry</Text>:null}</View></View>{sending?<ActivityIndicator color={colors.rose}/>:<Pressable accessibilityRole="button" accessibilityLabel="Remove selected photo" onPress={onRemove} style={styles.attachmentRemove}><X size={16} color={colors.text}/></Pressable>}</View>;}
 
 function autoDialogueIntentLabel(intent:AutoDialogueSuggestion['intent']):string{return({answer:'Answer',repair:'Repair',support:'Supportive',celebrate:'Celebrate',flirt:'Romantic',follow_up:'Follow-up',coordinate_plan:'Plans',advance_scene:'Scene',close_scene:'Wrap-up',engage_group:'Group',curious:'Curious'} satisfies Record<AutoDialogueSuggestion['intent'],string>)[intent];}
 
@@ -1669,57 +1803,9 @@ function DictationButton({phase,elapsedMs,disabled,onPress}:{phase:ChatDictation
   </Pressable>;
 }
 
-function ContextualInteractionTray({interactions,loading,onOpen,onInteraction,onDismiss}:{interactions:InteractionCandidate[];loading:boolean;onOpen:()=>void;onInteraction:(candidate:InteractionCandidate)=>void;onDismiss?:()=>void}) { return <View style={styles.contextualTray}><View style={styles.contextualTrayHeader}><Text style={styles.actionKicker}>THINGS TO DO</Text><View style={styles.contextualTrayHeaderActions}><Pressable accessibilityRole="button" accessibilityLabel="See all things to do" hitSlop={8} onPress={onOpen}><Text style={styles.contextualMore}>More</Text></Pressable>{onDismiss?<Pressable accessibilityRole="button" accessibilityLabel="Hide things to do for this plan" hitSlop={6} onPress={onDismiss} style={styles.contextualDismiss}><X size={17} color={colors.muted}/></Pressable>:null}</View></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contextualTrayActions}>{interactions.map((candidate)=><Pressable key={candidate.id} disabled={loading} accessibilityLabel={candidate.label} onPress={()=>onInteraction(candidate)} style={[styles.contextualAction,loading&&styles.sendDisabled]}><Wand2 size={13} color={colors.rose}/><Text style={styles.contextualActionText}>{candidate.label}</Text></Pressable>)}</ScrollView></View>; }
-function InteractionTray({name,location,interactions,destinations,loading,onInteraction,onMove,onClose}:{name:string;location:string;interactions:InteractionCandidate[];destinations:InteractionCandidate[];loading:boolean;onInteraction:(candidate:InteractionCandidate)=>void;onMove:(candidate:InteractionCandidate)=>void;onClose:()=>void}) { return <View style={styles.interactionTray}><View style={styles.planHeader}><View style={{flex:1,minWidth:0}}><Text style={styles.planTitle}>TOGETHER AT {location.toUpperCase()}</Text><Text style={styles.contextMuted}>Choose something that fits what you and {name} are doing right now.</Text></View><Pressable accessibilityLabel="Close actions" onPress={onClose}><Text style={styles.closeText}>Close</Text></Pressable></View><Text style={styles.interactionSectionTitle}>TOGETHER</Text><View style={styles.interactionOptions}>{interactions.map((candidate)=><Pressable key={candidate.id} disabled={loading} accessibilityLabel={candidate.label} onPress={()=>onInteraction(candidate)} style={[styles.interactionOption,loading&&styles.sendDisabled]}><Wand2 size={15} color={colors.rose}/><View style={{flex:1,minWidth:0}}><Text style={styles.interactionOptionTitle}>{candidate.label}</Text>{candidate.durationMinutes?<Text style={styles.interactionOptionMeta}>About {candidate.durationMinutes} min</Text>:null}</View><ChevronRight size={16} color={colors.muted}/></Pressable>)}</View>{destinations.length?<><Text style={styles.interactionSectionTitle}>AROUND HERE</Text><View style={styles.interactionOptions}>{destinations.map((candidate)=><Pressable key={candidate.id} disabled={loading} accessibilityLabel={candidate.label} onPress={()=>onMove(candidate)} style={[styles.interactionOption,loading&&styles.sendDisabled]}><MapPin size={15} color={colors.warm}/><View style={{flex:1,minWidth:0}}><Text style={styles.interactionOptionTitle}>{candidate.label}</Text><Text style={styles.interactionOptionMeta}>Walk there together</Text></View><ChevronRight size={16} color={colors.muted}/></Pressable>)}</View></>:null}</View>; }
 function CharacterProposalCard({name,proposal,busy,onAccept,onDismiss}:{name:string;proposal:CharacterInteractionProposal;busy:boolean;onAccept:()=>void;onDismiss:()=>void}){return <View accessibilityLabel={`${name} suggests ${proposal.label}`} style={styles.characterProposal}><View style={styles.characterProposalIcon}><Sparkles size={17} color={colors.rose}/></View><View style={{flex:1,minWidth:0}}><Text style={styles.characterProposalKicker}>{proposalHeading(proposal,name)}</Text><Text style={styles.characterProposalTitle}>{proposal.label}</Text></View><Pressable accessibilityRole="button" accessibilityState={{disabled:busy}} disabled={busy} onPress={onDismiss} style={styles.proposalSecondary}><Text style={styles.proposalSecondaryText}>Not now</Text></Pressable><Pressable accessibilityRole="button" accessibilityState={{disabled:busy}} disabled={busy} onPress={onAccept} style={styles.proposalPrimary}><Text style={styles.proposalPrimaryText}>Do it</Text></Pressable></View>}
 
-/* Legacy planner retained in source history during the migration; the live surface is PlanSelection.
-function PlanTray({snapshot,character,scopedLocationId,repeatPlanId,proposal,interests,busy,onPlan,onClose}:{snapshot:Snapshot;character:CharacterInstance;scopedLocationId?:string|null;repeatPlanId?:string;proposal?:ConversationAction;interests:string[];busy:boolean;onPlan:(option:PlanOption,scheduledFor:string)=>void;onClose:()=>void}){
-  const[selected,setSelected]=useState<string|null>(null),[selectedTime,setSelectedTime]=useState<string|null>(null),[elsewhere,setElsewhere]=useState(false),[custom,setCustom]=useState(false),[intent,setIntent]=useState<PlanDiscoveryIntent|null>(null),[dateValue,setDateValue]=useState(''),[timeValue,setTimeValue]=useState('19:30'),[validation,setValidation]=useState('');
-  const scoped=snapshot.locations.find((item)=>item.id===scopedLocationId),preferences=snapshot.memories.filter((item)=>item.character_instance_id===character.id&&item.memory_type==='preference').map((item)=>item.canonical_text);
-  const scopedWorld=worldForLocation(snapshot,scopedLocationId??character.current_location_id),planLocations=scopedWorld?locationsForWorld(snapshot,scopedWorld.id):snapshot.locations;
-  const planContext={activity:character.current_activity,mood:character.current_mood,locationId:character.current_location_id,interests:character.together_character_versions.interests,userInterests:interests,preferences,personality:character.together_character_versions.personality_config,relationshipStage:character.relationship_stage,locations:planLocations,scopedLocationId,chooseElsewhere:elsewhere,previousPlans:snapshot.sharedPlans??[],intent:intent??undefined};
-  const options=recommendPlanOptions(planContext),repeatPlan=(snapshot.sharedPlans??[]).find((item)=>item.id===repeatPlanId),proposalActivity=typeof proposal?.payload.activityKey==='string'?proposal.payload.activityKey:null,proposalLocation=typeof proposal?.payload.locationId==='string'?proposal.payload.locationId:null,proposalOption=proposal&&!proposal.payload.needsCompanionPick?options.find((option)=>option.locationId===proposalLocation&&option.activityKey===proposalActivity)??options.find((option)=>option.locationId===proposalLocation):undefined,choice=options.find((option)=>option.id===selected),pick=companionPick(planContext);
-  useEffect(()=>{if(repeatPlan&&!selected){const match=options.find((option)=>option.locationId===repeatPlan.location_id&&option.activityKey===repeatPlan.activity_key)??options.find((option)=>option.locationId===repeatPlan.location_id);if(match){setIntent('liked');setSelected(match.id);return;}}if(proposalOption&&!selected){setSelected(proposalOption.id);return;}if(proposal?.payload.needsCompanionPick&&!selected){const match=companionPick(planContext);if(match){setIntent('companion_pick');setSelected(match.id);}}},[repeatPlan?.id,proposal?.id,proposalOption?.id,selected,options]);
-  const generatedSlots=buildPlanSlots({option:choice,schedules:snapshot.schedules.filter((item)=>item.character_version_id===character.character_version_id),plans:(snapshot.sharedPlans??[]).filter((item)=>item.character_instance_id===character.id),dates:snapshot.dates.filter((item)=>item.character_instance_id===character.id)}),suggestedCandidate=typeof proposal?.payload.suggestedStartsAt==='string'?proposal.payload.suggestedStartsAt:null,suggestedStart=suggestedCandidate&&new Date(suggestedCandidate).getTime()>=Date.now()+10*60000?suggestedCandidate:null,slots=suggestedStart?[{label:'Suggested',detail:new Date(suggestedStart).toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}),value:suggestedStart,reason:'The time you suggested',best:true},...generatedSlots.filter((item)=>item.value!==suggestedStart)]:generatedSlots;
-  useEffect(()=>{if(choice&&!selectedTime&&slots[0])setSelectedTime(slots[0].value);},[choice?.id,selectedTime,slots[0]?.value]);
-  const selectedSlot=slots.find((slot)=>slot.value===selectedTime),selectOption=(id:string)=>{setSelected(id);setSelectedTime(null);setCustom(false);setValidation('');};
-  const useCustom=()=>{if(!choice)return;const value=parseCustomPlanTime(dateValue,timeValue);if(!value||value.getTime()<Date.now()+10*60000){setValidation('Choose a time at least 10 minutes from now.');return;}setValidation('');setSelectedTime(value.toISOString());setCustom(false);};
-  const chooseIntent=(value:PlanDiscoveryIntent)=>{setIntent(value);setSelectedTime(null);const ranked=recommendPlanOptions({...planContext,intent:value});if(value==='companion_pick'&&ranked[0])setSelected(ranked[0].id);};
-  const reset=()=>{setSelected(null);setSelectedTime(null);setCustom(false);setValidation('');if(!scoped||elsewhere)setIntent(null);};
-  const confirmPlan=()=>{if(choice&&selectedTime)onPlan(choice,selectedTime);};
-  return <View style={styles.plannerTray}><View style={styles.planHeader}><View style={{flex:1}}><Text style={styles.planTitle}>{choice?'CHOOSE A TIME':scoped&&!elsewhere?scoped.name:`Plan with ${character.together_character_templates.name}`}</Text><Text style={styles.contextMuted}>{choice?`${choice.title} · Nothing is saved until you confirm.`:scoped&&!elsewhere?'Pick what you want to do here. You’ll confirm the time next.':'Pick an idea first. Then choose a time and confirm the plan.'}</Text></View><Pressable disabled={busy} onPress={onClose}><Text style={styles.closeText}>Close</Text></Pressable></View>
-    {choice?<><View style={styles.pickCard}>{intent==='companion_pick'?<Text style={styles.pickQuote}>{companionPickQuote(character.together_character_templates.name,choice,character.together_character_versions.personality_config)}</Text>:null}<Text style={styles.actionKicker}>PLAN DETAILS</Text><Text style={styles.pickName}>{choice.title}</Text><Text style={styles.planReason}>{choice.qualityLabel??'Best fit'} · {choice.reason}</Text><Text style={styles.bestTime}>{selectedSlot?.detail??(selectedTime?new Date(selectedTime).toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'Choose a time')}</Text><Text style={styles.bestReason}>{selectedSlot?.reason??(selectedTime?'Your selected time':'Select one of the options below')}</Text></View>
-      {slots.length?<View style={styles.alternateTimes}>{slots.slice(0,4).map((slot)=><Pressable key={slot.value} disabled={busy} onPress={()=>{setSelectedTime(slot.value);setCustom(false);setValidation('');}} style={[styles.timeChip,selectedTime===slot.value&&styles.intentChipActive]}><View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:6}}><Text style={styles.timeChipTitle}>{slot.label}</Text>{selectedTime===slot.value?<Check size={13} color={colors.rose}/>:null}</View><Text style={styles.timeChipDetail}>{slot.detail}</Text></Pressable>)}</View>:<Text style={styles.retryText}>No smart time is available. Choose a custom date and time.</Text>}
-      {custom?<View style={styles.customTime}><DateTimeFields date={dateValue} time={timeValue} onDateChange={setDateValue} onTimeChange={setTimeValue}/><Pressable disabled={busy} onPress={useCustom} style={styles.actionPrimary}><Text style={styles.actionPrimaryText}>Use this time</Text></Pressable></View>:<Pressable onPress={()=>setCustom(true)} style={styles.secondaryButton}><CalendarDays size={15} color={colors.rose}/><Text style={styles.secondaryButtonText}>Choose another date & time</Text></Pressable>}{validation?<Text style={styles.retryText}>{validation}</Text>:null}
-      <Pressable accessibilityLabel={`Confirm ${choice.title}`} disabled={busy||!selectedTime} onPress={confirmPlan} style={[styles.actionPrimary,{minHeight:46,borderRadius:radius.md},(busy||!selectedTime)&&styles.planDisabled]}><Text style={styles.actionPrimaryText}>{busy?'Planning…':'Confirm plan'}</Text></Pressable><Pressable disabled={busy} onPress={reset}><Text style={styles.closeText}>{intent==='companion_pick'?`Let ${character.together_character_templates.name} pick something else`:'Change activity or place'}</Text></Pressable></>
-    :<>{!scoped||elsewhere?<View style={styles.intentRow}>{([['companion_pick',`${character.together_character_templates.name} chooses`],['tonight','Tonight'],['date_night','Date night'],['casual','Casual'],['different','Something new'],['liked','Favorites']] as Array<[PlanDiscoveryIntent,string]>).map(([value,label])=><Pressable key={value} onPress={()=>chooseIntent(value)} style={[styles.intentChip,intent===value&&styles.intentChipActive]}><Text style={styles.intentText}>{label}</Text></Pressable>)}</View>:null}
-      {intent||scoped&&!elsewhere?<View style={styles.planOptions}>{(intent==='companion_pick'?[pick].filter(Boolean) as PlanOption[]:options.slice(0,scoped&&!elsewhere?8:4)).map((option)=><Pressable key={option.id} onPress={()=>selectOption(option.id)} style={styles.planOption}><View style={{flex:1,minWidth:0}}><Text style={styles.planOptionTitle}>{option.title}</Text><Text style={styles.planOptionCopy} numberOfLines={2}>{option.description}</Text><Text style={styles.planReason}>{option.qualityLabel??'Best fit'} · {option.reason}</Text></View><ChevronRight size={17} color={colors.rose}/></Pressable>)}</View>:null}
-      {scoped&&!elsewhere?<Pressable onPress={()=>{setElsewhere(true);setIntent(null);}} style={styles.secondaryButton}><MapPin size={15} color={colors.rose}/><Text style={styles.secondaryButtonText}>Choose somewhere else</Text></Pressable>:null}</>}
-  </View>;
-}
-
-} */
-
-type VoiceCallTimelineValue={id:string;messages:Message[];at:string;durationMs:number};
-function mergeChatTimeline(messages:Message[],actions:ConversationAction[],events:ConversationEvent[],lastReadAt?:string|null,openedAt?:string|null,observedMessageIds:ReadonlySet<string>=new Set(),pendingSceneAction:(SceneActionTimelineEntry&{createdAt:string})|null=null){
-  events=collapsePlanTimelineEvents(events);
-  const resolvedActionIds=new Set(events.filter((event)=>event.event_type==='plan_proposed'&&event.metadata.resolution!=='pending').map((event)=>event.entity_id)),messageTimes=new Map(messages.map((message)=>[message.id,message.created_at]));
-  const callGroups=new Map<string,Message[]>();
-  for(const message of messages){const callId=typeof message.provider_metadata?.callSessionId==='string'?message.provider_metadata.callSessionId:null;if(callId)callGroups.set(callId,[...(callGroups.get(callId)??[]),message]);}
-  const callMessageIds=new Set([...callGroups.values()].flat().map((message)=>message.id));
-  const callEvents=new Map(events.filter((event)=>event.event_type==='voice_call').map((event)=>[event.entity_id,event])),callIds=new Set([...callGroups.keys(),...callEvents.keys()]);
-  const voiceCalls=[...callIds].map((id)=>{const ordered=[...(callGroups.get(id)??[])].sort((left,right)=>new Date(left.created_at).getTime()-new Date(right.created_at).getTime()),event=callEvents.get(id),at=event?.created_at??ordered[0]?.created_at??new Date().toISOString(),durationMs=Math.max(0,Number(event?.metadata.durationMs??ordered[0]?.provider_metadata?.callDurationMs??0));return{kind:'voice_call' as const,value:{id,messages:ordered,at,durationMs},at,sortOrder:0};});
-  const visibleMessages=messages.filter((message)=>!callMessageIds.has(message.id));
-  const sceneActionDividers=visibleMessages.flatMap((message)=>{const value=sceneActionTimelineEntryFromMessage(message);return value?[{kind:'scene_action' as const,value,at:message.created_at,sortOrder:-1}]:[];});
-  if(pendingSceneAction&&!sceneActionDividers.some((item)=>item.value.id===pendingSceneAction.id))sceneActionDividers.push({kind:'scene_action',value:pendingSceneAction,at:pendingSceneAction.createdAt,sortOrder:-1});
-  const sorted=[...sceneActionDividers,...visibleMessages.map((value)=>({kind:'message' as const,value,at:value.created_at,sortOrder:0})),...voiceCalls,...actions.filter((value)=>!resolvedActionIds.has(value.id)).map((value)=>({kind:'action' as const,value,at:value.assistant_message_id?messageTimes.get(value.assistant_message_id)??value.created_at:value.created_at,sortOrder:1})),...events.filter((value)=>value.event_type!=='plan_proposed'&&value.event_type!=='voice_call').map((value)=>({kind:'event' as const,value,at:value.created_at,sortOrder:2}))].sort((left,right)=>new Date(left.at).getTime()-new Date(right.at).getTime()||left.sortOrder-right.sortOrder);
-  const result:Array<(typeof sorted)[number]|{kind:'separator';key:string;label:string}>=[];let day='',unreadAdded=false;
-  for(const item of sorted){const itemDay=new Date(item.at).toDateString();if(itemDay!==day){day=itemDay;result.push({kind:'separator',key:`day-${item.at}`,label:timelineDayLabel(new Date(item.at))});}const observed=item.kind==='message'&&observedMessageIds.has(item.value.id);if(!unreadAdded&&!observed&&((item.kind==='message'&&item.value.role==='assistant')||item.kind==='voice_call')&&wasUnreadWhenChatOpened(item.at,{lastReadAt,openedAt})){unreadAdded=true;result.push({kind:'separator',key:`new-${item.at}`,label:'NEW'});}result.push(item);}return result;
-}
-
 function pendingImageAttachment(image:PendingImage,conversationId:string):ConversationAttachment{return{id:`local-attachment-${Date.now()}`,user_id:'local',continuity_id:'local',conversation_id:conversationId,kind:'image',source:'user',storage_path:'',mime_type:image.mimeType,byte_size:image.byteSize,width:image.width,height:image.height,upload_status:'pending',analysis_status:'pending',analysis_metadata:{},metadata:{requestId:image.requestId},signed_url:image.uri,created_at:new Date().toISOString(),updated_at:new Date().toISOString()};}
-function timelineDayLabel(date:Date){const today=new Date();const yesterday=new Date(today);yesterday.setDate(today.getDate()-1);if(date.toDateString()===today.toDateString())return'TODAY';if(date.toDateString()===yesterday.toDateString())return'YESTERDAY';return date.toLocaleDateString([],{weekday:'long',month:'short',day:'numeric'}).toUpperCase();}
 function PlanLifecycleDivider({event,companionName}:{event:ConversationEvent;companionName:string}){const label=planLifecycleDividerLabel(event,companionName);if(!label)return null;return <View accessibilityRole="text" accessibilityLabel={label} style={styles.planLifecycleDivider}><View style={styles.planLifecycleLine}/><Text style={styles.planLifecycleText}>{label}</Text><View style={styles.planLifecycleLine}/></View>;}
 function SceneActionDivider({event,companionName}:{event:SceneActionTimelineEntry;companionName:string}){const label=sceneActionDividerLabel(event,companionName);return <View accessibilityRole="text" accessibilityLabel={label} style={styles.planLifecycleDivider}><View style={styles.planLifecycleLine}/><Text style={styles.planLifecycleText}>{label}</Text><View style={styles.planLifecycleLine}/></View>;}
 function PlanTimelineCard({event,plan,locationName,busy,onOpen,onStart,onEnd,onCancel}:{event:ConversationEvent;plan?:SharedPlan;locationName?:string;busy:boolean;onOpen:(plan:SharedPlan)=>void;onStart:(plan:SharedPlan)=>void;onEnd:(plan:SharedPlan)=>void;onCancel:(plan:SharedPlan)=>void}){
@@ -1736,7 +1822,6 @@ function PlanTimelineCard({event,plan,locationName,busy,onOpen,onStart,onEnd,onC
   </View>;
 }
 function resolveScopedLocation(snapshot:Snapshot,slug?:string,worldSlug?:string,action?:ConversationAction,repeatPlanId?:string){const candidate=typeof action?.payload.locationId==='string'?action.payload.locationId:null;const repeat=(snapshot.sharedPlans??[]).find((item)=>item.id===repeatPlanId),world=snapshot.worlds.find((item)=>item.slug===worldSlug);return candidate??repeat?.location_id??snapshot.locations.find((item)=>item.slug===slug&&(!world||item.world_id===world.id))?.id??null;}
-function StoryFeedback({feedback,onView,onUndo,onDismiss}:{feedback:Feedback;onView:()=>void;onUndo?:()=>void;onDismiss:()=>void}) { return <View style={styles.feedback}><View style={styles.feedbackIcon}>{feedback.kind==='memory'?<Brain size={18} color={colors.rose}/>:<Sparkles size={18} color={colors.warm}/>}</View><View style={{flex:1}}><Text style={styles.feedbackTitle}>{feedback.title}</Text><Text style={styles.feedbackBody}>{feedback.body}</Text></View><Pressable onPress={onView} style={styles.feedbackAction}><Text style={styles.feedbackActionText}>View</Text></Pressable>{onUndo?<Pressable onPress={onUndo} style={styles.feedbackIcon}><Undo2 size={16} color={colors.muted}/></Pressable>:<Pressable onPress={onDismiss} style={styles.feedbackIcon}><Check size={16} color={colors.muted}/></Pressable>}</View>; }
 function ContextSection({title,children}:{title:string;children:React.ReactNode}) { return <View style={{gap:9}}><Text style={[styles.railKicker,styles.desktopRailKicker]}>{title}</Text>{children}</View>; }
 function ContextLine({icon,title,body,actionable=false}:{icon:React.ReactNode;title:string;body:string;actionable?:boolean}) { return <View style={styles.contextLine}>{icon}<View style={{flex:1}}><Text style={[styles.contextLineTitle,styles.desktopContextLineTitle]}>{title}</Text><Text style={[styles.contextCopy,styles.desktopContextCopy]}>{body}</Text></View>{actionable?<ChevronRight size={15} color={colors.muted}/>:null}</View>; }
 

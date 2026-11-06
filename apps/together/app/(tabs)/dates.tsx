@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { CalendarDays, Clock3, LockKeyhole, MapPin, Sparkles } from 'lucide-react-native';
 import { characterAssets, cityLifeAsset } from '../../src/assets';
 import { locationImageSource } from '../../src/lib/locationImageSource';
-import { CharacterAvatar, EmptyState, LoadingSkeleton, PageTitle, Screen, SectionHeader } from '../../src/components';
+import { CharacterAvatar, EmptyState, LoadingSkeleton, PageTitle, Screen, SectionHeader } from '../../src/components/ui';
 import { colors, radius } from '../../src/theme';
 import { useTogether } from '../../src/store/useTogether';
 import { buildCompanionLife } from '../../src/lib/companionLife';

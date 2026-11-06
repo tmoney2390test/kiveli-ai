@@ -7,7 +7,6 @@ import { chatGenerationControlsMode, resolveDialogueRunGenerationProfile } from 
 import { providerGenerationControls } from '../../../packages/together-domain/src/chat-generation.ts';
 import { estimateAiCost, type NormalizedAiUsage } from '../../../packages/together-domain/src/ai-usage.ts';
 import { estimateContextTokens } from '../../../packages/together-domain/src/context-budget.ts';
-import { visibleDialoguePrefix } from '../../../packages/together-domain/src/chat-generation.ts';
 import { parseVeniceChunk, veniceSseData } from '../../../packages/together-domain/src/venice-stream.ts';
 import { recordAiUsage } from './kivelle-ai-usage.ts';
 import { AppError } from './types.ts';
@@ -23,6 +22,12 @@ export type ChatCompletionAdapter = {
   modelMatches: (requested: string, returned: string) => boolean;
   requireReturnedModel?: boolean;
 };
+
+/** WaveSpeed documents 403 as an account/key access failure. Keep it distinct
+ * from a content decision so a previously authorized chat can use its backup. */
+export class WaveSpeedAccessError extends AppError {
+  constructor() { super('PROVIDER_UNAVAILABLE', 'The primary chat provider is temporarily unavailable.', 503, true); }
+}
 
 export async function* streamTestChatCompletion(context: DialogueContext, options: DialogueRunOptions, adapter: ChatCompletionAdapter): AsyncGenerator<DialogueStreamEvent> {
   const experiment = options.route.experiment;
@@ -66,16 +71,17 @@ export async function* streamTestChatCompletion(context: DialogueContext, option
       if (chunk.model) { returnedModel = chunk.model; if (!adapter.modelMatches(model, returnedModel)) throw new Error(`${prefix}_MODEL_MISMATCH`); }
       if (chunk.usage) usage = chunk.usage;
       if (chunk.costUsd !== undefined) providerCostUsd = chunk.costUsd;
-      if (chunk.finishReason) { finishReason = chunk.finishReason; finished = ['stop', 'length'].includes(chunk.finishReason); if (!finished) throw new Error(`${prefix}_FINISH_REJECTED`); }
+      if (chunk.finishReason) { finishReason = chunk.finishReason; finished = chunk.finishReason === 'stop'; if (!finished) throw new Error(chunk.finishReason === 'length' ? `${prefix}_OUTPUT_LIMIT` : `${prefix}_FINISH_REJECTED`); }
       if (chunk.token) {
-        const limited = visibleDialoguePrefix(delivered + chunk.token, profile.visibleTokenBudget);
-        const token = limited.slice(delivered.length);
-        if (limited.length < delivered.length + chunk.token.length) options.visibleOutputTruncated = true;
-        delivered = limited;
-        if (token) { firstTokenLatencyMs ??= Date.now() - started; yield { type: 'token', token }; }
+        // The visible budget guides the model's length; clipping the stream at
+        // that estimate can sever a sentence even when the provider finished.
+        delivered += chunk.token;
+        firstTokenLatencyMs ??= Date.now() - started;
+        yield { type: 'token', token: chunk.token };
       }
     }
     if (!done || !finished || !delivered.trim() || adapter.requireReturnedModel && !returnedModel) throw new Error(`${prefix}_INCOMPLETE_REPLY`);
+    options.deliveredVisibleOutputTokensEstimate = estimateContextTokens(delivered.trim());
     if (usage && providerCostUsd !== undefined) usage.providerCostUsd = providerCostUsd;
     const estimatedCostUsd = estimateAiCost(provider, model, usage ?? upperUsage) ?? undefined;
     const costSource = providerCostUsd !== undefined ? 'provider' : usage ? 'estimated' : 'estimated_upper_bound';
@@ -85,6 +91,7 @@ export async function* streamTestChatCompletion(context: DialogueContext, option
   } catch (error) {
     errorCode ??= options.signal?.aborted ? 'CANCELLED' : error instanceof Error && error.message.startsWith(`${prefix}_`) ? error.message : controller.signal.aborted ? `${prefix}_REQUEST_TIMEOUT` : `${prefix}_STREAM_INTERRUPTED`;
     if (options.signal?.aborted) throw error;
+    if (production && response?.status === 403) throw new WaveSpeedAccessError();
     throw new AppError(response?.status === 429 ? 'RATE_LIMITED' : 'PROVIDER_UNAVAILABLE', production ? 'The reply could not finish. Please retry.' : `${adapter.label} could not finish this reply. Retry, or turn Chat model test off in Chat Settings → AI.`, response?.status === 429 ? 429 : 503, true);
   } finally {
     clearTimeout(deadline);

@@ -138,3 +138,18 @@ verify_jwt = false
 
 [functions.together-scenario]
 verify_jwt = false
+
+[functions.together-place]
+verify_jwt = true
+
+[functions.together-home-ops]
+verify_jwt = false
+
+[functions.together-home-artwork-dispatch]
+verify_jwt = false
+
+[functions.together-scene-reaction]
+verify_jwt = false
+
+[functions.together-account-recreate]
+verify_jwt = false

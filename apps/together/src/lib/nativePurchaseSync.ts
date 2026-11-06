@@ -12,7 +12,7 @@ export async function waitForAuthoritativeRestore(
     if(wait)await sleep(wait);
     try{
       const result=await refetch();
-      if(result.data?.tier&&result.data.tier!=='free')return{state:'active',data:result.data};
+      if(result.verification==='active'&&result.data?.tier&&result.data.tier!=='free')return{state:'active',data:result.data};
       if(result.verification==='verified_none'&&result.data?.tier==='free')return{state:'verified_none',data:result.data};
     }catch{return{state:'syncing'};}
   }

@@ -12,6 +12,7 @@ const MAX_CACHED_MESSAGES = 150;
 const FRESH_WARMUP_MS = 15_000;
 const cacheByUser = new Map<string, Map<string, CachedConversationMessagePage>>();
 const inFlightByScope = new Map<string, Promise<ConversationMessagePage>>();
+let cacheGeneration = 0;
 
 function userCache(userId: string): Map<string, CachedConversationMessagePage> {
   const existing = cacheByUser.get(userId);
@@ -28,6 +29,40 @@ export function readConversationMessagePage(userId: string, conversationId: stri
   cache.delete(conversationId);
   cache.set(conversationId, entry);
   return entry;
+}
+
+export function conversationPageNeedsLatest(userId: string, conversationId: string, lastMessageAt: string | null | undefined): boolean {
+  const cached = readConversationMessagePage(userId, conversationId);
+  if (!cached) return true;
+  if (!lastMessageAt) return false;
+  const latestCachedAt = cached.messages.reduce((latest, message) => Math.max(latest, Date.parse(message.created_at) || 0), 0);
+  return Date.parse(lastMessageAt) > latestCachedAt;
+}
+
+export function latestCachedConversationMessageAt(userId: string, conversationId: string): string | null {
+  const messages = readConversationMessagePage(userId, conversationId)?.messages ?? [];
+  return messages.reduce<string | null>((latest, message) =>
+    !latest || Date.parse(message.created_at) > Date.parse(latest) ? message.created_at : latest, null);
+}
+
+/** An old stream cannot repopulate private data after sign-out or a cache reset. */
+export function conversationMessageCacheGeneration(): number {
+  return cacheGeneration;
+}
+
+/** Apply canonical stream messages even when their chat screen has unmounted. */
+export function mergeConversationMessagePage(
+  userId: string,
+  conversationId: string,
+  incoming: Message[],
+  expectedGeneration: number,
+): CachedConversationMessagePage | null {
+  if (expectedGeneration !== cacheGeneration) return null;
+  const existing = readConversationMessagePage(userId, conversationId);
+  return writeConversationMessagePage(userId, conversationId, {
+    messages: reconcileMessages(existing?.messages ?? [], incoming.filter((message) => message.conversation_id === conversationId)),
+    hasMore: existing?.hasMore ?? true,
+  }, existing?.loadedAt ?? 0);
 }
 
 export function writeConversationMessagePage(
@@ -66,11 +101,16 @@ export function loadConversationMessagePage(
   const existing = inFlightByScope.get(scope);
   if (existing) return existing;
   const request = loader()
-    .then((result) => writeConversationMessagePage(userId, conversationId, {
-      messages: reconcileMessages(readConversationMessagePage(userId,conversationId)?.messages ?? [], [...result.messages].reverse()),
-      hasMore: result.hasMore,
-    }))
-    .finally(() => inFlightByScope.delete(scope));
+    .then((result) => {
+      // Sign-out can clear the cache while this request is still on the wire.
+      // A new session may even have started another load for the same key.
+      if (inFlightByScope.get(scope) !== request) return { ...result, messages: [...result.messages].reverse() };
+      return writeConversationMessagePage(userId, conversationId, {
+        messages: reconcileMessages(readConversationMessagePage(userId,conversationId)?.messages ?? [], [...result.messages].reverse()),
+        hasMore: result.hasMore,
+      });
+    })
+    .finally(() => { if (inFlightByScope.get(scope) === request) inFlightByScope.delete(scope); });
   inFlightByScope.set(scope, request);
   return request;
 }
@@ -81,11 +121,13 @@ export function prefetchConversationMessagePage(userId: string | undefined, conv
 }
 
 export function resetConversationMessageWarmupForTests(): void {
+  cacheGeneration += 1;
   cacheByUser.clear();
   inFlightByScope.clear();
 }
 
 export function clearConversationMessageWarmup():void{
+  cacheGeneration += 1;
   cacheByUser.clear();
   inFlightByScope.clear();
 }

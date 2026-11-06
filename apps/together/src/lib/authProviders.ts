@@ -16,7 +16,7 @@ export function authProviderState(user: User | null | undefined): AuthProviderSt
   for (const provider of metadataProviders) if (typeof provider === 'string') values.add(provider);
   if (typeof user.app_metadata?.provider === 'string') values.add(user.app_metadata.provider);
   const providers = (['google', 'apple', 'email'] as const).filter((provider) => values.has(provider));
-  const names = providers.map((provider) => provider === 'email' ? 'Email code' : provider === 'google' ? 'Google' : 'Apple');
+  const names = providers.map((provider) => provider === 'email' ? 'Email' : provider === 'google' ? 'Google' : 'Apple');
   const label = names.length ? `Signed in with ${joinProviderNames(names)}` : 'Signed in';
   return {
     providers,

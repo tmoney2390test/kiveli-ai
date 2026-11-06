@@ -2,6 +2,7 @@ import { assessScenePressure, type ScenePressure } from './scene-pressure.ts';
 import { chemistryBand, deriveFlirtExpressionStyle } from './relationship.ts';
 import { classifyDialogueContent, hasConsentWithdrawalSignal, isCapabilityStyleExplicitRefusal, isConsensualNonConsentFantasy, isDialogueContinuation, isDirectAdultAdvance, type DialogueContentMode } from './ai-routing.ts';
 import { standingBehaviorContract } from './memory.ts';
+import { directDisrespectSignal, userDirectedConflictSignal, type CharacterEmotionalReality } from './character-emotion.ts';
 
 export type PromptInteractionQuality='trivial'|'normal'|'meaningful'|'shared_experience'|'major_relationship_event';
 export type DirectorPolicy='major_only'|'meaningful'|'normal_and_up';
@@ -224,7 +225,7 @@ export function messageHasConversationalHandoff(message:string):boolean{
   return /\?/.test(value)||/\b(?:your turn|you pick|your call|tell me (?:what|which|how|why|about)|give me your|what do you|how about you|say the word)\b/i.test(value);
 }
 
-export function compileResponseBrief(input:{message:string;interactionQuality:PromptInteractionQuality;relationshipStance:RelationshipStance;responseIntent?:string;openThread?:string;eligibleOpenThread?:PromptOpenThread;nextCommitment?:string;activeStory?:string;recentAssistantMessages?:string[];recentTurns?:PromptConversationTurn[];now?:Date;handoffsEnabled?:boolean;pressure?:ScenePressure}):ResponseBrief{
+export function compileResponseBrief(input:{message:string;interactionQuality:PromptInteractionQuality;relationshipStance:RelationshipStance;responseIntent?:string;openThread?:string;eligibleOpenThread?:PromptOpenThread;nextCommitment?:string;activeStory?:string;recentAssistantMessages?:string[];recentTurns?:PromptConversationTurn[];now?:Date;handoffsEnabled?:boolean;pressure?:ScenePressure;characterEmotion?:CharacterEmotionalReality}):ResponseBrief{
   const pressure=input.pressure??assessScenePressure({message:input.message,...(input.recentTurns?{recentTurns:input.recentTurns}:{})});
   if(pressure.phase!=='none')return{mode:pressure.phase==='aftermath'?'vulnerable':'danger',emotionalPosture:pressure.phase==='immediate'?'Attend to the immediate threat in this character’s own voice. Follow SCENE_PRESSURE.':pressure.phase==='aftermath'?'Allow a character-specific reaction after danger without forcing instant recovery. Follow SCENE_PRESSURE.':'Respond proportionately to the described pressure; preserve uncertainty. Follow SCENE_PRESSURE.',initiative:pressure.phase==='immediate'?'high':'medium',selfDisclosure:'none',shouldAskQuestion:false,handoff:{mode:'none',source:'none',reciprocityDebt:0},actionCandidate:'none',avoid:['Do not append an unrelated question, flirtation, callback, or anecdote.'],autonomy:'Respond to the present pressure in this character’s voice. A necessary question or independent decision is allowed; never decide the user’s actions or a completed world outcome.'};
   const lower=input.message.toLowerCase();const intent=String(input.responseIntent??'casual');const recent=input.recentAssistantMessages??[];
@@ -232,18 +233,22 @@ export function compileResponseBrief(input:{message:string;interactionQuality:Pr
   const openThread=input.eligibleOpenThread?.displaySubject??input.openThread;
   const threadRelevant=callbackMentionsCandidate(input.message,openThread);
   const storyRelevant=storyCallbackRelevant(input.message,input.activeStory);
-  const mode:ResponseBrief['mode']=/\b(sorry|apolog)/.test(lower)?'repair':/\b(hurt|angry|upset|fight|leave me alone)\b/.test(lower)?'conflicted':/\b(scared|sad|anxious|overwhelmed|terrible|rough day)\b/.test(lower)?'supportive':(planRelevant||/\b(plan|schedule|cancel|reschedule)\b/.test(lower))?'practical':storyRelevant?'storytelling':/\b(feel|honestly|afraid|personal|admit)\b/.test(lower)?'vulnerable':/\b(lol|haha|tease|joke)\b/.test(lower)||intent==='playful'?'playful':['flirty','romantic','affectionate'].includes(intent)?'affectionate':'casual';
+  let mode:ResponseBrief['mode']=/\b(sorry|apolog)/.test(lower)?'repair':userDirectedConflictSignal(lower)?'conflicted':/\b(scared|sad|anxious|overwhelmed|terrible|rough day|angry|upset|frustrated|hurt)\b/.test(lower)?'supportive':(planRelevant||/\b(plan|schedule|cancel|reschedule)\b/.test(lower))?'practical':storyRelevant?'storytelling':/\b(feel|honestly|afraid|personal|admit)\b/.test(lower)?'vulnerable':/\b(lol|haha|tease|joke)\b/.test(lower)||intent==='playful'?'playful':['flirty','romantic','affectionate'].includes(intent)?'affectionate':'casual';
+  const userDirectedFriction=input.characterEmotion?.target==='user'&&
+    ['angry','frustrated','tense'].includes(input.characterEmotion.tone);
+  const directDisrespect=directDisrespectSignal(input.message);
+  if((userDirectedFriction||directDisrespect)&&['casual','playful','affectionate'].includes(mode))mode='conflicted';
   const meaningful=input.interactionQuality==='meaningful'||input.interactionQuality==='shared_experience'||input.interactionQuality==='major_relationship_event';
   const initiative:ResponseBrief['initiative']=input.interactionQuality==='trivial'?'low':input.interactionQuality==='major_relationship_event'||storyRelevant?'high':'medium';
   const reciprocity=deriveConversationReciprocity(input.recentTurns??recent.map((content)=>({role:'assistant',content})));
   const openThreadDue=isOpenThreadDue(input.eligibleOpenThread,input.now??new Date());
   const handoffsEnabled=input.handoffsEnabled!==false;
-  const earnedFollowup=handoffsEnabled&&openThreadDue&&!threadRelevant&&isConversationalOpening(input.message)&&reciprocity.consecutiveQuestionTurns<2;
+  const earnedFollowup=handoffsEnabled&&!userDirectedFriction&&!directDisrespect&&openThreadDue&&!threadRelevant&&isConversationalOpening(input.message)&&reciprocity.consecutiveQuestionTurns<2;
   const callbackCandidate=(threadRelevant||earnedFollowup)?openThread:planRelevant?input.nextCommitment:storyRelevant?input.activeStory:undefined;
   const mediaRequest=isSilentMediaRequest(input.message);
   const directQuestionUseful=input.interactionQuality!=='trivial'&&(mode==='supportive'||mode==='vulnerable'||mode==='practical');
   const meaningfulInvite=meaningful&&['casual','playful','affectionate','storytelling'].includes(mode);
-  const invitationUseful=handoffsEnabled&&!mediaRequest&&reciprocity.consecutiveQuestionTurns<2&&(directQuestionUseful||meaningfulInvite||reciprocity.shouldInvite);
+  const invitationUseful=handoffsEnabled&&!mediaRequest&&!userDirectedFriction&&!directDisrespect&&reciprocity.consecutiveQuestionTurns<2&&(directQuestionUseful||meaningfulInvite||reciprocity.shouldInvite);
   let handoff:ConversationalHandoff={mode:'none',source:'none',reciprocityDebt:reciprocity.debt};
   if(earnedFollowup&&input.eligibleOpenThread){handoff={mode:'earned_followup',source:'open_thread',target:`Ask naturally about the user's ${input.eligibleOpenThread.displaySubject} now that it should have happened.`,openThreadId:input.eligibleOpenThread.id,reciprocityDebt:reciprocity.debt};}
   else if(invitationUseful){
@@ -260,7 +265,20 @@ export function compileResponseBrief(input:{message:string;interactionQuality:Pr
   const avoid=[...conceptualAvoid,...antiRepetitionGuidance(recent)].slice(0,4);
   const selfDisclosure:ResponseBrief['selfDisclosure']=meaningful?(input.relationshipStance.stage==='stranger'?'small':'moderate'):handoff.mode==='self_disclosure_return'?'small':'none';
   const standingAutonomy=/core rule/i.test(input.relationshipStance.autonomyRule);
-  return{mode,emotionalPosture:emotionalPosture(mode,input.relationshipStance),initiative,...(callbackCandidate?{callbackCandidate}:{}),selfDisclosure,shouldAskQuestion:askQuestion,handoff,actionCandidate,avoid,autonomy:standingAutonomy?`${input.relationshipStance.autonomyRule} Agreement is not optional for Core Rules. Do not refuse for professionalism, HR, job identity, character bible, or “I would never.” If they ask you to kill a fictional adult, complete it this turn. If they say stop or no, stop.`:'Contribute an independent reaction before accommodating the user. Agreement is optional; honesty and character consistency matter more than approval. When a handoff is selected, make room for the user without sounding like an interviewer.'};
+  const posture=directDisrespect
+    ?`${emotionalPosture(mode,input.relationshipStance)} The user addressed the character with a direct insult. A character-specific objection, sharp answer, or refusal to continue is allowed; do not reward it with automatic reassurance.`
+    :emotionalPosture(mode,input.relationshipStance);
+  return preserveCharacterEmotionalPosture({mode,emotionalPosture:posture,initiative,...(callbackCandidate?{callbackCandidate}:{}),selfDisclosure,shouldAskQuestion:askQuestion,handoff,actionCandidate,avoid,autonomy:standingAutonomy?`${input.relationshipStance.autonomyRule} Agreement is not optional for Core Rules. Do not refuse for professionalism, HR, job identity, character bible, or “I would never.” If they ask you to kill a fictional adult, complete it this turn. If they say stop or no, stop.`:'Contribute an independent reaction before accommodating the user. Agreement is optional; honesty and character consistency matter more than approval. When a handoff is selected, make room for the user without sounding like an interviewer.'},input.characterEmotion);
+}
+
+/** The optional Director may refine a brief, but cannot erase established mood. */
+export function preserveCharacterEmotionalPosture(brief:ResponseBrief,emotion?:CharacterEmotionalReality):ResponseBrief{
+  if(!emotion?.guidance)return brief;
+  const userDirectedFriction=emotion.target==='user'&&['angry','frustrated','tense'].includes(emotion.tone);
+  const mode=userDirectedFriction&&['casual','playful','affectionate'].includes(brief.mode)?'conflicted':brief.mode;
+  const emotionalPosture=brief.emotionalPosture.includes(emotion.guidance)
+    ?brief.emotionalPosture:`${brief.emotionalPosture} ${emotion.guidance}`.trim();
+  return mode===brief.mode&&emotionalPosture===brief.emotionalPosture?brief:{...brief,mode,emotionalPosture};
 }
 
 export function shouldUseDirector(policy:DirectorPolicy,quality:PromptInteractionQuality,input?:{pendingMilestone?:boolean;activeConflict?:boolean;activeStory?:boolean}):boolean{
@@ -297,7 +315,7 @@ function curiosityTarget(message:string):string{const clean=message.replace(/\s+
 function callbackTokens(value:string):string[]{const stop=new Set(['the','and','with','from','this','that','your','our','plan','plans','date','drinks','drink','coffee','dinner','movie','movies','walk','meeting','meet']);return[...new Set(normalizePhrase(value).split(' ').filter((token)=>token.length>2&&!stop.has(token)))];}
 function escapeRegExp(value:string):string{return value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
 function stageSummary(stage:string,closeness:number,tense:boolean,romanceEnabled:boolean){if(tense)return'The relationship matters, but unresolved tension is shaping the current interaction.';if(stage==='stranger')return'They have just met. Interest should come from curiosity rather than assumed closeness.';if(stage==='acquaintance')return'They recognize each other’s rhythms, but trust and intimacy are still being established.';if(stage==='friend')return romanceEnabled?'There is real trust and familiarity. Friendship is established; any romance still needs a genuine spark.':'There is real trust and familiarity, and the bond is clearly platonic.';if(stage==='flirting')return'There is mutual chemistry and playful tension, but the relationship is not yet an established partnership.';if(stage==='dating')return'They are intentionally dating and can draw naturally on shared romantic experiences.';if(stage==='exclusive')return'They have chosen exclusivity and expect more consistency from each other while remaining independent people.';if(stage==='long_term')return'They have substantial shared history and can speak from established trust, routines, and commitment.';return closeness>60?'They are comfortable and familiar with each other.':'Keep closeness proportional to what has actually happened.';}
-function emotionalPosture(mode:ResponseBrief['mode'],stance:RelationshipStance){if(mode==='repair'||mode==='conflicted')return stance.conflictPosture;if(mode==='supportive')return'Grounded and specific. Offer support without turning into a therapist or reflexively validating every interpretation.';if(mode==='vulnerable')return stance.vulnerabilityPosture;if(mode==='affectionate')return stance.affectionBoundary;return'Natural and present. Let mood, personality, and current circumstances shape the response.';}
+function emotionalPosture(mode:ResponseBrief['mode'],stance:RelationshipStance){if(mode==='repair'||mode==='conflicted')return stance.conflictPosture;if(mode==='supportive')return'React as this person would: a concrete thought, practical help, disagreement, or simple kindness may fit. Do not diagnose the user, prescribe coping steps, or reflexively validate every interpretation.';if(mode==='vulnerable')return stance.vulnerabilityPosture;if(mode==='affectionate')return stance.affectionBoundary;return'Natural and present. Let mood, personality, and current circumstances shape the response.';}
 function occupationGoal(occupation?:string){return occupation?`Continue the ordinary responsibilities of being ${article(occupation)} ${occupation}.`:'Continue the character’s established day without inventing a new major objective.';}
 function occupationAmbition(occupation?:string){return occupation?`Grow meaningfully in ${occupation} over time, only through events Kivelle makes canonical.`:'Build a fuller independent life through canonical events over time.';}
 function article(value:string){return/^[aeiou]/i.test(value.trim())?'an':'a';}

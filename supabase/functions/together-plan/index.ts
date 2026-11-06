@@ -11,12 +11,14 @@ import { cancelSharedPlan, createSharedPlan, focusConversationOnPlan, reschedule
 import { track } from '../_shared/together.ts';
 import { recordGroupPlanCommitment } from '../_shared/together-group-plans.ts';
 import { loadPlanHistory } from '../_shared/together-plan-history.ts';
+import { changePlanActivity } from '../_shared/plan-activity.ts';
 
 const source=z.enum(['chat','manual_planner','location','discover','date','story']);
 const precision=z.enum(['exact','approximate','daypart','window','day']);
 const participation=z.enum(['live','flexible','ambient']);
 const timingChoice=z.enum(['now','in_one_hour','custom']);
 const schema=z.discriminatedUnion('action',[
+  z.object({action:z.literal('change_activity'),planId:z.string().uuid(),conversationId:z.string().uuid(),activity:z.string().trim().min(1).max(120),requestId:z.string().min(8).max(120)}),
   z.object({action:z.literal('create'),characterInstanceId:z.string().uuid(),activityKey:z.string().trim().min(1).max(120),locationId:z.string().uuid(),startsAt:z.string().datetime().optional(),timingChoice:timingChoice.optional(),windowStartsAt:z.string().datetime().optional(),windowEndsAt:z.string().datetime().optional(),timePrecision:precision.optional(),originalTimeExpression:z.string().trim().max(160).optional(),participationMode:participation.optional(),note:z.string().trim().max(1000).optional(),source,sourceConversationId:z.string().uuid().optional(),sourceMessageId:z.string().uuid().optional(),requestId:z.string().min(8).max(100),title:z.string().trim().max(160).optional(),durationMinutes:z.number().int().min(30).max(360).optional()}),
   z.object({action:z.literal('switch'),currentPlanId:z.string().uuid(),characterInstanceId:z.string().uuid(),activityKey:z.string().trim().min(1).max(120),locationId:z.string().uuid(),sourceConversationId:z.string().uuid(),requestId:z.string().min(8).max(100),title:z.string().trim().max(160).optional(),durationMinutes:z.number().int().min(30).max(360).optional(),sceneId:z.string().uuid().optional()}),
   z.object({action:z.literal('reschedule'),planId:z.string().uuid(),startsAt:z.string().datetime().optional(),windowStartsAt:z.string().datetime().optional(),windowEndsAt:z.string().datetime().optional(),timePrecision:precision.optional(),originalTimeExpression:z.string().trim().max(160).optional(),conversationId:z.string().uuid().optional()}),
@@ -40,6 +42,7 @@ serve(async(request,correlationId)=>{
   const input=await parseBody(request,schema);
   const continuity=await activeContinuity(db,user.id);
   const userTimezone=request.headers.get('x-kivelle-timezone')??'UTC';
+  if(input.action==='change_activity')return json({data:await changePlanActivity(db,{...input,userId:user.id,continuityId:continuity.id}),correlationId},200,correlationId);
 
   if(input.action==='list'){
     let query=db.from('together_shared_plans').select('*,together_locations(id,name,slug),together_plan_attendance(*),together_plan_participant_responses(*),together_missed_plan_resolutions(*)').eq('user_id',user.id).eq('continuity_id',continuity.id).order('starts_at',{ascending:true,nullsFirst:false}).order('created_at');

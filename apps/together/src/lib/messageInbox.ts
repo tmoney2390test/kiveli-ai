@@ -268,9 +268,7 @@ export function inboxPreview(
     return "Message failed · Open to retry";
   }
   if (conversation.reply_pending) {
-    return conversation.reply_pending_speaker_name
-      ? `${firstName(conversation.reply_pending_speaker_name)} is typing…`
-      : "Typing…";
+    return typingPreview(conversation.reply_pending_speaker_name);
   }
   const preview = conversation.last_message_preview?.replace(/\s+/g, " ")
     .trim();
@@ -313,14 +311,15 @@ export function mergeInboxConversations(
     if (!cached) return conversation;
     const canonicalTime = timestamp(conversation.last_message_at);
     const cachedTime = timestamp(cached.last_message_at);
-    if (canonicalTime > cachedTime) return conversation;
-    return {
+    if (canonicalTime > cachedTime) return preferNewerReadState(conversation, cached);
+    return preferNewerReadState({
       ...conversation,
       last_message_at: cached.last_message_at ?? conversation.last_message_at,
       last_message_preview: cached.last_message_preview,
       last_message_role: cached.last_message_role,
       last_message_delivery_status: cached.last_message_delivery_status,
       last_message_attachment_kind: cached.last_message_attachment_kind,
+      last_read_at: cached.last_read_at,
       // The inbox response derives these fields from current dialogue-turn and
       // safe-projection state. On equal timestamps it is authoritative: keeping
       // a previous `true` here strands the rail on Typing… until a full reload.
@@ -331,8 +330,44 @@ export function mergeInboxConversations(
       message_count: cached.message_count ?? conversation.message_count,
       unread: cached.unread ?? conversation.unread,
       unread_count: cached.unread_count ?? conversation.unread_count,
-    };
+    }, conversation);
   });
+}
+
+export function typingPreview(speakerName?: string | null): string {
+  const name = speakerName?.trim();
+  return `${name ? firstName(name) : "Someone"} is typing…`;
+}
+
+/** A new chat opened on another device can arrive before this device refreshes its character roster. */
+export function missingInboxCharacterIds(
+  conversations: Conversation[],
+  characters: CharacterInstance[],
+): string[] {
+  const known = new Set(characters.map((character) => character.id));
+  return [...new Set(conversations
+    .filter(isActiveInboxConversation)
+    .map((conversation) => conversation.character_instance_id)
+    .filter((id): id is string => Boolean(id) && !known.has(id)))];
+}
+
+/** A read acknowledged after an inbox request started must win that older response. */
+export function preferNewerReadState(incoming: Conversation, local?: Conversation): Conversation {
+  if (!local || local.id !== incoming.id ||
+    timestamp(local.last_read_at ?? null) <= timestamp(incoming.last_read_at ?? null)) return incoming;
+  const readAt = timestamp(local.last_read_at ?? null);
+  const assistantAt = Math.max(
+    timestamp(incoming.last_assistant_message_at ?? null),
+    timestamp(local.last_assistant_message_at ?? null),
+    incoming.last_message_role === 'assistant' ? timestamp(incoming.last_message_at) : 0,
+  );
+  const unread = assistantAt > readAt;
+  return {
+    ...incoming,
+    last_read_at: local.last_read_at,
+    unread,
+    ...(incoming.kind === 'group' ? { unread_count: unread ? Math.max(1, incoming.unread_count ?? 0) : 0 } : {}),
+  };
 }
 
 export function groupParticipantLine(group?: InboxGroupDetail): string {
@@ -356,7 +391,33 @@ export function conversationWithLastMessage(
     last_message_at: message.created_at,
     last_message_preview: preview,
     last_message_role: message.role,
+    ...(message.role === 'assistant' ? {
+      last_assistant_message_at: message.created_at,
+      unread: timestamp(message.created_at) > timestamp(conversation.last_read_at ?? null),
+    } : {}),
   };
+}
+
+/** A completed stream can outrun an eventually consistent inbox read. */
+export function preferNewerCompletedPreview(server: Conversation, completed?: Conversation): Conversation {
+  const current = preferNewerReadState(server, completed);
+  if (!completed || completed.id !== server.id || completed.last_message_role !== 'assistant' ||
+    timestamp(completed.last_message_at) <= timestamp(server.last_message_at)) return current;
+  return preferNewerReadState({
+    ...current,
+    last_message_at: completed.last_message_at,
+    last_message_preview: completed.last_message_preview,
+    last_message_role: completed.last_message_role,
+    last_message_delivery_status: completed.last_message_delivery_status,
+    last_message_attachment_kind: completed.last_message_attachment_kind,
+    last_speaker_name: completed.last_speaker_name ?? server.last_speaker_name,
+    last_speaker_character_instance_id: completed.last_speaker_character_instance_id ?? server.last_speaker_character_instance_id,
+    reply_pending: false,
+    reply_pending_speaker_name: null,
+    last_assistant_message_at: completed.last_message_at,
+    unread: timestamp(completed.last_message_at) > timestamp(current.last_read_at ?? null),
+    ...(current.kind === 'group' ? { unread_count: timestamp(completed.last_message_at) > timestamp(current.last_read_at ?? null) ? Math.max(1, current.unread_count ?? 0) : 0 } : {}),
+  }, completed);
 }
 
 export function formatInboxTimestamp(

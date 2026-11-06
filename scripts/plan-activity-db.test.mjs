@@ -1,0 +1,29 @@
+import { PGlite } from '@electric-sql/pglite';
+import { readFile } from 'node:fs/promises';
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+const sql=await readFile(new URL('../supabase/migrations/20261105224813_plan_activity_picker.sql',import.meta.url),'utf8');
+const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+async function fixture(){
+ const db=new PGlite();await db.exec(`create role anon;create role authenticated;create role service_role;
+ create table together_shared_plans(id uuid primary key,user_id uuid,continuity_id uuid,character_instance_id uuid,source_conversation_id uuid,status text,source text,starts_at timestamptz,ends_at timestamptz,location_id uuid,activity_key text,title text,updated_at timestamptz,metadata jsonb default '{}');
+ create table together_conversations(id uuid primary key,user_id uuid,continuity_id uuid,character_instance_id uuid,kind text,archived_at timestamptz,metadata jsonb default '{}',updated_at timestamptz);
+ create table together_scene_sessions(id uuid primary key,shared_plan_id uuid,user_id uuid,continuity_id uuid,ended_at timestamptz,activity_key text,state jsonb,updated_at timestamptz);
+ create table together_plan_attendance(plan_id uuid,user_id uuid,participant_type text,left_at timestamptz);
+ create table together_conversation_events(user_id uuid,character_instance_id uuid,conversation_id uuid,event_type text,entity_type text,entity_id uuid,metadata jsonb);
+ insert into together_shared_plans values('${id(1)}','${id(2)}','${id(3)}','${id(4)}','${id(5)}','active','chat',now()-interval '10 minutes',now()+interval '1 hour','${id(6)}','coffee','Coffee',now(),'{}');
+ insert into together_conversations values('${id(5)}','${id(2)}','${id(3)}','${id(4)}','group',null,'{"activeScene":{"sceneSessionId":"${id(7)}","locationId":"${id(6)}","activityKey":"coffee"}}',now());
+ insert into together_scene_sessions values('${id(7)}','${id(1)}','${id(2)}','${id(3)}',null,'coffee','{"photoReference":"keep-me","activity":{"type":"coffee"}}',now()),('${id(8)}','${id(1)}','${id(2)}','${id(3)}',null,'coffee','{}',now());
+ insert into together_plan_attendance values('${id(1)}','${id(2)}','user',null);`);
+ await db.exec(sql);return db;
+}
+const change=(db,activity='Paint a model ship',request='request-123',user=id(2),conversation=id(5))=>db.query('select kivelli_change_plan_activity($1,$2,$3,$4,$5,$6,$7)',[user,id(3),id(1),conversation,activity,request,{type:activity,actions:[]}]);
+test('updates the same plan, every group scene and chat metadata without touching timing or media',async()=>{
+ const db=await fixture();try{const before=(await db.query('select * from together_shared_plans')).rows[0];await change(db);const after=(await db.query('select * from together_shared_plans')).rows[0];assert.equal(after.activity_key,'Paint a model ship');assert.equal(after.title,'Paint a model ship');for(const k of ['id','location_id','starts_at','ends_at','status','source_conversation_id'])assert.equal(String(after[k]),String(before[k]));const scenes=(await db.query('select * from together_scene_sessions order by id')).rows;assert.ok(scenes.every(s=>s.activity_key==='Paint a model ship'));assert.equal(scenes[0].state.photoReference,'keep-me');const c=(await db.query('select metadata from together_conversations')).rows[0].metadata;assert.equal(c.activeScene.activityKey,'Paint a model ship');assert.equal(c.activeScene.locationId,id(6));}finally{await db.close();}
+});
+test('idempotent retries do not duplicate activity events or undo a later activity',async()=>{const db=await fixture();try{await change(db);await change(db,'Cook dinner','request-456');await change(db);assert.equal((await db.query('select activity_key from together_shared_plans')).rows[0].activity_key,'Cook dinner');assert.equal((await db.query('select count(*)::int as n from together_conversation_events')).rows[0].n,2);await assert.rejects(change(db,'Different action'),/ACTIVITY_REQUEST_REUSED/);}finally{await db.close();}});
+test('rejects another account or unrelated conversation',async()=>{const db=await fixture();try{await assert.rejects(change(db,'Paint','request-123',id(99)),/PLAN_NOT_FOUND/);await assert.rejects(change(db,'Paint','request-123',id(2),id(99)),/PLAN_CONVERSATION_MISMATCH/);}finally{await db.close();}});
+test('rejects ended plans and absent attendance',async()=>{const db=await fixture();try{await db.exec("update together_shared_plans set status='completed'");await assert.rejects(change(db),/PLAN_NOT_ACTIVE/);await db.exec("update together_shared_plans set status='active';update together_plan_attendance set left_at=now()");await assert.rejects(change(db),/PLAN_NOT_ACTIVE/);}finally{await db.close();}});
+test('validates blank and oversized activities',async()=>{const db=await fixture();try{await assert.rejects(change(db,'  '),/ACTIVITY_INVALID/);await assert.rejects(change(db,'x'.repeat(121)),/ACTIVITY_INVALID/);}finally{await db.close();}});
+test('rolls the plan back if a scene mutation fails',async()=>{const db=await fixture();try{await db.exec("alter table together_scene_sessions add constraint test_failure check(activity_key='coffee')");await assert.rejects(change(db));assert.equal((await db.query('select activity_key from together_shared_plans')).rows[0].activity_key,'coffee');assert.equal((await db.query('select count(*)::int as n from together_conversation_events')).rows[0].n,0);}finally{await db.close();}});
+test('browser roles cannot invoke the privileged transaction',async()=>{const db=await fixture();try{const rows=(await db.query("select has_function_privilege('authenticated','kivelli_change_plan_activity(uuid,uuid,uuid,uuid,text,text,jsonb)','execute') as browser,has_function_privilege('service_role','kivelli_change_plan_activity(uuid,uuid,uuid,uuid,text,text,jsonb)','execute') as server")).rows[0];assert.deepEqual(rows,{browser:false,server:true});}finally{await db.close();}});

@@ -45,6 +45,18 @@ describe('home presentation', () => {
     expect(scopes.selectedWorld?.id).toBe(juniper.id);
   });
 
+  it('uses the edited image preview rather than its unedited parent', () => {
+    const photos = getCompanionMedia({
+      characters: [{ id: 'maya', together_character_templates: { name: 'Maya' } }],
+      generatedMedia: [
+        { id: 'edit', parent_media_id: 'original', character_instance_id: 'maya', media_type: 'image', status: 'ready', signed_url: 'https://test/edit', preview_url: 'https://test/edit-preview', created_at: '2026-10-26T12:00:00Z' },
+        { id: 'original', character_instance_id: 'maya', media_type: 'image', status: 'ready', signed_url: 'https://test/original', preview_url: 'https://test/original-preview', created_at: '2026-10-25T12:00:00Z' },
+      ], moments: [], lifeEvents: [], dates: [], locations: [],
+    } as unknown as Snapshot, 'maya');
+    expect(photos[0]).toMatchObject({ id: 'edit', thumbnailUrl: 'https://test/edit', previewUrl: 'https://test/edit-preview' });
+    expect(photos[0]?.cacheKey).not.toBe(photos[1]?.cacheKey);
+  });
+
   it('does not select an ops-hidden world as a browseable Home world', () => {
     const current = { id: 'current', slug: 'current', name: 'Current', published: true } as Snapshot['worlds'][number];
     const hidden = { id: 'hidden', slug: 'hidden', name: 'Hidden', published: true, metadata: { catalog_status: 'hidden' } } as unknown as Snapshot['worlds'][number];

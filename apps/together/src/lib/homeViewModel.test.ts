@@ -70,6 +70,40 @@ describe('buildHomeViewModel', () => {
     expect(model?.timeline[2]?.time).toBe('9:00 AM');
   });
 
+  it('recognizes a scheduled home activity even when its legacy place is a district', () => {
+    const chloe = snapshot.characters[0];
+    if (!chloe) throw new Error('Chloe fixture is required.');
+    const model = buildHomeViewModel({
+      ...snapshot,
+      characters: [{ ...chloe, current_location_id: 'district', current_schedule_event_id: 'home-block', current_presence_source: 'schedule' }],
+      locations: [...snapshot.locations, { id: 'district', world_id: 'city', name: 'Civic Commons', slug: 'civic-commons', location_type: 'district', description: '', category: 'district', possible_activities: [], sort_order: 2, metadata: {} }],
+      scheduleEvents: [{ id: 'home-block', user_id: 'user', continuity_id: 'life', character_instance_id: 'chloe-instance', location_id: 'district', activity_key: 'home', title: 'Cooking a meal', starts_at: '2026-08-16T10:00:00.000Z', ends_at: '2026-08-16T12:00:00.000Z', priority: 'routine', visibility: 'known', source: 'generated', interruptibility: 'limited', participant_instance_ids: ['chloe-instance'], generation_key: 'home-block', generation_version: '1', metadata: {}, created_at: '2026-08-16T10:00:00.000Z', updated_at: '2026-08-16T10:00:00.000Z' }],
+    } as unknown as Snapshot, now);
+    expect(model?.atHome).toBe(true);
+    expect(model?.hero.statusLine.startsWith('At home')).toBe(true);
+  });
+
+  it('shows Home for an upcoming home event instead of its old district location', () => {
+    const model = buildHomeViewModel({
+      ...snapshot,
+      locations: [...snapshot.locations, { id: 'district', world_id: 'city', name: 'Civic Commons', slug: 'civic-commons', location_type: 'district', description: '', category: 'district', possible_activities: [], sort_order: 2, metadata: {} }],
+      scheduleEvents: [{ id: 'future-home', user_id: 'user', continuity_id: 'life', character_instance_id: 'chloe-instance', location_id: 'district', activity_key: 'home', title: 'Cooking a meal', starts_at: '2026-08-16T12:00:00.000Z', ends_at: '2026-08-16T13:00:00.000Z', priority: 'routine', visibility: 'known', source: 'recurring', interruptibility: 'open', participant_instance_ids: ['chloe-instance'], generation_key: 'future-home', generation_version: '1', metadata: {}, created_at: '2026-08-16T11:00:00.000Z', updated_at: '2026-08-16T11:00:00.000Z' }],
+    } as unknown as Snapshot, now);
+    const home = model?.timeline.find((item) => item.id === 'schedule:future-home');
+    expect(home?.detail).toBe('Home');
+    expect(home?.locationId).toBeUndefined();
+  });
+
+  it('shows Home for an upcoming authored home block before event materialization', () => {
+    const model = buildHomeViewModel({
+      ...snapshot,
+      schedules: [...snapshot.schedules, { id: 'authored-home', character_version_id: 'chloe-version', day_of_week: 0, start_minute: 480, end_minute: 535, location_id: null, activity: 'Cooking a meal', availability: 'available', energy_delta: 0, metadata: { displayLocation: 'Home', activityKey: 'home' } }],
+    } as unknown as Snapshot, now);
+    const home = model?.timeline.find((item) => item.id === 'legacy-schedule:authored-home:480');
+    expect(home?.detail).toBe('Home');
+    expect(home?.locationId).toBeUndefined();
+  });
+
   it('features the companion from the most recently active chat instead of the stored active companion', () => {
     const chloe=snapshot.characters[0];
     const chloeConversation=snapshot.conversations[0];

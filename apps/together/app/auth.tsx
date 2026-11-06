@@ -1,3 +1,4 @@
+import { DeletedAccountState } from '../src/components/DeletedAccountState';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -6,7 +7,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { CircleCheck } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GradientButton } from '../src/components';
+import { GradientButton } from '../src/components/ui';
 import { GoogleMark } from '../src/components/GoogleMark';
 import { AppleMark } from '../src/components/AppleMark';
 import { KivelleLogo } from '../src/components/KivelleLogo';
@@ -45,8 +46,9 @@ export default function Auth() {
   const [openingError, setOpeningError] = useState('');
   const [notice, setNotice] = useState('');
   const [nativeAppleAvailable,setNativeAppleAvailable]=useState(Platform.OS!=='ios');
-  const { requestEmailCode, verifyEmailCode, signIn, signInWithSocial, signingOut, socialAuth } = useAuth();
+  const { requestEmailCode, verifyEmailCode, requestPasswordReset, signIn, signInWithSocial, signingOut, socialAuth } = useAuth();
   const refresh = useTogether((state) => state.refresh);
+  const accountDeleted=useTogether((state)=>state.errorCode==='ACCOUNT_DELETED');
 
   useEffect(()=>{
     if(Platform.OS!=='ios'||!socialAuth.apple)return;
@@ -138,6 +140,18 @@ export default function Auth() {
     }
   };
 
+  const sendPasswordLink = async () => {
+    const normalizedEmail = normalizeEmailAddress(email);
+    if (!normalizedEmail) { setError('Enter your email address first.'); return; }
+    setBusy(true); setError(''); setNotice('');
+    try {
+      await requestPasswordReset(normalizedEmail);
+      setNotice('If this email has an account, a password setup link is on its way.');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The password link could not be sent.');
+    } finally { setBusy(false); }
+  };
+
   const changeEmail = () => {
     setStage('email');
     setCode('');
@@ -165,10 +179,11 @@ export default function Auth() {
   const shortViewport=!wide&&height<720;
   const safeAreaReserve=Math.max(0,insets.bottom-6);
   const brandFooterReserve=shortViewport?44:58;
-  const mobileFormReserve=(stage==='code'?(shortViewport?354:382):(shortViewport?388:420))+(usingPassword?54:0)+safeAreaReserve+brandFooterReserve;
+  const mobileFormReserve=(stage==='code'?(shortViewport?354:382):(shortViewport?388:420))+(usingPassword?82:0)+safeAreaReserve+brandFooterReserve;
   const mobileHeroHeight=Math.max(80,Math.min(height*.43,height-mobileFormReserve));
   const resendSeconds=emailCodeResendSeconds(resendAvailableAt,clock);
 
+  if(accountDeleted)return <DeletedAccountState/>;
   return <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <Head><link rel="preload" as="image" href={publicLandingPrimaryHeroUri} fetchPriority="high" /></Head>
     <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.scroll} contentContainerStyle={[styles.page,{minHeight:height}]}>
@@ -230,6 +245,7 @@ export default function Auth() {
           </Pressable>
 
           {stage==='email'&&!creating?<Pressable accessibilityRole="button" accessibilityLabel={usingPassword?'Use an email code instead':'Use a password instead'} disabled={authBusy} onPress={()=>{setPasswordMode(!passwordMode);setPassword('');setError('');setNotice('');}} hitSlop={10}><Text style={styles.secondary}>{usingPassword?'Use an email code instead':'Use a password instead'}</Text></Pressable>:null}
+          {usingPassword?<Pressable accessibilityRole="button" accessibilityLabel="Set or reset your password" disabled={authBusy} onPress={()=>void sendPasswordLink()} hitSlop={10}><Text style={styles.secondary}>Set or reset your password</Text></Pressable>:null}
 
           {stage==='code'?<View style={styles.codeActions}>
             <Pressable accessibilityRole="button" disabled={authBusy} onPress={changeEmail} hitSlop={10}><Text style={styles.secondary}>Use a different email</Text></Pressable>

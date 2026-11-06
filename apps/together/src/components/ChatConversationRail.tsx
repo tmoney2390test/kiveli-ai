@@ -9,6 +9,7 @@ import {
   isConversationPinned,
   isActiveInboxConversation,
   returnToMessagesInbox,
+  typingPreview,
 } from "../lib/messageInbox";
 import { conversationRouteTarget, groupConversationWebHref, navigateLocalRouteOnWeb } from "../lib/conversationNavigation";
 import { characterConversationHref } from "../lib/chatRoute";
@@ -156,7 +157,7 @@ export function ChatConversationRail({
           const pendingCharacter=pending ? snapshot.characters.find((item)=>item.id===pending.characterInstanceId) : undefined;
           const pendingName=pendingCharacter?.together_character_templates.name??row.group?.participants.find((item)=>item.character_instance_id===pending?.characterInstanceId)?.together_character_instances.together_character_templates.name;
           const preview = pending
-            ? `${pendingName?.split(" ")[0]??(group?"Group":"Companion")} is typing…`
+            ? typingPreview(pendingName)
             : inboxPreview(row.conversation) || (row.character
             ? naturalizeCharacterActivity(row.character.current_activity,{occupation:row.character.together_character_templates.occupation})
             : "Continue the conversation");

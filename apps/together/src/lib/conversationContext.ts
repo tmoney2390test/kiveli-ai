@@ -10,7 +10,7 @@ export type ClientConversationContext={
   interactionMode:InteractionMode;
   entryReason:SceneEntryReason;
   sceneBehavior:{acknowledgeArrival:boolean;activityAwareness:boolean;departurePressure:boolean};
-  scene:{locationId?:string;location:string;activity:string;summary:string;source:'active_date'|'active_plan'|'scene'|'life_engine'|'character_state';activeEventId?:string;mediaUrl?:string;localTime:string;worldName?:string};
+  scene:{locationId?:string;location:string;activity:string;summary:string;home?:boolean;source:'active_date'|'active_plan'|'scene'|'life_engine'|'character_state';activeEventId?:string;mediaUrl?:string;localTime:string;worldName?:string};
   nextCommitment?:Commitment;
   activePlan?:Commitment;
   activeDate?:Commitment;
@@ -43,10 +43,11 @@ export function buildClientConversationContext(snapshot:Snapshot,character:Chara
   const passiveLocationId=scheduleStatus?.locationId??(scheduleDeclaresHome?homeLocationId:character.current_location_id);
   const activeLocationId=scenarioHere?.locationId??activeSceneRow?.location_id??(storedValid?storedScene?.locationId:undefined)??activeDateRow?.together_date_templates.location_id??(planUserPresent?activePlanRow?.location_id:undefined)??passiveLocationId;
   const atHome=!higherPriorityPresence&&(scheduleDeclaresHome||isCharacterHomeLocation(snapshot,character,activeLocationId));
-  const sceneLocation=atHome?'Home':snapshot.locations.find((item)=>item.id===activeLocationId)?.name??scheduleStatus?.location??location;
+  const home=atHome?(snapshot.characterHomes??[]).find((item)=>item.character_version_id===character.character_version_id):undefined;
+  const sceneLocation=atHome?(home?.name??'Home'):snapshot.locations.find((item)=>item.id===activeLocationId)?.name??scheduleStatus?.location??location;
   const sceneWorld=worldForLocation(snapshot,activeLocationId);
   const localTime=formatUserTime(now,snapshot.profile?.experience_timezone);
-  const media=conversation&&activeLocationId?latestConversationHeaderImage((snapshot.generatedMedia??[]).filter((item)=>item.character_instance_id===character.id&&item.location_id===activeLocationId),conversation.id):null;
+  const media=!atHome&&conversation&&activeLocationId?latestConversationHeaderImage((snapshot.generatedMedia??[]).filter((item)=>item.character_instance_id===character.id&&item.location_id===activeLocationId),conversation.id):null;
   const plans=characterPlans.filter((plan)=>plan.status==='scheduled'&&new Date(plan.starts_at)>now).map((plan)=>planCommitment(plan,snapshot));
   const dates=snapshot.dates.filter((date)=>date.character_instance_id===character.id&&date.status==='upcoming'&&date.scheduled_for&&new Date(date.scheduled_for)>now).map((date)=>({id:date.id,title:date.together_date_templates.name,startsAt:date.scheduled_for!,kind:'date' as const,location:snapshot.locations.find((item)=>item.id===date.together_date_templates.location_id)?.name}));
   const nextCommitment=[...plans,...dates].sort((a,b)=>new Date(a.startsAt).getTime()-new Date(b.startsAt).getTime())[0];
@@ -72,7 +73,10 @@ export function buildClientConversationContext(snapshot:Snapshot,character:Chara
   const eventEstablishesPresence=Boolean(!scheduleStatus&&activeEvent?.location_id&&activeEvent.location_id===character.current_location_id&&['life_event','active_event'].includes(String(character.current_presence_source)));
   const sceneSource:ClientConversationContext['scene']['source']=activeSceneRow||storedValid?'scene':activeDate?'active_date':planUserPresent?'active_plan':scheduleStatus?'life_engine':character.current_presence_source==='life_event'||character.current_presence_source==='active_event'?'life_engine':'character_state';
   const prompts=smartReplies({character,location:sceneLocation,activity:sceneActivityLabel,thread,nextCommitment,activePlan:activeCommitment,startingSoon,recentPlan,storyTitle:activeStory?.together_story_arc_templates?.title,now,interactionMode});
-  return{interactionMode,entryReason,sceneBehavior:{acknowledgeArrival,activityAwareness:interactionMode==='co_present'||eventEstablishesPresence,departurePressure},scene:{locationId:activeLocationId??undefined,location:sceneLocation,activity:sceneActivityLabel,summary:interactionMode==='co_present'?`You are together at ${sceneLocation} while ${character.together_character_templates.name} is ${sceneActivityClause}.`:eventEstablishesPresence?activeEvent!.narrative_summary:`${character.together_character_templates.name} is ${sceneActivityClause}.`,source:sceneSource,activeEventId:eventEstablishesPresence?activeEvent?.id:undefined,mediaUrl:media?.signed_url??undefined,localTime,worldName:sceneWorld?.name},nextCommitment,activePlan,activeDate,startingSoon,recentPlan,story:activeStory?{title:activeStory.together_story_arc_templates?.title??'A story in progress',chapter:chapter?.title??activeStory.current_chapter_id}:undefined,thread,prompts};
+  const homeDetail=home?.description?.split(/(?<=[.!?])\s+/).slice(0,2).join(' ');
+  const homeActivity=/\bat home\b/i.test(sceneActivityClause)?sceneActivityClause:`${sceneActivityClause} at home`;
+  const sceneSummary=interactionMode==='co_present'?`You are together at ${sceneLocation} while ${character.together_character_templates.name} is ${sceneActivityClause}.`:eventEstablishesPresence?activeEvent!.narrative_summary:atHome?`${character.together_character_templates.name} is ${homeActivity}.${homeDetail?` ${homeDetail}`:''}`:`${character.together_character_templates.name} is ${sceneActivityClause}.`;
+  return{interactionMode,entryReason,sceneBehavior:{acknowledgeArrival,activityAwareness:interactionMode==='co_present'||eventEstablishesPresence,departurePressure},scene:{locationId:activeLocationId??undefined,location:sceneLocation,activity:sceneActivityLabel,summary:sceneSummary,home:atHome,source:sceneSource,activeEventId:eventEstablishesPresence?activeEvent?.id:undefined,mediaUrl:media?.signed_url??undefined,localTime,worldName:sceneWorld?.name},nextCommitment,activePlan,activeDate,startingSoon,recentPlan,story:activeStory?{title:activeStory.together_story_arc_templates?.title??'A story in progress',chapter:chapter?.title??activeStory.current_chapter_id}:undefined,thread,prompts};
 }
 
 function formatUserTime(now:Date,timezone?:string){try{return new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'2-digit',timeZone:timezone||Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'}).format(now);}catch{return now.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}}

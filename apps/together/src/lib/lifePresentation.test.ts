@@ -13,4 +13,9 @@ describe('Life Engine presentation',()=>{
   it('prefers authored current activity presentation',()=>{expect(getScheduleEventPresentation(event()).activity).toBe('Reviewing a difficult case file');});
   it('prefers authored upcoming hints',()=>{expect(getScheduleHint(event())).toBe('Has a precinct briefing later');});
   it('never leaks a hidden event even when metadata contains presentation',()=>{expect(getScheduleHint(event({visibility:'hidden'}))).toBeNull();});
+  it('recovers the specific event activity from a stale filler label',()=>{
+    const stale=event({title:'Making time for a familiar routine',metadata:{activityLabel:'Making time for a familiar routine',activityVariants:['Reviewing a difficult case file','Making time for a familiar routine']}});
+    expect(getScheduleEventPresentation(stale).activity).toBe('Reviewing a difficult case file');
+    expect(getScheduleHint(stale)).toBe('Reviewing a difficult case file');
+  });
 });

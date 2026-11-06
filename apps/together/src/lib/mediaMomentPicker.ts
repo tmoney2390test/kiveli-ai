@@ -23,13 +23,13 @@ export function spicyUnavailableCopy(platform: string): { title: string; message
   if (platform === 'android') {
     return {
       title: 'Unavailable on Android',
-      message: 'Adult photo generation is available on Kivelli.app.',
+      message: 'This app supports non-explicit photos.',
     };
   }
   if (platform === 'ios') {
     return {
       title: 'Unavailable on iOS',
-      message: 'Adult photo generation is available on Kivelli.app.',
+      message: 'This app supports non-explicit photos.',
     };
   }
   return null;

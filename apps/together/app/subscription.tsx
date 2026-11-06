@@ -9,9 +9,11 @@ import { Image } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Brain, Camera, Check, ChevronDown, ChevronRight, CircleAlert, ExternalLink, Gift, Globe2, Heart, History, LockKeyhole, RefreshCw, ShieldCheck, Sparkles, UserRound, Zap } from 'lucide-react-native';
-import { GradientButton, KivelleCreditIcon, LoadingSkeleton, Screen } from '../src/components';
-import { subscriptionStatusQueryKey, useSubscriptionStatus } from '../src/hooks/useSubscriptionStatus';
+import { GradientButton, LoadingSkeleton, Screen } from '../src/components/ui';
+import { KivelleCreditIcon } from '../src/components/KivelleCreditIcon';
+import { subscriptionStatusKey, useSubscriptionStatus } from '../src/hooks/useSubscriptionStatus';
 import { useAuth } from '../src/hooks/useAuth';
+import { contextualSupportHref } from '../src/lib/mediaSupportReference';
 import { ApiError, manageSubscription } from '../src/lib/api';
 import { loadNativeProductPrices, loadNativeCreditPrices, purchaseNativeCredits, nativePurchasesConfigured, purchaseNativeSubscription, restoreNativePurchases } from '../src/lib/nativePurchases';
 import {nativeCreditProductIds} from '../src/lib/nativeCreditProducts';
@@ -20,12 +22,13 @@ import { revenueCatPackageIdentifiers, type PurchasableTier } from '../src/lib/r
 import { resumeNativePurchase, currentPurchaseAccount } from '../src/lib/nativePurchaseRecovery';
 import type { BillingInterval, CheckoutConfirmation, CreditActivityEvent, SubscriptionPlan, SubscriptionStatus, SubscriptionTier } from '../src/lib/subscription';
 import { intelligenceLabel } from '../src/lib/subscription';
+import { personalPlaceLimit } from '@together/domain/src/personal-place-limits';
 import { annualSavingsPercentage, billingStatusPresentation, checkoutBackoffDelay, creditActivityPresentation, managementActionLabel, membershipBenefits, membershipMetrics, membershipPageMode, membershipPricePresentation, normalizeSubscriptionIntent, safeSubscriptionReturnTo, shouldShowSubscriptionIntentCallout, subscriptionIntentPresentation } from '../src/lib/subscriptionPresentation';
 import { colors, radius, spacing } from '../src/theme';
 
 import type { NativeProductPrice } from '../src/lib/nativeProductPrice';
 
-type Notice = { tone: 'neutral' | 'success' | 'warning' | 'danger'; title: string; body: string; retry?: boolean };
+type Notice = { tone: 'neutral' | 'success' | 'warning' | 'danger'; title: string; body: string; retry?: boolean; supportHref?: string };
 type PlanAction = { label: string; enabled: boolean; reason?: string | null; onPress: () => void };
 const discoveryPortalBackground = require('../assets/membership/discovery-portal.webp');
 const memberPortalBackground = require('../assets/membership/member-portal.webp');
@@ -67,11 +70,18 @@ export default function Subscription() {
   const refresh = useCallback(async () => {
     const userId=session?.user.id;
     if(userId&&nativePurchasesConfigured()){
+      let purchaseConfirmed=false;
       try{
-        await resumeNativePurchase(userId);
+        const confirmation=await resumeNativePurchase(userId);
+        purchaseConfirmed=confirmation.state!=='syncing';
+        if(confirmation.purchaseKind==='credits'&&confirmation.state==='active')setNotice({tone:'success',title:'Credits added',body:'Your store purchase is confirmed and your Credits are ready to use.'});
+        else if(confirmation.purchaseKind==='credits'&&confirmation.state==='verified_none')setNotice({tone:'neutral',title:'Purchase refunded',body:'The store refunded this credit purchase.'});
+        else if(confirmation.state==='active'&&confirmation.data)setNotice({tone:'success',title:`${confirmation.data.capabilities.displayName} is active`,body:'Your app-store membership and benefits are ready.'});
+      }catch{setNotice({tone:'warning',title:'Store verification is still pending',body:'Check your connection and refresh again. You do not need to buy again.',retry:true});}
+      try{
         const [prices,credits]=await Promise.all([loadNativeProductPrices(userId),loadNativeCreditPrices(userId)]);
         await currentPurchaseAccount(userId);setNativePrices(prices);setCreditPrices(credits);
-      }catch{setNotice({tone:'warning',title:'Store verification is still pending',body:'Check your connection and refresh again. You do not need to buy again.',retry:true});}
+      }catch{if(!purchaseConfirmed)setNotice({tone:'warning',title:'Store prices are unavailable',body:'Check your connection and refresh. Your existing membership and Credits are unaffected.',retry:true});}
     }
     const result = await query.refetch();
     if (result.error) setNotice({ tone: 'danger', title: 'Could not refresh billing', body: result.error instanceof Error ? result.error.message : 'Try again in a moment.', retry: true });
@@ -91,7 +101,8 @@ export default function Subscription() {
   }, [params.billing, params.checkout, query.refetch]);
 
   useEffect(() => {
-    if (params.checkout !== 'success') return;
+    const userId = session?.user.id;
+    if (params.checkout !== 'success' || !userId) return;
     const sessionId = params.session_id;
     if (!sessionId) {
       setNotice({ tone: 'warning', title: 'Purchase is still syncing', body: 'We could not verify the checkout automatically. Refresh your billing status before trying again.', retry: true });
@@ -106,7 +117,7 @@ export default function Subscription() {
       try {
         const confirmation = await manageSubscription<CheckoutConfirmation>({ action: 'checkout_confirmation', sessionId });
         if (disposed) return;
-        queryClient.setQueryData(subscriptionStatusQueryKey, confirmation.state);
+        queryClient.setQueryData(subscriptionStatusKey(userId), confirmation.state);
         if (confirmation.outcome === 'succeeded') {
           const title = confirmation.purchase?.kind === 'credits' ? `${confirmation.purchase.creditsAdded.toLocaleString()} Credits added` : `${confirmation.state.capabilities.displayName} is active`;
           setNotice({ tone: 'success', title, body: returnTo ? 'Everything is ready. Continue where you left off.' : 'Your purchase is confirmed and ready to use.' });
@@ -128,7 +139,7 @@ export default function Subscription() {
     };
     timer = setTimeout(() => void verify(), checkoutBackoffDelay(0));
     return () => { disposed = true; if (timer) clearTimeout(timer); };
-  }, [confirmationRetry, params.checkout, params.purchase, params.session_id, queryClient, returnTo]);
+  }, [confirmationRetry, params.checkout, params.purchase, params.session_id, queryClient, returnTo, session?.user.id]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (next) => {
@@ -158,7 +169,7 @@ export default function Subscription() {
       await query.refetch();
       setNotice(synced?{tone:'success',title:`${tier==='kivelle_max'?'Kivelle Max':'Kivelle+'} is active`,body:'Your app-store membership and benefits are ready.'}:{tone:'warning',title:'Purchase received',body:'The app store completed your purchase, but the signed confirmation is still syncing. Refresh in a moment—trying again will not charge you twice.',retry:true});
     }
-    catch (caught) { setNotice({ tone: 'danger', title: 'Could not open checkout', body: billingErrorMessage(caught) }); }
+    catch (caught) { setNotice({ tone: 'danger', title: 'Could not open checkout', body: billingErrorMessage(caught), supportHref:contextualSupportHref('purchase',{purchaseReference:tier+':'+billingInterval},caught) }); }
     finally { operationLock.current=false;setBusy(''); }
   };
 
@@ -169,11 +180,12 @@ export default function Subscription() {
       const result=await purchaseNativeCredits(userId,pack.key);
       await currentPurchaseAccount(userId);
       if(result.cancelled){setNotice({tone:'neutral',title:'Purchase cancelled',body:'No credit pack was purchased.'});return;}
+      if(result.pending){setNotice({tone:'neutral',title:'Waiting for store approval',body:'Your credit purchase is pending. Credits will be added after the store confirms payment; you do not need to buy again.'});return;}
       const confirmed=await resumeNativePurchase(userId);
       await currentPurchaseAccount(userId);await query.refetch();
       if(confirmed.state==='verified_none'){setNotice({tone:'neutral',title:'Purchase refunded',body:'The store refunded this credit purchase.'});return;}
       setNotice(confirmed.state==='active'?{tone:'success',title:`${pack.credits.toLocaleString()} Credits added`,body:'Your purchased Credits are ready to use.'}:{tone:'neutral',title:'Purchase is syncing',body:'We are waiting for store confirmation. Your Credits will appear automatically; please do not purchase again.',retry:true});
-    }catch(error){setNotice({tone:'danger',title:'Credit purchase needs attention',body:billingErrorMessage(error),retry:true});}
+    }catch(error){setNotice({tone:'danger',title:'Credit purchase needs attention',body:billingErrorMessage(error),retry:true,supportHref:contextualSupportHref('purchase',{purchaseReference:pack.key},error)});}
     finally{operationLock.current=false;setBusy('');}
   };
 
@@ -189,10 +201,10 @@ export default function Subscription() {
       await currentPurchaseAccount(userId);
       await query.refetch();
       if(result.purchaseKind==='credits'){
-        setNotice({tone:'neutral',title:result.state==='active'?'Credits synchronized':'Purchase refunded',body:result.state==='active'?'Your purchased Credits are available in your account.':'The store refunded the pending credit purchase.'});return;
+        setNotice(result.state==='active'?{tone:'success',title:'Credits synchronized',body:'Your purchased Credits are available in your account.'}:result.state==='verified_none'?{tone:'neutral',title:'Purchase refunded',body:'The store refunded the pending credit purchase.'}:{tone:'warning',title:'Credit purchase is still syncing',body:'Your pending credit purchase is still being verified. Refresh later; you do not need to buy again.',retry:true});return;
       }
       setNotice(result.state==='active'&&result.data?{tone:'success',title:`${result.data.capabilities.displayName} restored`,body:'Your membership and benefits are available again.'}:result.state==='syncing'||storeResult.storeReportsActiveEntitlement?{tone:'warning',title:'Membership is still syncing',body:'The store reported a purchase, but Kivelle is still verifying its signed entitlement. Your restore will resume automatically; trying again will not charge you.',retry:true}:{tone:'neutral',title:'Restore complete',body:'After checking the store and Kivelle’s signed entitlement, no active membership was found for this store account.'});
-    }catch(caught){setNotice({tone:'danger',title:'Could not restore purchases',body:billingErrorMessage(caught),retry:true});}
+    }catch(caught){setNotice({tone:'danger',title:'Could not restore purchases',body:billingErrorMessage(caught),retry:true,supportHref:contextualSupportHref('purchase',{},caught)});}
     finally{operationLock.current=false;setBusy('');}
   };
 
@@ -230,6 +242,7 @@ export default function Subscription() {
       <MembershipTitle mode={mode} refreshing={query.isFetching} updatedAt={query.dataUpdatedAt} />
       {notice ? <NoticeCard notice={notice} onRetry={() => { setNotice(null); if (params.checkout === 'success') setConfirmationRetry((value) => value + 1); else void refresh(); }} onContinue={notice.tone === 'success' && returnTo ? () => router.replace(returnTo as never) : undefined} /> : null}
       {query.error && !notice ? <NoticeCard notice={{ tone: 'warning', title: 'Showing your last known billing details', body: 'Kivelli could not refresh this page. Your cached membership remains visible while you reconnect.', retry: true }} onRetry={() => void refresh()} /> : null}
+      <Pressable accessibilityRole="button" onPress={()=>router.push('/manage-chats' as never)} style={styles.restoreButton}><Text style={styles.restoreText}>Manage active chats →</Text></Pressable>
       {state.billing.paymentIssue ? <NoticeCard notice={{ tone: 'warning', title: 'Payment needs attention', body: 'Update your payment method to keep paid benefits active through the grace period.' }} onContinue={state.management.canManageSubscription ? () => void openManagement() : undefined} continueLabel={managementActionLabel(state.management)} /> : null}
       {shouldShowSubscriptionIntentCallout(mode, intent) ? <IntentCallout eyebrow={intro.eyebrow} title={intro.title} body={intro.body} /> : null}
 
@@ -237,7 +250,7 @@ export default function Subscription() {
         <DiscoveryHero compact={compact} onExplore={() => scrollTo(plansY)} onCompare={() => { setCompareOpen(true); scrollTo(compareY); }} />
         <View onLayout={(event) => setPlansY(event.nativeEvent.layout.y)} style={styles.sectionBlock}>
           <SectionHeading kicker="CHOOSE YOUR EXPERIENCE" title="Memberships built around your world" copy="Upgrade anytime. Your account, companions, and permanent Credits stay exactly where you left them." />
-          {paidPlans[0] ? <BillingIntervalToggle value={billingInterval} plan={paidPlans[0]} onChange={setBillingInterval} /> : null}
+          {paidPlans[0] ? <BillingIntervalToggle value={billingInterval} plan={paidPlans[0]} nativePrices={nativePrices} onChange={setBillingInterval} /> : null}
           <View style={[styles.planGrid, compact && styles.stack]}>{paidPlans.map((plan) => <PlanCard compact={compact} key={plan.tier} plan={plan} billingInterval={billingInterval} localizedPrice={nativePrices[revenueCatPackageIdentifiers[plan.tier][billingInterval]]} action={planActionFor(plan)} busy={busy === plan.tier} featured={plan.tier === 'kivelle_max'} />)}</View>
         </View>
         <TrustStrip compact={compact} />
@@ -248,7 +261,7 @@ export default function Subscription() {
         <View style={[styles.dashboardGrid, compact && styles.stack]}><BenefitsCard plan={currentPlan} compact={compact} /><CreditWalletCard state={state} compact={compact} /></View>
         <View><CreditShop packs={state.creditPacks} prices={creditPrices} busy={busy} onBuy={pack=>void buyCredits(pack)} /></View>
         <RecentActivityCard activity={state.creditActivity} />
-        {state.tier === 'kivelle_plus' && maxPlan ? <View onLayout={(event) => setPlansY(event.nativeEvent.layout.y)} style={styles.sectionBlock}><SectionHeading kicker="GO DEEPER" title="See what Max adds" copy="Compare your current membership with Kivelli Max before changing anything." /><BillingIntervalToggle value={billingInterval} plan={maxPlan} onChange={setBillingInterval} /><PlanCard compact={compact} plan={maxPlan} billingInterval={billingInterval} localizedPrice={nativePrices[revenueCatPackageIdentifiers[maxPlan.tier as PurchasableTier][billingInterval]]} action={planActionFor(maxPlan)} busy={busy === 'portal'} featured /></View> : null}
+        {state.tier === 'kivelle_plus' && maxPlan ? <View onLayout={(event) => setPlansY(event.nativeEvent.layout.y)} style={styles.sectionBlock}><SectionHeading kicker="GO DEEPER" title="See what Max adds" copy="Compare your current membership with Kivelli Max before changing anything." /><BillingIntervalToggle value={billingInterval} plan={maxPlan} nativePrices={nativePrices} onChange={setBillingInterval} /><PlanCard compact={compact} plan={maxPlan} billingInterval={billingInterval} localizedPrice={nativePrices[revenueCatPackageIdentifiers[maxPlan.tier as PurchasableTier][billingInterval]]} action={planActionFor(maxPlan)} busy={busy === 'portal'} featured /></View> : null}
       </>}
 
       <View onLayout={(event) => setCompareY(event.nativeEvent.layout.y)}>
@@ -257,7 +270,7 @@ export default function Subscription() {
       </View>
       {mode==='discovery'&&management?<Pressable accessibilityRole="button" disabled={Boolean(busy)} onPress={()=>void openManagement()} style={styles.restoreButton}><ExternalLink size={16} color={colors.violet}/><Text style={styles.restoreText}>{management.label}</Text></Pressable>:null}
       {nativeStoreCheckout?<Pressable accessibilityRole="button" accessibilityLabel="Restore app-store purchases" accessibilityState={{disabled:Boolean(busy)}} disabled={Boolean(busy)} onPress={()=>void restorePurchases()} style={({pressed})=>[styles.restoreButton,pressed&&styles.pressed,Boolean(busy)&&styles.disabled]}><RefreshCw size={16} color={colors.violet}/><Text style={styles.restoreText}>{busy==='restore'?'Restoring purchases…':'Restore purchases'}</Text></Pressable>:null}
-      <View style={styles.policyLinks}><PolicyLink label="Terms" route="/terms" /><Text style={styles.policyDot}>•</Text><PolicyLink label="Privacy" route="/privacy-policy" /><Text style={styles.policyDot}>•</Text><PolicyLink label="Refunds & cancellation" route="/refund-policy" /><Text style={styles.policyDot}>•</Text><PolicyLink label="Support" route="/support" /></View>
+      <View style={styles.policyLinks}><PolicyLink label="Terms" route="/terms" /><Text style={styles.policyDot}>•</Text><PolicyLink label="Privacy" route="/privacy-policy" /><Text style={styles.policyDot}>•</Text><PolicyLink label="Refunds & cancellation" route="/refund-policy" /><Text style={styles.policyDot}>•</Text><PolicyLink label="Support" route="/support?mode=new&topic=purchase" /></View>
     </Screen>
   );
 }
@@ -316,8 +329,11 @@ function WalletRow({ label, value, detail, tone }: { label: string; value: numbe
 
 function SectionHeading({ kicker, title, copy }: { kicker: string; title: string; copy: string }) { return <View><Text style={styles.eyebrow}>{kicker}</Text><Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text><Text style={styles.sectionCopy}>{copy}</Text></View>; }
 
-function BillingIntervalToggle({ value, plan, onChange }: { value: BillingInterval; plan: SubscriptionPlan; onChange: (interval: BillingInterval) => void }) {
-  const savings = annualSavingsPercentage(plan.monthlyPriceUsd, plan.annualPriceUsd);
+function BillingIntervalToggle({ value, plan, nativePrices, onChange }: { value: BillingInterval; plan: SubscriptionPlan; nativePrices:Record<string,NativeProductPrice>; onChange: (interval: BillingInterval) => void }) {
+  const productIds=revenueCatPackageIdentifiers[plan.tier as PurchasableTier];
+  const monthly=Platform.OS==='web'?plan.monthlyPriceUsd:nativePrices[productIds.monthly]?.amount;
+  const annual=Platform.OS==='web'?plan.annualPriceUsd:nativePrices[productIds.annual]?.amount;
+  const savings=typeof monthly==='number'&&typeof annual==='number'?annualSavingsPercentage(monthly,annual):0;
   return <View accessibilityRole="radiogroup" accessibilityLabel="Billing interval" style={styles.billingToggle}><Pressable accessibilityRole="radio" accessibilityState={{ checked: value === 'monthly' }} onPress={() => onChange('monthly')} style={[styles.billingChoice, value === 'monthly' && styles.billingChoiceActive]}><Text style={[styles.billingText, value === 'monthly' && styles.billingTextActive]}>Monthly</Text></Pressable><Pressable accessibilityRole="radio" accessibilityState={{ checked: value === 'annual' }} onPress={() => onChange('annual')} style={[styles.billingChoice, value === 'annual' && styles.billingChoiceActive]}><Text style={[styles.billingText, value === 'annual' && styles.billingTextActive]}>Yearly</Text>{savings ? <View style={styles.savePill}><Text style={styles.saveText}>SAVE {savings}%</Text></View> : null}</Pressable></View>;
 }
 
@@ -346,13 +362,42 @@ function ActivityRow({ event }: { event: CreditActivityEvent }) { const item = c
 function StatusPill({ label, tone }: { label: string; tone: 'neutral' | 'success' | 'warning' | 'danger' }) { return <View style={[styles.statusPill, tone === 'success' && styles.statusSuccess, tone === 'warning' && styles.statusWarning, tone === 'danger' && styles.statusDanger]}><View style={[styles.statusDot, tone === 'success' && styles.statusDotSuccess, tone === 'warning' && styles.statusDotWarning, tone === 'danger' && styles.statusDotDanger]} /><Text style={styles.statusText}>{label}</Text></View>; }
 
 function NoticeCard({ notice, onRetry, onContinue, continueLabel = 'Continue' }: { notice: Notice; onRetry?: () => void; onContinue?: () => void; continueLabel?: string }) {
-  return <View accessibilityLiveRegion="polite" style={[styles.notice, notice.tone === 'success' && styles.noticeSuccess, notice.tone === 'warning' && styles.noticeWarning, notice.tone === 'danger' && styles.noticeDanger]}><View style={styles.noticeTop}>{notice.tone === 'danger' || notice.tone === 'warning' ? <CircleAlert size={18} color={notice.tone === 'danger' ? colors.danger : colors.warm} /> : notice.tone === 'success' ? <Check size={18} color={colors.success} /> : <RefreshCw size={17} color={colors.violet} />}<View style={{ flex: 1 }}><Text style={styles.noticeTitle}>{notice.title}</Text><Text style={styles.noticeCopy}>{notice.body}</Text></View></View>{notice.retry && onRetry ? <Pressable accessibilityRole="button" onPress={onRetry} style={styles.noticeAction}><Text style={styles.noticeActionText}>Refresh status</Text></Pressable> : null}{onContinue && continueLabel ? <Pressable accessibilityRole="button" onPress={onContinue} style={styles.noticeAction}><Text style={styles.noticeActionText}>{continueLabel}</Text><ChevronRight size={16} color="#E5C7F1" /></Pressable> : null}</View>;
+  return <View accessibilityLiveRegion="polite" style={[styles.notice, notice.tone === 'success' && styles.noticeSuccess, notice.tone === 'warning' && styles.noticeWarning, notice.tone === 'danger' && styles.noticeDanger]}><View style={styles.noticeTop}>{notice.tone === 'danger' || notice.tone === 'warning' ? <CircleAlert size={18} color={notice.tone === 'danger' ? colors.danger : colors.warm} /> : notice.tone === 'success' ? <Check size={18} color={colors.success} /> : <RefreshCw size={17} color={colors.violet} />}<View style={{ flex: 1 }}><Text style={styles.noticeTitle}>{notice.title}</Text><Text style={styles.noticeCopy}>{notice.body}</Text></View></View>{notice.retry && onRetry ? <Pressable accessibilityRole="button" onPress={onRetry} style={styles.noticeAction}><Text style={styles.noticeActionText}>Refresh status</Text></Pressable> : null}{notice.tone === 'danger' ? <Pressable accessibilityRole="button" style={styles.noticeAction} onPress={() => router.push((notice.supportHref??contextualSupportHref('purchase')) as never)}><Text style={styles.noticeActionText}>Get purchase help</Text></Pressable> : null}{onContinue && continueLabel ? <Pressable accessibilityRole="button" onPress={onContinue} style={styles.noticeAction}><Text style={styles.noticeActionText}>{continueLabel}</Text><ChevronRight size={16} color="#E5C7F1" /></Pressable> : null}</View>;
 }
 
 function Comparison({ plans, currentTier, compact }: { plans: SubscriptionPlan[]; currentTier: SubscriptionTier; compact: boolean }) {
-  return <View style={[styles.compareGrid, !compact && styles.compareGridWide]}>{plans.map((plan) => <View key={plan.tier} style={[styles.compareCard, compact && styles.compareCardCompact]}><View style={styles.compareCardTop}><Text style={styles.comparePlan}>{plan.displayName}</Text>{plan.tier === currentTier ? <Text style={styles.compareCurrent}>CURRENT</Text> : null}</View><CompareRow label="Active conversations" value={`${plan.maxActiveConversations}`} /><CompareRow label="Messages" value={plan.dailyMessageLimit === null ? 'Unlimited' : `${plan.dailyMessageLimit} per day`} /><CompareRow label="Continuity" value={intelligenceLabel(plan.intelligenceProfile)} /><CompareRow label="Included photos" value={plan.includedCompanionPhotoDailyLimit ? `${plan.includedCompanionPhotoDailyLimit} per day` : 'Credits'} /><CompareRow label="Monthly Credits" value={plan.monthlyCreditGrant ? plan.monthlyCreditGrant.toLocaleString() : '—'} /><CompareRow label="Lives / custom companions" value={`${plan.maxLives} / ${plan.maxCustomCompanions}`} /><CompareRow label="Worlds" value={plan.worldAccess === 'all_standard' ? 'Every standard world' : 'Released free worlds'} /><CompareRow label="New worlds" value={plan.tier === 'free' ? 'After early access' : 'Early access included'} /><CompareRow label="Media priority" value={plan.mediaQueue} /></View>)}</View>;
+  const orderedPlans = (['free', 'kivelle_plus', 'kivelle_max'] as const)
+    .map((tier) => plans.find((plan) => plan.tier === tier))
+    .filter((plan): plan is SubscriptionPlan => Boolean(plan));
+  const rows: { label: string; value: (plan: SubscriptionPlan) => string }[] = [
+    { label: 'Active conversations', value: (plan) => `${plan.maxActiveConversations}` },
+    { label: 'Messages', value: (plan) => plan.dailyMessageLimit === null ? 'Unlimited' : `${plan.dailyMessageLimit} per day` },
+    { label: 'Continuity', value: (plan) => intelligenceLabel(plan.intelligenceProfile) },
+    { label: 'Chat paths', value: (plan) => plan.tier === 'free' ? '—' : plan.tier === 'kivelle_max' ? 'Up to 50' : 'Up to 20' },
+    { label: 'Included photos', value: (plan) => plan.includedCompanionPhotoDailyLimit ? `${plan.includedCompanionPhotoDailyLimit} per day` : 'Credits' },
+    { label: 'Monthly Credits', value: (plan) => plan.monthlyCreditGrant ? plan.monthlyCreditGrant.toLocaleString() : '—' },
+    { label: 'Lives / custom companions', value: (plan) => `${plan.maxLives} / ${plan.maxCustomCompanions}` },
+    { label: 'Personal places', value: (plan) => `${personalPlaceLimit(plan.tier)}` },
+    { label: 'Worlds', value: (plan) => plan.worldAccess === 'all_standard' ? 'Every standard world' : 'Released free worlds' },
+    { label: 'New worlds', value: (plan) => plan.tier === 'free' ? 'After early access' : 'Early access included' },
+    { label: 'Media priority', value: (plan) => plan.mediaQueue },
+  ];
+  return <View style={styles.compareTable} accessibilityLabel="Membership comparison">
+    <View style={styles.compareTableHeader}>
+      {!compact ? <Text style={styles.compareFeatureHeading}>FEATURES</Text> : null}
+      <View style={styles.compareValues}>
+        {orderedPlans.map((plan) => <View key={plan.tier} style={styles.comparePlanHeading}>
+          <Text accessibilityRole="header" style={[styles.comparePlan, compact && styles.comparePlanCompact]}>{compact ? plan.tier === 'free' ? 'Free' : plan.tier === 'kivelle_plus' ? 'Plus' : 'Max' : plan.displayName}</Text>
+          {plan.tier === currentTier ? <Text style={styles.compareCurrent}>CURRENT</Text> : null}
+        </View>)}
+      </View>
+    </View>
+    {rows.map((row, index) => <View key={row.label} style={[styles.compareTableRow, compact && styles.compareTableRowCompact, index % 2 === 1 && styles.compareTableRowAlternate]}>
+      <Text style={[styles.compareFeature, compact && styles.compareFeatureCompact]}>{row.label}</Text>
+      <View style={styles.compareValues}>{orderedPlans.map((plan) => <View key={plan.tier} style={styles.compareValueCell}><Text accessibilityLabel={`${row.label}, ${plan.displayName}: ${row.value(plan)}`} style={[styles.compareValue, compact && styles.compareValueCompact]}>{row.value(plan)}</Text></View>)}</View>
+    </View>)}
+  </View>;
 }
-function CompareRow({ label, value }: { label: string; value: string }) { return <View style={styles.compareRow}><Text style={styles.compareLabel}>{label}</Text><Text style={styles.compareValue}>{value}</Text></View>; }
 function PolicyLink({ label, route }: { label: string; route: string }) { return <Text accessibilityRole="link" onPress={() => router.push(route as never)} style={styles.policyLink}>{label}</Text>; }
 function formatDate(value: string | null): string { if (!value) return 'Not scheduled'; const date = new Date(value); return Number.isNaN(date.getTime()) ? 'Not scheduled' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
 function formatShortDate(value: string): string { const date = new Date(value); return Number.isNaN(date.getTime()) ? 'your next renewal' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
@@ -373,7 +418,23 @@ const styles = StyleSheet.create({
   dashboardGrid: { flexDirection: 'row', alignItems: 'stretch', gap: 14 }, dashboardCard: { position: 'relative', flex: 1, minWidth: 0, gap: 11, overflow: 'hidden', padding: 22, borderRadius: radius.xl, backgroundColor: '#17111C', borderWidth: 1, borderColor: colors.border }, benefitsCard: { backgroundColor: '#190F20', borderColor: 'rgba(244,124,181,.25)' }, benefitsImageScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(20,5,23,.34)' }, cardForeground: { zIndex: 1 }, dashboardTitle: { color: '#FFF5EA', fontFamily: 'Georgia', fontSize: 22 }, cardHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }, cardCopy: { maxWidth: 620, color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: 4 }, benefitList: { gap: 0 }, benefitRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,.12)' }, benefitIcon: { width: 24, alignItems: 'center' }, benefitText: { flex: 1, color: colors.text, fontSize: 11, lineHeight: 17 }, walletRow: { minHeight: 55, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.025)', borderWidth: 1, borderColor: colors.border }, walletRowIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(216,62,234,.11)' }, walletRowViolet: { backgroundColor: 'rgba(154,99,215,.14)' }, walletRowWarm: { backgroundColor: 'rgba(233,160,127,.12)' }, walletRowLabel: { color: colors.text, fontSize: 11, fontWeight: '800' }, walletRowDetail: { color: colors.muted, fontSize: 8, marginTop: 3 }, walletRowValue: { color: '#FFF5EA', fontFamily: 'Georgia', fontSize: 23 }, cardDivider: { height: 1, backgroundColor: colors.border, marginVertical: 4 },
   creditShop: { gap: 16, padding: 22, borderRadius: radius.xl, backgroundColor: '#17111C', borderWidth: 1, borderColor: 'rgba(233,160,127,.3)' }, packGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 }, packCard: { position: 'relative', overflow: 'hidden', flexGrow: 1, flexBasis: 150, minWidth: 130, alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 18, borderRadius: radius.lg, backgroundColor: 'rgba(255,255,255,.035)', borderWidth: 1, borderColor: 'rgba(255,255,255,.1)' }, packSelected: { borderColor: 'rgba(244,124,181,.78)', backgroundColor: 'rgba(213,67,139,.1)' }, packBadge: { position: 'absolute', top: 0, color: '#fff', fontSize: 7, fontWeight: '900', letterSpacing: .7, backgroundColor: 'rgba(213,67,139,.72)', paddingHorizontal: 10, paddingVertical: 4, borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }, packCreditRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4 }, packCredits: { color: colors.text, fontFamily: 'Georgia', fontSize: 24, fontWeight: '900' }, packPrice: { color: '#F47CB5', fontSize: 13, fontWeight: '900', marginTop: 4 }, buyButton: { alignSelf: 'stretch', backgroundColor: '#C73579' },
   activityRow: { minHeight: 55, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }, activityIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.04)' }, activityLabel: { color: colors.text, fontSize: 11, fontWeight: '900' }, activityDetail: { color: colors.dimmed, fontSize: 9, marginTop: 3 }, activityAmount: { color: colors.muted, fontSize: 13, fontWeight: '900' }, activityPositive: { color: colors.success }, emptyActivity: { color: colors.dimmed, fontSize: 10, paddingVertical: 12 },
-  compareToggle: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 17, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, compareTitle: { color: colors.text, fontSize: 13, fontWeight: '900' }, compareCopy: { color: colors.muted, fontSize: 10, marginTop: 3 }, compareGrid: { gap: 10, marginTop: 10 }, compareGridWide: { flexDirection: 'row', alignItems: 'stretch' }, compareCard: { flex: 1, minWidth: 0, overflow: 'hidden', borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, compareCardCompact: { width: '100%', flex: undefined, flexGrow: 0, flexShrink: 0, flexBasis: 'auto' }, compareCardTop: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: 12, backgroundColor: colors.elevated }, comparePlan: { color: colors.text, fontFamily: 'Georgia', fontSize: 17 }, compareCurrent: { color: colors.success, fontSize: 7, fontWeight: '900', letterSpacing: .6 }, compareRow: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }, compareLabel: { color: colors.dimmed, fontSize: 8, fontWeight: '900', letterSpacing: .4 }, compareValue: { color: colors.text, fontSize: 10, fontWeight: '800', marginTop: 3, textTransform: 'capitalize' },
+  compareToggle: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 17, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, compareTitle: { color: colors.text, fontSize: 13, fontWeight: '900' }, compareCopy: { color: colors.muted, fontSize: 10, marginTop: 3 },
+  compareTable: { marginTop: 10, overflow: 'hidden', borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  compareTableHeader: { flexDirection: 'row', alignItems: 'stretch', backgroundColor: colors.elevated },
+  compareFeatureHeading: { width: '26%', alignSelf: 'center', paddingHorizontal: 14, color: colors.dimmed, fontSize: 9, fontWeight: '900', letterSpacing: .8 },
+  compareValues: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'stretch' },
+  comparePlanHeading: { flex: 1, minWidth: 0, minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 5, paddingVertical: 8, borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.border },
+  comparePlan: { color: colors.text, fontFamily: 'Georgia', fontSize: 16, textAlign: 'center' },
+  comparePlanCompact: { fontSize: 14 },
+  compareCurrent: { color: colors.success, fontSize: 7, fontWeight: '900', letterSpacing: .6 },
+  compareTableRow: { minHeight: 50, flexDirection: 'row', alignItems: 'stretch', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  compareTableRowCompact: { flexDirection: 'column' },
+  compareTableRowAlternate: { backgroundColor: 'rgba(255,255,255,.025)' },
+  compareFeature: { width: '26%', alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 9, color: colors.textSecondary, fontSize: 11, fontWeight: '800' },
+  compareFeatureCompact: { width: '100%', alignSelf: 'stretch', paddingHorizontal: 10, paddingTop: 10, paddingBottom: 4, fontSize: 10 },
+  compareValueCell: { flex: 1, minWidth: 0, minHeight: 46, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, paddingVertical: 7, borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.border },
+  compareValue: { color: colors.text, fontSize: 11, fontWeight: '700', lineHeight: 16, textAlign: 'center' },
+  compareValueCompact: { fontSize: 10, lineHeight: 14 },
   notice: { gap: 10, padding: 15, borderRadius: radius.lg, backgroundColor: 'rgba(154,99,215,.09)', borderWidth: 1, borderColor: 'rgba(175,162,255,.24)' }, noticeSuccess: { backgroundColor: 'rgba(77,162,116,.09)', borderColor: 'rgba(127,209,170,.26)' }, noticeWarning: { backgroundColor: 'rgba(222,166,75,.08)', borderColor: 'rgba(233,176,86,.26)' }, noticeDanger: { backgroundColor: 'rgba(211,92,94,.09)', borderColor: 'rgba(211,92,94,.28)' }, noticeTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 }, noticeTitle: { color: colors.text, fontSize: 13, fontWeight: '900' }, noticeCopy: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 3 }, noticeAction: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.06)' }, noticeActionText: { color: '#E5C7F1', fontSize: 12, fontWeight: '900' },
   restoreButton:{alignSelf:'center',minHeight:48,paddingHorizontal:18,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,borderRadius:24,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface},restoreText:{color:colors.text,fontSize:11,fontWeight:'900'},
   policyLinks: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 6 }, policyLink: { minHeight: 44, textAlignVertical: 'center', color: colors.muted, fontSize: 10, fontWeight: '800', textDecorationLine: 'underline' }, policyDot: { color: colors.dimmed, fontSize: 9 }, errorCard: { gap: 14, padding: 18, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, error: { color: colors.danger, fontSize: 11, textAlign: 'center' },

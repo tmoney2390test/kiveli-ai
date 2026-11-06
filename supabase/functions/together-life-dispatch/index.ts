@@ -54,6 +54,12 @@ serve(async (request, correlationId) => {
 
 async function cleanupPrivateChatPhotos(db:any,now:Date):Promise<{expired:number;exportsExpired:number;orphans:number;retried:number;failures:number}>{
   const result={expired:0,exportsExpired:0,orphans:0,retried:0,failures:0},orphanCutoff=new Date(now.getTime()-2*60*60_000).toISOString();
+  const supportDrafts=await db.from('together_support_attachments').select('id').is('ticket_id',null).lte('expires_at',now.toISOString()).limit(100);
+  if(supportDrafts.error)result.failures+=1;
+  if(supportDrafts.data?.length){
+    const removed=await db.from('together_support_attachments').delete().in('id',supportDrafts.data.map((row:{id:string})=>row.id)).is('ticket_id',null).lte('expires_at',now.toISOString());
+    if(removed.error)result.failures+=1;
+  }
   const{data:orphans,error:orphanError}=await db.from('together_conversation_attachments').select('id,user_id,storage_path').is('message_id',null).lt('created_at',orphanCutoff).limit(100);
   if(orphanError)result.failures+=1;
   for(const attachment of orphans??[]){

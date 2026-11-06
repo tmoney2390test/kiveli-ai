@@ -6,6 +6,7 @@ import { activeContinuity, requireInstanceInActiveContinuity } from '../_shared/
 import { resolveCompanionPresence } from '../_shared/together-schedule.ts';
 import { normalizeMultimodalPreferences, resolveServerExperienceCapabilities } from '../_shared/kivelle-multimodal.ts';
 import { track } from '../_shared/together.ts';
+import {assertHomePlanWelcome} from '../_shared/character-homes.ts';
 import { AppError } from '../_shared/types.ts';
 
 const schema = z.discriminatedUnion('action', [
@@ -46,6 +47,9 @@ serve(async (request, correlationId) => {
     await requireInstanceInActiveContinuity(db, user.id, input.characterInstanceId);
     const presence = await resolveCompanionPresence({ db, userId: user.id, characterInstanceId: input.characterInstanceId, ensure: false });
     if (!presence || presence.locationId !== String(scene.location_id) || presence.worldId !== String(scene.world_id) || presence.interruptibility === 'unavailable') throw new AppError('SCENE_NO_LONGER_AVAILABLE', 'They are no longer here.', 409);
+    const {data:destination,error:destinationError}=await db.from('together_locations').select('*').eq('id',scene.location_id).maybeSingle();
+    if(destinationError)throw new AppError('INTERNAL_ERROR','That place could not be checked.',503,true);
+    await assertHomePlanWelcome(db,{userId:user.id,location:destination,participantIds:[...new Set([scene.character_instance_id,...(scene.participant_instance_ids??[]),input.characterInstanceId])],conversationId:scene.conversation_id});
     const sequence = Number((scene.state as Record<string, unknown> | null)?.sequence ?? 0) + 1;
     const { data: participant, error } = await db.from('together_scene_participants').upsert({
       user_id: user.id, continuity_id: continuity.id, scene_session_id: scene.id,

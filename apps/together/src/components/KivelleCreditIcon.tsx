@@ -15,7 +15,7 @@ export function KivelleCreditIcon({ size = 18, style }: { size?: number; style?:
       source={require('../../assets/brand/kivelle-credit.jpg')}
       contentFit="cover"
       transition={0}
-      style={StyleSheet.absoluteFill}
+      style={[StyleSheet.absoluteFill, styles.coinImage]}
     />
   </View>;
 }
@@ -26,5 +26,9 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     overflow: 'hidden',
     backgroundColor: '#16000D',
+  },
+  coinImage: {
+    // The supplied coin has a narrow white canvas margin. Crop it inside the circular mask.
+    transform: [{ scale: 1.1 }],
   },
 });

@@ -14,6 +14,7 @@ const KNOWN_REASONS=[
   'non_photorealistic',
   'requested_anatomy_missing','requested_anatomy_unverified',
   'pose_mismatch','face_direction_mismatch',
+  'visible_capture_device',
   'embedded_reference','rendered_text','multiple_subjects','subject_count_mismatch','identity_mismatch','identity_swap',
   'sexual_content','adult_safety_violation','adult_safety_unverified','ambiguous_age',
   'world_mismatch','location_mismatch','earth_leakage','world_unverified','time_mismatch',

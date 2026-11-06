@@ -2,10 +2,12 @@ import { assert, assertEquals, assertStringIncludes, assertThrows } from "jsr:@s
 import { estimatedMediaProviderCost } from "../../../packages/together-domain/src/media-economics.ts";
 import type { CanonicalImageGenerationRequest, MediaReferenceImage } from "./together-media-base.ts";
 import {
+  adultIdentityEditPrompt,
   buildWaveSpeedAdultImagePrompt,
   buildWaveSpeedAdultScenePrompt,
   configuredMediaRegistry,
   providerAttemptsFromError,
+  providerFacingAdultPhotoRequest,
   routeCanonicalMedia,
   WaveSpeedMediaProvider,
   WAVESPEED_ADULT_COMPOSED_ROUTE_ID,
@@ -16,6 +18,39 @@ import {
 } from "./together-media-providers.ts";
 import type { WaveSpeedClient } from "./wavespeed.ts";
 import { AppError } from "./types.ts";
+import { resolvePhotoComposition } from "../../../packages/together-domain/src/media.ts";
+
+Deno.test('adult provider prompts keep a requested anatomy close-up instead of restoring a full-body portrait',()=>{
+  const requestText='Send me a close-up photo of your private parts';
+  const composition=resolvePhotoComposition({source:'user_request',shotType:'portrait',requestText});
+  const canonical={...request(),mediaType:'image' as const,composition,generationIntent:{requestText,requestedContentLevel:'explicit' as const}};
+  const scene=buildWaveSpeedAdultScenePrompt(canonical);
+  const edit=buildWaveSpeedAdultImagePrompt(canonical);
+  const identity=adultIdentityEditPrompt(canonical);
+  for(const prompt of [scene,edit,identity]){
+    assert(/framing:/i.test(prompt));
+    assertStringIncludes(prompt,'tight anatomy close-up');
+    assert(!prompt.includes('natural full-body composition'));
+  }
+  assertStringIncludes(edit,'Face may remain away or out of frame');
+});
+
+Deno.test('adult selfie provider prompt keeps the setting while avoiding a visible capture device',()=>{
+  const request={
+    mediaId:'selfie-test',mediaType:'image',companion:{name:'Evelyn',age:29},
+    generationIntent:{requestText:'Send me an explicit nude selfie from where you are. Set the environment only at The Crooked Oak, inside Vespormoor.',requestedContentLevel:'explicit'},
+    composition:{shotType:'portrait',aspectRatio:'4:5',framing:'chest-up portrait'},
+    context:{worldContainment:{worldName:'Vespormoor',locationName:'The Crooked Oak',worldDescription:'A gothic town with gas lamps and stone streets.'}},
+  } as unknown as Parameters<typeof adultIdentityEditPrompt>[0];
+  const prompt=adultIdentityEditPrompt(request);
+  assert(!/\bselfie\b/i.test(prompt));
+  assertStringIncludes(prompt,'Hands are empty');
+  assertStringIncludes(prompt,'The Crooked Oak');
+  assertStringIncludes(prompt,'Vespormoor');
+  assertStringIncludes(prompt,'TIME/LIGHT');
+  assertStringIncludes(prompt,'buttocks stay behind the pelvis');
+  assertStringIncludes(providerFacingAdultPhotoRequest('a selfie in the courtyard'),'a close personal portrait in the courtyard');
+});
 
 const MANAGED_ENV = [
   "WAVESPEED_API_KEY",
@@ -225,9 +260,10 @@ Deno.test("adult WaveSpeed payload keeps identity first and uses the exact Qwen 
   assert(prompt.includes("NEW PHOTO"));
   assert(prompt.includes("identity ONLY"));
   assert(prompt.includes("fictional consenting adult age 29"));
-  assert(prompt.includes("match that exact face"));
+  assertStringIncludes(prompt,"match that exact face");
   assert(prompt.includes("Image 1 is the exact canonical place"));
   assert(prompt.includes("MANDATORY TARGET"));
+  assert(prompt.includes("No phone or background people in frame"));
   assert(/complete uncovered external genitalia matching this adult body/i.test(prompt));
   assert(prompt.includes("Photoreal")||prompt.includes("VISIBLE ANATOMY")||prompt.includes("Approved full adult nudity"));
   assert(prompt.includes("no doll")||prompt.includes("no robe")||prompt.includes("no blur"));
@@ -240,20 +276,19 @@ Deno.test("adult WaveSpeed prompt makes requested pose and anatomy outrank the i
   assertEquals(input.images, ["https://signed.test/suite.webp", "https://signed.test/elena.webp"]);
   assert(prompt.includes("NEW PHOTO"));
   assert(prompt.includes("identity ONLY"));
-  assert(prompt.includes("buttocks and genitals fill the center of the frame"));
+  assert(prompt.includes("requested rear anatomy fills the center of the frame"));
   assert(prompt.includes("external vulva and labia plus buttocks and rear anatomy"));
   assert(prompt.includes("no robe, underwear, fabric"));
-  assert(prompt.includes("match that exact face"));
+  assertStringIncludes(prompt,"match that exact face");
   assert(prompt.includes("Image 1 is the exact canonical place"));
   assert(prompt.indexOf("MANDATORY TARGET")<prompt.indexOf("IDENTITY:"));
 }));
 
-Deno.test("a bent-over nude request without named genitals still demands visible anatomy on Qwen", () => withProviderEnv(() => {
+Deno.test("a bent-over nude request without named genitals keeps the requested rear anatomy on Qwen", () => withProviderEnv(() => {
   const canonical={...request(),generationIntent:{requestText:"Send me a picture of you bent over nude",requestedContentLevel:"explicit" as const}},route=configuredMediaRegistry().find((item)=>item.id===WAVESPEED_ADULT_QWEN_ROUTE_ID)!;
   const prompt=String(waveSpeedInput({...canonical,mediaType:"image"},route).prompt);
   assert(prompt.length<=800);
-  assert(prompt.includes("buttocks and genitals fill the center of the frame"));
-  assert(prompt.includes("complete uncovered external genitalia matching this adult body"));
+  assert(prompt.includes("requested rear anatomy fills the center of the frame"));
   assert(prompt.includes("buttocks and rear anatomy"));
   assert(prompt.includes("match that exact face"));
   assert(prompt.includes("Image 1 is the exact canonical place"));
@@ -268,7 +303,7 @@ Deno.test("Wan Realism scene payload creates a fresh photographic composition wi
   assert(!("images" in input));
   assert(!prompt.includes("signed.test"));
   assertStringIncludes(prompt,"RAW documentary photograph captured with a full-frame professional camera");
-  assertStringIncludes(prompt,"buttocks and genitals fill the center of the frame");
+  assertStringIncludes(prompt,"requested rear anatomy fills the center of the frame");
   assert(!prompt.includes("over-the-shoulder glance"));
   assertStringIncludes(prompt,"external vulva and labia plus buttocks and rear anatomy");
   assertStringIncludes(prompt,"Vulva/labia must be plausible, correctly placed, and integrated with the pelvis");

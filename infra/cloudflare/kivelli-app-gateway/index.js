@@ -201,7 +201,15 @@ async function proxySupabaseRequest(request, incomingUrl, env) {
     if (upstreamResponse.status === 101) return upstreamResponse;
 
     const responseHeaders = new Headers(upstreamResponse.headers);
-    responseHeaders.set("cache-control", "no-store");
+    // Signed user photos are scoped to an expiring URL. Let only the user's
+    // browser reuse those bytes briefly when moving between gallery pages.
+    // Auth, API data, errors, and video streams remain uncached.
+    const signedUserImage = (request.method === "GET" || request.method === "HEAD") &&
+      (upstreamPath.startsWith("/storage/v1/object/sign/together-user-media/") ||
+        upstreamPath.startsWith("/storage/v1/render/image/sign/together-user-media/")) &&
+      upstreamResponse.ok &&
+      (responseHeaders.get("content-type") || "").startsWith("image/");
+    responseHeaders.set("cache-control", signedUserImage ? "private, max-age=900" : "no-store");
     responseHeaders.set("x-kivelli-api-proxy", "supabase");
     if ((responseHeaders.get("content-type") || "").startsWith("video/")) {
       responseHeaders.set("accept-ranges", "bytes");

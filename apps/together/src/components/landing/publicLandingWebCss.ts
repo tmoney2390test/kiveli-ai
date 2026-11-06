@@ -27,7 +27,7 @@ export const publicLandingWebCss = `
   @media (min-width: 900px) {
     #kivelli-landing-layout { flex-direction: row; }
     #kivelli-landing-visual { width: 58%; height: 100%; }
-    #kivelli-landing-visual img { object-position: center center !important; }
+    #kivelli-landing-visual img { object-position: center top !important; }
     #kivelli-landing-fade {
       left: auto; top: 0; right: 0; bottom: 0; width: 90px; height: auto;
       background-image: linear-gradient(90deg, rgba(5,4,10,0) 0%, #05040A 100%);

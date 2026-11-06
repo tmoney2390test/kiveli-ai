@@ -1,11 +1,11 @@
 import {currentPurchaseAccount,readPendingPurchase,savePendingPurchase} from './nativePurchaseRecovery';
 import{Platform}from'react-native';
-import { nativeProductPrice, type NativeProductPrice } from './nativeProductPrice';
+import type { NativeProductPrice } from './nativeProductPrice';
 import Purchases,{LOG_LEVEL,PRODUCT_CATEGORY,type PurchasesPackage}from'react-native-purchases';
 import {nativeCreditProductIds} from './nativeCreditProducts';
 import type {CreditPack} from './subscription';
 import type{BillingInterval,SubscriptionTier}from'./subscription';
-import{revenueCatPurchaseError,selectRevenueCatPackage}from'./revenueCatPurchases';
+import{revenueCatPurchaseError,selectRevenueCatPackage,verifiedPackagePrice}from'./revenueCatPurchases';
 
 let identityQueue:Promise<void>=Promise.resolve();
 let storeBusy=false;
@@ -73,6 +73,7 @@ export async function purchaseNativeSubscription(userId:string,tier:Exclude<Subs
   const offerings=await Purchases.getOfferings(),offeringId=process.env.EXPO_PUBLIC_KIVELLE_REVENUECAT_OFFERING_ID?.trim(),offering=offeringId?offerings.all[offeringId]??null:offerings.current;
   const selected=selectRevenueCatPackage<PurchasesPackage>(offering?.availablePackages??[],tier,interval);
   if(!selected)throw new Error('The requested RevenueCat package is not available in this app-store offering.');
+  if(!verifiedPackagePrice(selected.product,interval))throw new Error('The store product does not match the selected billing period. Refresh the membership page before purchasing.');
   if(storeBusy)throw new Error('Another store operation is running.');
   storeBusy=true;
   try{
@@ -116,7 +117,11 @@ export function onNativeCustomerInfoUpdated(listener:()=>void):()=>void{
 export async function loadNativeProductPrices(userId:string):Promise<Record<string,NativeProductPrice>>{
   await requireConfigured(userId);
   const offerings=await Purchases.getOfferings(),offeringId=process.env.EXPO_PUBLIC_KIVELLE_REVENUECAT_OFFERING_ID?.trim(),offering=offeringId?offerings.all[offeringId]??null:offerings.current;
-  return Object.fromEntries((offering?.availablePackages??[]).flatMap((item)=>{const price=nativeProductPrice(item.product);return price?[[item.identifier,price]]:[];}));
+  return Object.fromEntries((offering?.availablePackages??[]).flatMap((item)=>{
+    const interval=item.identifier.endsWith('_annual')?'annual':item.identifier.endsWith('_monthly')?'monthly':null;
+    const price=interval?verifiedPackagePrice(item.product,interval):null;
+    return price?[[item.identifier,price]]:[];
+  }));
 }
 
 async function requireConfigured(userId:string):Promise<void>{

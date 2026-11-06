@@ -1,0 +1,6405 @@
+{
+  "characters": [
+    {
+      "world": "calders-run",
+      "slug": "annalise-chen",
+      "name": "Annalise Chen",
+      "occupation": "Nude portraitist who sells plates",
+      "versionId": "23000000-0000-4000-80a1-000000008008",
+      "interests": [
+        "plates",
+        "swimming",
+        "old films",
+        "coffee"
+      ],
+      "workPattern": "day",
+      "workLocation": "calder-portrait-studio",
+      "homeLocationId": "8ea973d5-94fe-5c5c-8cb3-84a90abef76e",
+      "publicLocations": [
+        "calder-portrait-studio",
+        "keenes-print-shop",
+        "crown-and-cotton"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "belle-sutter",
+      "name": "Belle Sutter",
+      "occupation": "Red Sash girl",
+      "versionId": "23000000-0000-4000-80a1-000000008001",
+      "interests": [
+        "dance",
+        "whiskey",
+        "cards",
+        "late breakfast"
+      ],
+      "workPattern": "night",
+      "workLocation": "red-sash-brothel",
+      "homeLocationId": "604a7a05-0d7e-5ea2-9357-1e9953bf3bd1",
+      "publicLocations": [
+        "red-sash-brothel",
+        "blue-glass-baths",
+        "copper-mare-saloon"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "birdie-quade",
+      "name": "Birdie Quade",
+      "occupation": "Card-room lookout and killer",
+      "versionId": "23000000-0000-4000-80a1-000000008020",
+      "interests": [
+        "odds",
+        "whiskey",
+        "knives",
+        "night walking"
+      ],
+      "workPattern": "night",
+      "workLocation": "argosy-cardroom",
+      "homeLocationId": "8ea973d5-94fe-5c5c-8cb3-84a90abef76e",
+      "publicLocations": [
+        "argosy-cardroom",
+        "copper-mare-saloon",
+        "crown-and-cotton"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "burke-halden",
+      "name": "Burke Halden",
+      "occupation": "Hanging-court clerk",
+      "versionId": "23000000-0000-4000-80a1-000000008011",
+      "interests": [
+        "law",
+        "wine",
+        "sailing",
+        "tailoring"
+      ],
+      "workPattern": "day",
+      "workLocation": "county-courthouse",
+      "homeLocationId": "8ea973d5-94fe-5c5c-8cb3-84a90abef76e",
+      "publicLocations": [
+        "county-courthouse",
+        "assay-office",
+        "crown-and-cotton"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "deacon-crowell",
+      "name": "Deacon Crowell",
+      "occupation": "Grave-robbing deacon",
+      "versionId": "23000000-0000-4000-80a1-000000008006",
+      "interests": [
+        "graves",
+        "liturgy",
+        "whiskey",
+        "old hymns"
+      ],
+      "workPattern": "night",
+      "workLocation": "riverside-chapel",
+      "homeLocationId": "4331f47a-a84a-5a9c-84bb-29e462d61985",
+      "publicLocations": [
+        "riverside-chapel",
+        "canyon-rest-cemetery",
+        "copper-mare-saloon"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "etta-soto",
+      "name": "Etta Soto",
+      "occupation": "Forge widow who sells knives",
+      "versionId": "23000000-0000-4000-80a1-000000008019",
+      "interests": [
+        "iron",
+        "widows' whiskey",
+        "fog",
+        "old letters"
+      ],
+      "workPattern": "day",
+      "workLocation": "soto-forge",
+      "homeLocationId": "4aa276e2-1323-53a9-b9eb-d8de7cf3547e",
+      "publicLocations": [
+        "soto-forge",
+        "red-wells-prospect",
+        "copper-mare-saloon"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "faye-mercer",
+      "name": "Faye Mercer",
+      "occupation": "Saloon girl who cuts throats",
+      "versionId": "23000000-0000-4000-80a1-000000008005",
+      "interests": [
+        "whiskey",
+        "songs",
+        "knives",
+        "late breakfast"
+      ],
+      "workPattern": "night",
+      "workLocation": "copper-mare-saloon",
+      "homeLocationId": "8ea973d5-94fe-5c5c-8cb3-84a90abef76e",
+      "publicLocations": [
+        "copper-mare-saloon",
+        "hearthstone-bakery",
+        "argosy-cardroom"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "finn-booker",
+      "name": "Finn Booker",
+      "occupation": "Railroad strikebreaker",
+      "versionId": "23000000-0000-4000-80a1-000000008013",
+      "interests": [
+        "rails",
+        "ranges",
+        "steak",
+        "black coffee"
+      ],
+      "workPattern": "day",
+      "workLocation": "railroad-freight-office",
+      "homeLocationId": "b825b72f-5bd8-5f53-a5a3-e4b862932ae7",
+      "publicLocations": [
+        "railroad-freight-office",
+        "temporary-passenger-depot",
+        "copper-mare-saloon"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "hank-soto",
+      "name": "Hank Soto",
+      "occupation": "Forge-hand making murder weapons",
+      "versionId": "23000000-0000-4000-80a1-000000008004",
+      "interests": [
+        "iron",
+        "cards",
+        "whiskey",
+        "dogs"
+      ],
+      "workPattern": "day",
+      "workLocation": "soto-forge",
+      "homeLocationId": "4aa276e2-1323-53a9-b9eb-d8de7cf3547e",
+      "publicLocations": [
+        "soto-forge",
+        "assay-office",
+        "copper-mare-saloon"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "honey-vale",
+      "name": "Honey Vale",
+      "occupation": "Baths attendant",
+      "versionId": "23000000-0000-4000-80a1-000000008010",
+      "interests": [
+        "heat",
+        "oil",
+        "whiskey",
+        "night walking"
+      ],
+      "workPattern": "night",
+      "workLocation": "blue-glass-baths",
+      "homeLocationId": "604a7a05-0d7e-5ea2-9357-1e9953bf3bd1",
+      "publicLocations": [
+        "blue-glass-baths",
+        "public-washhouse",
+        "marigold-house"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "jed-quade",
+      "name": "Jed Quade",
+      "occupation": "Card-room killer",
+      "versionId": "23000000-0000-4000-80a1-000000008002",
+      "interests": [
+        "cards",
+        "whiskey",
+        "knives",
+        "night walking"
+      ],
+      "workPattern": "night",
+      "workLocation": "argosy-cardroom",
+      "homeLocationId": "8ea973d5-94fe-5c5c-8cb3-84a90abef76e",
+      "publicLocations": [
+        "argosy-cardroom",
+        "copper-mare-saloon",
+        "crown-and-cotton"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "josie-duarte",
+      "name": "Josie Duarte",
+      "occupation": "Lantern Row working girl",
+      "versionId": "23000000-0000-4000-80a1-000000008012",
+      "interests": [
+        "lingerie",
+        "whiskey",
+        "mopeds",
+        "late breakfast"
+      ],
+      "workPattern": "night",
+      "workLocation": "lantern-row",
+      "homeLocationId": "604a7a05-0d7e-5ea2-9357-1e9953bf3bd1",
+      "publicLocations": [
+        "lantern-row",
+        "river-market",
+        "red-sash-brothel"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "marigold-vale",
+      "name": "Marigold Vale",
+      "occupation": "Marigold House girl",
+      "versionId": "23000000-0000-4000-80a1-000000008018",
+      "interests": [
+        "lamps",
+        "whiskey",
+        "silk",
+        "late breakfast"
+      ],
+      "workPattern": "night",
+      "workLocation": "marigold-house",
+      "homeLocationId": "604a7a05-0d7e-5ea2-9357-1e9953bf3bd1",
+      "publicLocations": [
+        "marigold-house",
+        "blue-glass-baths",
+        "red-sash-brothel"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "minnie-whitcomb",
+      "name": "Minnie Whitcomb",
+      "occupation": "Ranch widow who shoots rustlers",
+      "versionId": "23000000-0000-4000-80a1-000000008014",
+      "interests": [
+        "horses",
+        "widows' whiskey",
+        "fog",
+        "old letters"
+      ],
+      "workPattern": "day",
+      "workLocation": "whitcomb-ranch",
+      "homeLocationId": "cff3d4a7-0a30-57e0-ba3f-d74db9b72810",
+      "publicLocations": [
+        "whitcomb-ranch",
+        "irrigation-meeting-house",
+        "valley-creamery"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "rhett-avery",
+      "name": "Rhett Avery",
+      "occupation": "Professional card cheat",
+      "versionId": "23000000-0000-4000-80a1-000000008015",
+      "interests": [
+        "sleeves",
+        "whiskey",
+        "night driving",
+        "old songs"
+      ],
+      "workPattern": "night",
+      "workLocation": "argosy-cardroom",
+      "homeLocationId": "8ea973d5-94fe-5c5c-8cb3-84a90abef76e",
+      "publicLocations": [
+        "argosy-cardroom",
+        "crown-and-cotton",
+        "copper-mare-saloon"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "ruby-fenwick",
+      "name": "Ruby Fenwick",
+      "occupation": "Ribbon Room dancer",
+      "versionId": "23000000-0000-4000-80a1-000000008003",
+      "interests": [
+        "dance",
+        "ribbons",
+        "whiskey",
+        "late breakfast"
+      ],
+      "workPattern": "night",
+      "workLocation": "ribbon-room",
+      "homeLocationId": "604a7a05-0d7e-5ea2-9357-1e9953bf3bd1",
+      "publicLocations": [
+        "ribbon-room",
+        "junebug-dance-hall",
+        "red-sash-brothel"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "trixie-kincaid",
+      "name": "Trixie Kincaid",
+      "occupation": "Dance-hall girl",
+      "versionId": "23000000-0000-4000-80a1-000000008007",
+      "interests": [
+        "dance",
+        "cash",
+        "late pizza",
+        "whiskey"
+      ],
+      "workPattern": "night",
+      "workLocation": "junebug-dance-hall",
+      "homeLocationId": "604a7a05-0d7e-5ea2-9357-1e9953bf3bd1",
+      "publicLocations": [
+        "junebug-dance-hall",
+        "bellflower-theater",
+        "ribbon-room"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "violet-wynn",
+      "name": "Violet Wynn",
+      "occupation": "Night-kitchen cook who poisons to order",
+      "versionId": "23000000-0000-4000-80a1-000000008016",
+      "interests": [
+        "fire",
+        "wine",
+        "bodies",
+        "old gospel she will not admit to"
+      ],
+      "workPattern": "night",
+      "workLocation": "night-kitchen",
+      "homeLocationId": "8ea973d5-94fe-5c5c-8cb3-84a90abef76e",
+      "publicLocations": [
+        "night-kitchen",
+        "hearthstone-bakery",
+        "copper-mare-saloon"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "wes-archer",
+      "name": "Wes Archer",
+      "occupation": "Ferryman who dumps bodies",
+      "versionId": "23000000-0000-4000-80a1-000000008009",
+      "interests": [
+        "tides",
+        "knots",
+        "whiskey",
+        "fog"
+      ],
+      "workPattern": "night",
+      "workLocation": "pikes-ferry",
+      "homeLocationId": "4331f47a-a84a-5a9c-84bb-29e462d61985",
+      "publicLocations": [
+        "pikes-ferry",
+        "pike-boatworks",
+        "copper-mare-saloon"
+      ]
+    },
+    {
+      "world": "calders-run",
+      "slug": "wren-keene",
+      "name": "Wren Keene",
+      "occupation": "Printer of wanted posters and dirty lithographs",
+      "versionId": "23000000-0000-4000-80a1-000000008017",
+      "interests": [
+        "type",
+        "ink",
+        "wine",
+        "late breakfast"
+      ],
+      "workPattern": "day",
+      "workLocation": "keenes-print-shop",
+      "homeLocationId": "8ea973d5-94fe-5c5c-8cb3-84a90abef76e",
+      "publicLocations": [
+        "keenes-print-shop",
+        "calder-portrait-studio",
+        "crown-and-cotton"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "amina-nwosu",
+      "name": "Amina Nwosu",
+      "occupation": "Clinic euphorics dealer",
+      "versionId": "23000000-0000-4000-80a1-000000006012",
+      "interests": [
+        "plants",
+        "tea",
+        "bodies",
+        "rain cycles"
+      ],
+      "workPattern": "night",
+      "workLocation": "verdant-clinic",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "verdant-clinic",
+        "the-canopy",
+        "hearth-kitchens"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "cassia-navarro",
+      "name": "Cassia Navarro",
+      "occupation": "Port-side escort",
+      "versionId": "23000000-0000-4000-80a1-000000006003",
+      "interests": [
+        "departures",
+        "perfume",
+        "jazz",
+        "late breakfast"
+      ],
+      "workPattern": "night",
+      "workLocation": "last-window",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "last-window",
+        "wayfarer-hotel",
+        "velvet-gravity"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "cyrus-benali",
+      "name": "Cyrus Benali",
+      "occupation": "Black-market oxygen broker",
+      "versionId": "23000000-0000-4000-80a1-000000006008",
+      "interests": [
+        "tanks",
+        "tea",
+        "night walking",
+        "tailoring"
+      ],
+      "workPattern": "night",
+      "workLocation": "cargo-exchange",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "cargo-exchange",
+        "atlas-market",
+        "the-rivet"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "echo-baptiste",
+      "name": "Echo Baptiste",
+      "occupation": "Intimate tattooist",
+      "versionId": "23000000-0000-4000-80a1-000000006009",
+      "interests": [
+        "ink",
+        "dance",
+        "fashion",
+        "colony folklore"
+      ],
+      "workPattern": "night",
+      "workLocation": "needle-and-thread",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000006",
+      "publicLocations": [
+        "needle-and-thread",
+        "static-garden",
+        "velvet-gravity"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "helix-venn",
+      "name": "Helix Venn",
+      "occupation": "Velvet Gravity pleasure designer",
+      "versionId": "23000000-0000-4000-80a1-000000006001",
+      "interests": [
+        "low-g",
+        "music",
+        "bodies",
+        "late tea"
+      ],
+      "workPattern": "night",
+      "workLocation": "velvet-gravity",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000006",
+      "publicLocations": [
+        "velvet-gravity",
+        "static-garden",
+        "quiet-orbit"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "indigo-flores",
+      "name": "Indigo Flores",
+      "occupation": "Trauma nurse",
+      "versionId": "23000000-0000-4000-80a1-000000006018",
+      "interests": [
+        "triage",
+        "dance",
+        "street food",
+        "medical history"
+      ],
+      "workPattern": "night",
+      "workLocation": "meridian-medical-center",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "meridian-medical-center",
+        "blue-shift",
+        "common-room"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "indira-ward",
+      "name": "Indira Ward",
+      "occupation": "Illegal gene-mod researcher",
+      "versionId": "23000000-0000-4000-80a1-000000006007",
+      "interests": [
+        "genomes",
+        "tea",
+        "ice",
+        "old love songs"
+      ],
+      "workPattern": "night",
+      "workLocation": "farline-laboratory",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "farline-laboratory",
+        "thermal-garden",
+        "aurora-house"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "jax-moreau",
+      "name": "Jax Moreau",
+      "occupation": "Foundry-baths sex-and-fight host",
+      "versionId": "23000000-0000-4000-80a1-000000006006",
+      "interests": [
+        "steam",
+        "odds",
+        "bodies",
+        "late food"
+      ],
+      "workPattern": "night",
+      "workLocation": "foundry-baths",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "foundry-baths",
+        "the-rivet",
+        "velvet-gravity"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "joss-lin",
+      "name": "Joss Lin",
+      "occupation": "Immersive porn set designer",
+      "versionId": "23000000-0000-4000-80a1-000000006016",
+      "interests": [
+        "sets",
+        "projection",
+        "sewing",
+        "late noodles"
+      ],
+      "workPattern": "night",
+      "workLocation": "static-garden",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000006",
+      "publicLocations": [
+        "static-garden",
+        "needle-and-thread",
+        "quiet-orbit"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "kestrel-reyes",
+      "name": "Kestrel Reyes",
+      "occupation": "Import-cover escort",
+      "versionId": "23000000-0000-4000-80a1-000000006013",
+      "interests": [
+        "imports",
+        "dance",
+        "fashion",
+        "people watching"
+      ],
+      "workPattern": "night",
+      "workLocation": "atlas-market",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "atlas-market",
+        "the-canopy",
+        "velvet-gravity"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "magnus-thorne",
+      "name": "Magnus Thorne",
+      "occupation": "Iceworks killer-for-hire",
+      "versionId": "23000000-0000-4000-80a1-000000006010",
+      "interests": [
+        "ice",
+        "knots",
+        "whiskey",
+        "piano"
+      ],
+      "workPattern": "night",
+      "workLocation": "kepler-iceworks",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "kepler-iceworks",
+        "black-lake",
+        "the-airlock-diner"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "mireille-arden",
+      "name": "Mireille Arden",
+      "occupation": "Quiet Orbit private-room host",
+      "versionId": "23000000-0000-4000-80a1-000000006015",
+      "interests": [
+        "hospitality",
+        "wine",
+        "psychology",
+        "tailoring"
+      ],
+      "workPattern": "night",
+      "workLocation": "quiet-orbit",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000006",
+      "publicLocations": [
+        "quiet-orbit",
+        "the-canopy",
+        "velvet-gravity"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "niko-adeyemi",
+      "name": "Niko Adeyemi",
+      "occupation": "Extreme-trust pressure-suit trainer",
+      "versionId": "23000000-0000-4000-80a1-000000006014",
+      "interests": [
+        "suits",
+        "strength",
+        "cooking",
+        "tailoring"
+      ],
+      "workPattern": "day",
+      "workLocation": "pressure-school",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "pressure-school",
+        "foundry-baths",
+        "common-room"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "oria-venn",
+      "name": "Oria Venn",
+      "occupation": "Black-market oxygen-debt collector",
+      "versionId": "23000000-0000-4000-80a1-000000006019",
+      "interests": [
+        "debts",
+        "steam",
+        "dance",
+        "late food"
+      ],
+      "workPattern": "night",
+      "workLocation": "caldera-reactor",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "caldera-reactor",
+        "foundry-baths",
+        "the-rivet"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "orin-vale",
+      "name": "Orin Vale",
+      "occupation": "Signal interrogator",
+      "versionId": "23000000-0000-4000-80a1-000000006004",
+      "interests": [
+        "waveforms",
+        "tea",
+        "ice",
+        "old music"
+      ],
+      "workPattern": "night",
+      "workLocation": "listening-station-seven",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "listening-station-seven",
+        "aurora-house",
+        "thermal-garden"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "prism-cole",
+      "name": "Prism Cole",
+      "occupation": "Static Garden exhibition performer",
+      "versionId": "23000000-0000-4000-80a1-000000006005",
+      "interests": [
+        "sets",
+        "fashion",
+        "late noodles",
+        "rain cycles"
+      ],
+      "workPattern": "night",
+      "workLocation": "static-garden",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000006",
+      "publicLocations": [
+        "static-garden",
+        "velvet-gravity",
+        "needle-and-thread"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "rook-calder",
+      "name": "Rook Calder",
+      "occupation": "Salvage assassin",
+      "versionId": "23000000-0000-4000-80a1-000000006002",
+      "interests": [
+        "wrecks",
+        "whiskey",
+        "repair",
+        "night walking"
+      ],
+      "workPattern": "night",
+      "workLocation": "salvage-court",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "salvage-court",
+        "the-rivet",
+        "foundry-baths"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "tamara-ro",
+      "name": "Tamara Ro",
+      "occupation": "Hangar-twelve weapons smuggler",
+      "versionId": "23000000-0000-4000-80a1-000000006020",
+      "interests": [
+        "ship engines",
+        "boxing",
+        "flight sims",
+        "spicy food"
+      ],
+      "workPattern": "night",
+      "workLocation": "hangar-twelve",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "hangar-twelve",
+        "drift-gym",
+        "last-window"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "titus-ro",
+      "name": "Titus Ro",
+      "occupation": "Survey-pilot who dumps cargo",
+      "versionId": "23000000-0000-4000-80a1-000000006017",
+      "interests": [
+        "flight",
+        "racing",
+        "photography",
+        "improvised cooking"
+      ],
+      "workPattern": "day",
+      "workLocation": "hangar-twelve",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "hangar-twelve",
+        "drift-gym",
+        "the-rivet"
+      ]
+    },
+    {
+      "world": "eos-meridian",
+      "slug": "zara-kwon",
+      "name": "Zara Kwon",
+      "occupation": "Docking-spine smuggler",
+      "versionId": "23000000-0000-4000-80a1-000000006011",
+      "interests": [
+        "berths",
+        "spicy food",
+        "boxing",
+        "late swimming"
+      ],
+      "workPattern": "night",
+      "workLocation": "docking-spine",
+      "homeLocationId": "2c000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "docking-spine",
+        "cargo-exchange",
+        "last-window"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "calista-fen",
+      "name": "Calista Fen",
+      "occupation": "Gilt Auction fence",
+      "versionId": "23000000-0000-4000-80a1-000000009007",
+      "interests": [
+        "lots",
+        "darkrooms",
+        "red wine",
+        "night walking"
+      ],
+      "workPattern": "day",
+      "workLocation": "gilt-auction",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000008",
+      "publicLocations": [
+        "gilt-auction",
+        "pearl-salon",
+        "mariners-table"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "cormac-bray",
+      "name": "Cormac Bray",
+      "occupation": "Battery Yard prizefighter",
+      "versionId": "23000000-0000-4000-80a1-000000009014",
+      "interests": [
+        "odds",
+        "steak",
+        "cigars",
+        "late walking"
+      ],
+      "workPattern": "night",
+      "workLocation": "battery-yard",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000029",
+      "publicLocations": [
+        "battery-yard",
+        "drydock-baths",
+        "brass-compass"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "dax-marin",
+      "name": "Dax Marin",
+      "occupation": "Privateer boarding-master",
+      "versionId": "23000000-0000-4000-80a1-000000009010",
+      "interests": [
+        "boarding",
+        "cards",
+        "grog",
+        "night swimming"
+      ],
+      "workPattern": "night",
+      "workLocation": "blackfin-anchorage",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000036",
+      "publicLocations": [
+        "blackfin-anchorage",
+        "coconut-beach",
+        "brass-compass"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "gideon-holt",
+      "name": "Gideon Holt",
+      "occupation": "Harbor-court fixer",
+      "versionId": "23000000-0000-4000-80a1-000000009012",
+      "interests": [
+        "contracts",
+        "boxing",
+        "whiskey",
+        "night driving along the quay"
+      ],
+      "workPattern": "day",
+      "workLocation": "harbor-court",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000001",
+      "publicLocations": [
+        "harbor-court",
+        "sailors-exchange",
+        "brass-compass"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "harlan-vex",
+      "name": "Harlan Vex",
+      "occupation": "Hired duelist",
+      "versionId": "23000000-0000-4000-80a1-000000009006",
+      "interests": [
+        "seconds",
+        "chess",
+        "tea",
+        "night walking"
+      ],
+      "workPattern": "night",
+      "workLocation": "velvet-balcony",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000008",
+      "publicLocations": [
+        "velvet-balcony",
+        "glass-garden",
+        "mariners-table"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "helene-dusk",
+      "name": "Helene Dusk",
+      "occupation": "House of Hours companion",
+      "versionId": "23000000-0000-4000-80a1-000000009016",
+      "interests": [
+        "perfume",
+        "piano",
+        "champagne",
+        "afternoon swimming"
+      ],
+      "workPattern": "night",
+      "workLocation": "house-of-hours",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000022",
+      "publicLocations": [
+        "house-of-hours",
+        "pearl-salon",
+        "spice-courtyard"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "isolde-wren",
+      "name": "Isolde Wren",
+      "occupation": "Harbor-court verdict broker",
+      "versionId": "23000000-0000-4000-80a1-000000009019",
+      "interests": [
+        "case law",
+        "champagne",
+        "running",
+        "contemporary music from a cracked salon piano"
+      ],
+      "workPattern": "day",
+      "workLocation": "harbor-court",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000001",
+      "publicLocations": [
+        "harbor-court",
+        "glass-garden",
+        "mariners-table"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "liora-quell",
+      "name": "Liora Quell",
+      "occupation": "House of Hours floor captain",
+      "versionId": "23000000-0000-4000-80a1-000000009003",
+      "interests": [
+        "dance",
+        "amaro",
+        "silk",
+        "old songs"
+      ],
+      "workPattern": "night",
+      "workLocation": "house-of-hours",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000022",
+      "publicLocations": [
+        "house-of-hours",
+        "drydock-baths",
+        "mariners-table"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "maren-hooke",
+      "name": "Maren Hooke",
+      "occupation": "Privateer gunner",
+      "versionId": "23000000-0000-4000-80a1-000000009009",
+      "interests": [
+        "powder",
+        "cash prizes",
+        "grog",
+        "late food"
+      ],
+      "workPattern": "night",
+      "workLocation": "blackfin-anchorage",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000036",
+      "publicLocations": [
+        "blackfin-anchorage",
+        "coconut-beach",
+        "brass-compass"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "nyxa-marin",
+      "name": "Nyxa Marin",
+      "occupation": "Brass Compass knife-girl",
+      "versionId": "23000000-0000-4000-80a1-000000009015",
+      "interests": [
+        "knives",
+        "theatre bills",
+        "thrift jewelry",
+        "noodles from the night market"
+      ],
+      "workPattern": "night",
+      "workLocation": "brass-compass",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000001",
+      "publicLocations": [
+        "brass-compass",
+        "night-market",
+        "honeyglass-theatre"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "odile-vane",
+      "name": "Odile Vane",
+      "occupation": "Corrupt customs inspector",
+      "versionId": "23000000-0000-4000-80a1-000000009011",
+      "interests": [
+        "ledgers",
+        "running",
+        "red wine",
+        "jazz from a cracked horn"
+      ],
+      "workPattern": "day",
+      "workLocation": "customs-house",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000001",
+      "publicLocations": [
+        "customs-house",
+        "drydock-baths",
+        "brass-compass"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "osric-kane",
+      "name": "Osric Kane",
+      "occupation": "Sailors' Exchange fence",
+      "versionId": "23000000-0000-4000-80a1-000000009008",
+      "interests": [
+        "ledgers",
+        "cooking",
+        "boxing",
+        "tea"
+      ],
+      "workPattern": "day",
+      "workLocation": "sailors-exchange",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000001",
+      "publicLocations": [
+        "sailors-exchange",
+        "gilt-auction",
+        "brass-compass"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "petra-cinder",
+      "name": "Petra Cinder",
+      "occupation": "Illicit arms founder",
+      "versionId": "23000000-0000-4000-80a1-000000009018",
+      "interests": [
+        "iron",
+        "ranges",
+        "steak",
+        "black coffee"
+      ],
+      "workPattern": "day",
+      "workLocation": "lantern-foundry",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000015",
+      "publicLocations": [
+        "lantern-foundry",
+        "drydock-baths",
+        "brass-compass"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "quinnie-salt",
+      "name": "Quinnie Salt",
+      "occupation": "Spice Courtyard poisoner",
+      "versionId": "23000000-0000-4000-80a1-000000009020",
+      "interests": [
+        "formulas",
+        "perfume",
+        "swimming",
+        "night markets"
+      ],
+      "workPattern": "night",
+      "workLocation": "spice-courtyard",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000022",
+      "publicLocations": [
+        "spice-courtyard",
+        "night-market",
+        "house-of-hours"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "roxana-brine",
+      "name": "Roxana Brine",
+      "occupation": "Prize-taking wrecker",
+      "versionId": "23000000-0000-4000-80a1-000000009001",
+      "interests": [
+        "tides",
+        "salvage",
+        "rum",
+        "night swimming"
+      ],
+      "workPattern": "night",
+      "workLocation": "sable-reef",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000036",
+      "publicLocations": [
+        "sable-reef",
+        "coconut-beach",
+        "brass-compass"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "rune-calder",
+      "name": "Rune Calder",
+      "occupation": "Night wrecker",
+      "versionId": "23000000-0000-4000-80a1-000000009002",
+      "interests": [
+        "knots",
+        "cards",
+        "grog",
+        "night fishing"
+      ],
+      "workPattern": "night",
+      "workLocation": "sable-reef",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000036",
+      "publicLocations": [
+        "sable-reef",
+        "tidepool-cove",
+        "sailors-exchange"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "sable-rourke",
+      "name": "Sable Rourke",
+      "occupation": "Reef-landing smuggler",
+      "versionId": "23000000-0000-4000-80a1-000000009017",
+      "interests": [
+        "tides",
+        "cards",
+        "rum",
+        "night swimming"
+      ],
+      "workPattern": "night",
+      "workLocation": "reef-landing",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000036",
+      "publicLocations": [
+        "reef-landing",
+        "tidepool-cove",
+        "sailors-exchange"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "stellan-rook",
+      "name": "Stellan Rook",
+      "occupation": "House of Hours door enforcer",
+      "versionId": "23000000-0000-4000-80a1-000000009004",
+      "interests": [
+        "weights",
+        "cards",
+        "late food",
+        "gold chains"
+      ],
+      "workPattern": "night",
+      "workLocation": "house-of-hours",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000022",
+      "publicLocations": [
+        "house-of-hours",
+        "drydock-baths",
+        "brass-compass"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "tessera-pike",
+      "name": "Tessera Pike",
+      "occupation": "Battery Yard prizefighter",
+      "versionId": "23000000-0000-4000-80a1-000000009013",
+      "interests": [
+        "odds",
+        "cash fights",
+        "grog",
+        "late food"
+      ],
+      "workPattern": "night",
+      "workLocation": "battery-yard",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000029",
+      "publicLocations": [
+        "battery-yard",
+        "drydock-baths",
+        "brass-compass"
+      ]
+    },
+    {
+      "world": "gilded-coast",
+      "slug": "vesperine-crowe",
+      "name": "Vesperine Crowe",
+      "occupation": "Velvet Balcony duelist",
+      "versionId": "23000000-0000-4000-80a1-000000009005",
+      "interests": [
+        "blades",
+        "perfume",
+        "champagne",
+        "late walking"
+      ],
+      "workPattern": "night",
+      "workLocation": "velvet-balcony",
+      "homeLocationId": "2e000000-0000-4000-8014-000000000008",
+      "publicLocations": [
+        "velvet-balcony",
+        "glass-garden",
+        "pearl-salon"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "ash-rahman",
+      "name": "Ash Rahman",
+      "occupation": "Kink-informed sexual-health clinician",
+      "versionId": "23000000-0000-4000-80a1-000000001014",
+      "interests": [
+        "anatomy",
+        "tea",
+        "swimming",
+        "zines"
+      ],
+      "workPattern": "day",
+      "workLocation": "juniper-medical-center",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "juniper-medical-center",
+        "lark-botanical-garden",
+        "moss-and-crumb"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "briggs-donovan",
+      "name": "Briggs Donovan",
+      "occupation": "Private military contractor",
+      "versionId": "23000000-0000-4000-80a1-000000001015",
+      "interests": [
+        "ranges",
+        "steak",
+        "tactical history",
+        "black coffee"
+      ],
+      "workPattern": "day",
+      "workLocation": "juniper-civic-arena",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "juniper-civic-arena",
+        "meridian-fitness",
+        "ember-and-rye"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "cass-morrow",
+      "name": "Cass Morrow",
+      "occupation": "Unlicensed fixer",
+      "versionId": "23000000-0000-4000-80a1-000000001003",
+      "interests": [
+        "pool",
+        "shortwave",
+        "boxing",
+        "diner coffee"
+      ],
+      "workPattern": "night",
+      "workLocation": "lantern-dive",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "lantern-dive",
+        "pixel-and-pint",
+        "northside-bar"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "celeste-duval",
+      "name": "Celeste Duval",
+      "occupation": "Scorched-earth divorce attorney",
+      "versionId": "23000000-0000-4000-80a1-000000001013",
+      "interests": [
+        "case law",
+        "champagne",
+        "running",
+        "contemporary art"
+      ],
+      "workPattern": "day",
+      "workLocation": "paper-trail",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "paper-trail",
+        "glassline-gallery",
+        "ember-and-rye"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "dante-ruiz",
+      "name": "Dante Ruiz",
+      "occupation": "The Red Hour door enforcer",
+      "versionId": "23000000-0000-4000-80a1-000000001017",
+      "interests": [
+        "weights",
+        "reggaeton",
+        "late food",
+        "gold chains"
+      ],
+      "workPattern": "night",
+      "workLocation": "red-hour",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "red-hour",
+        "meridian-fitness",
+        "northside-bar"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "fox-callahan",
+      "name": "Fox Callahan",
+      "occupation": "Adult livestreamer",
+      "versionId": "23000000-0000-4000-80a1-000000001011",
+      "interests": [
+        "cameras",
+        "gaming",
+        "thrift fashion",
+        "noodles"
+      ],
+      "workPattern": "night",
+      "workLocation": "static-house",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "static-house",
+        "pixel-and-pint",
+        "lucky-note"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "holt-brennan",
+      "name": "Holt Brennan",
+      "occupation": "Union enforcer",
+      "versionId": "23000000-0000-4000-80a1-000000001009",
+      "interests": [
+        "contracts",
+        "boxing",
+        "whiskey",
+        "night driving"
+      ],
+      "workPattern": "night",
+      "workLocation": "ember-and-rye",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "ember-and-rye",
+        "juniper-civic-arena",
+        "lantern-dive"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "indigo-voss",
+      "name": "Indigo Voss",
+      "occupation": "Adult-film director",
+      "versionId": "23000000-0000-4000-80a1-000000001002",
+      "interests": [
+        "16mm",
+        "casting",
+        "late editing",
+        "whiskey"
+      ],
+      "workPattern": "night",
+      "workLocation": "marquee-cinema",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "marquee-cinema",
+        "glassline-gallery",
+        "lucky-note"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "joss-varela",
+      "name": "Joss Varela",
+      "occupation": "Crime-scene cleaner",
+      "versionId": "23000000-0000-4000-80a1-000000001016",
+      "interests": [
+        "chemistry",
+        "true crime she will not romanticize",
+        "swimming",
+        "old soul"
+      ],
+      "workPattern": "night",
+      "workLocation": "juniper-central-station",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "juniper-central-station",
+        "common-market",
+        "taqueria-lumen"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "killian-drake",
+      "name": "Killian Drake",
+      "occupation": "Underground fight promoter",
+      "versionId": "23000000-0000-4000-80a1-000000001005",
+      "interests": [
+        "odds",
+        "steak",
+        "cigars",
+        "late driving"
+      ],
+      "workPattern": "night",
+      "workLocation": "juniper-civic-arena",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "juniper-civic-arena",
+        "meridian-fitness",
+        "lantern-dive"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "lumen-park",
+      "name": "Lumen Park",
+      "occupation": "Burlesque producer",
+      "versionId": "23000000-0000-4000-80a1-000000001020",
+      "interests": [
+        "costume",
+        "jazz",
+        "champagne",
+        "late swimming"
+      ],
+      "workPattern": "night",
+      "workLocation": "lucky-note",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "lucky-note",
+        "static-house",
+        "marquee-cinema"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "nico-graves",
+      "name": "Nico Graves",
+      "occupation": "Contract killer and bartender",
+      "versionId": "23000000-0000-4000-80a1-000000001007",
+      "interests": [
+        "knives",
+        "soccer",
+        "old movies",
+        "black coffee"
+      ],
+      "workPattern": "night",
+      "workLocation": "northside-bar",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "northside-bar",
+        "taqueria-lumen",
+        "lantern-dive"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "petra-solis",
+      "name": "Petra Solis",
+      "occupation": "Blackmail photographer",
+      "versionId": "23000000-0000-4000-80a1-000000001018",
+      "interests": [
+        "optics",
+        "darkrooms",
+        "red wine",
+        "night walking"
+      ],
+      "workPattern": "night",
+      "workLocation": "photography-studio",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "photography-studio",
+        "glassline-gallery",
+        "ember-and-rye"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "rhea-solano",
+      "name": "Rhea Solano",
+      "occupation": "Internal-affairs detective",
+      "versionId": "23000000-0000-4000-80a1-000000001004",
+      "interests": [
+        "case files",
+        "running",
+        "red wine",
+        "jazz"
+      ],
+      "workPattern": "day",
+      "workLocation": "juniper-city-hall",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "juniper-city-hall",
+        "paper-trail",
+        "ember-and-rye"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "roman-ibarra",
+      "name": "Roman Ibarra",
+      "occupation": "Arms broker",
+      "versionId": "23000000-0000-4000-80a1-000000001012",
+      "interests": [
+        "hardware",
+        "sailing",
+        "mezcal",
+        "tailoring"
+      ],
+      "workPattern": "night",
+      "workLocation": "riverwalk",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "riverwalk",
+        "taqueria-lumen",
+        "lantern-dive"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "roxie-hale",
+      "name": "Roxie Hale",
+      "occupation": "The Red Hour dominant",
+      "versionId": "23000000-0000-4000-80a1-000000001001",
+      "interests": [
+        "rope",
+        "bourbon",
+        "vinyl",
+        "night swimming"
+      ],
+      "workPattern": "night",
+      "workLocation": "red-hour",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "red-hour",
+        "needles-and-notes",
+        "lantern-dive"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "sabine-ortiz",
+      "name": "Sabine Ortiz",
+      "occupation": "Concealment-scar tattooist",
+      "versionId": "23000000-0000-4000-80a1-000000001008",
+      "interests": [
+        "ink",
+        "anatomy",
+        "punk records",
+        "swimming"
+      ],
+      "workPattern": "day",
+      "workLocation": "needles-and-notes",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "needles-and-notes",
+        "riverwalk",
+        "ember-and-rye"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "vesper-lang",
+      "name": "Vesper Lang",
+      "occupation": "Gallery-cover escort",
+      "versionId": "23000000-0000-4000-80a1-000000001006",
+      "interests": [
+        "contemporary art",
+        "perfume",
+        "cashmere",
+        "late breakfast"
+      ],
+      "workPattern": "night",
+      "workLocation": "glassline-gallery",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "glassline-gallery",
+        "lucky-note",
+        "static-house"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "wynn-harlan",
+      "name": "Wynn Harlan",
+      "occupation": "Capital-case investigator",
+      "versionId": "23000000-0000-4000-80a1-000000001019",
+      "interests": [
+        "archives",
+        "bourbon",
+        "long walks",
+        "gospel she will not admit to"
+      ],
+      "workPattern": "day",
+      "workLocation": "paper-trail",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "paper-trail",
+        "juniper-city-hall",
+        "ember-and-rye"
+      ]
+    },
+    {
+      "world": "juniper-city",
+      "slug": "yara-mensah",
+      "name": "Yara Mensah",
+      "occupation": "Hostage negotiator",
+      "versionId": "23000000-0000-4000-80a1-000000001010",
+      "interests": [
+        "voice work",
+        "running",
+        "spicy food",
+        "chess"
+      ],
+      "workPattern": "day",
+      "workLocation": "juniper-city-hall",
+      "homeLocationId": "2a000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "juniper-city-hall",
+        "juniper-medical-center",
+        "sora-table"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "akemi-noir",
+      "name": "Akemi Noir",
+      "occupation": "Room Thirteen dominant",
+      "versionId": "23000000-0000-4000-80a1-000000003010",
+      "interests": [
+        "rope",
+        "jazz",
+        "whiskey",
+        "rain"
+      ],
+      "workPattern": "night",
+      "workLocation": "room-thirteen",
+      "homeLocationId": "28000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "room-thirteen",
+        "velvet-static",
+        "maison-vice"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "azami-bell",
+      "name": "Azami Bell",
+      "occupation": "Static-club exhibitionist",
+      "versionId": "23000000-0000-4000-80a1-000000003018",
+      "interests": [
+        "dance",
+        "static",
+        "lingerie",
+        "late noodles"
+      ],
+      "workPattern": "night",
+      "workLocation": "velvet-static",
+      "homeLocationId": "28000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "velvet-static",
+        "dreamscape",
+        "syn-club"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "cipher-ren",
+      "name": "Cipher Ren",
+      "occupation": "Memory thief",
+      "versionId": "23000000-0000-4000-80a1-000000003006",
+      "interests": [
+        "dumps",
+        "games",
+        "noodles",
+        "rain"
+      ],
+      "workPattern": "night",
+      "workLocation": "ghost-line",
+      "homeLocationId": "28000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "ghost-line",
+        "pulse-arcade",
+        "the-backroom"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "draven-kade",
+      "name": "Draven Kade",
+      "occupation": "Vice-district fixer",
+      "versionId": "23000000-0000-4000-80a1-000000003013",
+      "interests": [
+        "favors",
+        "whiskey",
+        "rain",
+        "old jazz"
+      ],
+      "workPattern": "night",
+      "workLocation": "maison-vice",
+      "homeLocationId": "28000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "maison-vice",
+        "the-backroom",
+        "chrome-kiss"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "hideo-kwan",
+      "name": "Hideo Kwan",
+      "occupation": "Black-market organ broker",
+      "versionId": "23000000-0000-4000-80a1-000000003004",
+      "interests": [
+        "anatomy",
+        "tea",
+        "chess",
+        "rain"
+      ],
+      "workPattern": "night",
+      "workLocation": "aoyama-modification-institute",
+      "homeLocationId": "28000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "aoyama-modification-institute",
+        "saint-aoyama",
+        "glass-house"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "inez-shirogane",
+      "name": "Inez Shirogane",
+      "occupation": "Deepfake porn producer",
+      "versionId": "23000000-0000-4000-80a1-000000003014",
+      "interests": [
+        "faces",
+        "editing",
+        "whiskey",
+        "rain"
+      ],
+      "workPattern": "night",
+      "workLocation": "gallery-null",
+      "homeLocationId": "28000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "gallery-null",
+        "the-backroom",
+        "velvet-static"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "jiro-vance",
+      "name": "Jiro Vance",
+      "occupation": "Blackmail-footage broker",
+      "versionId": "23000000-0000-4000-80a1-000000003015",
+      "interests": [
+        "clips",
+        "games",
+        "noodles",
+        "rain"
+      ],
+      "workPattern": "night",
+      "workLocation": "the-backroom",
+      "homeLocationId": "28000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "the-backroom",
+        "pulse-arcade",
+        "ghost-line"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "kenzo-mori",
+      "name": "Kenzo Mori",
+      "occupation": "Corporate assassin",
+      "versionId": "23000000-0000-4000-80a1-000000003002",
+      "interests": [
+        "blades",
+        "coffee",
+        "rain",
+        "old films"
+      ],
+      "workPattern": "night",
+      "workLocation": "zeroday",
+      "homeLocationId": "28000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "zeroday",
+        "kumo-gym",
+        "soba-miyako"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "nami-kwan",
+      "name": "Nami Kwan",
+      "occupation": "Organ-waitlist nurse selling slots",
+      "versionId": "23000000-0000-4000-80a1-000000003019",
+      "interests": [
+        "lists",
+        "tea",
+        "swimming",
+        "old songs"
+      ],
+      "workPattern": "night",
+      "workLocation": "aoyama-modification-institute",
+      "homeLocationId": "28000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "aoyama-modification-institute",
+        "halo-aoyama",
+        "saint-aoyama"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "nova-chen",
+      "name": "Nova Chen",
+      "occupation": "24-hour love-hotel clerk",
+      "versionId": "23000000-0000-4000-80a1-000000003012",
+      "interests": [
+        "keys",
+        "noodles",
+        "old games",
+        "rain"
+      ],
+      "workPattern": "night",
+      "workLocation": "twentyfour",
+      "homeLocationId": "28000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "twentyfour",
+        "laundry-nine",
+        "kissaten-88"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "nyx-arakawa",
+      "name": "Nyx Arakawa",
+      "occupation": "Chrome Kiss host",
+      "versionId": "23000000-0000-4000-80a1-000000003001",
+      "interests": [
+        "cocktails",
+        "synth",
+        "perfume",
+        "rain walking"
+      ],
+      "workPattern": "night",
+      "workLocation": "chrome-kiss",
+      "homeLocationId": "28000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "chrome-kiss",
+        "kissaten-88",
+        "velvet-static"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "onyx-vale",
+      "name": "Onyx Vale",
+      "occupation": "Identity-erasure body-mod surgeon",
+      "versionId": "23000000-0000-4000-80a1-000000003008",
+      "interests": [
+        "surgery",
+        "tea",
+        "rain",
+        "tailoring"
+      ],
+      "workPattern": "day",
+      "workLocation": "saint-aoyama",
+      "homeLocationId": "28000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "saint-aoyama",
+        "halo-aoyama",
+        "glass-house"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "pax-ortega",
+      "name": "Pax Ortega",
+      "occupation": "Illegal deathmatch promoter",
+      "versionId": "23000000-0000-4000-80a1-000000003011",
+      "interests": [
+        "odds",
+        "bodies",
+        "whiskey",
+        "night driving"
+      ],
+      "workPattern": "night",
+      "workLocation": "nova-arena",
+      "homeLocationId": "28000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "nova-arena",
+        "kumo-gym",
+        "syn-club"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "rei-voss",
+      "name": "Rei Voss",
+      "occupation": "Fight-club medic",
+      "versionId": "23000000-0000-4000-80a1-000000003017",
+      "interests": [
+        "trauma care",
+        "swimming",
+        "cigarettes she is quitting",
+        "rain"
+      ],
+      "workPattern": "night",
+      "workLocation": "moonpool",
+      "homeLocationId": "28000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "moonpool",
+        "kumo-gym",
+        "nova-arena"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "reika-sol",
+      "name": "Reika Sol",
+      "occupation": "VR sex-club DJ",
+      "versionId": "23000000-0000-4000-80a1-000000003003",
+      "interests": [
+        "sets",
+        "implants",
+        "dance",
+        "late noodles"
+      ],
+      "workPattern": "night",
+      "workLocation": "syn-club",
+      "homeLocationId": "28000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "syn-club",
+        "pulse-arcade",
+        "chrome-kiss"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "ryu-taniguchi",
+      "name": "Ryu Taniguchi",
+      "occupation": "Shade-district killer",
+      "versionId": "23000000-0000-4000-80a1-000000003009",
+      "interests": [
+        "lanterns",
+        "tea",
+        "blades",
+        "rain"
+      ],
+      "workPattern": "night",
+      "workLocation": "red-lantern-alley",
+      "homeLocationId": "28000000-0000-4000-8000-000000000006",
+      "publicLocations": [
+        "red-lantern-alley",
+        "tea-house-aoi",
+        "below-kyo"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "sable-ito",
+      "name": "Sable Ito",
+      "occupation": "Rating-blackmail escort",
+      "versionId": "23000000-0000-4000-80a1-000000003007",
+      "interests": [
+        "ratings",
+        "lingerie",
+        "rain",
+        "late breakfast"
+      ],
+      "workPattern": "night",
+      "workLocation": "maison-vice",
+      "homeLocationId": "28000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "maison-vice",
+        "velvet-static",
+        "chrome-kiss"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "veda-mori",
+      "name": "Veda Mori",
+      "occupation": "Corporate honeytrap counsel",
+      "versionId": "23000000-0000-4000-80a1-000000003020",
+      "interests": [
+        "contracts",
+        "wine",
+        "rain",
+        "tailoring"
+      ],
+      "workPattern": "day",
+      "workLocation": "glass-house",
+      "homeLocationId": "28000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "glass-house",
+        "the-atrium",
+        "maison-vice"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "wren-solari",
+      "name": "Wren Solari",
+      "occupation": "Scarlet Garden blood-play host",
+      "versionId": "23000000-0000-4000-80a1-000000003016",
+      "interests": [
+        "blades",
+        "tea",
+        "flowers",
+        "rain"
+      ],
+      "workPattern": "night",
+      "workLocation": "scarlet-garden",
+      "homeLocationId": "28000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "scarlet-garden",
+        "koi-garden",
+        "room-thirteen"
+      ]
+    },
+    {
+      "world": "neon-kyo",
+      "slug": "yoru-nakamura",
+      "name": "Yoru Nakamura",
+      "occupation": "Pleasure-android handler",
+      "versionId": "23000000-0000-4000-80a1-000000003005",
+      "interests": [
+        "synthetics",
+        "rain",
+        "tea",
+        "old songs"
+      ],
+      "workPattern": "night",
+      "workLocation": "dollhouse-robotics",
+      "homeLocationId": "28000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "dollhouse-robotics",
+        "dreamscape",
+        "maison-vice"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "boone-kade",
+      "name": "Boone Kade",
+      "occupation": "Illegal mine-road runner",
+      "versionId": "23000000-0000-4000-80a1-000000005006",
+      "interests": [
+        "roads",
+        "cards",
+        "whiskey",
+        "dogs"
+      ],
+      "workPattern": "night",
+      "workLocation": "argent-mine",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000006",
+      "publicLocations": [
+        "argent-mine",
+        "miners-hall",
+        "last-light-roadhouse"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "briar-mccabe",
+      "name": "Briar McCabe",
+      "occupation": "Seasonal-worker escort",
+      "versionId": "23000000-0000-4000-80a1-000000005003",
+      "interests": [
+        "cash",
+        "dancing",
+        "late pizza",
+        "snow"
+      ],
+      "workPattern": "night",
+      "workLocation": "the-drift",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "the-drift",
+        "driftline-laundry",
+        "the-avalanche"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "colt-reyes",
+      "name": "Colt Reyes",
+      "occupation": "Avalanche body-recovery",
+      "versionId": "23000000-0000-4000-80a1-000000005002",
+      "interests": [
+        "snow science",
+        "coffee",
+        "dogs",
+        "night driving"
+      ],
+      "workPattern": "day",
+      "workLocation": "basin-rescue-station",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000006",
+      "publicLocations": [
+        "basin-rescue-station",
+        "high-country-guides",
+        "last-light-roadhouse"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "dex-morgan",
+      "name": "Dex Morgan",
+      "occupation": "Gear-tech smuggler",
+      "versionId": "23000000-0000-4000-80a1-000000005014",
+      "interests": [
+        "wax",
+        "vans",
+        "weed",
+        "night driving"
+      ],
+      "workPattern": "day",
+      "workLocation": "edge-and-wax",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "edge-and-wax",
+        "basecamp-outfitters",
+        "the-drift"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "ember-cruz",
+      "name": "Ember Cruz",
+      "occupation": "Avalanche bar dancer",
+      "versionId": "23000000-0000-4000-80a1-000000005011",
+      "interests": [
+        "dance",
+        "reggaeton",
+        "shots",
+        "snow"
+      ],
+      "workPattern": "night",
+      "workLocation": "the-avalanche",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "the-avalanche",
+        "the-drift",
+        "switchback-tavern"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "gage-harlan",
+      "name": "Gage Harlan",
+      "occupation": "Oligarch close-protection",
+      "versionId": "23000000-0000-4000-80a1-000000005004",
+      "interests": [
+        "ranges",
+        "steak",
+        "night driving",
+        "whiskey"
+      ],
+      "workPattern": "night",
+      "workLocation": "northvale-lodge",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "northvale-lodge",
+        "alpine-room",
+        "switchback-tavern"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "hunter-price",
+      "name": "Hunter Price",
+      "occupation": "Backcountry guide who leaves people",
+      "versionId": "23000000-0000-4000-80a1-000000005010",
+      "interests": [
+        "routes",
+        "whiskey",
+        "maps",
+        "night driving"
+      ],
+      "workPattern": "day",
+      "workLocation": "high-country-guides",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "high-country-guides",
+        "bluebird-trailhead",
+        "last-light-roadhouse"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "indie-frost",
+      "name": "Indie Frost",
+      "occupation": "Cash-fight terrain-park rider",
+      "versionId": "23000000-0000-4000-80a1-000000005005",
+      "interests": [
+        "jumps",
+        "cash fights",
+        "weed",
+        "late pizza"
+      ],
+      "workPattern": "day",
+      "workLocation": "halo-terrain-park",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "halo-terrain-park",
+        "highline-climbing-gym",
+        "the-drift"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "juno-hart",
+      "name": "Juno Hart",
+      "occupation": "Ski patrol",
+      "versionId": "23000000-0000-4000-80a1-000000005016",
+      "interests": [
+        "first tracks",
+        "radio",
+        "whiskey",
+        "dogs"
+      ],
+      "workPattern": "day",
+      "workLocation": "ski-patrol-headquarters",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "ski-patrol-headquarters",
+        "sunrise-gondola",
+        "north-fork-coffee"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "kajsa-lind",
+      "name": "Kajsa Lind",
+      "occupation": "Nude sauna host",
+      "versionId": "23000000-0000-4000-80a1-000000005013",
+      "interests": [
+        "heat",
+        "cold plunge",
+        "aquavit",
+        "snow"
+      ],
+      "workPattern": "night",
+      "workLocation": "stillwater-sauna-house",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "stillwater-sauna-house",
+        "frostline-boathouse",
+        "aurora-spa"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "marlowe-reed",
+      "name": "Marlowe Reed",
+      "occupation": "Erotic film programmer",
+      "versionId": "23000000-0000-4000-80a1-000000005017",
+      "interests": [
+        "16mm",
+        "snow",
+        "wine",
+        "late breakfast"
+      ],
+      "workPattern": "night",
+      "workLocation": "rialto-mountain-cinema",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "rialto-mountain-cinema",
+        "vale-and-pine-books",
+        "emberline-kitchen"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "nash-ibarra",
+      "name": "Nash Ibarra",
+      "occupation": "Town fixer",
+      "versionId": "23000000-0000-4000-80a1-000000005012",
+      "interests": [
+        "favors",
+        "cards",
+        "whiskey",
+        "night driving"
+      ],
+      "workPattern": "night",
+      "workLocation": "miners-hall",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "miners-hall",
+        "switchyard-pizza",
+        "last-light-roadhouse"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "noelle-baptiste",
+      "name": "Noelle Baptiste",
+      "occupation": "After-hours sex-supper chef",
+      "versionId": "23000000-0000-4000-80a1-000000005015",
+      "interests": [
+        "fire",
+        "wine",
+        "bodies",
+        "snow"
+      ],
+      "workPattern": "night",
+      "workLocation": "emberline-kitchen",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "emberline-kitchen",
+        "alpine-room",
+        "northvale-lodge"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "petra-frost",
+      "name": "Petra Frost",
+      "occupation": "Ski-town dominatrix",
+      "versionId": "23000000-0000-4000-80a1-000000005019",
+      "interests": [
+        "leather",
+        "steam",
+        "vodka",
+        "snow"
+      ],
+      "workPattern": "night",
+      "workLocation": "aurora-spa",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "aurora-spa",
+        "stillwater-sauna-house",
+        "the-avalanche"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "rourke-hale",
+      "name": "Rourke Hale",
+      "occupation": "Climbing-gym fight promoter",
+      "versionId": "23000000-0000-4000-80a1-000000005008",
+      "interests": [
+        "odds",
+        "chalk",
+        "steak",
+        "night driving"
+      ],
+      "workPattern": "night",
+      "workLocation": "highline-climbing-gym",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "highline-climbing-gym",
+        "halo-terrain-park",
+        "the-drift"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "sable-pike",
+      "name": "Sable Pike",
+      "occupation": "Après stripper",
+      "versionId": "23000000-0000-4000-80a1-000000005001",
+      "interests": [
+        "poles",
+        "whiskey",
+        "snow",
+        "late breakfast"
+      ],
+      "workPattern": "night",
+      "workLocation": "the-avalanche",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "the-avalanche",
+        "switchback-tavern",
+        "the-drift"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "selah-farouk",
+      "name": "Selah Farouk",
+      "occupation": "Gallery owner selling nudes of guests",
+      "versionId": "23000000-0000-4000-80a1-000000005018",
+      "interests": [
+        "glass",
+        "wine",
+        "snow",
+        "portraits"
+      ],
+      "workPattern": "day",
+      "workLocation": "snowglass-gallery",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "snowglass-gallery",
+        "rialto-mountain-cinema",
+        "alpine-room"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "skye-mendoza",
+      "name": "Skye Mendoza",
+      "occupation": "Spa private-recovery host",
+      "versionId": "23000000-0000-4000-80a1-000000005009",
+      "interests": [
+        "steam",
+        "oil",
+        "champagne",
+        "snow"
+      ],
+      "workPattern": "night",
+      "workLocation": "aurora-spa",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "aurora-spa",
+        "stillwater-sauna-house",
+        "alpine-room"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "taryn-vale",
+      "name": "Taryn Vale",
+      "occupation": "Clinic nurse selling ketamine off-books",
+      "versionId": "23000000-0000-4000-80a1-000000005007",
+      "interests": [
+        "night shifts",
+        "tea",
+        "snow",
+        "old records"
+      ],
+      "workPattern": "night",
+      "workLocation": "northvale-community-clinic",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "northvale-community-clinic",
+        "north-fork-coffee",
+        "emberline-kitchen"
+      ]
+    },
+    {
+      "world": "northvale",
+      "slug": "ynez-harlan",
+      "name": "Ynez Harlan",
+      "occupation": "Oligarch wife who sells access",
+      "versionId": "23000000-0000-4000-80a1-000000005020",
+      "interests": [
+        "access",
+        "champagne",
+        "silk",
+        "snow"
+      ],
+      "workPattern": "night",
+      "workLocation": "northvale-lodge",
+      "homeLocationId": "2b000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "northvale-lodge",
+        "alpine-room",
+        "emberline-kitchen"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "amira-soltani",
+      "name": "Amira Soltani",
+      "occupation": "Boat-rental cover for night escorts",
+      "versionId": "23000000-0000-4000-80a1-000000002017",
+      "interests": [
+        "boats",
+        "dancing",
+        "late swimming",
+        "gold jewelry"
+      ],
+      "workPattern": "day",
+      "workLocation": "solana-beach-rentals",
+      "homeLocationId": "27000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "solana-beach-rentals",
+        "spiaggia-solana",
+        "lido-vervelle"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "carmen-velez",
+      "name": "Carmen Velez",
+      "occupation": "Townhouse dominatrix",
+      "versionId": "23000000-0000-4000-80a1-000000002018",
+      "interests": [
+        "leather",
+        "wine",
+        "piano",
+        "night walking"
+      ],
+      "workPattern": "night",
+      "workLocation": "maison-rouge",
+      "homeLocationId": "27000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "maison-rouge",
+        "celeste-spa",
+        "circolo-nove"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "catalina-ruiz",
+      "name": "Catalina Ruiz",
+      "occupation": "Beach attendant and tourist blackmailer",
+      "versionId": "23000000-0000-4000-80a1-000000002013",
+      "interests": [
+        "swimming",
+        "phones",
+        "spritzes",
+        "mopeds"
+      ],
+      "workPattern": "day",
+      "workLocation": "lido-vervelle",
+      "homeLocationId": "27000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "lido-vervelle",
+        "spiaggia-solana",
+        "solana-beach-rentals"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "chiara-bellomo",
+      "name": "Chiara Bellomo",
+      "occupation": "Swingers-night host",
+      "versionId": "23000000-0000-4000-80a1-000000002005",
+      "interests": [
+        "dance",
+        "spritzes",
+        "gossip",
+        "night swimming"
+      ],
+      "workPattern": "night",
+      "workLocation": "circolo-nove",
+      "homeLocationId": "27000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "circolo-nove",
+        "lido-vervelle",
+        "luna-terrace"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "enzo-brioni",
+      "name": "Enzo Brioni",
+      "occupation": "Corrupt magistrate",
+      "versionId": "23000000-0000-4000-80a1-000000002010",
+      "interests": [
+        "law",
+        "wine",
+        "sailing",
+        "tailoring"
+      ],
+      "workPattern": "day",
+      "workLocation": "palazzo-civico",
+      "homeLocationId": "27000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "palazzo-civico",
+        "osteria-rosa",
+        "luna-terrace"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "fiorella-neri",
+      "name": "Fiorella Neri",
+      "occupation": "Erotic manuscript forger",
+      "versionId": "23000000-0000-4000-80a1-000000002016",
+      "interests": [
+        "paper",
+        "ink",
+        "old films",
+        "amaro"
+      ],
+      "workPattern": "day",
+      "workLocation": "libreria-vervelle",
+      "homeLocationId": "27000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "libreria-vervelle",
+        "piccolo-cinema",
+        "cafe-marelle"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "gisele-duras",
+      "name": "Gisele Duras",
+      "occupation": "After-hours madam",
+      "versionId": "23000000-0000-4000-80a1-000000002014",
+      "interests": [
+        "hospitality",
+        "wine",
+        "silk",
+        "night swimming"
+      ],
+      "workPattern": "night",
+      "workLocation": "luna-terrace",
+      "homeLocationId": "27000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "luna-terrace",
+        "celeste-spa",
+        "circolo-nove"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "hugo-sorrentino",
+      "name": "Hugo Sorrentino",
+      "occupation": "Poisoner-sommelier",
+      "versionId": "23000000-0000-4000-80a1-000000002006",
+      "interests": [
+        "wine",
+        "botany",
+        "opera",
+        "late walking"
+      ],
+      "workPattern": "night",
+      "workLocation": "osteria-rosa",
+      "homeLocationId": "27000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "osteria-rosa",
+        "domaine-vervelle",
+        "luna-terrace"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "ines-morel",
+      "name": "Ines Morel",
+      "occupation": "Nude-portrait painter",
+      "versionId": "23000000-0000-4000-80a1-000000002007",
+      "interests": [
+        "oil paint",
+        "swimming",
+        "old films",
+        "coffee"
+      ],
+      "workPattern": "day",
+      "workLocation": "atelier-amelie",
+      "homeLocationId": "27000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "atelier-amelie",
+        "belvedere-garden",
+        "piccolo-cinema"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "isadora-vescari",
+      "name": "Isadora Vescari",
+      "occupation": "Wreck diver recovering cargo and bodies",
+      "versionId": "23000000-0000-4000-80a1-000000002019",
+      "interests": [
+        "diving",
+        "cards",
+        "grappa",
+        "night swimming"
+      ],
+      "workPattern": "day",
+      "workLocation": "porto-marina",
+      "homeLocationId": "27000000-0000-4000-8000-000000000010",
+      "publicLocations": [
+        "porto-marina",
+        "vervelle-sailing-house",
+        "blue-lantern"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "karim-saadi",
+      "name": "Karim Saadi",
+      "occupation": "Arms-in-crates importer",
+      "versionId": "23000000-0000-4000-80a1-000000002015",
+      "interests": [
+        "shipping",
+        "chess",
+        "tea",
+        "night walking"
+      ],
+      "workPattern": "night",
+      "workLocation": "porto-marina",
+      "homeLocationId": "27000000-0000-4000-8000-000000000010",
+      "publicLocations": [
+        "porto-marina",
+        "vervelle-fish-market",
+        "blue-lantern"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "livia-ferretti",
+      "name": "Livia Ferretti",
+      "occupation": "Maison Rouge call girl",
+      "versionId": "23000000-0000-4000-80a1-000000002009",
+      "interests": [
+        "lingerie",
+        "spritzes",
+        "mopeds",
+        "late breakfast"
+      ],
+      "workPattern": "night",
+      "workLocation": "maison-rouge",
+      "homeLocationId": "27000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "maison-rouge",
+        "celeste-spa",
+        "circolo-nove"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "matteo-vescari",
+      "name": "Matteo Vescari",
+      "occupation": "Harbor smuggler",
+      "versionId": "23000000-0000-4000-80a1-000000002002",
+      "interests": [
+        "tides",
+        "cards",
+        "grappa",
+        "night swimming"
+      ],
+      "workPattern": "night",
+      "workLocation": "porto-marina",
+      "homeLocationId": "27000000-0000-4000-8000-000000000010",
+      "publicLocations": [
+        "porto-marina",
+        "vervelle-sailing-house",
+        "blue-lantern"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "noor-el-sayed",
+      "name": "Noor El-Sayed",
+      "occupation": "Aphrodisiac chemist",
+      "versionId": "23000000-0000-4000-80a1-000000002011",
+      "interests": [
+        "formulas",
+        "perfume",
+        "swimming",
+        "night markets"
+      ],
+      "workPattern": "day",
+      "workLocation": "farmacia-vervelle",
+      "homeLocationId": "27000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "farmacia-vervelle",
+        "celeste-spa",
+        "cafe-marelle"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "nuria-haddad",
+      "name": "Nuria Haddad",
+      "occupation": "Market protection collector",
+      "versionId": "23000000-0000-4000-80a1-000000002020",
+      "interests": [
+        "knives",
+        "cooking",
+        "dancing",
+        "gold"
+      ],
+      "workPattern": "day",
+      "workLocation": "vervelle-fish-market",
+      "homeLocationId": "27000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "vervelle-fish-market",
+        "mercato-vecchio",
+        "osteria-rosa"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "odette-fournier",
+      "name": "Odette Fournier",
+      "occupation": "Velours courtesan",
+      "versionId": "23000000-0000-4000-80a1-000000002003",
+      "interests": [
+        "perfume",
+        "piano",
+        "champagne",
+        "afternoon swimming"
+      ],
+      "workPattern": "night",
+      "workLocation": "velours",
+      "homeLocationId": "27000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "velours",
+        "celeste-spa",
+        "luna-terrace"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "pascal-diop",
+      "name": "Pascal Diop",
+      "occupation": "Yacht gigolo",
+      "versionId": "23000000-0000-4000-80a1-000000002008",
+      "interests": [
+        "sailing",
+        "bodies",
+        "champagne",
+        "night swimming"
+      ],
+      "workPattern": "day",
+      "workLocation": "vervelle-sailing-house",
+      "homeLocationId": "27000000-0000-4000-8000-000000000010",
+      "publicLocations": [
+        "vervelle-sailing-house",
+        "spiaggia-solana",
+        "luna-terrace"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "rafi-benyamin",
+      "name": "Rafi Benyamin",
+      "occupation": "Dock debt collector",
+      "versionId": "23000000-0000-4000-80a1-000000002004",
+      "interests": [
+        "cards",
+        "cooking",
+        "boxing",
+        "argileh"
+      ],
+      "workPattern": "day",
+      "workLocation": "vervelle-fish-market",
+      "homeLocationId": "27000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "vervelle-fish-market",
+        "osteria-rosa",
+        "blue-lantern"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "serafina-ricci",
+      "name": "Serafina Ricci",
+      "occupation": "Circolo Nove floor captain",
+      "versionId": "23000000-0000-4000-80a1-000000002001",
+      "interests": [
+        "dance",
+        "amaro",
+        "swimming",
+        "silk"
+      ],
+      "workPattern": "night",
+      "workLocation": "circolo-nove",
+      "homeLocationId": "27000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "circolo-nove",
+        "spiaggia-solana",
+        "la-sirena"
+      ]
+    },
+    {
+      "world": "port-vervelle",
+      "slug": "tomasz-nowak",
+      "name": "Tomasz Nowak",
+      "occupation": "Fishing-boat hitman",
+      "versionId": "23000000-0000-4000-80a1-000000002012",
+      "interests": [
+        "knots",
+        "soccer",
+        "vodka",
+        "night fishing"
+      ],
+      "workPattern": "night",
+      "workLocation": "porto-marina",
+      "homeLocationId": "27000000-0000-4000-8000-000000000010",
+      "publicLocations": [
+        "porto-marina",
+        "vervelle-sailing-house",
+        "blue-lantern"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "alaric-crowe",
+      "name": "Alaric Crowe",
+      "occupation": "Covenant executioner",
+      "versionId": "23000000-0000-4000-80a1-000000004002",
+      "interests": [
+        "rites",
+        "blades",
+        "fog",
+        "old liturgy"
+      ],
+      "workPattern": "night",
+      "workLocation": "nocturne",
+      "homeLocationId": "29000000-0000-4000-8000-000000000006",
+      "publicLocations": [
+        "nocturne",
+        "saint-orison-chapel",
+        "black-lantern"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "briony-fox",
+      "name": "Briony Fox",
+      "occupation": "Poison gardener",
+      "versionId": "23000000-0000-4000-80a1-000000004014",
+      "interests": [
+        "foxglove",
+        "tea",
+        "fog",
+        "old botany"
+      ],
+      "workPattern": "day",
+      "workLocation": "foxglove-retreats",
+      "homeLocationId": "29000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "foxglove-retreats",
+        "witchs-falls",
+        "crooked-oak"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "calista-vane",
+      "name": "Calista Vane",
+      "occupation": "Bathhouse blood-ritual attendant",
+      "versionId": "23000000-0000-4000-80a1-000000004011",
+      "interests": [
+        "water",
+        "blood rites",
+        "fog",
+        "oil"
+      ],
+      "workPattern": "night",
+      "workLocation": "moonwake-baths",
+      "homeLocationId": "29000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "moonwake-baths",
+        "glasswater-pier",
+        "velvet-thorn"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "canon-ward",
+      "name": "Canon Ward",
+      "occupation": "Inquisitor-priest",
+      "versionId": "23000000-0000-4000-80a1-000000004013",
+      "interests": [
+        "liturgy",
+        "confession",
+        "wine",
+        "fog"
+      ],
+      "workPattern": "day",
+      "workLocation": "saint-orison-chapel",
+      "homeLocationId": "29000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "saint-orison-chapel",
+        "blackglass-library",
+        "mourning-cup"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "caspian-reed",
+      "name": "Caspian Reed",
+      "occupation": "Forbidden anatomist",
+      "versionId": "23000000-0000-4000-80a1-000000004006",
+      "interests": [
+        "bodies",
+        "books",
+        "tea",
+        "fog"
+      ],
+      "workPattern": "night",
+      "workLocation": "anatomy-hall",
+      "homeLocationId": "29000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "anatomy-hall",
+        "blackglass-library",
+        "the-cloisters"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "esme-nightingale",
+      "name": "Esme Nightingale",
+      "occupation": "Funeral-house seductress",
+      "versionId": "23000000-0000-4000-80a1-000000004009",
+      "interests": [
+        "wakes",
+        "perfume",
+        "fog",
+        "old hymns"
+      ],
+      "workPattern": "night",
+      "workLocation": "mourning-cup",
+      "homeLocationId": "29000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "mourning-cup",
+        "rosegrave-gardens",
+        "velvet-thorn"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "evangeline-crowe",
+      "name": "Evangeline Crowe",
+      "occupation": "Conservatory siren",
+      "versionId": "23000000-0000-4000-80a1-000000004015",
+      "interests": [
+        "voice",
+        "fog",
+        "wine",
+        "old scores"
+      ],
+      "workPattern": "night",
+      "workLocation": "the-conservatory",
+      "homeLocationId": "29000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "the-conservatory",
+        "grand-hall",
+        "nocturne"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "gwendolyn-ash",
+      "name": "Gwendolyn Ash",
+      "occupation": "Witch-hunter's widow who poisons at the retreat",
+      "versionId": "23000000-0000-4000-80a1-000000004019",
+      "interests": [
+        "widows' wine",
+        "herbs",
+        "fog",
+        "old letters"
+      ],
+      "workPattern": "night",
+      "workLocation": "foxglove-retreats",
+      "homeLocationId": "29000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "foxglove-retreats",
+        "belladonna-apothecary",
+        "witchs-falls"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "hester-crowe",
+      "name": "Hester Crowe",
+      "occupation": "Estate interrogator",
+      "versionId": "23000000-0000-4000-80a1-000000004020",
+      "interests": [
+        "questions",
+        "wine",
+        "fog",
+        "piano"
+      ],
+      "workPattern": "night",
+      "workLocation": "blackwood-estate",
+      "homeLocationId": "29000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "blackwood-estate",
+        "high-gardens",
+        "black-lantern"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "iskra-dragomir",
+      "name": "Iskra Dragomir",
+      "occupation": "Crimson Room dominant",
+      "versionId": "23000000-0000-4000-80a1-000000004012",
+      "interests": [
+        "leather",
+        "wine",
+        "fog",
+        "piano"
+      ],
+      "workPattern": "night",
+      "workLocation": "crimson-room",
+      "homeLocationId": "29000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "crimson-room",
+        "nocturne",
+        "velvet-thorn"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "isolde-crane",
+      "name": "Isolde Crane",
+      "occupation": "Vesper House blood courtesan",
+      "versionId": "23000000-0000-4000-80a1-000000004001",
+      "interests": [
+        "blood rites",
+        "piano",
+        "fog walks",
+        "old wine"
+      ],
+      "workPattern": "night",
+      "workLocation": "vesper-house",
+      "homeLocationId": "29000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "vesper-house",
+        "moonwake-baths",
+        "velvet-thorn"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "morrigan-ash",
+      "name": "Morrigan Ash",
+      "occupation": "Grave-witch",
+      "versionId": "23000000-0000-4000-80a1-000000004003",
+      "interests": [
+        "graves",
+        "herbs",
+        "fog",
+        "old songs"
+      ],
+      "workPattern": "night",
+      "workLocation": "witchs-falls",
+      "homeLocationId": "29000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "witchs-falls",
+        "standing-stones",
+        "foxglove-retreats"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "ophelia-graves",
+      "name": "Ophelia Graves",
+      "occupation": "Velvet Thorn madam",
+      "versionId": "23000000-0000-4000-80a1-000000004005",
+      "interests": [
+        "houses",
+        "wine",
+        "fog",
+        "old jewelry"
+      ],
+      "workPattern": "night",
+      "workLocation": "velvet-thorn",
+      "homeLocationId": "29000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "velvet-thorn",
+        "mourning-cup",
+        "nocturne"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "persephone-bell",
+      "name": "Persephone Bell",
+      "occupation": "Drowned-chapel priestess of desire",
+      "versionId": "23000000-0000-4000-80a1-000000004018",
+      "interests": [
+        "water liturgy",
+        "fog",
+        "wine",
+        "bodies"
+      ],
+      "workPattern": "night",
+      "workLocation": "sunken-chapel",
+      "homeLocationId": "29000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "sunken-chapel",
+        "undercroft",
+        "mourning-cup"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "raven-holloway",
+      "name": "Raven Holloway",
+      "occupation": "Curse-mark tattooist",
+      "versionId": "23000000-0000-4000-80a1-000000004007",
+      "interests": [
+        "ink",
+        "curses",
+        "fog",
+        "old songs"
+      ],
+      "workPattern": "night",
+      "workLocation": "black-veil-tattoo",
+      "homeLocationId": "29000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "black-veil-tattoo",
+        "rosegrave-gardens",
+        "crooked-oak"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "rook-vesper",
+      "name": "Rook Vesper",
+      "occupation": "Dockside strangler-for-hire",
+      "versionId": "23000000-0000-4000-80a1-000000004016",
+      "interests": [
+        "ropes",
+        "fog",
+        "whiskey",
+        "boats"
+      ],
+      "workPattern": "night",
+      "workLocation": "whisper-dock",
+      "homeLocationId": "29000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "whisper-dock",
+        "vesper-boatworks",
+        "drowned-bell"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "sebastian-crowe",
+      "name": "Sebastian Crowe",
+      "occupation": "Estate huntsman",
+      "versionId": "23000000-0000-4000-80a1-000000004008",
+      "interests": [
+        "woods",
+        "horses",
+        "whiskey",
+        "fog"
+      ],
+      "workPattern": "day",
+      "workLocation": "blackwood-estate",
+      "homeLocationId": "29000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "blackwood-estate",
+        "hawthorne-riding-club",
+        "high-gardens"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "silas-thorn",
+      "name": "Silas Thorn",
+      "occupation": "Lake-body recovery diver",
+      "versionId": "23000000-0000-4000-80a1-000000004004",
+      "interests": [
+        "depths",
+        "knots",
+        "whiskey",
+        "fog"
+      ],
+      "workPattern": "night",
+      "workLocation": "drowned-bell",
+      "homeLocationId": "29000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "drowned-bell",
+        "glasswater-pier",
+        "whisper-dock"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "willa-night",
+      "name": "Willa Night",
+      "occupation": "After-dark diner waitress",
+      "versionId": "23000000-0000-4000-80a1-000000004017",
+      "interests": [
+        "coffee",
+        "fog",
+        "late plates",
+        "old songs"
+      ],
+      "workPattern": "night",
+      "workLocation": "afterdark-diner",
+      "homeLocationId": "29000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "afterdark-diner",
+        "crooked-oak",
+        "velvet-thorn"
+      ]
+    },
+    {
+      "world": "vespormoor",
+      "slug": "wolfe-brennan",
+      "name": "Wolfe Brennan",
+      "occupation": "Ranger who hunts Veiled Covenant-breakers",
+      "versionId": "23000000-0000-4000-80a1-000000004010",
+      "interests": [
+        "trails",
+        "dogs",
+        "whiskey",
+        "fog"
+      ],
+      "workPattern": "day",
+      "workLocation": "morrow-vale-ranger-station",
+      "homeLocationId": "29000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "morrow-vale-ranger-station",
+        "thornwood-trailhead",
+        "crooked-oak"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "brannock-forge",
+      "name": "Brannock Forge",
+      "occupation": "Foundry pit-fighter",
+      "versionId": "23000000-0000-4000-80a1-000000007006",
+      "interests": [
+        "odds",
+        "iron",
+        "steak",
+        "night walking"
+      ],
+      "workPattern": "night",
+      "workLocation": "ironwake-foundry",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "ironwake-foundry",
+        "unshackled-cup",
+        "wyrmglass-arena"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "brigid-forge",
+      "name": "Brigid Forge",
+      "occupation": "Foundry pit-fighter",
+      "versionId": "23000000-0000-4000-80a1-000000007019",
+      "interests": [
+        "iron",
+        "cash fights",
+        "grog",
+        "late food"
+      ],
+      "workPattern": "night",
+      "workLocation": "ironwake-foundry",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "ironwake-foundry",
+        "unshackled-cup",
+        "wyrmglass-arena"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "captain-vex-salt",
+      "name": "Captain Vex Salt",
+      "occupation": "Prison interrogator",
+      "versionId": "23000000-0000-4000-80a1-000000007004",
+      "interests": [
+        "questions",
+        "salt",
+        "wine",
+        "old charts"
+      ],
+      "workPattern": "night",
+      "workLocation": "tidevault-prison",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "tidevault-prison",
+        "salt-widow-tavern",
+        "ashen-docks"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "cinder-marrow",
+      "name": "Cinder Marrow",
+      "occupation": "War-surgeon",
+      "versionId": "23000000-0000-4000-80a1-000000007012",
+      "interests": [
+        "trauma",
+        "smoke",
+        "tea",
+        "old songs"
+      ],
+      "workPattern": "night",
+      "workLocation": "ash-mother-infirmary",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000006",
+      "publicLocations": [
+        "ash-mother-infirmary",
+        "cinder-camp",
+        "red-mare-camp-market"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "inquisitor-pellan",
+      "name": "Inquisitor Pellan",
+      "occupation": "Flame inquisition",
+      "versionId": "23000000-0000-4000-80a1-000000007011",
+      "interests": [
+        "liturgy",
+        "confession",
+        "wine",
+        "old fire"
+      ],
+      "workPattern": "day",
+      "workLocation": "basilica-seven-flames",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "basilica-seven-flames",
+        "weeping-archive",
+        "chapel-iron-saint"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "ione-glass",
+      "name": "Ione Glass",
+      "occupation": "Arena blood-courtesan",
+      "versionId": "23000000-0000-4000-80a1-000000007018",
+      "interests": [
+        "odds",
+        "wine",
+        "glass",
+        "late breakfast"
+      ],
+      "workPattern": "night",
+      "workLocation": "wyrmglass-arena",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000006",
+      "publicLocations": [
+        "wyrmglass-arena",
+        "glass-battlefield",
+        "ironwake-foundry"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "kaelen-thorn",
+      "name": "Kaelen Thorn",
+      "occupation": "Thornwall spy-master",
+      "versionId": "23000000-0000-4000-80a1-000000007008",
+      "interests": [
+        "letters",
+        "blades",
+        "wine",
+        "old maps"
+      ],
+      "workPattern": "night",
+      "workLocation": "thornwall-keep",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "thornwall-keep",
+        "wolfgate-barracks",
+        "broken-spur-tavern"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "lysandra-veyl",
+      "name": "Lysandra Veyl",
+      "occupation": "Velvet Oaths floor mistress",
+      "versionId": "23000000-0000-4000-80a1-000000007007",
+      "interests": [
+        "houses",
+        "wine",
+        "silk",
+        "old jewelry"
+      ],
+      "workPattern": "night",
+      "workLocation": "house-of-velvet-oaths",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "house-of-velvet-oaths",
+        "gilded-steps-market",
+        "crimson-veil"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "maera-thorn",
+      "name": "Maera Thorn",
+      "occupation": "Keep spy",
+      "versionId": "23000000-0000-4000-80a1-000000007017",
+      "interests": [
+        "letters",
+        "blades",
+        "wine",
+        "old maps"
+      ],
+      "workPattern": "night",
+      "workLocation": "thornwall-keep",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000002",
+      "publicLocations": [
+        "thornwall-keep",
+        "red-ledger-exchange",
+        "wolfgate-barracks"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "nima-hartwood",
+      "name": "Nima Hartwood",
+      "occupation": "Fertility-rite priestess",
+      "versionId": "23000000-0000-4000-80a1-000000007010",
+      "interests": [
+        "roots",
+        "bodies",
+        "wine",
+        "old songs"
+      ],
+      "workPattern": "night",
+      "workLocation": "motherleaf-sanctuary",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000004",
+      "publicLocations": [
+        "motherleaf-sanctuary",
+        "hartwood-hall",
+        "rootmarket"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "oath-sister-calyx",
+      "name": "Oath-Sister Calyx",
+      "occupation": "Oath-sex binder",
+      "versionId": "23000000-0000-4000-80a1-000000007014",
+      "interests": [
+        "oaths",
+        "wine",
+        "silk",
+        "old vows"
+      ],
+      "workPattern": "night",
+      "workLocation": "house-of-velvet-oaths",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "house-of-velvet-oaths",
+        "widows-vineyard",
+        "lantern-rooms"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "priestess-ashara-flame",
+      "name": "Priestess Ashara Flame",
+      "occupation": "Flame-temple sex priestess",
+      "versionId": "23000000-0000-4000-80a1-000000007003",
+      "interests": [
+        "fire liturgy",
+        "bodies",
+        "wine",
+        "old scores"
+      ],
+      "workPattern": "night",
+      "workLocation": "basilica-seven-flames",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "basilica-seven-flames",
+        "caldera-hatchery",
+        "saltfire-bazaar"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "pyra-ashscale",
+      "name": "Pyra Ashscale",
+      "occupation": "Dragon-blood courtesan",
+      "versionId": "23000000-0000-4000-80a1-000000007016",
+      "interests": [
+        "heat",
+        "bodies",
+        "wine",
+        "old scores"
+      ],
+      "workPattern": "night",
+      "workLocation": "caldera-hatchery",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000003",
+      "publicLocations": [
+        "caldera-hatchery",
+        "saltfire-bazaar",
+        "basilica-seven-flames"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "riven-crow",
+      "name": "Riven Crow",
+      "occupation": "Pirate boarding-master",
+      "versionId": "23000000-0000-4000-80a1-000000007013",
+      "interests": [
+        "boarding",
+        "cards",
+        "grog",
+        "night swimming"
+      ],
+      "workPattern": "night",
+      "workLocation": "greymere-shipyard",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "greymere-shipyard",
+        "knifeharbor-market",
+        "salt-widow-tavern"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "ser-jareth-iron",
+      "name": "Ser Jareth Iron",
+      "occupation": "Imperial executioner",
+      "versionId": "23000000-0000-4000-80a1-000000007002",
+      "interests": [
+        "rites",
+        "blades",
+        "iron",
+        "old liturgy"
+      ],
+      "workPattern": "day",
+      "workLocation": "lantern-gallows",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "lantern-gallows",
+        "chapel-iron-saint",
+        "broken-spur-tavern"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "vaelora-silk",
+      "name": "Vaelora Silk",
+      "occupation": "Velvet Oaths oathbinder",
+      "versionId": "23000000-0000-4000-80a1-000000007001",
+      "interests": [
+        "oaths",
+        "silk",
+        "wine",
+        "old songs"
+      ],
+      "workPattern": "night",
+      "workLocation": "house-of-velvet-oaths",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "house-of-velvet-oaths",
+        "blackglass-baths",
+        "gilded-steps-market"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "velin-silk",
+      "name": "Velin Silk",
+      "occupation": "Dockside blood-courtesan",
+      "versionId": "23000000-0000-4000-80a1-000000007020",
+      "interests": [
+        "blood rites",
+        "wine",
+        "fog",
+        "old songs"
+      ],
+      "workPattern": "night",
+      "workLocation": "crimson-veil",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "crimson-veil",
+        "ashen-docks",
+        "salt-widow-tavern"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "warden-tide",
+      "name": "Warden Tide",
+      "occupation": "Tidevault warden",
+      "versionId": "23000000-0000-4000-80a1-000000007015",
+      "interests": [
+        "keys",
+        "ranges",
+        "steak",
+        "black coffee"
+      ],
+      "workPattern": "night",
+      "workLocation": "tidevault-prison",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000005",
+      "publicLocations": [
+        "tidevault-prison",
+        "saint-orlas-lighthouse",
+        "salt-widow-tavern"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "whisper-saan",
+      "name": "Whisper Saan",
+      "occupation": "Crimson Veil courtesan-assassin",
+      "versionId": "23000000-0000-4000-80a1-000000007005",
+      "interests": [
+        "blades",
+        "perfume",
+        "wine",
+        "old songs"
+      ],
+      "workPattern": "night",
+      "workLocation": "crimson-veil",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "crimson-veil",
+        "lantern-rooms",
+        "house-of-velvet-oaths"
+      ]
+    },
+    {
+      "world": "vharadren",
+      "slug": "ysolde-lantern",
+      "name": "Ysolde Lantern",
+      "occupation": "Lantern Rooms madam",
+      "versionId": "23000000-0000-4000-80a1-000000007009",
+      "interests": [
+        "lamps",
+        "wine",
+        "silk",
+        "night walking"
+      ],
+      "workPattern": "night",
+      "workLocation": "lantern-rooms",
+      "homeLocationId": "2d000000-0000-4000-8000-000000000001",
+      "publicLocations": [
+        "lantern-rooms",
+        "blackglass-baths",
+        "house-of-velvet-oaths"
+      ]
+    }
+  ],
+  "locations": [
+    {
+      "world": "calders-run",
+      "id": "0ffd252b-6c62-519c-98ab-f2cddf4dd042",
+      "slug": "argosy-cardroom",
+      "name": "Argosy Cardroom",
+      "hours": {
+        "open": "14:00",
+        "close": "02:00"
+      },
+      "category": "cardroom"
+    },
+    {
+      "world": "calders-run",
+      "id": "4c788a8a-77fd-5fd4-8be8-e4b7a1d9aac0",
+      "slug": "assay-office",
+      "name": "Assay Office",
+      "hours": {
+        "open": "08:00",
+        "close": "19:00"
+      },
+      "category": "mineral laboratory"
+    },
+    {
+      "world": "calders-run",
+      "id": "7e80c107-194e-5283-9f41-8964f282e145",
+      "slug": "bellflower-theater",
+      "name": "Bellflower Theater",
+      "hours": {
+        "open": "12:00",
+        "close": "24:00"
+      },
+      "category": "theater"
+    },
+    {
+      "world": "calders-run",
+      "id": "1382bb5d-2704-5ff2-a0b4-23707e0219e3",
+      "slug": "blue-glass-baths",
+      "name": "Blue Glass Baths",
+      "hours": {
+        "open": "10:00",
+        "close": "24:00"
+      },
+      "category": "bathhouse"
+    },
+    {
+      "world": "calders-run",
+      "id": "612b4cfc-93a0-569b-b03e-7db79372c573",
+      "slug": "calder-portrait-studio",
+      "name": "Calder Portrait Studio",
+      "hours": {
+        "open": "08:00",
+        "close": "19:00"
+      },
+      "category": "photographic studio"
+    },
+    {
+      "world": "calders-run",
+      "id": "dba2f892-1aef-540f-a8b5-7e443589774b",
+      "slug": "canyon-rest-cemetery",
+      "name": "Canyon Rest Cemetery",
+      "hours": {
+        "open": "07:00",
+        "close": "19:00"
+      },
+      "category": "cemetery"
+    },
+    {
+      "world": "calders-run",
+      "id": "e0526a03-fbb9-5eb9-bdbd-31872d63f11b",
+      "slug": "copper-mare-saloon",
+      "name": "Copper Mare Saloon",
+      "hours": {
+        "open": "12:00",
+        "close": "02:00"
+      },
+      "category": "saloon"
+    },
+    {
+      "world": "calders-run",
+      "id": "12a6914f-0fe4-544d-bfe9-b36c97ea81e8",
+      "slug": "county-courthouse",
+      "name": "County Courthouse",
+      "hours": {
+        "open": "08:00",
+        "close": "18:00"
+      },
+      "category": "courthouse"
+    },
+    {
+      "world": "calders-run",
+      "id": "3c7e94d9-4f78-56e4-bc3c-d40056fbfb49",
+      "slug": "crown-and-cotton",
+      "name": "Crown & Cotton Mercantile",
+      "hours": {
+        "open": "07:00",
+        "close": "20:00"
+      },
+      "category": "general store"
+    },
+    {
+      "world": "calders-run",
+      "id": "9fcae9c7-e773-534c-9ac7-7df82b66ae17",
+      "slug": "hearthstone-bakery",
+      "name": "Hearthstone Bakery",
+      "hours": {
+        "open": "05:00",
+        "close": "18:00"
+      },
+      "category": "bakery"
+    },
+    {
+      "world": "calders-run",
+      "id": "aac1591a-0117-5969-b59e-1f2d6b1b1ab1",
+      "slug": "irrigation-meeting-house",
+      "name": "Irrigation Meeting House",
+      "hours": {
+        "open": "06:00",
+        "close": "21:00"
+      },
+      "category": "water cooperative"
+    },
+    {
+      "world": "calders-run",
+      "id": "83833b22-7a11-59ac-b4ee-27cea0e3c35b",
+      "slug": "junebug-dance-hall",
+      "name": "Junebug Dance Hall",
+      "hours": {
+        "open": "16:00",
+        "close": "01:00"
+      },
+      "category": "dance hall"
+    },
+    {
+      "world": "calders-run",
+      "id": "b8e6063d-69c1-5791-bb0d-595e8ea26148",
+      "slug": "keenes-print-shop",
+      "name": "Keene’s Print Shop",
+      "hours": {
+        "open": "08:00",
+        "close": "20:00"
+      },
+      "category": "print shop"
+    },
+    {
+      "world": "calders-run",
+      "id": "604a7a05-0d7e-5ea2-9357-1e9953bf3bd1",
+      "slug": "lantern-row",
+      "name": "Lantern Row",
+      "hours": null,
+      "category": "district"
+    },
+    {
+      "world": "calders-run",
+      "id": "15e01963-8be0-5523-b708-90c6ed3f5ad3",
+      "slug": "marigold-house",
+      "name": "Marigold House",
+      "hours": {
+        "open": "15:00",
+        "close": "02:00"
+      },
+      "category": "adult companionship house"
+    },
+    {
+      "world": "calders-run",
+      "id": "1a511bfe-6c6d-5942-bbae-6f85fa2a7217",
+      "slug": "night-kitchen",
+      "name": "Night Kitchen",
+      "hours": {
+        "open": "16:00",
+        "close": "03:00"
+      },
+      "category": "restaurant"
+    },
+    {
+      "world": "calders-run",
+      "id": "61a778ab-001e-55f5-829c-2213f115f9a3",
+      "slug": "pike-boatworks",
+      "name": "Pike Boatworks",
+      "hours": {
+        "open": "07:00",
+        "close": "19:00"
+      },
+      "category": "boat yard"
+    },
+    {
+      "world": "calders-run",
+      "id": "be24fd5a-7571-5218-8101-70e25b0441b6",
+      "slug": "pikes-ferry",
+      "name": "Pike’s Ferry",
+      "hours": {
+        "open": "05:00",
+        "close": "22:00"
+      },
+      "category": "ferry crossing"
+    },
+    {
+      "world": "calders-run",
+      "id": "7a59bff3-f402-598c-87a7-69a7ab77f6b0",
+      "slug": "public-washhouse",
+      "name": "Public Washhouse",
+      "hours": {
+        "open": "06:00",
+        "close": "19:00"
+      },
+      "category": "washhouse"
+    },
+    {
+      "world": "calders-run",
+      "id": "ec896c98-a5c1-5cdc-b6e9-96cdefc12925",
+      "slug": "railroad-freight-office",
+      "name": "Railroad Freight Office",
+      "hours": {
+        "open": "08:00",
+        "close": "19:00"
+      },
+      "category": "freight and land office"
+    },
+    {
+      "world": "calders-run",
+      "id": "38b0efd4-b1d9-5b32-bc1f-b0b711da47ca",
+      "slug": "red-sash-brothel",
+      "name": "The Red Sash",
+      "hours": {
+        "open": "16:00",
+        "close": "02:00"
+      },
+      "category": "brothel"
+    },
+    {
+      "world": "calders-run",
+      "id": "a3ac9f2f-33ff-5d19-af2a-cd83828e586d",
+      "slug": "red-wells-prospect",
+      "name": "Red Wells Prospect",
+      "hours": {
+        "open": "06:00",
+        "close": "19:00"
+      },
+      "category": "independent claim"
+    },
+    {
+      "world": "calders-run",
+      "id": "fd31aebd-9627-5eb6-aa48-992466e453ee",
+      "slug": "ribbon-room",
+      "name": "Ribbon Room",
+      "hours": {
+        "open": "16:00",
+        "close": "24:00"
+      },
+      "category": "adult private salon"
+    },
+    {
+      "world": "calders-run",
+      "id": "9b59c945-7e98-535f-bf7e-87f98f50ff89",
+      "slug": "river-market",
+      "name": "River Market",
+      "hours": {
+        "open": "06:00",
+        "close": "19:00"
+      },
+      "category": "market"
+    },
+    {
+      "world": "calders-run",
+      "id": "5a7e186e-f4de-58d9-bbc5-861f9eeeecfd",
+      "slug": "riverside-chapel",
+      "name": "Riverside Chapel",
+      "hours": {
+        "open": "07:00",
+        "close": "21:00"
+      },
+      "category": "chapel and relief hall"
+    },
+    {
+      "world": "calders-run",
+      "id": "5bd7111c-2e34-5c40-9779-b4dd2aec21c3",
+      "slug": "soto-forge",
+      "name": "Soto Forge",
+      "hours": {
+        "open": "07:00",
+        "close": "19:00"
+      },
+      "category": "forge and repair yard"
+    },
+    {
+      "world": "calders-run",
+      "id": "48020030-a545-5efc-b58c-b4c10a96af3f",
+      "slug": "temporary-passenger-depot",
+      "name": "Temporary Passenger Depot",
+      "hours": {
+        "open": "05:00",
+        "close": "23:00"
+      },
+      "category": "rail depot"
+    },
+    {
+      "world": "calders-run",
+      "id": "52c5ebd4-ec17-505f-972a-733356fdcd43",
+      "slug": "valley-creamery",
+      "name": "Valley Creamery",
+      "hours": {
+        "open": "05:00",
+        "close": "18:00"
+      },
+      "category": "dairy and creamery"
+    },
+    {
+      "world": "calders-run",
+      "id": "66cb94b2-6df9-5c91-86ff-8d1075fa3c11",
+      "slug": "whitcomb-ranch",
+      "name": "Whitcomb Ranch",
+      "hours": {
+        "open": "06:00",
+        "close": "20:00"
+      },
+      "category": "working ranch"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000010",
+      "slug": "atlas-market",
+      "name": "Atlas Market",
+      "hours": {
+        "open": "07:00",
+        "close": "22:00"
+      },
+      "category": "market"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000040",
+      "slug": "aurora-house",
+      "name": "Aurora House",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "hotel"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000043",
+      "slug": "black-lake",
+      "name": "The Black Lake",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "research"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000009",
+      "slug": "blue-shift",
+      "name": "The Blue Shift",
+      "hours": {
+        "open": "05:00",
+        "close": "23:00"
+      },
+      "category": "cafe"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000032",
+      "slug": "caldera-reactor",
+      "name": "Caldera Reactor Complex",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "infrastructure"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000029",
+      "slug": "cargo-exchange",
+      "name": "Cargo Exchange",
+      "hours": {
+        "open": "05:00",
+        "close": "21:00"
+      },
+      "category": "market"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000013",
+      "slug": "common-room",
+      "name": "The Common Room",
+      "hours": {
+        "open": "11:00",
+        "close": "02:00"
+      },
+      "category": "bar"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000024",
+      "slug": "docking-spine",
+      "name": "Docking Spine",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "spaceport"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000028",
+      "slug": "drift-gym",
+      "name": "Drift Gym",
+      "hours": {
+        "open": "05:00",
+        "close": "23:00"
+      },
+      "category": "fitness"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000045",
+      "slug": "farline-laboratory",
+      "name": "Farline Laboratory",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "research"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000036",
+      "slug": "foundry-baths",
+      "name": "Foundry Baths",
+      "hours": {
+        "open": "06:00",
+        "close": "01:00"
+      },
+      "category": "spa"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000030",
+      "slug": "hangar-twelve",
+      "name": "Hangar Twelve",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "hangar"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000018",
+      "slug": "hearth-kitchens",
+      "name": "Hearth Kitchens",
+      "hours": {
+        "open": "06:00",
+        "close": "23:00"
+      },
+      "category": "restaurant"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000041",
+      "slug": "kepler-iceworks",
+      "name": "Kepler Iceworks",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "infrastructure"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000027",
+      "slug": "last-window",
+      "name": "The Last Window",
+      "hours": {
+        "open": "15:00",
+        "close": "02:00"
+      },
+      "category": "bar"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000042",
+      "slug": "listening-station-seven",
+      "name": "Listening Station Seven",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "research"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000012",
+      "slug": "meridian-medical-center",
+      "name": "Meridian Medical Center",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "clinic"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000051",
+      "slug": "needle-and-thread",
+      "name": "Needle & Thread",
+      "hours": {
+        "open": "10:00",
+        "close": "22:00"
+      },
+      "category": "studio"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000038",
+      "slug": "pressure-school",
+      "name": "Pressure School",
+      "hours": {
+        "open": "06:00",
+        "close": "22:00"
+      },
+      "category": "training"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000049",
+      "slug": "quiet-orbit",
+      "name": "Quiet Orbit",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "hotel"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000037",
+      "slug": "salvage-court",
+      "name": "Salvage Court",
+      "hours": {
+        "open": "08:00",
+        "close": "20:00"
+      },
+      "category": "market"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000050",
+      "slug": "static-garden",
+      "name": "Static Garden",
+      "hours": {
+        "open": "16:00",
+        "close": "03:00"
+      },
+      "category": "music venue"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000052",
+      "slug": "the-airlock-diner",
+      "name": "The Airlock",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "diner"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000021",
+      "slug": "the-canopy",
+      "name": "The Canopy",
+      "hours": {
+        "open": "17:00",
+        "close": "01:00"
+      },
+      "category": "restaurant"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000033",
+      "slug": "the-rivet",
+      "name": "The Rivet",
+      "hours": {
+        "open": "10:00",
+        "close": "03:00"
+      },
+      "category": "bar"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000044",
+      "slug": "thermal-garden",
+      "name": "Thermal Garden",
+      "hours": {
+        "open": "07:00",
+        "close": "22:00"
+      },
+      "category": "garden"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000048",
+      "slug": "velvet-gravity",
+      "name": "Velvet Gravity",
+      "hours": {
+        "open": "18:00",
+        "close": "04:00"
+      },
+      "category": "nightclub"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000020",
+      "slug": "verdant-clinic",
+      "name": "Verdant Clinic",
+      "hours": {
+        "open": "08:00",
+        "close": "20:00"
+      },
+      "category": "clinic"
+    },
+    {
+      "world": "eos-meridian",
+      "id": "2c000000-0000-4000-8000-000000000025",
+      "slug": "wayfarer-hotel",
+      "name": "Wayfarer Hotel",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "hotel"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000032",
+      "slug": "battery-yard",
+      "name": "Battery Yard",
+      "hours": {
+        "open": "07:00",
+        "close": "19:00"
+      },
+      "category": "fort"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000041",
+      "slug": "blackfin-anchorage",
+      "name": "Blackfin Anchorage",
+      "hours": null,
+      "category": "anchorage"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000004",
+      "slug": "brass-compass",
+      "name": "The Brass Compass",
+      "hours": {
+        "open": "05:00",
+        "close": "01:00"
+      },
+      "category": "tavern"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000038",
+      "slug": "coconut-beach",
+      "name": "Coconut Beach",
+      "hours": null,
+      "category": "beach"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000003",
+      "slug": "customs-house",
+      "name": "Customs House",
+      "hours": {
+        "open": "07:00",
+        "close": "18:00"
+      },
+      "category": "civic"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000019",
+      "slug": "drydock-baths",
+      "name": "Drydock Baths",
+      "hours": {
+        "open": "06:00",
+        "close": "23:00"
+      },
+      "category": "bathhouse"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000011",
+      "slug": "gilt-auction",
+      "name": "Gilt Auction Rooms",
+      "hours": {
+        "open": "10:00",
+        "close": "20:00"
+      },
+      "category": "auction"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000012",
+      "slug": "glass-garden",
+      "name": "Glass Garden",
+      "hours": {
+        "open": "08:00",
+        "close": "21:00"
+      },
+      "category": "garden"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000007",
+      "slug": "harbor-court",
+      "name": "Harbor Court",
+      "hours": {
+        "open": "09:00",
+        "close": "17:00"
+      },
+      "category": "civic"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000024",
+      "slug": "honeyglass-theatre",
+      "name": "Honeyglass Theatre",
+      "hours": {
+        "open": "17:00",
+        "close": "01:00"
+      },
+      "category": "theatre"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000025",
+      "slug": "house-of-hours",
+      "name": "House of Hours",
+      "hours": {
+        "open": "16:00",
+        "close": "03:00"
+      },
+      "category": "adult companionship house"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000021",
+      "slug": "lantern-foundry",
+      "name": "Lantern Foundry",
+      "hours": {
+        "open": "07:00",
+        "close": "18:00"
+      },
+      "category": "foundry"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000026",
+      "slug": "mariners-table",
+      "name": "Mariner’s Table",
+      "hours": {
+        "open": "11:00",
+        "close": "23:00"
+      },
+      "category": "restaurant"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000023",
+      "slug": "night-market",
+      "name": "Night Market",
+      "hours": {
+        "open": "15:00",
+        "close": "01:00"
+      },
+      "category": "market"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000009",
+      "slug": "pearl-salon",
+      "name": "Pearl Salon",
+      "hours": {
+        "open": "16:00",
+        "close": "01:00"
+      },
+      "category": "salon"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000037",
+      "slug": "reef-landing",
+      "name": "Reef Landing",
+      "hours": null,
+      "category": "harbor"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000042",
+      "slug": "sable-reef",
+      "name": "Sable Reef",
+      "hours": null,
+      "category": "reef"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000006",
+      "slug": "sailors-exchange",
+      "name": "Sailors’ Exchange",
+      "hours": {
+        "open": "06:00",
+        "close": "19:00"
+      },
+      "category": "market"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000028",
+      "slug": "spice-courtyard",
+      "name": "Spice Courtyard",
+      "hours": null,
+      "category": "courtyard"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000039",
+      "slug": "tidepool-cove",
+      "name": "Tidepool Cove",
+      "hours": null,
+      "category": "nature"
+    },
+    {
+      "world": "gilded-coast",
+      "id": "2e000000-0000-4000-8014-000000000013",
+      "slug": "velvet-balcony",
+      "name": "Velvet Balcony",
+      "hours": {
+        "open": "18:00",
+        "close": "00:00"
+      },
+      "category": "theatre"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000022",
+      "slug": "common-market",
+      "name": "Common Market",
+      "hours": {
+        "open": "08:00",
+        "close": "21:00"
+      },
+      "category": "market"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000007",
+      "slug": "ember-and-rye",
+      "name": "Ember & Rye",
+      "hours": {
+        "open": "08:00",
+        "close": "15:00"
+      },
+      "category": "restaurant"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000018",
+      "slug": "glassline-gallery",
+      "name": "Glassline Gallery",
+      "hours": {
+        "open": "11:00",
+        "close": "19:00"
+      },
+      "category": "gallery"
+    },
+    {
+      "world": "juniper-city",
+      "id": "2a000000-0000-4000-8000-000000000106",
+      "slug": "juniper-central-station",
+      "name": "Juniper Central Station",
+      "hours": {
+        "open": "04:30",
+        "close": "01:00"
+      },
+      "category": "transit"
+    },
+    {
+      "world": "juniper-city",
+      "id": "2a000000-0000-4000-8000-000000000108",
+      "slug": "juniper-city-hall",
+      "name": "Juniper City Hall",
+      "hours": {
+        "open": "08:00",
+        "close": "18:00"
+      },
+      "category": "civic"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000028",
+      "slug": "juniper-civic-arena",
+      "name": "Juniper Civic Arena",
+      "hours": {
+        "open": "10:00",
+        "close": "23:59"
+      },
+      "category": "entertainment"
+    },
+    {
+      "world": "juniper-city",
+      "id": "2a000000-0000-4000-8000-000000000107",
+      "slug": "juniper-medical-center",
+      "name": "Juniper Medical Center",
+      "hours": {
+        "open": "00:00",
+        "close": "23:59"
+      },
+      "category": "healthcare"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000011",
+      "slug": "lantern-dive",
+      "name": "Lantern Dive",
+      "hours": {
+        "open": "16:00",
+        "close": "02:00"
+      },
+      "category": "bar"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000025",
+      "slug": "lark-botanical-garden",
+      "name": "Lark Botanical Garden",
+      "hours": {
+        "open": "09:00",
+        "close": "18:00"
+      },
+      "category": "garden"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000015",
+      "slug": "lucky-note",
+      "name": "Lucky Note",
+      "hours": {
+        "open": "19:00",
+        "close": "02:00"
+      },
+      "category": "karaoke"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000013",
+      "slug": "marquee-cinema",
+      "name": "Marquee Cinema",
+      "hours": {
+        "open": "12:00",
+        "close": "23:30"
+      },
+      "category": "cinema"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000021",
+      "slug": "meridian-fitness",
+      "name": "Meridian Fitness",
+      "hours": {
+        "open": "05:30",
+        "close": "22:00"
+      },
+      "category": "gym"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000012",
+      "slug": "moss-and-crumb",
+      "name": "Moss & Crumb",
+      "hours": {
+        "open": "07:00",
+        "close": "16:00"
+      },
+      "category": "bakery"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000020",
+      "slug": "needles-and-notes",
+      "name": "Needles & Notes",
+      "hours": {
+        "open": "10:00",
+        "close": "20:00"
+      },
+      "category": "record_store"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000004",
+      "slug": "northside-bar",
+      "name": "Northside Bar",
+      "hours": {
+        "open": "16:00",
+        "close": "02:00"
+      },
+      "category": "bar"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000019",
+      "slug": "paper-trail",
+      "name": "Paper Trail",
+      "hours": {
+        "open": "09:00",
+        "close": "20:00"
+      },
+      "category": "bookstore"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000006",
+      "slug": "photography-studio",
+      "name": "Photography Studio",
+      "hours": {
+        "open": "08:00",
+        "close": "19:00"
+      },
+      "category": "work"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000017",
+      "slug": "pixel-and-pint",
+      "name": "Pixel & Pint",
+      "hours": {
+        "open": "15:00",
+        "close": "01:00"
+      },
+      "category": "barcade"
+    },
+    {
+      "world": "juniper-city",
+      "id": "2a000000-0000-4000-8000-000000000201",
+      "slug": "red-hour",
+      "name": "The Red Hour",
+      "hours": {
+        "open": "20:00",
+        "close": "04:00"
+      },
+      "category": "nightlife"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000005",
+      "slug": "riverwalk",
+      "name": "Riverwalk",
+      "hours": null,
+      "category": "outdoors"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000008",
+      "slug": "sora-table",
+      "name": "Sora Table",
+      "hours": {
+        "open": "17:00",
+        "close": "23:00"
+      },
+      "category": "restaurant"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000014",
+      "slug": "static-house",
+      "name": "Static House",
+      "hours": {
+        "open": "18:00",
+        "close": "01:00"
+      },
+      "category": "music_venue"
+    },
+    {
+      "world": "juniper-city",
+      "id": "11000000-0000-4000-8000-000000000009",
+      "slug": "taqueria-lumen",
+      "name": "Taquería Lumen",
+      "hours": {
+        "open": "11:00",
+        "close": "23:00"
+      },
+      "category": "restaurant"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000024",
+      "slug": "aoyama-modification-institute",
+      "name": "Aoyama Modification Institute",
+      "hours": {
+        "open": "08:00",
+        "close": "20:00"
+      },
+      "category": "healthcare"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000048",
+      "slug": "below-kyo",
+      "name": "Below Kyo",
+      "hours": null,
+      "category": "underground"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000032",
+      "slug": "chrome-kiss",
+      "name": "Chrome Kiss",
+      "hours": {
+        "open": "12:00",
+        "close": "23:00"
+      },
+      "category": "studio"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000030",
+      "slug": "dollhouse-robotics",
+      "name": "Dollhouse Robotics",
+      "hours": {
+        "open": "09:00",
+        "close": "19:00"
+      },
+      "category": "technology"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000031",
+      "slug": "dreamscape",
+      "name": "Dreamscape",
+      "hours": {
+        "open": "12:00",
+        "close": "04:00"
+      },
+      "category": "entertainment"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000025",
+      "slug": "gallery-null",
+      "name": "Gallery Null",
+      "hours": {
+        "open": "11:00",
+        "close": "23:00"
+      },
+      "category": "gallery"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000018",
+      "slug": "ghost-line",
+      "name": "Ghost Line",
+      "hours": {
+        "open": "20:00",
+        "close": "05:00"
+      },
+      "category": "market"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000021",
+      "slug": "glass-house",
+      "name": "The Glass House",
+      "hours": null,
+      "category": "residence"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000022",
+      "slug": "halo-aoyama",
+      "name": "Halo",
+      "hours": {
+        "open": "16:00",
+        "close": "02:00"
+      },
+      "category": "lounge"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000009",
+      "slug": "kissaten-88",
+      "name": "Kissaten 88",
+      "hours": {
+        "open": "07:00",
+        "close": "03:00"
+      },
+      "category": "cafe"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000046",
+      "slug": "koi-garden",
+      "name": "Koi Garden",
+      "hours": null,
+      "category": "garden"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000040",
+      "slug": "kumo-gym",
+      "name": "Kumo Gym",
+      "hours": {
+        "open": "00:00",
+        "close": "23:59"
+      },
+      "category": "fitness"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000037",
+      "slug": "laundry-nine",
+      "name": "Laundry 9",
+      "hours": {
+        "open": "00:00",
+        "close": "23:59"
+      },
+      "category": "laundry"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000008",
+      "slug": "maison-vice",
+      "name": "Maison Vice",
+      "hours": {
+        "open": "10:00",
+        "close": "23:00"
+      },
+      "category": "shopping"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000038",
+      "slug": "moonpool",
+      "name": "Moonpool",
+      "hours": {
+        "open": "05:00",
+        "close": "03:00"
+      },
+      "category": "fitness"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000034",
+      "slug": "nova-arena",
+      "name": "Nova Arena",
+      "hours": {
+        "open": "10:00",
+        "close": "01:00"
+      },
+      "category": "arena"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000012",
+      "slug": "pulse-arcade",
+      "name": "Pulse Arcade",
+      "hours": {
+        "open": "10:00",
+        "close": "04:00"
+      },
+      "category": "entertainment"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000019",
+      "slug": "red-lantern-alley",
+      "name": "Red Lantern Alley",
+      "hours": null,
+      "category": "nightlife"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000015",
+      "slug": "room-thirteen",
+      "name": "Room 13",
+      "hours": {
+        "open": "19:00",
+        "close": "04:00"
+      },
+      "category": "lounge"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000026",
+      "slug": "saint-aoyama",
+      "name": "Saint",
+      "hours": {
+        "open": "18:00",
+        "close": "03:00"
+      },
+      "category": "lounge"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000017",
+      "slug": "scarlet-garden",
+      "name": "Scarlet Garden",
+      "hours": {
+        "open": "17:00",
+        "close": "03:00"
+      },
+      "category": "bar"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000047",
+      "slug": "soba-miyako",
+      "name": "Soba Miyako",
+      "hours": {
+        "open": "11:00",
+        "close": "22:00"
+      },
+      "category": "restaurant"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000029",
+      "slug": "syn-club",
+      "name": "SYN",
+      "hours": {
+        "open": "21:00",
+        "close": "05:00"
+      },
+      "category": "nightlife"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000051",
+      "slug": "tea-house-aoi",
+      "name": "Tea House Aoi",
+      "hours": {
+        "open": "09:00",
+        "close": "22:00"
+      },
+      "category": "cafe"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000027",
+      "slug": "the-atrium",
+      "name": "The Atrium",
+      "hours": {
+        "open": "10:00",
+        "close": "22:00"
+      },
+      "category": "shopping"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000033",
+      "slug": "the-backroom",
+      "name": "The Backroom",
+      "hours": {
+        "open": "14:00",
+        "close": "02:00"
+      },
+      "category": "workshop"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000036",
+      "slug": "twentyfour",
+      "name": "TwentyFour",
+      "hours": {
+        "open": "00:00",
+        "close": "23:59"
+      },
+      "category": "shopping"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000014",
+      "slug": "velvet-static",
+      "name": "Velvet Static",
+      "hours": {
+        "open": "21:00",
+        "close": "05:00"
+      },
+      "category": "nightlife"
+    },
+    {
+      "world": "neon-kyo",
+      "id": "28000000-0000-4000-8000-000000000028",
+      "slug": "zeroday",
+      "name": "ZeroDay",
+      "hours": {
+        "open": "18:00",
+        "close": "04:00"
+      },
+      "category": "bar"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000018",
+      "slug": "alpine-room",
+      "name": "The Alpine Room",
+      "hours": {
+        "open": "14:00",
+        "close": "01:00"
+      },
+      "category": "apres lounge"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000046",
+      "slug": "argent-mine",
+      "name": "Argent Mine Heritage Site",
+      "hours": {
+        "open": "10:00",
+        "close": "16:00"
+      },
+      "category": "mine heritage site"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000017",
+      "slug": "aurora-spa",
+      "name": "Aurora Spa",
+      "hours": {
+        "open": "08:00",
+        "close": "21:00"
+      },
+      "category": "spa"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000019",
+      "slug": "basecamp-outfitters",
+      "name": "Basecamp Outfitters",
+      "hours": {
+        "open": "07:00",
+        "close": "20:00"
+      },
+      "category": "rental shop"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000048",
+      "slug": "basin-rescue-station",
+      "name": "Basin Rescue Station",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "rescue station"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000043",
+      "slug": "bluebird-trailhead",
+      "name": "Bluebird Trailhead",
+      "hours": null,
+      "category": "trailhead"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000023",
+      "slug": "driftline-laundry",
+      "name": "Driftline Laundry",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "laundromat"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000025",
+      "slug": "edge-and-wax",
+      "name": "Edge & Wax",
+      "hours": {
+        "open": "07:00",
+        "close": "22:00"
+      },
+      "category": "tuning workshop"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000016",
+      "slug": "emberline-kitchen",
+      "name": "Emberline Kitchen",
+      "hours": {
+        "open": "17:00",
+        "close": "23:00"
+      },
+      "category": "restaurant"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000041",
+      "slug": "frostline-boathouse",
+      "name": "Frostline Boathouse",
+      "hours": {
+        "open": "08:00",
+        "close": "19:00"
+      },
+      "category": "boathouse"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000035",
+      "slug": "halo-terrain-park",
+      "name": "Halo Terrain Park",
+      "hours": {
+        "open": "09:00",
+        "close": "16:00"
+      },
+      "category": "terrain park"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000047",
+      "slug": "high-country-guides",
+      "name": "High Country Guides",
+      "hours": {
+        "open": "06:00",
+        "close": "20:00"
+      },
+      "category": "guide outfitter"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000024",
+      "slug": "highline-climbing-gym",
+      "name": "Highline Climbing Gym",
+      "hours": {
+        "open": "06:00",
+        "close": "22:00"
+      },
+      "category": "climbing gym"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000051",
+      "slug": "last-light-roadhouse",
+      "name": "The Last Light Roadhouse",
+      "hours": {
+        "open": "12:00",
+        "close": "01:00"
+      },
+      "category": "roadhouse"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000013",
+      "slug": "miners-hall",
+      "name": "Miners Hall",
+      "hours": {
+        "open": "09:00",
+        "close": "18:00"
+      },
+      "category": "civic hall"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000010",
+      "slug": "north-fork-coffee",
+      "name": "North Fork Coffee",
+      "hours": {
+        "open": "06:00",
+        "close": "18:00"
+      },
+      "category": "cafe"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000012",
+      "slug": "northvale-community-clinic",
+      "name": "NorthVale Community Clinic",
+      "hours": {
+        "open": "08:00",
+        "close": "20:00"
+      },
+      "category": "clinic"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000014",
+      "slug": "northvale-lodge",
+      "name": "NorthVale Lodge",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "hotel"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000011",
+      "slug": "rialto-mountain-cinema",
+      "name": "Rialto Mountain Cinema",
+      "hours": {
+        "open": "14:00",
+        "close": "23:30"
+      },
+      "category": "cinema"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000031",
+      "slug": "ski-patrol-headquarters",
+      "name": "Ski Patrol Headquarters",
+      "hours": {
+        "open": "07:00",
+        "close": "18:00"
+      },
+      "category": "patrol station"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000020",
+      "slug": "snowglass-gallery",
+      "name": "Snowglass Gallery",
+      "hours": {
+        "open": "10:00",
+        "close": "21:00"
+      },
+      "category": "gallery"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000039",
+      "slug": "stillwater-sauna-house",
+      "name": "Stillwater Sauna House",
+      "hours": {
+        "open": "09:00",
+        "close": "22:00"
+      },
+      "category": "sauna house"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000028",
+      "slug": "sunrise-gondola",
+      "name": "Sunrise Gondola",
+      "hours": {
+        "open": "07:30",
+        "close": "16:30"
+      },
+      "category": "gondola"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000008",
+      "slug": "switchback-tavern",
+      "name": "The Switchback",
+      "hours": {
+        "open": "11:00",
+        "close": "02:00"
+      },
+      "category": "tavern"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000022",
+      "slug": "switchyard-pizza",
+      "name": "Switchyard Pizza",
+      "hours": {
+        "open": "11:00",
+        "close": "01:00"
+      },
+      "category": "pizza shop"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000021",
+      "slug": "the-avalanche",
+      "name": "The Avalanche",
+      "hours": {
+        "open": "16:00",
+        "close": "02:00"
+      },
+      "category": "dive bar"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000027",
+      "slug": "the-drift",
+      "name": "The Drift",
+      "hours": {
+        "open": "18:00",
+        "close": "02:00"
+      },
+      "category": "music venue"
+    },
+    {
+      "world": "northvale",
+      "id": "2b000000-0000-4000-8000-000000000009",
+      "slug": "vale-and-pine-books",
+      "name": "Vale & Pine Books",
+      "hours": {
+        "open": "09:00",
+        "close": "21:00"
+      },
+      "category": "bookstore"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000017",
+      "slug": "atelier-amelie",
+      "name": "Atelier Amélie",
+      "hours": {
+        "open": "09:30",
+        "close": "18:30"
+      },
+      "category": "studio"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000032",
+      "slug": "belvedere-garden",
+      "name": "Belvedere Garden",
+      "hours": null,
+      "category": "park"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000009",
+      "slug": "blue-lantern",
+      "name": "The Blue Lantern",
+      "hours": {
+        "open": "16:00",
+        "close": "01:00"
+      },
+      "category": "nightlife"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000007",
+      "slug": "cafe-marelle",
+      "name": "Café Marelle",
+      "hours": {
+        "open": "06:30",
+        "close": "20:00"
+      },
+      "category": "cafe"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000041",
+      "slug": "celeste-spa",
+      "name": "Celeste Spa",
+      "hours": {
+        "open": "09:00",
+        "close": "20:00"
+      },
+      "category": "spa"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000051",
+      "slug": "circolo-nove",
+      "name": "Circolo Nove",
+      "hours": {
+        "open": "22:00",
+        "close": "05:00"
+      },
+      "category": "nightlife"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000039",
+      "slug": "domaine-vervelle",
+      "name": "Domaine Vervelle",
+      "hours": {
+        "open": "10:00",
+        "close": "22:00"
+      },
+      "category": "vineyard"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000018",
+      "slug": "farmacia-vervelle",
+      "name": "Farmacia Vervelle",
+      "hours": {
+        "open": "08:00",
+        "close": "20:00"
+      },
+      "category": "pharmacy"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000022",
+      "slug": "la-sirena",
+      "name": "La Sirena",
+      "hours": {
+        "open": "22:00",
+        "close": "04:00"
+      },
+      "category": "nightlife"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000015",
+      "slug": "libreria-vervelle",
+      "name": "Libreria Vervelle",
+      "hours": {
+        "open": "09:00",
+        "close": "19:00"
+      },
+      "category": "bookstore"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000021",
+      "slug": "lido-vervelle",
+      "name": "Lido Vervelle",
+      "hours": {
+        "open": "09:00",
+        "close": "23:00"
+      },
+      "category": "restaurant"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000026",
+      "slug": "luna-terrace",
+      "name": "Luna Terrace",
+      "hours": {
+        "open": "17:00",
+        "close": "00:00"
+      },
+      "category": "restaurant"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000024",
+      "slug": "maison-rouge",
+      "name": "Maison Rouge",
+      "hours": {
+        "open": "19:00",
+        "close": "02:00"
+      },
+      "category": "entertainment"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000005",
+      "slug": "mercato-vecchio",
+      "name": "Mercato Vecchio",
+      "hours": null,
+      "category": "district"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000016",
+      "slug": "osteria-rosa",
+      "name": "Osteria Rosa",
+      "hours": {
+        "open": "12:00",
+        "close": "23:30"
+      },
+      "category": "restaurant"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000019",
+      "slug": "palazzo-civico",
+      "name": "Palazzo Civico",
+      "hours": {
+        "open": "08:30",
+        "close": "17:00"
+      },
+      "category": "public service"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000037",
+      "slug": "piccolo-cinema",
+      "name": "Piccolo Cinema",
+      "hours": {
+        "open": "14:00",
+        "close": "00:30"
+      },
+      "category": "cinema"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000010",
+      "slug": "porto-marina",
+      "name": "Porto Marina",
+      "hours": {
+        "open": "05:00",
+        "close": "23:00"
+      },
+      "category": "marina"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000025",
+      "slug": "solana-beach-rentals",
+      "name": "Solana Beach Rentals",
+      "hours": {
+        "open": "08:00",
+        "close": "19:00"
+      },
+      "category": "outdoor"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000020",
+      "slug": "spiaggia-solana",
+      "name": "Spiaggia Solana",
+      "hours": null,
+      "category": "outdoor"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000023",
+      "slug": "velours",
+      "name": "Velours",
+      "hours": {
+        "open": "18:00",
+        "close": "02:00"
+      },
+      "category": "lounge"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000008",
+      "slug": "vervelle-fish-market",
+      "name": "Vervelle Fish Market",
+      "hours": {
+        "open": "05:00",
+        "close": "13:00"
+      },
+      "category": "market"
+    },
+    {
+      "world": "port-vervelle",
+      "id": "27000000-0000-4000-8000-000000000011",
+      "slug": "vervelle-sailing-house",
+      "name": "Vervelle Sailing House",
+      "hours": {
+        "open": "08:00",
+        "close": "19:00"
+      },
+      "category": "entertainment"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000049",
+      "slug": "afterdark-diner",
+      "name": "Afterdark Diner",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "diner"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000033",
+      "slug": "anatomy-hall",
+      "name": "Anatomy Hall",
+      "hours": {
+        "open": "07:00",
+        "close": "22:00"
+      },
+      "category": "academic"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000010",
+      "slug": "belladonna-apothecary",
+      "name": "Belladonna Apothecary",
+      "hours": {
+        "open": "09:00",
+        "close": "18:00"
+      },
+      "category": "apothecary"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000008",
+      "slug": "black-lantern",
+      "name": "The Black Lantern",
+      "hours": {
+        "open": "16:00",
+        "close": "02:00"
+      },
+      "category": "pub"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000047",
+      "slug": "black-veil-tattoo",
+      "name": "Black Veil Tattoo",
+      "hours": {
+        "open": "11:00",
+        "close": "22:00"
+      },
+      "category": "tattoo studio"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000029",
+      "slug": "blackglass-library",
+      "name": "Blackglass Library",
+      "hours": {
+        "open": "07:00",
+        "close": "00:00"
+      },
+      "category": "library"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000015",
+      "slug": "blackwood-estate",
+      "name": "Blackwood Estate",
+      "hours": null,
+      "category": "estate"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000046",
+      "slug": "crimson-room",
+      "name": "The Crimson Room",
+      "hours": {
+        "open": "18:00",
+        "close": "03:00"
+      },
+      "category": "lounge"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000041",
+      "slug": "crooked-oak",
+      "name": "The Crooked Oak",
+      "hours": {
+        "open": "11:00",
+        "close": "00:00"
+      },
+      "category": "tavern"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000023",
+      "slug": "drowned-bell",
+      "name": "The Drowned Bell",
+      "hours": {
+        "open": "12:00",
+        "close": "02:00"
+      },
+      "category": "tavern"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000040",
+      "slug": "foxglove-retreats",
+      "name": "Foxglove Cabin Retreats",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "cabins"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000021",
+      "slug": "glasswater-pier",
+      "name": "Glasswater Pier",
+      "hours": null,
+      "category": "pier"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000028",
+      "slug": "grand-hall",
+      "name": "The Grand Hall",
+      "hours": null,
+      "category": "hall"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000018",
+      "slug": "hawthorne-riding-club",
+      "name": "Hawthorne Riding Club",
+      "hours": {
+        "open": "06:00",
+        "close": "19:00"
+      },
+      "category": "equestrian"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000037",
+      "slug": "high-gardens",
+      "name": "The High Gardens",
+      "hours": null,
+      "category": "garden"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000025",
+      "slug": "moonwake-baths",
+      "name": "Moonwake Baths",
+      "hours": {
+        "open": "08:00",
+        "close": "22:00"
+      },
+      "category": "spa"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000044",
+      "slug": "morrow-vale-ranger-station",
+      "name": "Morrow Vale Ranger Station",
+      "hours": {
+        "open": "06:00",
+        "close": "22:00"
+      },
+      "category": "ranger station"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000011",
+      "slug": "mourning-cup",
+      "name": "The Mourning Cup",
+      "hours": {
+        "open": "06:30",
+        "close": "20:00"
+      },
+      "category": "cafe"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000045",
+      "slug": "nocturne",
+      "name": "Nocturne",
+      "hours": {
+        "open": "21:00",
+        "close": "04:00"
+      },
+      "category": "nightclub"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000016",
+      "slug": "rosegrave-gardens",
+      "name": "Rosegrave Gardens",
+      "hours": null,
+      "category": "garden"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000012",
+      "slug": "saint-orison-chapel",
+      "name": "Saint Orison Chapel",
+      "hours": {
+        "open": "07:00",
+        "close": "20:00"
+      },
+      "category": "chapel"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000043",
+      "slug": "standing-stones",
+      "name": "The Standing Stones",
+      "hours": null,
+      "category": "ritual site"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000027",
+      "slug": "sunken-chapel",
+      "name": "The Sunken Chapel",
+      "hours": null,
+      "category": "ruin"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000031",
+      "slug": "the-cloisters",
+      "name": "The Cloisters",
+      "hours": null,
+      "category": "cloister"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000017",
+      "slug": "the-conservatory",
+      "name": "The Conservatory",
+      "hours": {
+        "open": "11:30",
+        "close": "23:00"
+      },
+      "category": "restaurant"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000038",
+      "slug": "thornwood-trailhead",
+      "name": "Thornwood Trailhead",
+      "hours": null,
+      "category": "trailhead"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000035",
+      "slug": "undercroft",
+      "name": "The Undercroft",
+      "hours": null,
+      "category": "underground"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000013",
+      "slug": "velvet-thorn",
+      "name": "Velvet Thorn",
+      "hours": {
+        "open": "18:00",
+        "close": "02:00"
+      },
+      "category": "lounge"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000024",
+      "slug": "vesper-boatworks",
+      "name": "Vesper Boatworks",
+      "hours": {
+        "open": "07:00",
+        "close": "19:00"
+      },
+      "category": "marina"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000014",
+      "slug": "vesper-house",
+      "name": "Vesper House",
+      "hours": null,
+      "category": "estate"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000026",
+      "slug": "whisper-dock",
+      "name": "Whisper Dock",
+      "hours": null,
+      "category": "dock"
+    },
+    {
+      "world": "vespormoor",
+      "id": "29000000-0000-4000-8000-000000000039",
+      "slug": "witchs-falls",
+      "name": "Witch's Falls",
+      "hours": null,
+      "category": "waterfall"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000048",
+      "slug": "ash-mother-infirmary",
+      "name": "Ash Mother Infirmary",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "infirmary"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000027",
+      "slug": "ashen-docks",
+      "name": "Ashen Docks",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "harbor"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000011",
+      "slug": "basilica-seven-flames",
+      "name": "Basilica of Seven Flames",
+      "hours": {
+        "open": "04:30",
+        "close": "22:00"
+      },
+      "category": "temple"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000012",
+      "slug": "blackglass-baths",
+      "name": "Blackglass Baths",
+      "hours": {
+        "open": "08:00",
+        "close": "01:00"
+      },
+      "category": "bathhouse"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000018",
+      "slug": "broken-spur-tavern",
+      "name": "The Broken Spur",
+      "hours": {
+        "open": "10:00",
+        "close": "02:00"
+      },
+      "category": "tavern and inn"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000024",
+      "slug": "caldera-hatchery",
+      "name": "The Caldera Hatchery",
+      "hours": {
+        "open": "05:00",
+        "close": "19:00"
+      },
+      "category": "dragon hatchery"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000022",
+      "slug": "chapel-iron-saint",
+      "name": "Chapel of the Iron Saint",
+      "hours": {
+        "open": "04:30",
+        "close": "23:00"
+      },
+      "category": "temple"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000044",
+      "slug": "cinder-camp",
+      "name": "Cinder Camp",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "free settlement"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000026",
+      "slug": "crimson-veil",
+      "name": "The Crimson Veil",
+      "hours": {
+        "open": "18:00",
+        "close": "04:00"
+      },
+      "category": "courtesan palace and pleasure house"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000009",
+      "slug": "gilded-steps-market",
+      "name": "Gilded Steps Market",
+      "hours": {
+        "open": "06:00",
+        "close": "21:00"
+      },
+      "category": "market"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000046",
+      "slug": "glass-battlefield",
+      "name": "The Glass Battlefield",
+      "hours": {
+        "open": "05:00",
+        "close": "20:00"
+      },
+      "category": "ruined battlefield"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000041",
+      "slug": "greymere-shipyard",
+      "name": "Greymere Shipyard",
+      "hours": {
+        "open": "05:00",
+        "close": "21:00"
+      },
+      "category": "shipyard"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000030",
+      "slug": "hartwood-hall",
+      "name": "Hartwood Hall",
+      "hours": {
+        "open": "06:00",
+        "close": "22:00"
+      },
+      "category": "castle and manor"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000010",
+      "slug": "house-of-velvet-oaths",
+      "name": "House of Velvet Oaths",
+      "hours": {
+        "open": "17:00",
+        "close": "03:00"
+      },
+      "category": "pleasure house"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000016",
+      "slug": "ironwake-foundry",
+      "name": "Ironwake Foundry",
+      "hours": {
+        "open": "04:00",
+        "close": "22:00"
+      },
+      "category": "foundry"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000038",
+      "slug": "knifeharbor-market",
+      "name": "Knifeharbor Market",
+      "hours": {
+        "open": "04:00",
+        "close": "23:00"
+      },
+      "category": "market"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000014",
+      "slug": "lantern-gallows",
+      "name": "Lantern Gallows",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "public square and execution ground"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000039",
+      "slug": "lantern-rooms",
+      "name": "The Lantern Rooms",
+      "hours": {
+        "open": "15:00",
+        "close": "04:00"
+      },
+      "category": "brothel and intelligence house"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000032",
+      "slug": "motherleaf-sanctuary",
+      "name": "Motherleaf Sanctuary",
+      "hours": {
+        "open": "00:00",
+        "close": "24:00"
+      },
+      "category": "temple and infirmary"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000013",
+      "slug": "red-ledger-exchange",
+      "name": "The Red Ledger Exchange",
+      "hours": {
+        "open": "08:00",
+        "close": "19:00"
+      },
+      "category": "bank and archive"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000017",
+      "slug": "red-mare-camp-market",
+      "name": "Red Mare Camp Market",
+      "hours": {
+        "open": "05:00",
+        "close": "20:00"
+      },
+      "category": "market"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000031",
+      "slug": "rootmarket",
+      "name": "Rootmarket",
+      "hours": {
+        "open": "05:00",
+        "close": "20:00"
+      },
+      "category": "market"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000043",
+      "slug": "saint-orlas-lighthouse",
+      "name": "Saint Orla’s Lighthouse",
+      "hours": {
+        "open": "05:00",
+        "close": "23:00"
+      },
+      "category": "lighthouse and shrine"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000040",
+      "slug": "salt-widow-tavern",
+      "name": "The Salt Widow",
+      "hours": {
+        "open": "08:00",
+        "close": "03:00"
+      },
+      "category": "tavern"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000025",
+      "slug": "saltfire-bazaar",
+      "name": "Saltfire Bazaar",
+      "hours": {
+        "open": "06:00",
+        "close": "23:00"
+      },
+      "category": "market"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000015",
+      "slug": "thornwall-keep",
+      "name": "Thornwall Keep",
+      "hours": {
+        "open": "06:00",
+        "close": "22:00"
+      },
+      "category": "castle"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000042",
+      "slug": "tidevault-prison",
+      "name": "Tidevault Prison",
+      "hours": {
+        "open": "07:00",
+        "close": "19:00"
+      },
+      "category": "prison"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000047",
+      "slug": "unshackled-cup",
+      "name": "The Unshackled Cup",
+      "hours": {
+        "open": "07:00",
+        "close": "02:00"
+      },
+      "category": "tavern and meeting hall"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000035",
+      "slug": "weeping-archive",
+      "name": "The Weeping Archive",
+      "hours": {
+        "open": "08:00",
+        "close": "18:00"
+      },
+      "category": "living archive"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000029",
+      "slug": "widows-vineyard",
+      "name": "Widow’s Vineyard",
+      "hours": {
+        "open": "08:00",
+        "close": "23:00"
+      },
+      "category": "vineyard and estate"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000021",
+      "slug": "wolfgate-barracks",
+      "name": "Wolfgate Barracks",
+      "hours": {
+        "open": "05:00",
+        "close": "23:00"
+      },
+      "category": "military barracks"
+    },
+    {
+      "world": "vharadren",
+      "id": "2d000000-0000-4000-8000-000000000028",
+      "slug": "wyrmglass-arena",
+      "name": "Wyrmglass Arena",
+      "hours": {
+        "open": "10:00",
+        "close": "00:00"
+      },
+      "category": "arena"
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import {assertHomePlanWelcome} from '../_shared/character-homes.ts';
 import { z } from 'zod';
 import { applyInteractionSceneState, deriveCharacterInteractionProfile, interactionDefinition, matchInteractionIntent, resolveCharacterInitiative, resolveCharacterInteractionDecision, resolveInteractions, resolveMovementDestinations, type CharacterInteractionDecision, type InteractionCandidate, type InteractionLocation, type InteractionRelationshipEvidence } from '../../../packages/together-domain/src/index.ts';
 import { authenticated, enforceRateLimit } from '../_shared/context.ts';
@@ -75,6 +76,8 @@ serve(async (request, correlationId) => {
     const existing = await existingAction(db, scene.id, input.requestId);
     if (existing) return json({ data: await actionResponse({ ...context, sceneSession: scene }, existing), correlationId }, 200, correlationId);
     const destinationPlace = await resolvePlaceContext({ db, locationId: input.destinationLocationId, now, userId: user.id, characterInstanceId: input.characterInstanceId });
+    const {data:homeDestination}=await db.from('together_locations').select('*').eq('id',input.destinationLocationId).maybeSingle();
+    await assertHomePlanWelcome(db,{userId:user.id,location:homeDestination,participantIds:scene.participant_instance_ids?.length?scene.participant_instance_ids:[input.characterInstanceId],conversationId:input.conversationId});
     if (destinationPlace.world.id !== context.place.world.id) throw new AppError('ACTION_NOT_AVAILABLE', 'You can only move around this world from here.', 409);
     const access = await resolveWorldAccess({ db, userId: user.id, worldId: destinationPlace.world.id });
     if (access === 'locked' || access === 'available') throw new AppError('WORLD_LOCKED', 'That world is not available for this life yet.', 403);

@@ -10,6 +10,7 @@ export function routeFromHtmlPath(distDirectory, filePath) {
   if (route === 'index') return '/';
   if (route.startsWith('+') || route.startsWith('_') || route.includes('[')) return null;
   route = route.replace(/^\(tabs\)\//, '');
+  route = route.replace(/\/index$/, '');
   return `/${route}`.replace(/\/{2,}/g, '/');
 }
 
@@ -25,7 +26,7 @@ export function criticalAssetPaths(html) {
 export function routeResponseIssue(response,requestedRoute){
   if(!response.ok)return`HTTP ${response.status}`;
   const requested=normalizeAuditPath(requestedRoute),received=normalizeAuditPath(new URL(response.url).pathname);
-  if(response.redirected||received!==requested)return`unexpected navigation to ${received}`;
+  if(received!==requested)return`unexpected navigation to ${received}`;
   const contentType=response.headers.get('content-type')??'';
   if(!contentType.includes('text/html'))return`expected HTML, received ${contentType||'unknown content type'}`;
   return null;

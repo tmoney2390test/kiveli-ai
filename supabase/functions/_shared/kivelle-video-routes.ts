@@ -373,7 +373,7 @@ export function buildVideoMotionPrompt(preset: VideoMotionPreset, userPrompt?: s
     : 'Exactly one person throughout, with exactly two arms, two hands, two legs, and one torso. Never grow an extra limb, head, torso, or partial duplicate.';
   const lock = adult
     ? 'Keep the same fictional adult face, body, hair, environment, and lighting; slight reframing may keep requested anatomy visible.'
-    : 'Keep the same fictional adult character, face, body proportions, hair, environment, lighting, camera angle, crop, and framing.';
+    : 'Keep the same fictional adult character, face, body proportions, hair, environment, lighting, camera angle, crop, and framing, apart from removing a visible capture device.';
   const shot = adult
     ? 'One continuous shot: no face swap, morphing, cuts, text, or warped hands. Authorized body contact may move.'
     : 'One continuous shot. No face swaps, morphing, cuts, captions, text, warped hands, sudden camera movement, or large pose changes.';
@@ -382,10 +382,12 @@ export function buildVideoMotionPrompt(preset: VideoMotionPreset, userPrompt?: s
     ? 'Follow the user direction as the primary motion plan. Keep movement physically coherent and proportional to the requested action instead of forcing a canned motion style.'
     : adult ? adultMotionDirections[preset] : motionDirections[preset];
   const required = ['Animate this exact approved Kivelle image without redesigning it.', lock, continuity, people, bodyCount, anatomy, motion, shot].join(' ');
-  const extras = [context?.locationName ? `Canonical location: ${context.locationName}.` : '', context?.activity ? `Current activity context: ${context.activity}.` : ''].filter(Boolean).join(' ');
+  const extras = [context?.locationName ? `Canonical location: ${context.locationName}.` : '', context?.activity ? `Current activity context: ${context.activity}.` : ''].filter(Boolean).join(' ').slice(0, 160).trimEnd();
   const direction = userPrompt ? `User direction: ${userPrompt.replace(/\s+/g, ' ').trim()}` : '';
-  const budget = Math.max(0, 1600 - required.length - (extras ? extras.length + 1 : 0) - (direction ? 1 : 0));
-  return [required, direction.slice(0, budget), extras].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().slice(0, 1600);
+  const captureDeviceRule = 'No phone, camera, selfie stick, device reflection, or device-holding hand in any frame. If one appears in the source photo, remove it from the opening frame and throughout; rebuild the hand naturally empty. A selfie is an unseen-camera viewpoint, never a mirror recording.';
+  const fixed = [required, extras, captureDeviceRule].filter(Boolean).join(' ');
+  const directionBudget = Math.max(0, 1600 - fixed.length - (direction ? 1 : 0));
+  return [required, direction.slice(0, directionBudget), extras, captureDeviceRule].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 }
 
 const url = z.string().url().refine((value) => value.startsWith('https://'), 'Only HTTPS references are allowed');

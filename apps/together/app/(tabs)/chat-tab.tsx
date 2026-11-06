@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Modal,
   Platform,
   Pressable,
@@ -36,11 +37,8 @@ import {
   Users,
   X,
 } from "lucide-react-native";
-import {
-  CharacterAvatar,
-  EmptyState,
-  FrostedSurface,
-} from "../../src/components";
+import { CharacterAvatar, EmptyState } from '../../src/components/ui';
+import { FrostedSurface } from '../../src/components/FrostedGlass';
 import { ChatSettingsModal } from "../../src/components/ChatSettingsModal";
 import { loadGroupDetail, manageConversation, manageGroup, setConversationPinned } from "../../src/lib/api";
 import { confirmAction } from "../../src/lib/dialogs";
@@ -61,10 +59,14 @@ import {
   mergeInboxConversations,
   mergeInboxGroups,
   mergeInboxPages,
+  missingInboxCharacterIds,
+  preferNewerCompletedPreview,
+  preferNewerReadState,
+  typingPreview,
 } from "../../src/lib/messageInbox";
 import { loadInboxFilter, saveInboxFilter } from "../../src/lib/messageInboxPreference";
 import { loadMessageDrafts } from "../../src/lib/messageDrafts";
-import { cacheInboxGroupSummary, prefetchCompleteGroupDetail } from "../../src/lib/groupDetailCache";
+import { cacheInboxGroupSummary, prefetchCompleteGroupDetail, readCachedGroupDetail } from "../../src/lib/groupDetailCache";
 import { useTogether } from "../../src/store/useTogether";
 import { colors } from "../../src/theme";
 import type {
@@ -76,7 +78,7 @@ import { useAuth } from "../../src/hooks/useAuth";
 import { useNetworkStatus } from "../../src/providers/NetworkStatusProvider";
 import { conversationRouteTarget, navigateLocalRouteOnWeb, webConversationHref } from "../../src/lib/conversationNavigation";
 import { characterConversationHref } from "../../src/lib/chatRoute";
-import { prefetchConversationMessagePage } from "../../src/lib/conversationMessageWarmup";
+import { conversationPageNeedsLatest, loadConversationMessagePage } from "../../src/lib/conversationMessageWarmup";
 import { warmRoute } from "../../src/lib/routeWarmup";
 import { supabase } from "../../src/lib/supabase";
 
@@ -121,6 +123,7 @@ export default function MessageInbox() {
   const requestSequence = useRef(0);
   const fetchingMoreRef = useRef(false);
   const fetchingRefreshRef = useRef(false);
+  const missingCharacterRefreshAtRef = useRef(new Map<string, number>());
   const chatHref = chatHrefFromInboxParams(params);
 
   useEffect(() => {
@@ -156,18 +159,53 @@ export default function MessageInbox() {
     try {
       const page = normalizeInboxPage(await manageConversation<InboxPage | Conversation[]>({ action: "inbox_v2", limit: INBOX_PAGE_SIZE, offset }));
       if (requestSequence.current !== requestId) return;
-      const nextConversations = mode === "more" ? mergeInboxPages(conversationsRef.current, page.conversations) : page.conversations;
-      const nextGroups = mode === "more" ? mergeInboxGroups(groupsRef.current, page.groups) : page.groups;
+      if (useTogether.getState().snapshot?.activeContinuity?.id !== currentSnapshot.activeContinuity?.id) return;
+      const previousConversations = conversationsRef.current;
+      const previousGroups = groupsRef.current;
+      const previousById = new Map(previousConversations.map((item) => [item.id, item]));
+      const snapshotById = new Map((useTogether.getState().snapshot?.conversations ?? []).map((item) => [item.id, item]));
+      const pageConversations=page.conversations.map((item)=>
+        preferNewerReadState(preferNewerReadState(
+          preferNewerCompletedPreview(preferNewerCompletedPreview(item,snapshotById.get(item.id)),previousById.get(item.id)),
+          snapshotById.get(item.id),
+        ), item.kind === 'group' ? readCachedGroupDetail(scope,item.id)?.detail.conversation : undefined));
+      const pageGroups=page.groups.map((group)=>({
+        ...group,
+        conversation:preferNewerReadState(
+          preferNewerCompletedPreview(group.conversation,readCachedGroupDetail(scope,group.conversation.id)?.detail.conversation),
+          snapshotById.get(group.conversation.id),
+        ),
+      }));
+      const nextConversations = mode === "more" ? mergeInboxPages(previousConversations, pageConversations) : pageConversations;
+      const nextGroups = mode === "more" ? mergeInboxGroups(groupsRef.current, pageGroups) : pageGroups;
       conversationsRef.current = nextConversations;
       groupsRef.current = nextGroups;
       nextOffsetRef.current = page.pageInfo.nextOffset;
       hasMoreRef.current = page.pageInfo.hasMore;
       setConversations(nextConversations);
       setGroups(nextGroups);
+      if (session?.user.id && mode !== "more") {
+        for (const conversation of nextConversations.filter((item) => item.kind !== "group" && item.last_message_at && item.last_message_at !== previousById.get(item.id)?.last_message_at).slice(0, 4)) {
+          void loadConversationMessagePage(session.user.id, conversation.id, () => manageConversation({ action: "messages", conversationId: conversation.id, limit: 50 }), { maxAgeMs: -1 }).catch(() => undefined);
+        }
+        const previousGroupById = new Map(previousGroups.map((item) => [item.conversation.id, item.conversation]));
+        for (const group of nextGroups.filter((item) => item.conversation.last_message_at && item.conversation.last_message_at !== previousGroupById.get(item.conversation.id)?.last_message_at).slice(0, 2)) {
+          void prefetchCompleteGroupDetail(scope, group.conversation.id, () => loadGroupDetail(group.conversation.id, { messageLimit: 30, timeoutMs: 20_000 }), { maxAgeMs: -1 }).catch(() => undefined);
+        }
+      }
       inboxCache.set(scope, { conversations: nextConversations, groups: nextGroups, pageInfo: page.pageInfo, at: mode === "more" ? inboxCache.get(scope)?.at ?? 0 : Date.now() });
       const latest = useTogether.getState().snapshot;
       if (latest && latest.activeContinuity?.id === currentSnapshot.activeContinuity?.id) {
         setCoreState({ conversations: mergeInboxConversations(latest.conversations, nextConversations) });
+        const missingIds = missingInboxCharacterIds(nextConversations, latest.characters);
+        const lastRefresh = missingCharacterRefreshAtRef.current.get(scope) ?? 0;
+        if (missingIds.length && Date.now() - lastRefresh > 30_000) {
+          missingCharacterRefreshAtRef.current.set(scope, Date.now());
+          // The inbox is authoritative for conversations, but its rows need
+          // the companion roster. A web-created chat can precede the native
+          // snapshot and would otherwise be silently dropped from the list.
+          void refresh({ force: true });
+        }
       }
     } catch (caught) {
       if (requestSequence.current === requestId && mode !== "silent") setError(caught instanceof Error ? caught.message : "Messages could not be loaded.");
@@ -180,7 +218,7 @@ export default function MessageInbox() {
         fetchingRefreshRef.current = false;
       }
     }
-  }, [chatHref, online, session?.user.id, setCoreState]);
+  }, [chatHref, online, refresh, session?.user.id, setCoreState]);
 
   useEffect(() => {
     const userId = session?.user.id;
@@ -237,24 +275,41 @@ export default function MessageInbox() {
     if (!currentSnapshot) return;
     const scope = `${session?.user.id ?? "anonymous"}:${currentSnapshot.activeContinuity?.id ?? "default"}`;
     const cached = inboxCache.get(scope);
-    const local = mergeInboxConversations(
+    const mergedLocal = mergeInboxConversations(
       currentSnapshot.conversations.filter(isActiveInboxConversation),
       cached?.conversations ?? [],
     );
+    const local = mergedLocal.map((item) => item.kind === 'group'
+      ? preferNewerReadState(item, readCachedGroupDetail(scope, item.id)?.detail.conversation)
+      : item);
+    const localById = new Map(local.map((item) => [item.id, item]));
+    const localGroups = (cached?.groups ?? []).map((group) => ({
+      ...group,
+      conversation: preferNewerReadState(
+        preferNewerReadState(group.conversation, localById.get(group.conversation.id)),
+        readCachedGroupDetail(scope, group.conversation.id)?.detail.conversation,
+      ),
+    }));
     conversationsRef.current = local;
-    groupsRef.current = cached?.groups ?? [];
+    groupsRef.current = localGroups;
     nextOffsetRef.current = cached?.pageInfo.nextOffset ?? 0;
     hasMoreRef.current = cached?.pageInfo.hasMore ?? true;
     const shouldRefresh = !cached || Date.now() - cached.at >= INBOX_FOCUS_REFRESH_TTL;
     setConversations(local);
-    setGroups(cached?.groups ?? []);
+    setGroups(localGroups);
     setLoading(local.length === 0 && shouldRefresh);
     if (demoMode) {
       setLoading(false);
       return;
     }
-    if (shouldRefresh) void fetchInbox("refresh");
+    // Keep the cached list visible, but verify every return. A reply can
+    // finish in another chat inside the ordinary cache TTL.
+    void fetchInbox(shouldRefresh ? "refresh" : "silent");
+    const foreground = AppState.addEventListener("change", (state) => {
+      if (state === "active") void fetchInbox("silent");
+    });
     return () => {
+      foreground.remove();
       requestSequence.current += 1;
       fetchingMoreRef.current = false;
       fetchingRefreshRef.current = false;
@@ -453,7 +508,7 @@ export default function MessageInbox() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={<>
         <View style={styles.header}>
-          <View style={styles.headerSpacer} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Manage chats" onPress={() => router.push('/manage-chats' as never)} style={styles.newButton}><Archive size={20} color={colors.text}/></Pressable>
           <Text accessibilityRole="header" style={styles.title}>Messages</Text>
           <Pressable
             accessibilityRole="button"
@@ -604,6 +659,7 @@ function ConversationRow(
 ) {
   const { character, conversation } = row;
   const { session } = useAuth();
+  const [opening, setOpening] = useState(false);
   const pendingDialogue=useTogether((state)=>state.pendingDialogues[conversation.id]);
   const template = character.together_character_templates;
   const group = conversation.kind === "group" ? row.group : undefined;
@@ -625,23 +681,37 @@ function ConversationRow(
       template.public_handle ?? template.slug,
       conversation.id,
     );
-  const warm = () => {
+  const warm = (forceLatest = false) => {
     warmRoute(href, (value) => router.prefetch(value as never));
     if(conversation.kind==="group"){
       const scope=`${session?.user.id??"anonymous"}:${useTogether.getState().snapshot?.activeContinuity?.id??"default"}`;
-      void prefetchCompleteGroupDetail(scope,conversation.id,()=>loadGroupDetail(conversation.id,{messageLimit:30,timeoutMs:20_000})).catch(()=>undefined);
-      return;
+      const cached=readCachedGroupDetail(scope,conversation.id);
+      const latestCachedAt=cached?.detail.messages.reduce((latest,item)=>Math.max(latest,Date.parse(item.created_at)||0),0)??0;
+      const needsLatest=forceLatest||!cached?.complete||Boolean(pendingDialogue||conversation.reply_pending)||Boolean(conversation.last_message_at&&Date.parse(conversation.last_message_at)>latestCachedAt);
+      return prefetchCompleteGroupDetail(scope,conversation.id,()=>loadGroupDetail(conversation.id,{messageLimit:30,timeoutMs:20_000}),{maxAgeMs:needsLatest?-1:15_000});
     }
-    prefetchConversationMessagePage(session?.user.id, conversation.id, () => manageConversation({ action: "messages", conversationId: conversation.id, limit: 50 }));
+    if (!session?.user.id) return Promise.resolve();
+    const needsLatest=forceLatest||Boolean(pendingDialogue||conversation.reply_pending)||conversationPageNeedsLatest(session.user.id,conversation.id,conversation.last_message_at);
+    return loadConversationMessagePage(session.user.id,conversation.id,()=>manageConversation({ action: "messages", conversationId: conversation.id, limit: 50 }),{maxAgeMs:needsLatest?-1:15_000});
+  };
+  const open = async () => {
+    if (opening) return;
+    setOpening(true);
+    try {
+      await Promise.race([warm(true).catch(() => undefined),new Promise<void>((resolve)=>setTimeout(resolve,1_500))]);
+    } finally {
+      openChatHref(href);
+      setOpening(false);
+    }
   };
   const rowControl = (
     <Pressable
       accessibilityRole="link"
       accessibilityLabel={`Open ${displayName}${conversation.unread ? ", unread messages" : ""}`}
-      onHoverIn={warm}
-      onPressIn={warm}
-      onPress={() => openChatHref(href)}
-      disabled={busy}
+      onHoverIn={() => { void warm().catch(() => undefined); }}
+      onPressIn={() => { void warm().catch(() => undefined); }}
+      onPress={() => { void open(); }}
+      disabled={busy || opening}
       style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
     >
       {conversation.kind === "group" ? <GroupAvatarStack group={group} /> : (
@@ -677,7 +747,7 @@ function ConversationRow(
           ]}
           numberOfLines={2}
         >
-          {pendingDialogue?`${pendingSpeaker??"Someone"} is typing…`:inboxPreview(conversation, { draft })}
+          {pendingDialogue?typingPreview(pendingSpeaker):inboxPreview(conversation, { draft })}
         </Text>
       </View>
       {unreadCount ? <View accessibilityLabel={`${unreadCount} unread messages`} style={styles.unreadBadge}><Text style={styles.unreadBadgeText}>{unreadCount >= 99 ? "99+" : unreadCount}</Text></View> : null}

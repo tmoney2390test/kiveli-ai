@@ -15,10 +15,12 @@
   "routes": [
     {
       "pattern": "kivelli.app",
+      "zone_id": "635b453d76516b2efefbd571a0ccb058",
       "custom_domain": true
     },
     {
       "pattern": "www.kivelli.app",
+      "zone_id": "635b453d76516b2efefbd571a0ccb058",
       "custom_domain": true
     }
   ]

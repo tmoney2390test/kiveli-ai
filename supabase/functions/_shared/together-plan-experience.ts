@@ -1,3 +1,4 @@
+import { assertHomePlanWelcome } from './character-homes.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { manualCommitmentEndEligibility, resolveElapsedCommitmentEnd, type CommitmentCompletionReason } from '../../../packages/together-domain/src/index.ts';
 import { finalizeSceneSession } from './kivelle-scene-consolidation.ts';
@@ -55,6 +56,18 @@ export async function beginPlanExperience(input: {
   const now = input.now ?? new Date();
   const { data: canonicalPlan } = await input.db.from('together_shared_plans').select('*').eq('id', input.planId).eq('user_id', input.userId).eq('continuity_id', input.continuityId).eq('character_instance_id', input.characterInstanceId).maybeSingle();
   if (!canonicalPlan) throw new AppError('NOT_FOUND', 'That plan is unavailable in this Life.', 404);
+  const checkedAt=Date.parse(String(canonicalPlan.metadata?.homeVisitCheckedAt??''));
+  if(!Number.isFinite(checkedAt)||now.getTime()-checkedAt>=30000){
+    const {data:target,error:targetError}=await input.db.from('together_locations').select('*').eq('id',canonicalPlan.location_id).single();
+    if(targetError)throw new AppError('NOT_FOUND','That place is unavailable.',404);
+    if(target.category==='home'&&target.owner_user_id){
+      // A plan may be active because its time arrived, before the user joins.
+      // Only an actual present attendance row makes this an ongoing visit.
+      const attendance=await input.db.from('together_plan_attendance').select('id').eq('plan_id',input.planId).eq('user_id',input.userId).eq('participant_type','user').is('left_at',null).limit(1).maybeSingle();
+      if(attendance.error)throw new AppError('INTERNAL_ERROR','Your visit could not be checked.',503,true);
+      if(!attendance.data)await assertHomePlanWelcome(input.db,{userId:input.userId,location:target,participantIds:canonicalPlan.participant_instance_ids?.length?canonicalPlan.participant_instance_ids:[canonicalPlan.character_instance_id],conversationId:canonicalPlan.source_conversation_id??undefined});
+    }
+  }
   if (['completed', 'cancelled', 'missed'].includes(String(canonicalPlan.status))) throw new AppError('CONFLICT', 'That plan has already ended.', 409);
   if (canonicalPlan.ends_at && new Date(String(canonicalPlan.ends_at)).getTime() <= now.getTime()) throw new AppError('CONFLICT', 'That plan has already reached its scheduled end.', 409);
   const { data, error } = await input.db.rpc('kivelle_begin_plan_experience', {

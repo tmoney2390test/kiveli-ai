@@ -1,3 +1,4 @@
+import { imagePreviewUrl, signImagePreviews } from '../_shared/media-image-previews.ts';
 import { contextCostActivation } from '../../../packages/together-domain/src/context-cost-confirmation.ts';
 import { contextPreferences, normalizeContextPreference } from '../../../packages/together-domain/src/chat-context.ts';
 import { validateChatTestSetting } from '../_shared/kivelle-chat-model-test.ts';
@@ -30,8 +31,11 @@ import { activeConversationLimitError, enforceActiveConversationLimit, isActiveC
 import { normalizeChatDynamism,normalizeReasoningPreference,reasoningPreferenceAllowedForTier,reconcileReasoningPreferenceForTier } from "../../../packages/together-domain/src/chat-generation.ts";
 import { characterAdultStatusFromGroupParticipant, privateTextProjectionAuthorizedForConversation } from "../_shared/private-adult-text-policy.ts";
 import { chatBubbleColorValues, normalizeChatBubbleColor } from "../../../packages/together-domain/src/chat-appearance.ts";
+import { ensurePulseInstance, requireFreshWorldPulse } from "../_shared/world-pulse-handoff.ts";
+import { worldPulseV2Enabled } from "../_shared/kivelle-world-pulse-v2.ts";
 
 const schema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("create_from_world_pulse"), occurrenceId: z.string().uuid(), requestId: z.string().uuid() }),
   z.object({
     action: z.literal("create"),
     characterInstanceIds: z.array(z.string().uuid()).min(2).max(5),
@@ -45,7 +49,8 @@ const schema = z.discriminatedUnion("action", [
     title: z.string().trim().max(80).optional(),
     requestId: z.string().min(8).max(120),
   }),
-  z.object({ action: z.literal("detail"), conversationId: z.string().uuid(), messageLimit:z.number().int().min(20).max(80).default(60) }),
+  z.object({ action: z.literal("detail"), conversationId: z.string().uuid(), messageLimit:z.number().int().min(20).max(80).default(60), markRead:z.boolean().default(true) }),
+  z.object({ action: z.literal("read"), conversationId: z.string().uuid() }),
   z.object({ action: z.literal("changes"), conversationId: z.string().uuid(), since:z.string().datetime() }),
   z.object({
     action: z.literal("messages"),
@@ -72,6 +77,7 @@ const schema = z.discriminatedUnion("action", [
     conversationId: z.string().uuid(),
     title: z.string().trim().min(1).max(80),
   }),
+  z.object({ action: z.literal("quick_actions"), conversationId: z.string().uuid(), quickActions: z.array(z.enum(['voice','continue','memory','favorite','photo','activity','plan','reply','copy','spice'])).max(6).refine((items) => new Set(items).size === items.length) }),
   z.object({
     action: z.literal("settings"),
     conversationId: z.string().uuid(),
@@ -112,8 +118,22 @@ serve(async (request, correlationId) => {
   const input = await parseBody(request, schema);
   const continuity = await activeContinuity(db, user.id);
   const subscription = await requireGroupChatAccess(db, user.id);
-  if (input.action === "create" || input.action === "create_from_scene") {
+  if (input.action === "create" || input.action === "create_from_scene" || input.action === "create_from_world_pulse") {
+    if (input.action === "create_from_world_pulse" && !worldPulseV2Enabled()) throw new AppError("NOT_FOUND", "World Pulse is unavailable.", 404);
+    const pulse = input.action === "create_from_world_pulse"
+      ? await requireFreshWorldPulse({ db, userId: user.id, continuityId: continuity.id, occurrenceId: input.occurrenceId })
+      : null;
+    if (pulse && pulse.participants.length < 2) throw new AppError("VALIDATION_FAILED", "This event has one participant. Open a direct chat.", 400);
     await enforceRateLimit(db, user.id, "together_group_create", 12, 3600);
+    if (pulse) {
+      const linked = await db.from("together_conversations").select("*").eq("user_id", user.id)
+        .eq("continuity_id", continuity.id).eq("kind", "group").is("archived_at", null).is("user_archived_at", null)
+        .contains("metadata", { worldPulseOccurrenceId: pulse.occurrence.id }).maybeSingle();
+      if (linked.data) {
+        const detail = await groupDetail(db, user.id, continuity.id, linked.data, true, 60, undefined, security);
+        return json({ data: { ...detail, draft: String(pulse.occurrence.group_message_snapshot ?? "") }, correlationId }, 200, correlationId);
+      }
+    }
     const existing = await db.from("together_conversations").select("*").eq(
       "user_id",
       user.id,
@@ -131,11 +151,21 @@ serve(async (request, correlationId) => {
         correlationId,
       );
     }
+    // Check before meeting any as-yet-unmet Pulse residents. The database
+    // trigger remains the final concurrency guard for the conversation limit.
     await enforceActiveConversationLimit(db,user.id,subscription.capabilities);
     let ids: string[],
       addedBy: "user" | "shared_scene" = "user",
       sceneId: string | undefined;
-    if (input.action === "create_from_scene") {
+    if (pulse) {
+      ids = [];
+      for (const participant of pulse.participants) {
+        const template = pulse.templates.get(String(participant.character_template_id));
+        if (!template) throw new AppError("CONFLICT", "A companion in this event is unavailable.", 409);
+        const instance = await ensurePulseInstance({ db, userId: user.id, continuityId: continuity.id, occurrence: pulse.occurrence, template });
+        ids.push(String(instance.id));
+      }
+    } else if (input.action === "create_from_scene") {
       const { data: scene } = await db.from("together_scene_sessions").select(
         "id,user_id,continuity_id",
       ).eq("id", input.sceneId).eq("user_id", user.id).eq(
@@ -163,7 +193,8 @@ serve(async (request, correlationId) => {
       ].slice(0, 5);
       addedBy = "shared_scene";
       sceneId = scene.id;
-    } else ids = [...new Set(input.characterInstanceIds)];
+    } else if (input.action === "create") ids = [...new Set(input.characterInstanceIds)];
+    else throw new AppError("INTERNAL_ERROR", "Pulse roster could not be prepared.", 500);
     if (ids.length < 2 || ids.length > 5) {
       throw new AppError(
         "VALIDATION_FAILED",
@@ -188,6 +219,8 @@ serve(async (request, correlationId) => {
       instances.find((instance: any) => String(instance.id) === id)!
     );
     const groupWorldId = await requireCommonResidentWorld(db, ordered);
+    if (pulse && String(groupWorldId) !== String(pulse.occurrence.world_id))
+      throw new AppError("CONFLICT", "The event cast no longer belongs to this world.", 409);
     if (
       input.action === "create" && input.worldId &&
       input.worldId !== groupWorldId
@@ -199,12 +232,29 @@ serve(async (request, correlationId) => {
         true,
       );
     }
-    const title = input.title?.trim() ||
+    const title = ("title" in input ? input.title?.trim() : undefined) ||
       defaultGroupTitle(
         ordered.map((instance: any) =>
           String(instance.together_character_templates?.name ?? "Companion")
         ),
       );
+    if (pulse) {
+      const created = await db.rpc("kivelle_world_pulse_create_group", {
+        p_user_id: user.id, p_continuity_id: continuity.id, p_occurrence_id: pulse.occurrence.id,
+        p_request_id: input.requestId, p_instance_ids: ids, p_title: title,
+      });
+      if (created.error || !created.data) {
+        if (isActiveConversationLimitDatabaseError(created.error)) throw activeConversationLimitError(subscription.capabilities);
+        throw new AppError("INTERNAL_ERROR", "The World Pulse group could not be opened.", 500, true);
+      }
+      const saved = await db.from("together_conversations").select("*").eq("id", created.data)
+        .eq("user_id", user.id).eq("continuity_id", continuity.id).single();
+      if (saved.error || !saved.data) throw new AppError("INTERNAL_ERROR", "The World Pulse group could not be loaded.", 500, true);
+      const detail = await groupDetail(db, user.id, continuity.id, saved.data, true, 60, undefined, security);
+      console.info(JSON.stringify({ metric: 'world_pulse_v2_group_handoff', occurrenceId: pulse.occurrence.id,
+        conversationId: saved.data.id, participantCount: ids.length }));
+      return json({ data: { ...detail, draft: String(pulse.occurrence.group_message_snapshot ?? "") }, correlationId }, 200, correlationId);
+    }
     const { data: conversation, error } = await db.from(
       "together_conversations",
     ).insert({
@@ -350,26 +400,34 @@ serve(async (request, correlationId) => {
     continuityId: continuity.id,
     conversationId: input.conversationId,
   });
-  if (input.action === "detail") {
+  if (input.action === "quick_actions") {
+    const metadata = (conversation.metadata ?? {}) as Record<string, unknown>;
+    const { data, error } = await db.from('together_conversations').update({ metadata: { ...metadata, chatQuickActions: input.quickActions, chatQuickActionsVersion: 2 } }).eq('id', conversation.id).eq('user_id', user.id).eq('continuity_id', continuity.id).select('id').single();
+    if (error || !data) throw new AppError('INTERNAL_ERROR', 'Message shortcuts could not be saved.', 500, true);
+    return json({ data: { quickActions: input.quickActions }, correlationId }, 200, correlationId);
+  }
+  if (input.action === "read") {
     const readAt = new Date().toISOString();
-    const [detail, { data: readConversation }] = await Promise.all([
-      groupDetail(
-        db,
-        user.id,
-        continuity.id,
-        conversation,
-        true,
-        input.messageLimit,
-        undefined,
-        security,
-      ),
-      db.from("together_conversations")
-        .update({ last_read_at: readAt }).eq("id", conversation.id).eq(
-          "user_id",
-          user.id,
-        ).select("*").single(),
-    ]);
-    const responseConversation=readConversation??conversation;
+    const { error } = await db.from("together_conversations")
+      .update({ last_read_at: readAt })
+      .eq("id", conversation.id).eq("user_id", user.id).eq("continuity_id", continuity.id);
+    if (error) throw new AppError("INTERNAL_ERROR", "Group read state could not be saved.", 500, true);
+    return json({ data: { last_read_at: readAt }, correlationId }, 200, correlationId);
+  }
+  if (input.action === "detail") {
+    let responseConversation = conversation;
+    if (input.markRead) {
+      const { data, error } = await db.from("together_conversations")
+        .update({ last_read_at: new Date().toISOString() })
+        .eq("id", conversation.id).eq("user_id", user.id).eq("continuity_id", continuity.id)
+        .select("*").single();
+      if (error || !data) throw new AppError("INTERNAL_ERROR", "Group read state could not be saved.", 500, true);
+      responseConversation = data;
+    }
+    const detail = await groupDetail(
+      db, user.id, continuity.id, responseConversation, true, input.messageLimit,
+      undefined, security,
+    );
     const adultTextAuthorized=await privateTextProjectionAuthorizedForConversation({db,userId:user.id,continuityId:continuity.id,conversation:responseConversation,access:adultAccess});
     return json(
       {
@@ -1001,9 +1059,9 @@ async function signGroupAssets(db: any, messages: any[], media: any[],security?:
   const signedMessages=await signProjectedAttachments(db,messages,security?.access.authorized_web_adult===true,security);
   const safeMedia=media.filter((item:any)=>security?.access.authorized_web_adult||(item.visibility_scope==='all'&&['safe','suggestive'].includes(String(item.content_rating))));
   const paths=safeMedia.filter((item:any)=>item.status==='ready'&&item.storage_path&&(item.visibility_scope??'all')==='all').map((item:any)=>String(item.storage_path));
-  const{data:signed}=paths.length?await db.storage.from('together-user-media').createSignedUrls([...new Set(paths)],900):{data:[]};
+  const[{data:signed},previews]=await Promise.all([paths.length?db.storage.from('together-user-media').createSignedUrls([...new Set(paths)],900):Promise.resolve({data:[]}),signImagePreviews(db,safeMedia)]);
   const byPath=new Map((signed??[]).map((item:any)=>[String(item.path),item.signedUrl]));
-  const signedMedia=await Promise.all(safeMedia.map(async(item:any)=>{const restricted=item.visibility_scope==='web_adult'||item.content_rating==='explicit';const signed_url=restricted&&security?await issueAdultAssetUrl({request:security.request,db,access:security.access,userId:security.userId,generatedMediaId:String(item.id)}):byPath.get(String(item.storage_path??''))??null;const clean={...item,signed_url};delete clean.storage_path;if(!security?.access.authorized_web_adult){delete clean.prompt;delete clean.provider_metadata;}return clean;}));
+  const signedMedia=await Promise.all(safeMedia.map(async(item:any)=>{const restricted=item.visibility_scope==='web_adult'||item.content_rating==='explicit';const signed_url=restricted&&security?await issueAdultAssetUrl({request:security.request,db,access:security.access,userId:security.userId,generatedMediaId:String(item.id)}):byPath.get(String(item.storage_path??''))??null;const clean={...item,signed_url,preview_url:imagePreviewUrl(item,signed_url as string|null,previews)};delete clean.storage_path;if(!security?.access.authorized_web_adult){delete clean.prompt;delete clean.provider_metadata;}return clean;}));
   return { messages:signedMessages, media:signedMedia };
 }
 

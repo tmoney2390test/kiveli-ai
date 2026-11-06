@@ -1,4 +1,5 @@
 import type { ScenePressure } from './scene-pressure.ts';
+import type { CharacterEmotionalReality } from './character-emotion.ts';
 
 export const CHARACTER_PERFORMANCE_VERSION = 1 as const;
 export const performanceStates = ['relaxed', 'threatened', 'angry', 'vulnerable', 'aftermath'] as const;
@@ -126,11 +127,16 @@ export function selectCharacterPerformance(input: {
   occupation?: string;
   mode: string;
   pressure?: ScenePressure;
+  emotionalReality?: CharacterEmotionalReality;
   recentAssistantMessages?: string[];
 }): { state: PerformanceState; motivation: string; contradiction: string; defense: string; behavior: string; speech: string; voiceExamples: string[] } {
   const profile = normalizeCharacterPerformance(input.bible, { occupation: input.occupation });
   const state: PerformanceState = input.pressure?.phase === 'aftermath' ? 'aftermath'
     : input.mode === 'danger' || ['immediate', 'uncertain'].includes(input.pressure?.phase ?? '') ? 'threatened'
+    : input.emotionalReality?.intensity !== undefined && input.emotionalReality.intensity >= .2 &&
+      ['angry', 'frustrated'].includes(input.emotionalReality.tone) ? 'angry'
+    : input.emotionalReality?.intensity !== undefined && input.emotionalReality.intensity >= .55 &&
+      input.emotionalReality.tone === 'sad' ? 'vulnerable'
     : input.mode === 'conflicted' ? 'angry' : ['vulnerable', 'repair'].includes(input.mode) ? 'vulnerable' : 'relaxed';
   const selected = profile.states[state];
   const recent = (input.recentAssistantMessages ?? []).slice(-6).join(' ').toLowerCase();

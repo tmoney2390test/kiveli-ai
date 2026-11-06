@@ -3,10 +3,11 @@ import { mediaFailurePresentation } from '../../lib/mediaProgressPresentation';
 import { MediaRecoveryActions } from './MediaRecoveryActions';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Image, type ImageSource } from 'expo-image';
+import type { ImageSource } from 'expo-image';
+import { MediaImage as Image } from '../MediaImage';
 import { Camera, X } from 'lucide-react-native';
 import type { GeneratedMedia, MediaOffer } from '../../types';
-import { generatedMediaImageSource } from '../../lib/mediaImageSource';
+import { generatedMediaImageSource, generatedMediaPreviewSource } from '../../lib/mediaImageSource';
 import { photoCardAspectRatio, photoOfferDismissAction, photoOfferPaymentMethod } from '../../lib/photoRequestPresentation';
 import { styles } from '../../styles/mediaStyles';
 import { MediaFeedbackControls } from './MediaFeedbackControls';
@@ -76,6 +77,7 @@ export function ChatPhotoRequestCard({
         >
           <Image
             source={generatedMediaImageSource(media)}
+            previewSource={generatedMediaPreviewSource(media)}
             style={StyleSheet.absoluteFill}
             contentFit={readyContentFit}
             contentPosition="center"

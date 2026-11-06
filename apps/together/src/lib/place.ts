@@ -100,7 +100,7 @@ export function characterResidentWorld(snapshot:Snapshot,character?:CharacterIns
   return worldById(snapshot,authoredWorldId)??worldForLocation(snapshot,character.current_location_id);
 }
 
-/** The canonical private residence for this character in their resident world. */
+/** Geographic anchor for a resident's private home, often a whole district. */
 export function characterHomeLocationId(snapshot:Snapshot,character?:CharacterInstance|null):string|undefined{
   if(!character)return undefined;
   const resident=(snapshot.characterWorldPresence??[]).find((item)=>item.character_version_id===character.character_version_id&&item.presence_type==='resident'&&Boolean(item.home_location_id));
@@ -111,7 +111,11 @@ export function characterHomeLocationId(snapshot:Snapshot,character?:CharacterIn
 
 export function isCharacterHomeLocation(snapshot:Snapshot,character:CharacterInstance,locationId?:string|null):boolean{
   const homeLocationId=characterHomeLocationId(snapshot,character);
-  return Boolean(homeLocationId&&locationId&&homeLocationId===locationId);
+  if(!homeLocationId||!locationId||homeLocationId!==locationId)return false;
+  // Presence at a district or apartment building does not mean the character is
+  // inside their private home. The schedule must explicitly say "Home" there.
+  const location=snapshot.locations.find((item)=>item.id===locationId);
+  return Boolean(location?.category==='home'&&location.metadata?.private===true);
 }
 
 export function characterCanPlanInWorld(snapshot:Snapshot,character:CharacterInstance|undefined|null,worldId?:string|null){

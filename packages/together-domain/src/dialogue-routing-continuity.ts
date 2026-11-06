@@ -1,6 +1,6 @@
 import { hasConsentWithdrawalSignal, type DialogueContentClass } from './ai-routing.ts';
 
-export const ADULT_ROUTING_CARRYOVER_TURNS = 3;
+export const ADULT_ROUTING_CARRYOVER_TURNS = 5;
 export const DIALOGUE_ROUTING_VERSION = 'adult-routing-continuity-v1';
 export type AdultRoutingEvidence = { version: 1; eligible: boolean; freshAdult: boolean; reset: boolean };
 

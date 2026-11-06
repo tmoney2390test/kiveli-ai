@@ -24,7 +24,7 @@ import {
   SUPPORT_MESSAGE_MAX_LENGTH,
   SUPPORT_SUBJECT_MAX_LENGTH,
 } from "../lib/supportTicket";
-import { FrostedBackdrop, FrostedSurface } from "./index";
+import { FrostedBackdrop, FrostedSurface } from './FrostedGlass';
 
 export function ContactSupportModal({
   visible,

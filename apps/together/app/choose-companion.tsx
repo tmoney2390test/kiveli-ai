@@ -1,18 +1,21 @@
-import {ScenarioBrowser} from '../src/components/ScenarioBrowser';
+import {ScenarioBrowser} from '../src/components/LazyScenarioBrowser';
 import { OnboardingProgress } from '../src/components/OnboardingProgress';
-import { companionOnboardingHref } from '../src/lib/onboardingNavigation';
+import { CharacterProfilePreviewModal } from '../src/components/CharacterProfilePreviewModal';
+import { companionOnboardingHref, completedOnboardingChatHref, companionOnboardingStepNumber, previousCompanionOnboardingStep, resolveCompanionOnboardingStep, type CompanionOnboardingStep } from '../src/lib/onboardingNavigation';
 import { isComingSoonWorld } from '../src/lib/comingSoonWorlds';
 import { CatalogImage as Image } from '../src/components/CatalogImage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ScrollView } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions, type ScrollView } from 'react-native';
 import { Redirect, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Check, ChevronRight, LockKeyhole, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, Check, ChevronRight, Info, LockKeyhole, LogOut, Sparkles } from 'lucide-react-native';
 import { isSubscriberEarlyAccessWorld } from '@together/domain/src/world-access';
 import { SpiceBadge } from '../src/components/SpiceBadge';
 import { CompanionGenderToggle } from '../src/components/CompanionGenderToggle';
-import { FrostedSurface, KivelleLogo, LoadingSkeleton, Screen, resolveCharacterPortraitSource } from '../src/components';
+import { FrostedSurface } from '../src/components/FrostedGlass';
+import { KivelleLogo } from '../src/components/KivelleLogo';
+import { LoadingSkeleton, Screen, resolveCharacterPortraitSource } from '../src/components/ui';
 import { worldHeroAsset } from '../src/assets';
-import { bootstrap } from '../src/lib/api';
+import { bootstrap, confirmAdultAge, manageAccount } from '../src/lib/api';
 import { featuredCompanionsMatchingGender, type FeaturedCompanion, type FeaturedGenderFilter } from '../src/lib/featuredCompanions';
 import { onboardingCompanionsForWorld, onboardingRecommendedWorld, onboardingWorldCompactCopy, onboardingWorldFantasy, onboardingWorldGenre, onboardingWorlds } from '../src/lib/onboardingCatalog';
 import { quickStartProfile } from '../src/lib/quickStart';
@@ -23,8 +26,13 @@ import { colors, radius, spacing, typography } from '../src/theme';
 import { updateLocalRouteParamsOnWeb } from '../src/lib/appNavigation';
 import { canAccessWorld } from '../src/lib/place';
 import { subscriptionHref } from '../src/lib/subscriptionPresentation';
+import { accountGenderValues, normalizePersonaDisplayName, type AccountGender } from '@together/domain/src/account-onboarding';
 
-type OnboardingStep = 'world' | 'character';
+import { useAuth } from '../src/hooks/useAuth';
+
+type OnboardingStep = CompanionOnboardingStep;
+type BirthdateStatus = { dateOfBirth: string | null };
+const genderLabels: Record<AccountGender, string> = { woman: 'Woman', man: 'Man', nonbinary: 'Nonbinary', prefer_not_to_say: 'Prefer not to say' };
 
 const nav = {
   replace: (href: string) => router.replace(href as never),
@@ -37,18 +45,26 @@ export default function ChooseCompanion() {
   const desktop = width >= 760;
   const screenRef = useRef<ScrollView | null>(null);
   const { snapshot, setSnapshot, setBrowsedWorldId, refresh, loading } = useTogether();
+  const { signOut } = useAuth();
   const catalogError=useTogether((state)=>state.error);
   const [scenarioTab,setScenarioTab]=useState(false);
-  const [step, setStep] = useState<OnboardingStep>(params.step==='character'?'character':'world');
+  const [step, setStep] = useState<OnboardingStep>(()=>resolveCompanionOnboardingStep(params.step));
+  const [aboutName, setAboutName] = useState('');
+  const [aboutGender, setAboutGender] = useState<AccountGender | null>(null);
+  const aboutInitialized = useRef(false);
   const [selectedWorldId, setSelectedWorldId] = useState('');
   const [selectedCompanionId, setSelectedCompanionId] = useState(params.companion??'');
   const [visibleCount, setVisibleCount] = useState(12);
   const [gender, setGender] = useState<FeaturedGenderFilter>('any');
+  const [previewCompanion, setPreviewCompanion] = useState<FeaturedCompanion | null>(null);
+  const lastCardTap = useRef<{ id: string; at: number } | null>(null);
+  const lastLongPressAt = useRef(0);
   const starting=useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   useFocusEffect(useCallback(()=>{void refresh({force:true});},[refresh]));
+  useEffect(()=>setStep(resolveCompanionOnboardingStep(params.step)),[params.step]);
 
   const worlds = useMemo(() => snapshot ? onboardingWorlds(snapshot) : [], [snapshot]);
   const recommendedWorld = useMemo(() => snapshot ? onboardingRecommendedWorld(snapshot, worlds) : null, [snapshot, worlds]);
@@ -83,6 +99,14 @@ export default function ChooseCompanion() {
     }
   }, [params.companion, worldCompanions]);
 
+  useEffect(() => {
+    if ((step !== 'about' && step !== 'name') || !snapshot || aboutInitialized.current) return;
+    setAboutName(snapshot.activePersona?.display_name ?? snapshot.profile?.display_name ?? '');
+    const savedGender = snapshot.activePersona?.metadata?.gender;
+    setAboutGender(accountGenderValues.find((value) => value === savedGender) ?? null);
+    aboutInitialized.current = true;
+  }, [snapshot, step]);
+
   if (!snapshot) return catalogError?<View style={styles.root}><Screen><Text accessibilityRole="alert" style={styles.error}>Your setup could not be loaded.</Text><OutlinedAction label="Try again" disabled={loading} onPress={()=>void refresh({force:true})}/></Screen></View>:<LoadingSkeleton label="Opening Kivelle…" />;
 
   if (resolveKivelleAccountStage(snapshot.profile) === 'age_confirmation') {
@@ -111,13 +135,74 @@ export default function ChooseCompanion() {
     requestAnimationFrame(() => screenRef.current?.scrollTo({ y: 0, animated: false }));
   };
 
-  const returnToWorlds = () => {
+  const goBack = async () => {
     if (busy) return;
-    setStep('world');
-    nav.setParams({step:'world',companion:''});
-    setSelectedCompanionId('');
+    const previous = previousCompanionOnboardingStep(step);
+    if (previous === null) {
+      setBusy(true);setError('');
+      try { await signOut();nav.replace('/auth?mode=signin'); }
+      catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not sign out. Please try again.'); }
+      finally { setBusy(false); }
+      return;
+    }
+    setStep(previous);
+    nav.setParams({step:previous,companion:''});
+    if(previous==='world')setSelectedCompanionId('');
     setError('');
     requestAnimationFrame(() => screenRef.current?.scrollTo({ y: 0, animated: false }));
+  };
+
+  const continueFromName = () => {
+    if(busy||loading)return;
+    if(!normalizePersonaDisplayName(aboutName)){setError('Enter the name you want Kivellians to use.');return;}
+    setStep('about');nav.setParams({step:'about',companion:''});setError('');
+    requestAnimationFrame(() => screenRef.current?.scrollTo({ y: 0, animated: false }));
+  };
+
+  const saveAbout = async () => {
+    if (busy || loading) return;
+    const displayName = normalizePersonaDisplayName(aboutName);
+    if (!displayName) { setError('Enter the name you want Kivellians to use.'); return; }
+    if (!aboutGender) { setError('Choose your gender.'); return; }
+    setBusy(true);
+    setError('');
+    try {
+      const birthdate = await manageAccount<BirthdateStatus>({ action: 'birthdate_status' });
+      if (!birthdate.dateOfBirth) throw new Error('Your confirmed birthdate could not be loaded.');
+      const next = await confirmAdultAge({ dateOfBirth: birthdate.dateOfBirth, displayName, gender: aboutGender });
+      setSnapshot(next);
+      setStep('world');
+      nav.setParams({step:'world',companion:''});
+      requestAnimationFrame(() => screenRef.current?.scrollTo({ y: 0, animated: false }));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Your details could not be saved.');
+    } finally { setBusy(false); }
+  };
+
+  const chooseCompanion = (person: FeaturedCompanion) => {
+    if (busy) return;
+    setSelectedCompanionId(person.id);
+    nav.setParams({step:'character',companion:person.id});
+    setError('');
+  };
+
+  const pressCompanion = (person: FeaturedCompanion) => {
+    if (busy || Date.now() - lastLongPressAt.current < 600) return;
+    const now = Date.now();
+    if (lastCardTap.current?.id === person.id && now - lastCardTap.current.at < 350) {
+      lastCardTap.current = null;
+      setPreviewCompanion(person);
+      return;
+    }
+    lastCardTap.current = { id: person.id, at: now };
+    chooseCompanion(person);
+  };
+
+  const previewFromLongPress = (person: FeaturedCompanion) => {
+    if (busy) return;
+    lastLongPressAt.current = Date.now();
+    lastCardTap.current = null;
+    setPreviewCompanion(person);
   };
 
   const startMeeting = async () => {
@@ -134,9 +219,11 @@ export default function ChooseCompanion() {
     setError('');
     try {
       const next = await bootstrap(quickStartProfile(selectedCompanion.id, selectedWorld.id, { ageConfirmed: true }));
+      const chatHref = completedOnboardingChatHref(next, selectedCompanion.id);
+      if (!chatHref) throw new Error('Your first conversation could not be found. Please try again.');
       setSnapshot(next);
       setBrowsedWorldId(selectedWorld.id);
-      nav.replace(`/chat?character=${selectedCompanion.public_handle ?? selectedCompanion.slug}`);
+      nav.replace(chatHref);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Your first conversation could not be prepared.');
     } finally {
@@ -146,10 +233,32 @@ export default function ChooseCompanion() {
 
   return <View style={styles.root}>
     <Screen scrollRef={screenRef} contentStyle={[styles.screen, desktop && styles.screenDesktop] as never}>
-      <OnboardingHeader step={step} onBack={returnToWorlds} busy={busy} />
+      <OnboardingHeader step={step} onBack={()=>void goBack()} busy={busy} />
       {catalogError ? <View><Text accessibilityRole="alert" style={styles.error}>Your account could not be refreshed. Check your connection and try again.</Text><OutlinedAction label="Retry account refresh" disabled={loading} onPress={() => void refresh({ force: true })} /></View> : null}
 
-      {step === 'world' ? <>
+      {step === 'name' ? <>
+        <View style={styles.heroCopy}>
+          <Text accessibilityRole="header" style={[styles.title, desktop && styles.titleDesktop]}>What should Kivellians call you?</Text>
+          <Text style={styles.subtitle}>This is your default Persona name.</Text>
+        </View>
+        <View style={styles.aboutForm}>
+          <TextInput accessibilityLabel="Default Persona name" autoFocus autoCapitalize="words" autoCorrect={false} editable={!busy} maxLength={50} value={aboutName} onChangeText={(value)=>{setAboutName(value);setError('');}} onSubmitEditing={continueFromName} returnKeyType="next" placeholder="Your name" placeholderTextColor={colors.dimmed} style={styles.aboutInput}/>
+        </View>
+        {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+        <OutlinedAction label="Continue" disabled={busy||loading||!normalizePersonaDisplayName(aboutName)} onPress={continueFromName}/>
+      </> : step === 'about' ? <>
+        <View style={styles.heroCopy}>
+          <Text accessibilityRole="header" style={[styles.title, desktop && styles.titleDesktop]}>About you</Text>
+          <Text style={styles.subtitle}>Review your details before choosing a world.</Text>
+        </View>
+        <View style={styles.aboutForm}>
+          <Text style={styles.aboutLabel}>What is your gender?</Text>
+          <View accessibilityRole="radiogroup" style={styles.genderGrid}>{accountGenderValues.map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{checked:aboutGender===value}} aria-checked={aboutGender===value} disabled={busy} onPress={()=>{setAboutGender(value);setError('');}} style={[styles.genderOption,aboutGender===value&&styles.genderSelected]}><Text style={[styles.genderText,aboutGender===value&&styles.genderTextSelected]}>{genderLabels[value]}</Text>{aboutGender===value?<Check size={17} color={colors.rose}/>:null}</Pressable>)}</View>
+          <Text style={styles.aboutHint}>Your confirmed birthdate stays the same.</Text>
+        </View>
+        {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+        <OutlinedAction label={busy?'Saving details…':'Continue to worlds'} disabled={busy||loading||!normalizePersonaDisplayName(aboutName)||!aboutGender} onPress={()=>void saveAbout()}/>
+      </> : step === 'world' ? <>
         <View style={styles.heroCopy}>
           <Text accessibilityRole="header" style={[styles.title, desktop && styles.titleDesktop]}>Your story starts here.</Text>
           <Text style={styles.subtitle}>Choose a world to step into.</Text>
@@ -172,6 +281,7 @@ export default function ChooseCompanion() {
         <View style={styles.heroCopy}>
           <Text accessibilityRole="header" style={[styles.title, desktop && styles.titleDesktop]}>Who will you meet?</Text>
           <Text style={styles.subtitle}>{selectedWorld ? `Choose someone already living in ${selectedWorld.name}.` : 'Choose someone to begin your story.'}</Text>
+          <Text style={styles.previewHint}>Tap to choose · double-tap or hold to read their bio</Text>
         </View>
 
         <View accessibilityRole="tablist" style={styles.tabs}>
@@ -185,7 +295,7 @@ export default function ChooseCompanion() {
         </View>
 
         {scenarioTab&&selectedWorld?<ScenarioBrowser worldId={selectedWorld.id} gender={gender} onboarding/>:<>{visibleCompanions.length ? <View style={styles.peopleGrid} accessibilityRole="radiogroup" accessibilityLabel={`Characters in ${selectedWorld?.name ?? 'this world'}`}>
-          {visibleCompanions.map((person) => <CompanionCard key={person.id} person={person} desktop={desktop} selected={person.id === selectedCompanionId} busy={busy && person.id === selectedCompanionId} onPress={() => { if (!busy) { setSelectedCompanionId(person.id); nav.setParams({step:'character',companion:person.id}); setError(''); } }} />)}
+          {visibleCompanions.map((person) => <CompanionCard key={person.id} person={person} desktop={desktop} selected={person.id === selectedCompanionId} busy={busy && person.id === selectedCompanionId} onPress={() => pressCompanion(person)} onLongPress={() => previewFromLongPress(person)} onPreview={() => setPreviewCompanion(person)} />)}
         </View> : <FrostedSurface intensity={70} style={styles.emptyState}><Sparkles size={20} color={colors.violet} /><Text style={styles.emptyTitle}>No characters match this filter</Text><Text style={styles.emptyBody}>Choose All or try another gender.</Text></FrostedSurface>}
 
         {visibleCount < filteredCompanions.length ? <Pressable accessibilityRole="button" onPress={() => setVisibleCount((count) => count + 12)} style={styles.showMore}><Text style={styles.showMoreText}>Show more</Text><ChevronRight size={15} color={colors.rose} /></Pressable> : null}
@@ -197,13 +307,17 @@ export default function ChooseCompanion() {
         /></>}
       </>}
     </Screen>
+    <CharacterProfilePreviewModal companion={previewCompanion} onClose={() => setPreviewCompanion(null)} onChoose={(person) => { chooseCompanion(person); setPreviewCompanion(null); }} />
   </View>;
 }
 
 function OnboardingHeader({ step, onBack, busy }: { step: OnboardingStep; onBack: () => void; busy:boolean }) {
   return <View style={styles.header}>
-    <View style={styles.headerSide}>{step === 'character' ? <Pressable accessibilityRole="button" accessibilityLabel="Back to world selection" disabled={busy} hitSlop={10} onPress={onBack} style={styles.back}><ArrowLeft size={21} color={colors.text} /></Pressable> : <KivelleLogo height={34} />}</View>
-    <OnboardingProgress step={step==='world'?3:4} />
+    <View style={styles.headerTop}>
+      <Pressable accessibilityRole="button" accessibilityLabel={step==='name'?'Sign out':step==='about'?'Back to name':step==='world'?'Back to about you':'Back to world selection'} disabled={busy} onPress={onBack} style={styles.back}>{step==='name'?<LogOut size={18} color={colors.text}/>:<ArrowLeft size={18} color={colors.text} />}<Text style={styles.backText}>{step==='name'?'Sign out':'Back'}</Text></Pressable>
+      <KivelleLogo height={28} />
+    </View>
+    <OnboardingProgress step={companionOnboardingStepNumber(step)} />
   </View>;
 }
 
@@ -231,24 +345,26 @@ function WorldCard({ world, selected, accessible, featured = false, compact = fa
   </Pressable>;
 }
 
-function CompanionCard({ person, desktop, selected, busy, onPress }: { person: FeaturedCompanion; desktop: boolean; selected: boolean; busy: boolean; onPress: () => void }) {
+function CompanionCard({ person, desktop, selected, busy, onPress, onLongPress, onPreview }: { person: FeaturedCompanion; desktop: boolean; selected: boolean; busy: boolean; onPress: () => void; onLongPress: () => void; onPreview: () => void }) {
   const portrait = resolveCharacterPortraitSource(person, person.together_character_versions, person.slug);
-  return <Pressable
+  return <View style={[styles.personFrame, desktop && styles.personFrameDesktop]}><Pressable
     accessibilityRole="radio"
     accessibilityState={{ checked: selected, disabled: busy }}
-    accessibilityLabel={`${person.name}, ${person.occupation}`}
+    accessibilityLabel={`${person.name}, ${person.occupation}. Tap to choose; hold for biography.`}
     onPress={onPress}
-    style={({ pressed }) => [styles.person, desktop && styles.personDesktop, selected && styles.personSelected, pressed && !busy && styles.cardPressed]}
+    onLongPress={onLongPress}
+    delayLongPress={450}
+    style={({ pressed }) => [styles.person, selected && styles.personSelected, pressed && !busy && styles.cardPressed]}
   >
     {portrait ? <Image source={portrait} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" cachePolicy="memory-disk" /> : <View style={[StyleSheet.absoluteFill, styles.personFallback]}><Text style={styles.personInitial}>{person.name[0]}</Text></View>}
     <View style={styles.personShade} />
     <SpiceBadge level={person.spice_level} overlay />
     {selected ? <View style={styles.personCheck}><Check size={15} strokeWidth={3} color="#fff" /></View> : null}
     <View style={styles.personCopy}>
-      <Text numberOfLines={1} style={styles.personName}>{person.name}</Text>
+      <Text numberOfLines={2} style={styles.personName}>{person.name}</Text>
       <Text numberOfLines={1} style={styles.personOccupation}>{busy ? 'Opening conversation…' : person.occupation}</Text>
     </View>
-  </Pressable>;
+  </Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Read ${person.name}'s biography`} onPress={onPreview} hitSlop={4} style={styles.personInfo}><Info size={17} color="#fff" /></Pressable></View>;
 }
 
 function OutlinedAction({ label, disabled, onPress }: { label: string; disabled: boolean; onPress: () => void }) {
@@ -266,18 +382,29 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#06050B' },
   screen: { minHeight: '100%', maxWidth: 1120, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 34, gap: spacing.lg },
   screenDesktop: { paddingHorizontal: 28, paddingTop: 28, paddingBottom: 48 },
-  header: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerSide: { width: 78, alignItems: 'flex-start' },
-  back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: 'rgba(255,255,255,.045)', borderWidth: 1, borderColor: 'rgba(255,255,255,.08)' },
+  header: { gap: 14 },
+  headerTop: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  back: { minWidth: 78, height: 44, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 22, backgroundColor: 'rgba(255,255,255,.045)', borderWidth: 1, borderColor: 'rgba(255,255,255,.08)' },
+  backText: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  aboutForm: { width: '100%', maxWidth: 720, alignSelf: 'center', gap: 12 },
+  aboutLabel: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  aboutInput: { minHeight: 58, color: colors.text, fontSize: 18, borderWidth: 1, borderColor: colors.borderBright, backgroundColor: colors.surface, borderRadius: radius.md, paddingHorizontal: 16, marginBottom: 8 },
+  genderGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  genderOption: { width: '48%', minHeight: 54, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.borderBright, backgroundColor: colors.surface, borderRadius: radius.md },
+  genderSelected: { borderColor: colors.rose, backgroundColor: 'rgba(216,62,234,.09)' },
+  genderText: { color: colors.muted, fontSize: 13, fontWeight: '700', flexShrink: 1 },
+  genderTextSelected: { color: colors.text },
+  aboutHint: { color: colors.muted, fontSize: 12, lineHeight: 17 },
   heroCopy: { alignItems: 'center', gap: 5, paddingHorizontal: 4 },
   title: { color: '#FFF9F5', fontFamily: typography.display, fontSize: 40, lineHeight: 44, fontWeight: '500', letterSpacing: -1.1, textAlign: 'center' },
   titleDesktop: { fontSize: 50, lineHeight: 54 },
   subtitle: { color: '#B8A7BC', fontSize: 16, lineHeight: 22, textAlign: 'center' },
+  previewHint: { color: colors.muted, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 4 },
   worldPicker: { width: '100%', maxWidth: 720, alignSelf: 'center', gap: 12 },
   worldGrid: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   worldCard: { width: '100%', overflow: 'hidden', justifyContent: 'flex-end', borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,.13)', backgroundColor: colors.elevated },
   worldCardFeatured: { aspectRatio: 1.2, maxHeight: 470 },
-  worldCardCompact: { width: '48%', aspectRatio: .78, borderRadius: 17 },
+  worldCardCompact: { width: '47.5%', aspectRatio: .78, borderRadius: 17 },
   worldCardCompactDesktop: { width: '31.9%', aspectRatio: .9 },
   worldCardSelected: { borderColor: '#B960DD', borderWidth: 2, shadowColor: '#B960DD', shadowOpacity: .28, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
   earlyAccessBadge: { position: 'absolute', zIndex: 2, top: 10, left: 10, minHeight: 27, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, borderRadius: 14, backgroundColor: 'rgba(12,8,17,.82)', borderWidth: 1, borderColor: 'rgba(235,137,255,.48)' },
@@ -302,13 +429,15 @@ const styles = StyleSheet.create({
   peopleHeading: { zIndex: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   peopleLabel: { flex: 1, color: '#C9B9C8', fontSize: 10, lineHeight: 14, fontWeight: '900', letterSpacing: 1.4 },
   peopleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  person: { width: '48.4%', height: 275, overflow: 'hidden', justifyContent: 'flex-end', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,.10)', backgroundColor: colors.elevated },
-  personDesktop: { width: '24.1%', height: 315 },
+  personFrame: { width: '48%', height: 275 },
+  personFrameDesktop: { width: '23.5%', height: 315 },
+  person: { width: '100%', height: '100%', overflow: 'hidden', justifyContent: 'flex-end', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,.10)', backgroundColor: colors.elevated },
+  personInfo: { position: 'absolute', zIndex: 5, top: 10, left: 10, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(8,6,12,.68)', borderWidth: 1, borderColor: 'rgba(255,255,255,.36)' },
   personSelected: { borderColor: '#BA5DDB', borderWidth: 2, shadowColor: '#BA5DDB', shadowOpacity: .22, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 7 },
   personFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.plum },
   personInitial: { color: 'rgba(255,255,255,.18)', fontFamily: typography.display, fontSize: 90 },
   personShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(8,6,12,.15)', ...(Platform.OS === 'web' ? ({ backgroundImage: 'linear-gradient(0deg, rgba(6,4,9,.95), rgba(6,4,9,.03) 68%)' } as never) : {}) },
-  personCheck: { position: 'absolute', top: 10, left: 10, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#A94FDC', borderWidth: 1, borderColor: 'rgba(255,255,255,.48)' },
+  personCheck: { position: 'absolute', top: 10, left: 50, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#A94FDC', borderWidth: 1, borderColor: 'rgba(255,255,255,.48)' },
   personCopy: { zIndex: 1, padding: 13 },
   personName: { color: '#fff', fontFamily: typography.display, fontSize: 23, lineHeight: 27, textShadowColor: '#000', textShadowRadius: 8 },
   personOccupation: { color: '#E6D9E5', fontSize: 10, lineHeight: 14, fontWeight: '700', marginTop: 2 },

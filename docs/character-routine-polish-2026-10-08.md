@@ -1,0 +1,12 @@
+# Character routine realism pass
+
+The two additive migrations refine the existing authored schedules; they do not change jobs, character homes, user plans, or schedule history.
+
+- The nine `*_routine_variation.sql` migrations cover the 180 newer residents across all nine published worlds, 20 at a time. They give open home blocks concrete alternatives from each resident's established interests, split long at-home stretches into contiguous four-hour blocks, and alternate public leisure outings with a home week. Working hours and sleep slots stay intact.
+- `20261008210236_eos_evening_routine_realism.sql` replaces Hana Petrov's five all-evening swims and Liora Haddad's five all-evening picnics. Each has one shorter real outing at a venue open for that hour, followed by time at home. It also removes a fixed slot that incorrectly presumed Hana was physically visiting Liora.
+- `life_engine_v6_routine_variation` refreshes previously generated current-day schedules when the Edge Functions using `together-schedule.ts` are deployed. Apply the nine world migrations and the Eos correction before deploying those functions. Migrations alone leave existing per-Life materializations in place, so there is no empty schedule window during rollout.
+- Routine presence now passes the character's established mood and energy into dialogue instead of always replacing them with `present` and `medium`. An actually tired or upset resident can sound that way without inventing a bad day or blaming the user for it.
+
+Validation: run `node scripts/repair-newcomer-schedules.mjs --report`, `node scripts/build-character-routine-polish.mjs`, `node --test scripts/character-routine-polish.test.mjs`, and the domain schedule-rotation tests. The PGlite test executes all ten migrations and checks that the alternate weeks, split blocks, and Eos outings have complete, non-overlapping coverage. After rollout, verify that each of the 180 residents has both week indices for public leisure and that Hana/Liora no longer have a `Personal time` evening spanning 16:30–24:00.
+
+Production rollout on 2026-10-08: the nine world migrations and Eos correction are applied, and 21 schedule-aware Edge Functions were deployed. The live audit found 20 polished newer residents per world, no updated home block over four hours, and no remaining `Personal time` evening rows for Hana or Liora. The deployed dialogue bundle contains `life_engine_v6_routine_variation`.

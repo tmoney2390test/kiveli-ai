@@ -5,6 +5,7 @@ import {
   type OperationsRole,
 } from "./kivelle-ops.ts";
 import { worldCatalogStatus } from "../../../packages/together-domain/src/world-access.ts";
+import { readIosExplicitDialogueControl } from "./ios-explicit-dialogue-control.ts";
 
 export async function operationsDashboard(
   db: SupabaseClient,
@@ -31,6 +32,7 @@ export async function operationsDashboard(
     worlds,
     retention,
     retentionStorage,
+    iosExplicitDialogue,
   ] = await Promise.all([
     count(
       db,
@@ -79,6 +81,7 @@ export async function operationsDashboard(
       : Promise.resolve({ data: [], error: null }),
     role === "admin" ? db.rpc('kivelle_retention_status') : Promise.resolve({data:null,error:null}),
     role === "admin" ? db.rpc('kivelle_retention_storage_status') : Promise.resolve({data:null,error:null}),
+    role === "admin" ? readIosExplicitDialogueControl(db) : Promise.resolve({ enabled: false, available: false, updatedAt: null }),
   ]);
   const queried = [
       runtimeRollup,
@@ -116,6 +119,7 @@ export async function operationsDashboard(
     callFailed = queues.find((queue) => queue.key === "calls")?.failed24h ?? 0,
     pushFailed = queues.find((queue) => queue.key === "push")?.failed24h ?? 0;
   return {
+    contentControls: { iosExplicitDialogue },
     retention: retention.error ? {attention:true,unavailable:true,policies:[],rollups:[]} : retention.data ? {...retention.data,storage:retentionStorage.error?null:retentionStorage.data} : null,
     generatedAt: new Date().toISOString(),
     access: {

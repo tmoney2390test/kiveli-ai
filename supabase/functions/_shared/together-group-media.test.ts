@@ -103,19 +103,18 @@ Deno.test("group image prompt keeps two identities distinct and bounded", () => 
     prompt.includes("does not establish either companion’s current location"),
   );
   assert(!prompt.includes("One person only"));
-  assert(prompt.includes("Treat selfie as viewpoint and framing only"));
-  assert(prompt.includes("no visible phone"));
+  assert(prompt.includes("A selfie is a viewpoint; its capture device is unseen"));
+  assert(prompt.includes("No phone, camera, or selfie stick in hand or frame"));
 });
 
-Deno.test("group image prompt permits a visible phone only when explicitly requested", () => {
+Deno.test("group image prompt preserves the device-free capture rule even for mirror requests", () => {
   const input = request();
   input.generationIntent = {
     requestText: "Take a group selfie holding the phone visibly in the mirror.",
     requestedContentLevel: "standard",
   };
   const prompt = buildImagePrompt(input);
-  assert(prompt.includes("explicitly asks for a visible phone or camera"));
-  assert(!prompt.includes("Treat selfie as viewpoint and framing only"));
+  assert(prompt.includes("No phone, camera, or selfie stick in hand or frame, including mirrors"));
 });
 
 Deno.test("group edit prompt puts the custom adult request ahead of identity context", () => {

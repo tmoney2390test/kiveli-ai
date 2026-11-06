@@ -7,6 +7,7 @@ const COMPRESS_CACHE_THRESHOLD_BYTES=750_000;
 
 type SnapshotCacheEnvelope = { version: number; userId: string; savedAt: number; snapshot: Snapshot };
 type CompressedSnapshotCacheEnvelope = { version: number; userId: string; savedAt: number; encoding: 'gzip-base64'; payload: string };
+const writeGeneration = new Map<string, number>();
 
 export function sessionSnapshotCacheKey(userId: string): string {
   return `kivelle:session-snapshot:v${CACHE_VERSION}:${userId}`;
@@ -34,10 +35,20 @@ export function parseSessionSnapshot(raw: string | null, userId: string, now = D
   }
 }
 
+function availableSessionStorage(): Storage | null {
+  try {
+    return typeof window === 'undefined' ? null : window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
 export async function readSessionSnapshot(userId: string): Promise<Snapshot | null> {
-  if (typeof window === 'undefined' || !window.sessionStorage) return null;
+  const storage = availableSessionStorage();
+  if (!storage) return null;
   const key = sessionSnapshotCacheKey(userId);
-  const raw=window.sessionStorage.getItem(key);
+  let raw: string | null;
+  try { raw = storage.getItem(key); } catch { return null; }
   let snapshot=parseSessionSnapshot(raw,userId);
   if(!snapshot&&raw&&supportsCompressionStreams()){
     try{
@@ -48,14 +59,21 @@ export async function readSessionSnapshot(userId: string): Promise<Snapshot | nu
       }
     }catch{snapshot=null;}
   }
-  if (!snapshot) window.sessionStorage.removeItem(key);
+  if (!snapshot) {
+    try { storage.removeItem(key); } catch { /* A denied cache must not block startup. */ }
+  }
   return snapshot;
 }
 
 export async function writeSessionSnapshot(userId: string, snapshot: Snapshot): Promise<boolean> {
-  if (typeof window === 'undefined' || !window.sessionStorage) return false;
+  const storage = availableSessionStorage();
+  if (!storage) return false;
+  const generation = (writeGeneration.get(userId) ?? 0) + 1;
+  writeGeneration.set(userId, generation);
   const savedAt=Date.now();
-  const raw=JSON.stringify({version:CACHE_VERSION,userId,savedAt,snapshot} satisfies SnapshotCacheEnvelope);
+  let raw: string;
+  try { raw=JSON.stringify({version:CACHE_VERSION,userId,savedAt,snapshot} satisfies SnapshotCacheEnvelope); }
+  catch { return false; }
   let value=raw.length<=Math.min(MAX_CACHE_BYTES,COMPRESS_CACHE_THRESHOLD_BYTES)?raw:null;
   if(!value&&supportsCompressionStreams()){
     try{
@@ -65,8 +83,10 @@ export async function writeSessionSnapshot(userId: string, snapshot: Snapshot): 
     }catch{value=null;}
   }
   if(!value)return false;
+  // Compression yields; a newer snapshot or sign-out may have won meanwhile.
+  if(writeGeneration.get(userId)!==generation)return false;
   try {
-    window.sessionStorage.setItem(sessionSnapshotCacheKey(userId), value);
+    storage.setItem(sessionSnapshotCacheKey(userId), value);
     return true;
   } catch {
     return false;
@@ -74,20 +94,28 @@ export async function writeSessionSnapshot(userId: string, snapshot: Snapshot): 
 }
 
 export function clearSessionSnapshot(userId: string): void {
-  if (typeof window === 'undefined' || !window.sessionStorage) return;
-  window.sessionStorage.removeItem(sessionSnapshotCacheKey(userId));
-  window.sessionStorage.removeItem(sessionHeroCacheKey(userId));
+  writeGeneration.set(userId, (writeGeneration.get(userId) ?? 0) + 1);
+  const storage = availableSessionStorage();
+  if (!storage) return;
+  try { storage.removeItem(sessionSnapshotCacheKey(userId)); }
+  catch { /* A denied cache must not block sign-out or account switching. */ }
+  try { storage.removeItem(sessionHeroCacheKey(userId)); }
+  catch { /* Clear the other cache even if one removal was denied. */ }
 }
 
 export function readSessionHeroUri(userId:string):string|null{
-  if(typeof window==='undefined'||!window.sessionStorage)return null;
-  const value=window.sessionStorage.getItem(sessionHeroCacheKey(userId));
-  return value?.startsWith('https://')||value?.startsWith('/')?value:null;
+  const storage=availableSessionStorage();
+  if(!storage)return null;
+  try {
+    const value=storage.getItem(sessionHeroCacheKey(userId));
+    return value?.startsWith('https://')||value?.startsWith('/')?value:null;
+  } catch { return null; }
 }
 
 export function writeSessionHeroUri(userId:string,uri:string):boolean{
-  if(typeof window==='undefined'||!window.sessionStorage||(!uri.startsWith('https://')&&!uri.startsWith('/')))return false;
-  try{window.sessionStorage.setItem(sessionHeroCacheKey(userId),uri);return true;}catch{return false;}
+  const storage=availableSessionStorage();
+  if(!storage||(!uri.startsWith('https://')&&!uri.startsWith('/')))return false;
+  try{storage.setItem(sessionHeroCacheKey(userId),uri);return true;}catch{return false;}
 }
 
 function sessionHeroCacheKey(userId:string){return`kivelle:startup-hero:v1:${userId}`;}

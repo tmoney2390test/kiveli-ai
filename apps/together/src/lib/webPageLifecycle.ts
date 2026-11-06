@@ -36,20 +36,27 @@ export function scheduleForegroundTimeout(callback:()=>void,delayMs:number,sourc
   return dispose;
 }
 
-export function waitForWebPageVisible():Promise<void>{
+export function waitForWebPageVisible(signal?:AbortSignal):Promise<void>{
+  if(signal?.aborted)return Promise.reject(requestAbortedError());
   const source=currentVisibilitySource();
   if(!source?.hidden)return Promise.resolve();
-  return new Promise((resolve)=>{
-    const finish=()=>{
-      if(source.hidden)return;
+  return new Promise((resolve,reject)=>{
+    const cleanup=()=>{
       source.removeEventListener('visibilitychange',onVisibility);
       if(typeof window!=='undefined')window.removeEventListener('pageshow',onPageShow);
+      signal?.removeEventListener('abort',onAbort);
+    };
+    const finish=()=>{
+      if(source.hidden)return;
+      cleanup();
       resolve();
     };
     const onVisibility=()=>finish();
     const onPageShow=()=>finish();
+    const onAbort=()=>{cleanup();reject(requestAbortedError());};
     source.addEventListener('visibilitychange',onVisibility);
     if(typeof window!=='undefined')window.addEventListener('pageshow',onPageShow);
+    signal?.addEventListener('abort',onAbort,{once:true});
   });
 }
 
@@ -64,3 +71,4 @@ export function subscribeToWebPageResume(callback:()=>void):()=>void{
     window.removeEventListener('pageshow',onVisible);
   };
 }
+import { requestAbortedError } from './requestAbort';

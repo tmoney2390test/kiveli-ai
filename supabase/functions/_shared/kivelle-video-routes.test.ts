@@ -100,6 +100,33 @@ Deno.test('video prompts preserve coverage and reject doll-like or unstable anat
   assert(!prompt.includes('brief smile or side glance'));
 });
 
+Deno.test('every video provider route removes selfie capture devices, including Bring to life sources',()=>{
+  const state=catalog();try{
+    for(const route of state.routes){
+      const adult=route.contentClass==='adult_capable';
+      const payload=buildVideoProviderPayload(route,{
+        sourceImageUrl:'https://example.test/selfie-with-phone.jpg',
+        sourceAspectRatio:'9:16',motionPreset:'subtle',resolution:route.defaultResolution,
+        duration:route.defaultDuration,sound:false,
+        userPrompt:'She smiles while holding her phone for a mirror selfie.',
+        contentLevel:adult?'explicit':'standard',adultAuthorized:adult,
+      });
+      const prompt=String(payload.prompt);
+      assert(prompt.includes('No phone, camera, selfie stick, device reflection, or device-holding hand in any frame'),route.id);
+      assert(prompt.includes('remove it from the opening frame and throughout'),route.id);
+      assert(prompt.includes('rebuild the hand naturally empty'),route.id);
+      assert(prompt.indexOf('User direction:')<prompt.indexOf('No phone, camera'),route.id);
+      assert(prompt.length<=1600,route.id);
+    }
+  }finally{state.restore();}
+});
+
+Deno.test('long context and directions cannot truncate the capture-device rule',()=>{
+  const prompt=buildVideoMotionPrompt('cinematic','mirror selfie motion '.repeat(40),{locationName:'Harbor '.repeat(40),activity:'Walking '.repeat(40)},{contentLevel:'explicit',adultAuthorized:true});
+  assert(prompt.length<=1600);
+  assert(prompt.endsWith('A selfie is an unseen-camera viewpoint, never a mirror recording.'));
+});
+
 Deno.test('authorized adult video prompts preserve requested composition without silent SFW substitution',()=>{
   const prompt=buildVideoMotionPrompt('cinematic','A consenting fictional adult couple shares an explicit intimate moment',{companionName:'Elena',locationName:'Snowcrest'},{contentLevel:'explicit',adultAuthorized:true,anonymousAdultPartner:true});
   assert(prompt.includes('approved adult clothing state, intimate composition'));

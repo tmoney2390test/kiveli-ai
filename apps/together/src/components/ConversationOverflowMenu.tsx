@@ -4,6 +4,7 @@ import {
   Brain,
   CalendarDays,
   History,
+  GitBranch,
   Pin,
   RotateCcw,
   Settings,
@@ -42,9 +43,11 @@ type Props = {
   onMemory?: () => void;
   memoryLocked?: boolean;
   onHistory?: () => void;
+  onBranches?: () => void;
   onCreatePlan: () => void;
   onChangePlan: () => void;
   onEndPlan: () => void;
+  onActivity: () => void;
   onSettings: () => void;
   scheduleControl?: React.ReactNode;
   onFresh: () => void;
@@ -69,9 +72,11 @@ export function ConversationOverflowMenu({
   onBlueprint,
   memoryLocked,
   onHistory,
+  onBranches,
   onCreatePlan,
   onChangePlan,
   onEndPlan,
+  onActivity,
   onSettings,
   scheduleControl,
   onFresh,
@@ -99,7 +104,7 @@ export function ConversationOverflowMenu({
     };
   }, [onClose]);
 
-  const planActions = { createPlan: onCreatePlan, changePlan: onChangePlan, endPlan: onEndPlan };
+  const planActions = { createPlan: onCreatePlan, changePlan: onChangePlan, endPlan: onEndPlan, activity: onActivity };
   const identity: MenuAction[] = [
     {
       label: favorite ? 'Remove from favorites' : 'Add to favorites',
@@ -123,6 +128,7 @@ export function ConversationOverflowMenu({
   const conversation: MenuAction[] = [
     { label: pinned ? 'Unpin chat' : 'Pin chat', icon: <Pin size={16} color={pinned ? colors.violet : colors.textSecondary} fill={pinned ? colors.violet : 'transparent'} />, onPress: onPin, selected: pinned, disabled: pinBusy },
     { label: 'Chat settings', icon: <Settings size={16} color={colors.textSecondary} />, onPress: onSettings },
+    ...(onBranches ? [{ label: 'Branch Manager', icon: <GitBranch size={16} color={colors.rose} />, onPress: onBranches }] : []),
     ...(onHistory ? [{ label: 'History & search', icon: <History size={16} color={colors.textSecondary} />, onPress: onHistory }] : []),
     { label: 'Start a fresh chat', icon: <RotateCcw size={16} color={colors.textSecondary} />, onPress: onFresh },
   ];

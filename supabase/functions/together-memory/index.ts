@@ -6,6 +6,8 @@ import { json, serve } from "../_shared/http.ts";
 import { AppError } from "../_shared/types.ts";
 import { track } from "../_shared/together.ts";
 import { activeContinuity } from "../_shared/together-continuity.ts";
+import { resolveAdultAccess } from "../_shared/web-adult-access.ts";
+import { canRememberMessage, canViewMemory } from "../_shared/memory-center-visibility.ts";
 import { resolveSubscriptionState } from "../_shared/kivelle-subscription.ts";
 import {
   canonicalMemoryTextFromUserInput,
@@ -110,6 +112,11 @@ const schema = z.discriminatedUnion("action", [
     messageId: z.string().uuid(),
     characterInstanceId: z.string().uuid(),
   }),
+  z.object({
+    action: z.literal("message_status"),
+    conversationId: z.string().uuid(),
+    messageIds: z.array(z.string().uuid()).min(1).max(100),
+  }),
 ]);
 
 serve(async (request, correlationId) => {
@@ -117,11 +124,16 @@ serve(async (request, correlationId) => {
   await enforceRateLimit(db, user.id, "together_memory", 180, 3600);
   const input = await parseBody(request, schema),
     continuity = await activeContinuity(db, user.id);
+  let adultAccessPromise: Promise<boolean> | undefined;
+  const authorizedWebAdult = () => {
+    adultAccessPromise ??= resolveAdultAccess(request, user, db).then((access) => access.authorized_web_adult);
+    return adultAccessPromise;
+  };
 
   if(input.action === "character_blueprint") return json({data:await loadCharacterBlueprint(db,user.id,continuity.id,input.characterInstanceId),correlationId},200,correlationId);
 
   if (input.action === "overview") {
-    const [companion, subscription] = await Promise.all([
+    const [companion, subscription, allowAdult] = await Promise.all([
       loadCompanion(
         db,
         user.id,
@@ -129,6 +141,7 @@ serve(async (request, correlationId) => {
         input.characterInstanceId,
       ),
       resolveSubscriptionState(db, user.id),
+      authorizedWebAdult(),
     ]),
       access = resolveMemoryProductAccess(
         subscription.tier,
@@ -138,7 +151,7 @@ serve(async (request, correlationId) => {
     // database work while the user scrolls through a large memory journal.
     const countsPromise = input.cursor || !input.includeSummary
       ? Promise.resolve({ count: 0, categories: {} as Record<string, number> })
-      : loadCounts(db, user.id, continuity.id, companion.id);
+      : loadCounts(db, user.id, continuity.id, companion.id, allowAdult);
     if (!input.privacyMode && !access.inspector) {
       const counts = await countsPromise;
       return json(
@@ -190,9 +203,9 @@ serve(async (request, correlationId) => {
     }
     const rawPageRows=(data??[]) as Row[];
     const safeIds=rawPageRows.map((row)=>String(row.id));
-    const safePolicyResult=safeIds.length?await db.from('together_memories').select('id').eq('user_id',user.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).in('id',safeIds):{data:[],error:null};
+    const safePolicyResult=safeIds.length?await db.from('together_memories').select('id,content_rating,visibility_scope,moderation_version,source_message_id').eq('user_id',user.id).in('id',safeIds):{data:[],error:null};
     if(safePolicyResult.error)throw new AppError('INTERNAL_ERROR','Memories could not be loaded.',500,true);
-    const visibleIds=new Set((safePolicyResult.data??[]).map((row)=>String(row.id)));
+    const visibleIds=new Set((safePolicyResult.data??[]).filter((row)=>canViewMemory(row,allowAdult)).map((row)=>String(row.id)));
     const visibleRows = rawPageRows.filter((row)=>visibleIds.has(String(row.id)));
     const pageRows = visibleRows.filter((row)=>matchesOverviewCategory(row, input.category)),
       needsKindFilter = input.category === "core_rules" || input.category === "additional",
@@ -268,6 +281,37 @@ serve(async (request, correlationId) => {
       characterInstanceId: companion?.id ?? null,
     });
     return json({ data, correlationId }, 200, correlationId);
+  }
+
+  if (input.action === "message_status") {
+    const { data: conversation, error: conversationError } = await db.from("together_conversations")
+      .select("id").eq("id", input.conversationId).eq("user_id", user.id)
+      .eq("continuity_id", continuity.id).maybeSingle();
+    if (conversationError || !conversation) {
+      throw new AppError("NOT_FOUND", "That conversation is unavailable.", 404);
+    }
+    const { data: messages, error: messageError } = await db.from("together_messages")
+      .select("id").eq("user_id", user.id).eq("conversation_id", conversation.id)
+      .in("id", [...new Set(input.messageIds)]);
+    if (messageError) throw new AppError("INTERNAL_ERROR", "Message memories could not be checked.", 500, true);
+    const ownedIds = (messages ?? []).map((message) => String(message.id));
+    if (!ownedIds.length) return json({ data: { remembered: [] }, correlationId }, 200, correlationId);
+    const { data: memories, error: memoryError } = await db.from("together_memories")
+      .select("id,source_message_id,character_instance_id,content_rating,visibility_scope,moderation_version")
+      .eq("user_id", user.id).eq("continuity_id", continuity.id).eq("status", "active")
+      .eq("source_type", "manual").in("source_message_id", ownedIds);
+    if (memoryError) throw new AppError("INTERNAL_ERROR", "Message memories could not be checked.", 500, true);
+    const allowAdult = await authorizedWebAdult();
+    return json({
+      data: {
+        remembered: (memories ?? []).filter((memory) => canViewMemory(memory, allowAdult)).map((memory) => ({
+          memoryId: String(memory.id),
+          messageId: String(memory.source_message_id),
+          characterInstanceId: String(memory.character_instance_id),
+        })),
+      },
+      correlationId,
+    }, 200, correlationId);
   }
 
   const subscription = await resolveSubscriptionState(db, user.id),
@@ -384,12 +428,12 @@ serve(async (request, correlationId) => {
     const { data: message, error: messageError } = await db.from(
       "together_messages",
     ).select(
-      "id,conversation_id,role,content,character_instance_id,speaker_character_instance_id,created_at,content_rating,visibility_scope",
+      "id,conversation_id,role,content,character_instance_id,speaker_character_instance_id,created_at,content_rating,visibility_scope,moderation_status,moderation_version",
     ).eq("id", input.messageId).eq("user_id", user.id).maybeSingle();
     if (
       messageError || !message ||
       !["user", "assistant"].includes(String(message.role)) ||
-      !String(message.content ?? "").trim()||message.visibility_scope!=='all'||!['safe','suggestive'].includes(String(message.content_rating))
+      !String(message.content ?? "").trim()
     ) throw new AppError("NOT_FOUND", "That message is unavailable.", 404);
     const { data: conversation, error: conversationError } = await db.from(
       "together_conversations",
@@ -434,6 +478,13 @@ serve(async (request, correlationId) => {
         400,
       );
     }
+    if (!canRememberMessage(message, await authorizedWebAdult())) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "This message cannot be added to Memory Center on this device.",
+        422,
+      );
+    }
     const authored = manualMemoryText({
         role: String(message.role),
         content: String(message.content),
@@ -458,6 +509,7 @@ serve(async (request, correlationId) => {
       learned_via: message.role === "user" ? "direct_user" : "system_event",
       shareability: "private",
       valid_from: message.created_at ?? now,
+      valid_to: null,
       metadata: { manual: true, originalRole: message.role },
       updated_at: now,
     }, { onConflict: "character_instance_id,dedupe_key" }).select("*").single();
@@ -488,12 +540,14 @@ serve(async (request, correlationId) => {
     );
   }
 
+  const allowAdult = await authorizedWebAdult();
+
   if (input.action === "bulk") {
     const ids = [...new Set(input.memoryIds)];
     const { data: rows, error: checkError } = await db.from("together_memories")
-      .select("id").eq("user_id", user.id).eq("continuity_id", continuity.id)
-      .eq("status", "active").eq('visibility_scope','all').in('content_rating',['safe','suggestive']).in("id", ids);
-    if (checkError || rows?.length !== ids.length) {
+      .select("id,content_rating,visibility_scope,moderation_version,source_message_id").eq("user_id", user.id).eq("continuity_id", continuity.id)
+      .eq("status", "active").in("id", ids);
+    if (checkError || rows?.length !== ids.length || rows.some((row) => !canViewMemory(row, allowAdult))) {
       throw new AppError(
         "NOT_FOUND",
         "One or more memories are no longer available.",
@@ -533,10 +587,12 @@ serve(async (request, correlationId) => {
 
   if (input.action === "history") {
     const current = await loadOwnedMemory(
-        db,
-        user.id,
-        continuity.id,
-        input.memoryId,
+      db,
+      user.id,
+      continuity.id,
+      input.memoryId,
+      undefined,
+      allowAdult,
       ),
       revisions: Row[] = [current];
     let predecessor = String(current.supersedes_memory_id ?? "");
@@ -544,8 +600,8 @@ serve(async (request, correlationId) => {
       const { data, error } = await db.from("together_memories").select("*").eq(
         "id",
         predecessor,
-      ).eq("user_id", user.id).eq("continuity_id", continuity.id).eq('visibility_scope','all').in('content_rating',['safe','suggestive']).maybeSingle();
-      if (error || !data) break;
+      ).eq("user_id", user.id).eq("continuity_id", continuity.id).maybeSingle();
+      if (error || !data || !canViewMemory(data, allowAdult)) break;
       revisions.push(data);
       predecessor = String(data.supersedes_memory_id ?? "");
     }
@@ -585,12 +641,15 @@ serve(async (request, correlationId) => {
         continuity.id,
         input.memoryId,
         "active",
+        allowAdult,
       ),
       revision = await loadOwnedMemory(
         db,
         user.id,
         continuity.id,
         input.revisionId,
+        undefined,
+        allowAdult,
       );
     if (
       String(current.character_instance_id) !==
@@ -620,6 +679,7 @@ serve(async (request, correlationId) => {
     continuity.id,
     input.memoryId,
     "active",
+    allowAdult,
   );
   if (input.action === "edit") {
     return await replaceMemory(
@@ -677,8 +737,9 @@ async function loadCounts(
   userId: string,
   continuityId: string,
   characterInstanceId: string,
+  allowAdult: boolean,
 ) {
-  const { data, error } = await db.from('together_memories').select('memory_type,canonical_text,metadata').eq('user_id',userId).eq('continuity_id',continuityId).eq('character_instance_id',characterInstanceId).eq('status','active').eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
+  const { data, error } = await db.from('together_memories').select('memory_type,canonical_text,metadata,content_rating,visibility_scope,moderation_version,source_message_id').eq('user_id',userId).eq('continuity_id',continuityId).eq('character_instance_id',characterInstanceId).eq('status','active');
   if (error) {
     throw new AppError(
       "INTERNAL_ERROR",
@@ -687,7 +748,7 @@ async function loadCounts(
       true,
     );
   }
-  const rows = data ?? [];
+  const rows = (data ?? []).filter((row: Row) => canViewMemory(row, allowAdult));
   const typeCount = (kind: string) =>
     rows.filter((row: Row) => row.memory_type === kind).length;
   const journalCount = (kind: string) =>
@@ -752,11 +813,12 @@ async function loadOwnedMemory(
   continuityId: string,
   memoryId: string,
   status?: string,
+  allowAdult = false,
 ): Promise<Row> {
   let query = db.from("together_memories").select("*").eq("id", memoryId).eq(
     "user_id",
     userId,
-  ).eq("continuity_id", continuityId).eq('visibility_scope','all').in('content_rating',['safe','suggestive']);
+  ).eq("continuity_id", continuityId);
   if (status) query = query.eq("status", status);
   const { data, error } = await query.maybeSingle();
   if (error) {
@@ -767,7 +829,7 @@ async function loadOwnedMemory(
       true,
     );
   }
-  if (!data) {
+  if (!data || !canViewMemory(data, allowAdult)) {
     throw new AppError("NOT_FOUND", "That memory no longer exists.", 404);
   }
   return data;

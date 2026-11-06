@@ -162,11 +162,12 @@ export function directVideoOpeningFrameRequest(input: {
 }): string {
   const adult = ADULT_LEVELS.has(input.contentLevel);
   const direction = input.prompt.replace(/\s+/g, " ").trim();
+  const captureDeviceRule = "No visible phone, camera, selfie stick, reflection, or device-holding hand.";
   // Stills classifiers and pose-rebuild routing read this requestText. Put the
   // user's anatomy and pose first so a 400-character cap cannot drop them.
   if (!adult) {
     const policy =
-      `Opening frame at ${input.locationName}. Show one stable natural pose with the companion clearly visible. No text, captions, or extra people.`;
+      `Opening frame at ${input.locationName}. Show one stable natural pose with the companion clearly visible. ${captureDeviceRule} No text, captions, or extra people.`;
     return `${
       direction.slice(0, Math.max(0, 400 - policy.length - 1))
     } ${policy}`
@@ -176,13 +177,13 @@ export function directVideoOpeningFrameRequest(input: {
   const anatomyCue = anatomy.length
     ? `Visible complete ${
       anatomy.join(", ")
-    }; no censoring, smoothing, blanking, or doll-like surfaces.`
-    : "Keep complete natural adult anatomy; no censoring, smoothing, blanking, doll-like surfaces, or text.";
+    }; no censoring, blanking, or doll-like surfaces.`
+    : "Complete natural adult anatomy; no censoring, blanking, or doll-like surfaces.";
   const people = input.anonymousAdultPartner
-    ? "Exactly two consenting fictional adults 25+: companion plus one anonymous original non-identifiable partner, not the user or any real person."
-    : "Only the consenting fictional companion, visibly 25+.";
+    ? "Two consenting fictional adults 25+: companion and anonymous partner, not the user or any real person."
+    : "One consenting fictional companion, visibly 25+.";
   const policy =
-    `Opening frame at ${input.locationName}. ${people} ${anatomyCue} Photoreal; no text.`;
+    `Opening frame at ${input.locationName}. ${people} ${anatomyCue} ${captureDeviceRule} Photoreal; no text.`;
   return `${direction.slice(0, Math.max(0, 400 - policy.length - 1))} ${policy}`
     .replace(/\s+/g, " ").trim().slice(0, 400);
 }

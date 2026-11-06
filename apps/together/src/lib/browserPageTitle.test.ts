@@ -45,7 +45,7 @@ describe('browser page titles', () => {
   it('updates query-only settings sections and accepts array parameters', () => {
     expect(browserPageTitle('/settings', { section: 'relationships' })).toBe('Relationships | Kivelli');
     expect(browserPageTitle('/profile', { section: ['identity'] })).toBe('Personas & Lives | Kivelli');
-    expect(browserPageTitle('/settings', { section: 'unknown' })).toBe('Settings | Kivelli');
+    expect(browserPageTitle('/settings', { section: 'unknown' })).toBe('Your Account | Kivelli');
     expect(browserPageTitle('/chat', { character: ['freya'] }, snapshot)).toBe('Chat | Freya');
   });
 });

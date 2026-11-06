@@ -7,7 +7,7 @@ function access(overrides: Partial<AdultAccessContext> = {}): AdultAccessContext
     premium_access: false,
     adult_eligible: true,
     adult_mode_enabled: false,
-    client_surface: 'native_or_unknown',
+    client_surface: 'web',
     adult_generation_enabled: false,
     authorized_web_adult: false,
     adult_eligibility: { allowed: true, reason: 'verified_adult' },
@@ -22,7 +22,7 @@ function access(overrides: Partial<AdultAccessContext> = {}): AdultAccessContext
 const adultInstance = (id = 'adult') => ({ id, together_character_templates: { age: 28, description: 'An adult musician.' }, together_character_versions: {} });
 const policy=(overrides:Record<string,unknown>={})=>resolvePrivateDialoguePolicy({access:access(),requestedMode:'explicit',conversationMode:'direct',participants:[adultInstance()],safetyAllowed:true,...overrides});
 
-Deno.test('private adult text allows a free eligible native user without a web session',()=>{
+Deno.test('private adult text preserves eligible web dialogue',()=>{
   assertEquals(policy().effectiveMode,'explicit');
 });
 
@@ -78,4 +78,13 @@ Deno.test('prohibited-content safety fails closed before explicit routing',()=>{
   const result=policy({safetyAllowed:false});
   assertEquals(result.effectiveMode,'mature');
   assertEquals(result.policy.reasonCode,'prohibited_content');
+});
+
+Deno.test('iOS blocks explicit direct and group text even with the old control enabled',()=>{
+  for(const conversationMode of ['direct','group'] as const){
+    const result=policy({access:access({client_surface:'ios'}),conversationMode,participants:conversationMode==='direct'?[adultInstance()]:[{together_character_instances:adultInstance()}]});
+    assertEquals(result.effectiveMode,'mature');
+    assertEquals(result.rollout.generationAllowed,false);
+    assertEquals(result.policy.reasonCode,'ios_explicit_text_blocked');
+  }
 });

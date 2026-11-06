@@ -80,26 +80,54 @@ export async function getValidatedPersistedSession<TSession extends PersistedSes
     return null;
   }
 
-  let validation: Awaited<ReturnType<typeof auth.getUser>> | null = null;
+  async function validationResult(session: TSession) {
+    let validation: Awaited<ReturnType<typeof auth.getUser>> | null = null;
+    try {
+      validation = await Promise.race([
+        auth.getUser(session.access_token),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), PERSISTED_SESSION_VALIDATION_TIMEOUT_MS)),
+      ]);
+    } catch {
+      return 'uncertain' as const;
+    }
+    if (!validation || (!validation.error && validation.data.user)) return 'valid' as const;
+    return isInvalidAuthSessionError(validation.error) ? 'invalid' as const : 'uncertain' as const;
+  }
+
+  // A persisted token is still bounded by its JWT expiry and every protected
+  // API validates it server-side. Do not strand the entire app if the optional
+  // startup verification request hangs; protected APIs will still reject an
+  // invalid token, and a later authentication check can clear it locally.
+  if (await validationResult(stored.data.session) !== 'invalid') return stored.data.session;
+
+  // A token refresh can finish while the previous token's verification is in
+  // flight. Do not clear that newly refreshed session because the old JWT was
+  // rejected. Verify the current token once before deciding to sign out.
+  let latest: Awaited<ReturnType<typeof auth.getSession>>;
   try {
-    validation = await Promise.race([
-      auth.getUser(stored.data.session.access_token),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), PERSISTED_SESSION_VALIDATION_TIMEOUT_MS)),
-    ]);
+    latest = await auth.getSession();
   } catch {
     return stored.data.session;
   }
-  // A persisted token is still bounded by its JWT expiry and every protected
-  // API validates it server-side. Do not strand the entire app if the optional
-  // startup verification request hangs; a later 401 clears it locally.
-  if (!validation) return stored.data.session;
-  if (!validation.error && validation.data.user) return stored.data.session;
-  if (!isInvalidAuthSessionError(validation.error)) return stored.data.session;
+  if (!latest.data.session) return null;
+  if (latest.data.session.access_token !== stored.data.session.access_token) {
+    if (await validationResult(latest.data.session) !== 'invalid') return latest.data.session;
+  }
 
   await clearInvalidLocalSession(auth);
   return null;
 }
 
 export async function clearSessionForApiFailure(auth: SessionAuthClient, status: number, code?: string | null) {
-  if (shouldClearSessionForApiFailure(status, code)) await clearInvalidLocalSession(auth);
+  if (!shouldClearSessionForApiFailure(status, code)) return;
+
+  // A request can leave with an old JWT just before Supabase refreshes it.
+  // Its delayed 401 must not sign out the newly refreshed, valid session.
+  // Check the current stored token with Auth before clearing local storage.
+  try {
+    await getValidatedPersistedSession(auth);
+  } catch {
+    // Storage or network failures are not proof that the session was revoked.
+    // Keep it until the next successful verification or explicit sign-out.
+  }
 }

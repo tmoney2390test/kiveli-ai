@@ -10,11 +10,13 @@ export type MediaCaptureLighting = {
   effectiveDaypart: MediaCaptureDaypart;
   source: "explicit_request" | "canonical_clock" | "context_daypart";
   instruction: string;
+  compactInstruction: string;
   qualityInstruction: string;
 };
 
 type MediaCaptureLightingInput = {
   requestText?: string;
+  worldSlug?: string;
   localTime?: string;
   localIso?: string;
   timezone?: string;
@@ -64,6 +66,18 @@ export function resolveMediaCaptureLighting(
   const authority = source === "explicit_request"
     ? `USER-SPECIFIED CAPTURE TIME: ${effectiveDaypart}. This explicit visual direction overrides the current clock.`
     : `AUTHORITATIVE CAPTURE TIME: ${clockLabel}, ${effectiveDaypart}. Unless the approved request explicitly specifies another capture time, do not change it.`;
+  // The local clock sets people's routines on Eos, not the position of its
+  // tidally locked sun. Keep the place's canonical exterior light at every hour.
+  if (input.worldSlug === "eos-meridian") {
+    const fixedSky = "Keep this Eos Meridian location's fixed copper twilight or night-side aurora from its canonical setting. No Earth sunrise, sunset, or blue daytime sky.";
+    return {
+      effectiveDaypart,
+      source,
+      instruction: `${fixedSky} Local ${effectiveDaypart} changes practical and interior lighting, not the exterior sky. ${authority}`,
+      compactInstruction: "EOS FIXED SKY: canonical copper twilight or night-side aurora; no Earth daylight cycle. Local night changes practical lights, not the sky.",
+      qualityInstruction: "Eos Meridian has a fixed twilight or night-side sky. Do not fail time_mismatch merely because the local clock says night while canonical copper twilight remains visible. Fail time_mismatch for an Earth-like blue daytime sky, sunrise/sunset cycle, or exterior light that contradicts the canonical place.",
+    };
+  }
   const lighting = lightingRequirement(effectiveDaypart, spatial);
   const qualityInstruction = qualityRequirement(effectiveDaypart, spatial);
   // Put the concrete light requirement first: some provider adapters have
@@ -73,6 +87,7 @@ export function resolveMediaCaptureLighting(
     effectiveDaypart,
     source,
     instruction: `${lighting} ${authority}`,
+    compactInstruction: compactLightingRequirement(effectiveDaypart),
     qualityInstruction,
   };
 }
@@ -84,11 +99,22 @@ function daypartFromLocalTime(
   if (!match) return null;
   const hour = Number(match[1]);
   if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
-  if (hour < 5 || hour >= 21) return "night";
+  if (hour < 5 || hour >= 19) return "night";
   if (hour < 8) return "dawn";
   if (hour < 12) return "morning";
   if (hour < 17) return "afternoon";
   return "evening";
+}
+
+function compactLightingRequirement(daypart: MediaCaptureDaypart): string {
+  if (daypart === "night") {
+    return "NIGHT REQUIRED: dark exterior; practical light indoors. No daylight or blue daytime sky. Ignore reference-image daylight.";
+  }
+  if (daypart === "dawn") return "DAWN: early low-angle light; no midday sun or deep night.";
+  if (daypart === "morning") return "MORNING: plausible morning light, not night or afternoon.";
+  if (daypart === "afternoon") return "DAYTIME: plausible afternoon daylight, not night.";
+  if (daypart === "dusk") return "DUSK: sunset or twilight, not midday or deep night.";
+  return "EVENING: late-day light, not bright midday sun.";
 }
 
 function normalizeDaypart(value: string | undefined): MediaCaptureDaypart {

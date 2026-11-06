@@ -9,13 +9,13 @@ type Row = Record<string, any>;
 export type LocationType='region'|'district'|'neighborhood'|'venue'|'residence'|'landmark'|'outdoor'|'room'|'zone'|'transit';
 export type WorldVisualContext={setting?:string;geography?:string[];architecture?:string[];climate?:string;visualStyle?:string[];palette?:string[];recurringElements?:string[];signageStyle?:string[];vegetation?:string[];avoid?:string[]};
 export type LocationVisualContext=LocationVisualContextV2;
-export type LocationLore=LocationLoreV2;
+export type LocationLore=LocationLoreV2&{homeId?:string;personalDetails?:Array<{id:string;description:string}>};
 export type LocationAiLore={facts:string[];storyHooks:string[];sourceKeys:string[]};
 export type PlaceDistrict={id:string;slug:string;name:string;type:'district';description?:string;visualContext?:LocationVisualContext;lore?:LocationLore};
 export type PlaceContext={
   contextVersion:1;
   world:{id:string;slug:string;name:string;description:string;timezone:string;accessType:string;visualContext:WorldVisualContext};
-  location:{id:string;slug:string;name:string;type:LocationType;description:string;category:string;hours:Row|null;possibleActivities:string[];visualContext:LocationVisualContext;lore:LocationLore;aiLore?:LocationAiLore;virtualType?:'character_home';referencePolicy?:'text_only'|'optional'|'required'};
+  location:{id:string;slug:string;name:string;type:LocationType;description:string;category:string;hours:Row|null;possibleActivities:string[];visualContext:LocationVisualContext;lore:LocationLore;aiLore?:LocationAiLore;homeArtwork?:{homeId:string;artworkId:string;bucket:string;path:string};virtualType?:'character_home';referencePolicy?:'text_only'|'optional'|'required'};
   ancestry:Array<{id:string;slug:string;name:string;type:LocationType;description?:string;visualContext?:LocationVisualContext;lore?:LocationLore}>;
   district?:PlaceDistrict;
   adjacentDistricts?:PlaceDistrict[];
@@ -108,7 +108,9 @@ export async function resolveCharacterHomeContext(input:{db:SupabaseClient;chara
   const timezone=await resolveUserExperienceTimezone(input.db,input.userId,worldTimezone);
   const clock=experienceClock(timezone,now);
   const visualContext={...((home.canonical_visual_context??{}) as LocationVisualContext),canonicalPrompt:String(home.prompt_text)};
-  const lore=(home.canonical_lore??{}) as LocationLore;
+  const lore={...(home.canonical_lore??{}),homeId:home.id,personalDetails:home.personal_details??[]} as LocationLore;
+  const {data:artwork}=home.approved_artwork_id?await input.db.from('together_home_artwork').select('id,storage_bucket,storage_path').eq('id',home.approved_artwork_id).eq('home_id',home.id).eq('status','ready').maybeSingle():{data:null};
+  const homeArtwork=artwork?.storage_path?{homeId:String(home.id),artworkId:String(artwork.id),bucket:String(artwork.storage_bucket),path:String(artwork.storage_path)}:undefined;
   const homeSlug=String(home.name??'character-home').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80)||'character-home';
   const ancestry=district?[{id:String(district.id),slug:String(district.slug),name:String(district.name),type:String(district.location_type??'district') as LocationType,description:String(district.description??''),visualContext:(district.canonical_visual_context??{}) as LocationVisualContext,lore:(district.canonical_lore??{}) as LocationLore}]:[];
   const districtLore=(district?.canonical_lore??{}) as LocationLore;
@@ -119,7 +121,7 @@ export async function resolveCharacterHomeContext(input:{db:SupabaseClient;chara
   return{
     contextVersion:1,
     world:{id:String(world.id),slug:String(world.slug),name:String(world.name),description:String(world.description),timezone:worldTimezone,accessType:String(world.access_type??'free'),visualContext:(world.visual_context??{}) as WorldVisualContext},
-    location:{id:`character-home:${input.characterVersionId}`,slug:homeSlug,name:String(home.name),type:'residence',description:String(home.description),category:'home',hours:null,possibleActivities:['rest','cook','talk privately','work on personal projects'],visualContext,lore,virtualType:'character_home',referencePolicy:String(home.reference_policy??'text_only') as 'text_only'|'optional'|'required'},
+    location:{id:`character-home:${input.characterVersionId}`,slug:homeSlug,name:String(home.name),type:'residence',description:String(home.description),category:'home',hours:null,possibleActivities:home.possible_activities?.length?home.possible_activities:['rest','cook','talk privately','work on personal projects'],visualContext,lore,...(homeArtwork?{homeArtwork}:{}),virtualType:'character_home',referencePolicy:String(home.reference_policy??'text_only') as 'text_only'|'optional'|'required'},
     ancestry,...(district?{district:toDistrict(district)}:{}),adjacentDistricts:adjacentRows.sort((left,right)=>adjacentSlugs.indexOf(String(left.slug))-adjacentSlugs.indexOf(String(right.slug))).map(toDistrict),nearby:[],path:[String(world.name),district?String(district.name):null,String(home.name)].filter(Boolean).join(' → '),
     clock:{timezone,localIso:`${clock.localDate}T${clock.localTime}`,weekday:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][clock.weekday]??'',localTime:clock.localTime,daypart:clock.daypart},
   };
@@ -178,4 +180,4 @@ export async function resolveWorldAccess(input:{db:SupabaseClient;userId:string;
   return userWorld?.access_status==='available'?'available':'locked';
 }
 
-export function placeContextSnapshot(place:PlaceContext){return{worldId:place.world.id,worldSlug:place.world.slug,worldName:place.world.name,worldDescription:place.world.description,worldAccessType:place.world.accessType,worldVisualContext:place.world.visualContext,locationId:place.location.id,locationSlug:place.location.slug,locationName:place.location.name,locationDescription:place.location.description,locationType:place.location.type,locationCategory:place.location.category,locationHours:place.location.hours,locationPossibleActivities:place.location.possibleActivities,locationVisualContext:place.location.visualContext,locationLore:place.location.lore,locationVirtualType:place.location.virtualType??null,locationReferencePolicy:place.location.referencePolicy??null,ancestry:place.ancestry,district:place.district??null,adjacentDistricts:place.adjacentDistricts??[],nearby:place.nearby,path:place.path,clock:place.clock,contextVersion:place.contextVersion};}
+export function placeContextSnapshot(place:PlaceContext){return{worldId:place.world.id,worldSlug:place.world.slug,worldName:place.world.name,worldDescription:place.world.description,worldAccessType:place.world.accessType,worldVisualContext:place.world.visualContext,locationId:place.location.id,locationSlug:place.location.slug,locationName:place.location.name,locationDescription:place.location.description,locationType:place.location.type,locationCategory:place.location.category,locationHours:place.location.hours,locationPossibleActivities:place.location.possibleActivities,locationVisualContext:place.location.visualContext,locationLore:place.location.lore,locationVirtualType:place.location.virtualType??null,locationReferencePolicy:place.location.referencePolicy??null,homeArtwork:place.location.homeArtwork??null,ancestry:place.ancestry,district:place.district??null,adjacentDistricts:place.adjacentDistricts??[],nearby:place.nearby,path:place.path,clock:place.clock,contextVersion:place.contextVersion};}

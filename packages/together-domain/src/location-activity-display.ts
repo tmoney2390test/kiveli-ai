@@ -99,7 +99,7 @@ export function isInternalActivityCopy(value: unknown): boolean {
  return typeof value==='string' && /(?:must follow|follow the location|current access|story[- ](?:state|gated)|canonical|co-presence|operating rhythm|depends on weather, light|requires invitation and established|do not (?:invent|assume)|system prompt)/i.test(value);
 }
 export function activityDisplayDescription(activity:string, authored?:unknown):string|undefined {
- if(typeof authored==='string'&&authored.trim()&&!isInternalActivityCopy(authored))return authored.trim();
+ if(typeof authored==='string'&&authored.trim()&&!isInternalActivityCopy(authored)&&!/^Try .+ here with someone who is available\.?$/i.test(authored.trim()))return authored.trim();
  return descriptions[activity.toLowerCase().replace(/[_-]+/g,' ').trim()];
 }
 export function activityDisplayDescriptions(activities:readonly string[],existing:Record<string,string>={}):Record<string,string>{

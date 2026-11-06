@@ -1,5 +1,5 @@
 import { chatSpeedEnabled, ChatTimings } from '../_shared/kivelle-chat-latency.ts';
-import { collectApprovedReply } from '../_shared/group-reply-stream.ts';
+import { collectApprovedReply, recoverRejectedGroupReply } from '../_shared/group-reply-stream.ts';
 import { stageContextAuthorization } from '../_shared/kivelle-context-authorization.ts';
 import { z } from "zod";
 import {
@@ -22,6 +22,7 @@ import {
   MESSAGE_CHARACTER_LIMIT,
   normalizeChatLanguage,
   type DialogueContentMode,
+  type NormalizedModerationResult,
   extractMemoryCandidates,
   fitGroupVisibleOutput,
   groupTurnBudget,
@@ -37,6 +38,7 @@ import { authenticated, enforceGenerationGuardrails, enforceRateLimit } from "..
 import { requireAiDataConsent } from "../_shared/kivelle-ai-consent.ts";
 import { corsHeaders, errorResponse, json } from "../_shared/http.ts";
 import { messageRewriteSchema, runMessageRewrite } from '../_shared/kivelle-message-rewrite.ts';
+import { deriveEmotionalResidue, upsertEmotionalResidue } from '../_shared/kivelle-emotional-residue.ts';
 import { activeContinuity } from "../_shared/together-continuity.ts";
 import {
   activeGroupParticipants,
@@ -58,6 +60,7 @@ import {
 } from "../_shared/together-ai.ts";
 import { applyChatTestRoute, resolveChatTestExperiment } from '../_shared/kivelle-chat-model-test.ts';
 import { resolveDialogueRouting } from "../_shared/kivelle-ai-routing.ts";
+import { assistantMessageRating } from '../_shared/assistant-message-rating.ts';
 import { loadAdultRoutingHistory } from '../_shared/kivelle-routing-history.ts';
 import {
   conversationAdultMediaAuthorized,
@@ -75,6 +78,7 @@ import { configuredGroupImageRouteAvailable } from "../_shared/together-media-pr
 import { classifyPhotoRequest } from "../_shared/together-media.ts";
 import { AppError } from "../_shared/types.ts";
 import { waitUntil } from "../_shared/background.ts";
+import { declinedGroupPhotoSourceMessageId, latestActionAnchor } from '../_shared/declined-photo-reply.ts';
 import { consolidateConversationEpisodes } from "../_shared/kivelle-conversation-episodes.ts";
 import { attachAuthoredDepthContext } from "../_shared/kivelle-authored-depth-context.ts";
 import {
@@ -121,9 +125,18 @@ const normalSchema = z.object({
   manualSpeakerInstanceId: z.string().uuid().optional(),
   broadGroupRequest: z.boolean().default(false),
   letThemTalk: z.boolean().default(false),
+  messageAction: z.literal('respond_to_declined_photo').optional(),
+  anchorMessageId: z.string().uuid().optional(),
 }).refine(
   (value) => value.message.length > 0 || value.attachmentIds.length > 0,
   { message: "Write a message or attach a photo." },
+).refine(
+  (value) => !value.messageAction || Boolean(value.anchorMessageId && !value.attachmentIds.length &&
+    !value.photoSubjectCharacterInstanceIds.length && !value.letThemTalk),
+  { message: 'That photo reply is invalid.' },
+).refine(
+  (value) => Boolean(value.messageAction) === Boolean(value.anchorMessageId),
+  { message: 'That photo reply needs its original message.' },
 );
 const schema=z.union([messageRewriteSchema,normalSchema]);
 const dialogue = new ConfiguredDialogueProvider(),
@@ -201,10 +214,52 @@ Deno.serve(async (request) => {
         422,
       );
     }
-    const messageText = normalizedMessage || "[Photo]";
+    const isPhotoDeclineReply=input.messageAction==='respond_to_declined_photo';
+    let declinedPhotoText:string|null=null;
+    let declinedPhotoOriginalId:string|null=null;
+    if(isPhotoDeclineReply){
+      const{data:priorPhotoRetry}=await db.from('together_messages').select('id,provider_metadata')
+        .eq('user_id',user.id).eq('conversation_id',conversation.id)
+        .eq('client_request_id',input.clientRequestId).eq('role','user').maybeSingle();
+      const replayingPhotoReply=priorPhotoRetry?.provider_metadata?.messageAction==='respond_to_declined_photo'&&
+        priorPhotoRetry.provider_metadata?.anchorMessageId===input.anchorMessageId;
+      const{data:latestRows,error:latestError}=await db.from('together_messages')
+        .select('id,role,content,delivery_status,provider_metadata,conversation_sequence,created_at')
+        .eq('user_id',user.id).eq('conversation_id',conversation.id)
+        .order('conversation_sequence',{ascending:false,nullsFirst:false})
+        .order('created_at',{ascending:false}).limit(20);
+      if(latestError)throw new AppError('INTERNAL_ERROR','That group photo reply could not be checked.',503,true);
+      const latestForAction=latestActionAnchor(latestRows??[],true);
+      const anchored=latestForAction?.id===input.anchorMessageId?latestForAction:replayingPhotoReply
+        ?(await db.from('together_messages').select('id,role,content,delivery_status,provider_metadata')
+          .eq('id',input.anchorMessageId).eq('user_id',user.id).eq('conversation_id',conversation.id).maybeSingle()).data
+        :null;
+      if(!anchored||(!replayingPhotoReply&&latestForAction?.id!==input.anchorMessageId)||anchored.role!=='assistant'||
+        anchored.delivery_status!=='complete'||anchored.provider_metadata?.mediaOnly!==true)
+        throw new AppError('CONFLICT','That photo is no longer the latest group reply.',409);
+      const{data:offer,error:offerError}=await db.from('together_media_offers')
+        .select('offer_key,status,source,message_id,character_instance_id').eq('user_id',user.id)
+        .eq('continuity_id',continuity.id).eq('conversation_id',conversation.id)
+        .eq('message_id',input.anchorMessageId).eq('status','declined').maybeSingle();
+      if(offerError)throw new AppError('INTERNAL_ERROR','That group photo could not be checked.',503,true);
+      if(!rosterIds.has(String(offer?.character_instance_id??'')))
+        throw new AppError('CONFLICT','That photo companion is no longer in the group.',409);
+      const originalId=declinedGroupPhotoSourceMessageId(offer,input.anchorMessageId!);
+      if(!originalId)throw new AppError('CONFLICT','Decline the group photo before continuing the conversation.',409);
+      declinedPhotoOriginalId=originalId;
+      const{data:original,error:originalError}=await db.from('together_messages')
+        .select('content,role,provider_metadata').eq('id',originalId).eq('user_id',user.id)
+        .eq('conversation_id',conversation.id).maybeSingle();
+      if(originalError)throw new AppError('INTERNAL_ERROR','Your earlier group message could not be loaded.',503,true);
+      if(original?.role!=='user'||original.provider_metadata?.uiHidden===true||!String(original.content??'').trim())
+        throw new AppError('CONFLICT','Your earlier group message is no longer available.',409);
+      declinedPhotoText=String(original.content);
+    }
+    const messageText = declinedPhotoText ?? (normalizedMessage || "[Photo]");
+    const persistedContent=isPhotoDeclineReply?'[Photo declined]':messageText;
     const requestFingerprint = await chatRequestFingerprint({
       conversationId: conversation.id,
-      message: normalizedMessage,
+      message: isPhotoDeclineReply?messageText:normalizedMessage,
       attachmentIds: [...input.attachmentIds].sort(),
       mentionedCharacterInstanceIds: [...input.mentionedCharacterInstanceIds].sort(),
       photoSubjectCharacterInstanceIds: [...input.photoSubjectCharacterInstanceIds].sort(),
@@ -212,6 +267,8 @@ Deno.serve(async (request) => {
       manualSpeakerInstanceId: input.manualSpeakerInstanceId ?? null,
       broadGroupRequest: input.broadGroupRequest,
       letThemTalk: input.letThemTalk,
+      messageAction:input.messageAction??null,
+      anchorMessageId:input.anchorMessageId??null,
     });
     requestId=await canonicalizeReconnectRequestId(db,{
       userId:user.id,
@@ -224,7 +281,7 @@ Deno.serve(async (request) => {
       conversationId: conversation.id,
       requestId,
       fingerprint: requestFingerprint,
-      expectedContent: messageText,
+      expectedContent: persistedContent,
       characterInstanceId: anchor,
     });
     if (existingUserMessage) {
@@ -262,7 +319,7 @@ Deno.serve(async (request) => {
         throw new AppError("VALIDATION_FAILED", "One of those photos is no longer available to send.", 422);
       }
     }
-    if (!existingUserMessage) await enforceGenerationGuardrails(db,user.id,"dialogue");
+    if (!existingUserMessage) await enforceGenerationGuardrails(db,user.id,isPhotoDeclineReply?'provider_cost_only':"dialogue");
     turnLease = await beginConversationTurn(db, {
       userId: user.id,
       continuityId: continuity.id,
@@ -341,7 +398,7 @@ Deno.serve(async (request) => {
         continuityId: continuity.id,
         conversationId: conversation.id,
         characterInstanceId: anchor,
-        content: messageText,
+        content: persistedContent,
         requestId,
         attachmentIds: input.attachmentIds,
         replyToMessageId: input.replyToMessageId,
@@ -350,8 +407,11 @@ Deno.serve(async (request) => {
           source: "group_chat",
           chatLanguage,
           ...(input.letThemTalk?{uiHidden:true,messageAction:'let_them_talk'}:{}),
+          ...(isPhotoDeclineReply?{uiHidden:true,messageAction:input.messageAction,anchorMessageId:input.anchorMessageId,photoDeclineSourceMessageId:declinedPhotoOriginalId}:{}),
           mentions: input.mentionedCharacterInstanceIds,
           replyToMessageId: input.replyToMessageId ?? null,
+          manualSpeakerInstanceId: input.manualSpeakerInstanceId ?? null,
+          broadGroupRequest: input.broadGroupRequest,
           requestFingerprint,
           requestAttachmentIds: [...input.attachmentIds].sort(),
           adultRouting: groupRoutingEvidence,
@@ -360,7 +420,7 @@ Deno.serve(async (request) => {
         },
       });
     const userMessage = userClaim.message;
-    const lifeTransition = await persistCharacterLifeTransition({
+    const lifeTransition = isPhotoDeclineReply?null:await persistCharacterLifeTransition({
       db,
       userId: user.id,
       continuityId: continuity.id,
@@ -405,7 +465,7 @@ Deno.serve(async (request) => {
     );
     const candidates = groupCandidates(roster, recentIds, messageText, signals);
     const settings = normalizeGroupSettings(conversation.metadata);
-    const photoIntent = classifyPhotoRequest(messageText),
+    const photoIntent = classifyPhotoRequest(isPhotoDeclineReply?'':messageText),
       requestedPhotoSpeaker = input.photoSubjectCharacterInstanceIds[0] ??
         input.manualSpeakerInstanceId,
       basePlan = planGroupTurn({
@@ -469,7 +529,9 @@ Deno.serve(async (request) => {
     if (photoSubjects && !photoSubjects.ok) {
       throw new AppError("VALIDATION_FAILED", photoSubjects.message, 422);
     }
-    const plan = photoIntent.requested && photoSubjects?.ok &&
+    const plan = isPhotoDeclineReply && directed.plan.actions[0]
+      ? {...directed.plan,actions:[{...directed.plan.actions[0],type:'message' as const,intent:'answer_user',reasonCodes:[...directed.plan.actions[0].reasonCodes,'photo_declined_text_reply']}],continuationBudget:0}
+      : photoIntent.requested && photoSubjects?.ok &&
         directed.plan.actions[0]
       ? {
         ...directed.plan,
@@ -546,6 +608,8 @@ Deno.serve(async (request) => {
       roster,
       input,
       userMessage,
+      sourceMessageText:messageText,
+      photoDeclineReply:isPhotoDeclineReply,
       turn,
       turnLease,
       plan,
@@ -604,7 +668,7 @@ function groupStream(input: any): Response {
       let visibleOutputCharacters=0;
       let providerOperations=1+(input.plan.directorUsed?1:0);
       const generationProfiles:Array<Record<string,unknown>>=[];
-      let restrictedTurn=false;
+      let restrictedTurn=input.userMessage.content_rating==='explicit';
       const speakerCounts = new Map<string, number>();
       const markActivity = (speakerId?: string) => {
         firstActivityAt ??= Date.now();
@@ -621,6 +685,10 @@ function groupStream(input: any): Response {
         });
         emit({ type: "turn_cancelled", turnId: input.turn.id });
       };
+      // The user's message and turn are already durable by this point. Keep
+      // generation alive if the client drops the response before a reply.
+      let releaseBackground!: () => void;
+      waitUntil(new Promise<void>((resolve) => { releaseBackground = resolve; }));
       try {
         emit({
           type: "turn_started",
@@ -705,7 +773,7 @@ function groupStream(input: any): Response {
             requestedMode:input.storedRequestedMode,
             conversationMode:'group',
             participants:liveRoster,
-            safetyAllowed:!isDialogueHardBlocked({message:String(input.userMessage.content??input.input.message),moderation:input.inputSafety}),
+            safetyAllowed:!isDialogueHardBlocked({message:input.sourceMessageText,moderation:input.inputSafety}),
           });
           const participant = liveRoster.find((row: any) =>
             String(row.character_instance_id) === action!.characterInstanceId
@@ -767,9 +835,7 @@ function groupStream(input: any): Response {
             continuityId: input.continuityId,
             conversation: input.conversation,
             speakerCharacterInstanceId: action.characterInstanceId,
-            userMessage: String(
-              input.userMessage.content ?? input.input.message,
-            ),
+            userMessage: input.sourceMessageText,
             attachments: input.userMessage.together_conversation_attachments ??
               [],
             correlationId: input.correlationId,
@@ -778,6 +844,7 @@ function groupStream(input: any): Response {
             clientSurface:input.adultAccess.client_surface,
           });
           const context: any = selected.context;
+          if(input.photoDeclineReply)context.photoDeclineReply=true;
           assertSpeakerPrivateContext(context, action.characterInstanceId);
           context.sceneSpeakerDirective = {
             characterInstanceId: action.characterInstanceId,
@@ -822,9 +889,7 @@ function groupStream(input: any): Response {
             },
           };
           const requestedMode = liveDialoguePolicy.effectiveMode as DialogueContentMode;
-          const canonicalUserText = String(
-            input.userMessage.content ?? input.input.message,
-          );
+          const canonicalUserText = input.sourceMessageText;
           const inputSafety=input.inputSafety;
           const routeInput = {
             message: canonicalUserText,
@@ -846,7 +911,6 @@ function groupStream(input: any): Response {
             moderation: inputSafety,
           };
           let route = await applyChatTestRoute(input.db,input.userId,input.conversation,resolveDialogueRouting(routeInput),input.veniceExperiment);
-          restrictedTurn=restrictedTurn||route.explicit;
           if (route.hardBlocked) {
             const boundary = chatLanguageSafetyBoundary(speakerName,context.chatLanguage,canonicalUserText);
             const committed = await commitMessage(input, action, boundary, {
@@ -919,6 +983,7 @@ function groupStream(input: any): Response {
                 "standard",
               shotType: input.photoIntent.shotPreference ?? "selfie",
               previewMetadata: {
+                clientRequestId:input.input.clientRequestId,
                 requestText: canonicalUserText.slice(0, 400),
                 groupChat: true,
                 senderCharacterInstanceId: action.characterInstanceId,
@@ -1018,40 +1083,81 @@ function groupStream(input: any): Response {
                 },
               })
             : await dialogue.generate(context, options);
-          generationProfiles.push({speakerRole:generated.metadata.speakerRole??(replyCount===0?'primary':'secondary'),requestedReasoning:generated.metadata.requestedReasoning??'auto',effectiveReasoning:generated.metadata.effectiveReasoning??'none',chatDynamism:generated.metadata.chatDynamism??50,reasoningReasonCodes:generated.metadata.reasoningReasonCodes??[],profileVersion:generated.metadata.chatGenerationProfileVersion??generated.metadata.generationProfileVersion??'legacy'});
           if (!generated.text.trim()) break;
           const outputSafety = 'approved' in generated
             ? {allowed:generated.approved}
             : (providerOperations+=1,providerOperations>aggregateBudget.maxProviderOperations
               ?{allowed:false}
               :await moderation.check(generated.text,{...usageScope,metadata:{direction:'output',groupChat:true}}));
-          const rawText = outputSafety.allowed && !containsSecretLikeValue(generated.text) && (route.explicit||!hasExplicitSexualOutputLanguage(generated.text))
-            ? generated.text
+          const initialApproved=outputSafety.allowed===true&&!containsSecretLikeValue(generated.text)&&(route.explicit||!hasExplicitSexualOutputLanguage(generated.text));
+          const recovered=await recoverRejectedGroupReply({
+            reply:generated,
+            approved:initialApproved,
+            canRetry:route.explicit&&providerOperations+2<=aggregateBudget.maxProviderOperations,
+            generate:async()=>{
+              providerOperations+=1;
+              const repairContext={...context,dialogueRouting:{...context.dialogueRouting,responseRepair:'group_output_safety'}};
+              return dialogue.generate(repairContext,{...options,operation:'group_dialogue_safety_repair'});
+            },
+            approve:async(text)=>{
+              providerOperations+=1;
+              if(providerOperations>aggregateBudget.maxProviderOperations||containsSecretLikeValue(text))return false;
+              return (await moderation.check(text,{...usageScope,metadata:{direction:'output_repair',groupChat:true}})).allowed;
+            },
+          });
+          const finalReply=recovered.reply;
+          generationProfiles.push({speakerRole:finalReply.metadata.speakerRole??(replyCount===0?'primary':'secondary'),requestedReasoning:finalReply.metadata.requestedReasoning??'auto',effectiveReasoning:finalReply.metadata.effectiveReasoning??'none',chatDynamism:finalReply.metadata.chatDynamism??50,reasoningReasonCodes:finalReply.metadata.reasoningReasonCodes??[],profileVersion:finalReply.metadata.chatGenerationProfileVersion??finalReply.metadata.generationProfileVersion??'legacy'});
+          const rawText = recovered.approved
+            ? finalReply.text
             : chatLanguageChangeSubject(context.chatLanguage,canonicalUserText);
           const text=fitGroupVisibleOutput(rawText,aggregateBudget.maxVisibleOutputCharacters-visibleOutputCharacters);
           if(!text)break;
           visibleOutputCharacters+=text.length;
+          let carryoverOutputSafety:NormalizedModerationResult|undefined;
+          if(recovered.approved&&route.reason==='adult_context_carryover'&&providerOperations<aggregateBudget.maxProviderOperations){
+            providerOperations+=1;
+            try{
+              carryoverOutputSafety=await moderation.check(text,{...usageScope,metadata:{direction:'output_rating',groupChat:true,adultContextCarryover:true}});
+            }catch{
+              // Missing classification keeps the conservative explicit rating.
+            }
+          }
+          const messageRating=recovered.approved
+            ?assistantMessageRating(route,text,carryoverOutputSafety)
+            :'safe';
           const committed = await commitMessage(input, action, text, {
-            ...generated.metadata,
+            ...finalReply.metadata,
+            safetyRepairAttempted:recovered.attempted,
+            safetyRepairSucceeded:recovered.attempted&&recovered.approved,
             speakerName,
             speakerSlug: template.slug,
             directorReasonCodes: action.reasonCodes,
             groupEnergy: input.settings.energy,
             chatLanguage:normalizeChatLanguage(context.chatLanguage),
-            ...(outputSafety.allowed&&route.explicit?adultMessagePolicy():safeMessagePolicy(outputSafety.allowed&&route.resolvedMode!=='standard'?'suggestive':'safe')),
-            ...privateDialoguePolicyMetadata({policy:liveDialoguePolicy,access:input.adultAccess,conversationMode:'group',safetyDisposition:outputSafety.allowed?'allowed':'redirected',providerRoute:route.provider}),
+            ...(messageRating==='explicit'?adultMessagePolicy():safeMessagePolicy(messageRating)),
+            ...privateDialoguePolicyMetadata({policy:liveDialoguePolicy,access:input.adultAccess,conversationMode:'group',safetyDisposition:recovered.approved?'allowed':'redirected',providerRoute:route.provider}),
           });
           const saved=committed?.message;
           if (!saved) {
             await cancelTurn("message_commit_rejected");
             return;
           }
+          restrictedTurn=restrictedTurn||saved.content_rating==='explicit';
           lastMessage = saved;
           latestSpeakerId = action.characterInstanceId;
           replyCount += 1;
           markActivity(action.characterInstanceId);
           emit({ type: "message_completed", message: saved });
           if(!committed.created)break;
+          const emotionalResidue=deriveEmotionalResidue(canonicalUserText,text);
+          if(emotionalResidue)await upsertEmotionalResidue({
+            db:input.db,userId:input.userId,continuityId:input.continuityId,
+            characterInstanceId:action.characterInstanceId,sourceId:String(saved.id),
+            residue:emotionalResidue,
+          }).catch((error)=>console.error(JSON.stringify({
+            level:'warn',operation:'group_emotional_residue',
+            code:error instanceof Error?error.name:'unknown_error',
+          })));
           const supernaturalTransition = await persistCharacterLifeTransition({
             db: input.db,
             userId: input.userId,
@@ -1089,7 +1195,7 @@ function groupStream(input: any): Response {
             conversationId: input.conversation.id,
             code: error instanceof Error ? error.name : "unknown_error",
           })));
-          if (action.intent === "answer_user") {
+          if (action.intent === "answer_user" && !input.photoDeclineReply) {
             if (!route.explicit) {
               await recordDirectedGroupRelationshipTurn(input.db, {
                 userId: input.userId,
@@ -1149,9 +1255,7 @@ function groupStream(input: any): Response {
             )
           );
           const next = planGroupContinuation({
-            originatingMessage: String(
-              input.userMessage.content ?? input.input.message,
-            ),
+            originatingMessage: input.sourceMessageText,
             latestMessage: String(lastMessage.content ?? ""),
             latestSpeakerCharacterInstanceId: latestSpeakerId,
             candidates: groupCandidates(
@@ -1187,6 +1291,16 @@ function groupStream(input: any): Response {
           }
           action = next;
         }
+        if(replyCount===0&&reactionCount===0){
+          await finishConversationTurn(input.db,input.turnLease,"failed",{reason:"no_visible_group_reply"});
+          await track(input.db,input.userId,"group_turn_silent",{
+            conversationId:input.conversation.id,
+            latencyMs:Date.now()-turnStartedAt,
+            plannedActionCount:input.plan.actions.length,
+          });
+          emit({type:"error",error:{code:"PROVIDER_UNAVAILABLE",message:"The group could not finish replying. Please try again.",retryable:true}});
+          return;
+        }
         const finished = await finishConversationTurn(
           input.db,
           input.turnLease,
@@ -1196,7 +1310,7 @@ function groupStream(input: any): Response {
           await cancelTurn("completion_rejected");
           return;
         }
-        if(!restrictedTurn)await persistWitnessedGroupMemories(input.db, {
+        if(!restrictedTurn&&!input.photoDeclineReply)await persistWitnessedGroupMemories(input.db, {
           userId: input.userId,
           continuityId: input.continuityId,
           conversationId: input.conversation.id,
@@ -1234,13 +1348,6 @@ function groupStream(input: any): Response {
           providerOperations,
           visibleOutputCharacters,
         });
-        if (replyCount === 0 && reactionCount === 0) {
-          await track(input.db, input.userId, "group_turn_silent", {
-            conversationId: input.conversation.id,
-            latencyMs,
-            plannedActionCount: input.plan.actions.length,
-          });
-        }
         if (input.input.letThemTalk) {
           await track(input.db, input.userId, "group_let_them_talk_completed", {
             conversationId: input.conversation.id,
@@ -1285,10 +1392,14 @@ function groupStream(input: any): Response {
         });
       } finally {
         clearInterval(heartbeat);
-        timings.report({mode:"group",streamProtocol:progressive?2:1});
-        if (open) {
-          controller.close();
-          open = false;
+        try {
+          timings.report({mode:"group",streamProtocol:progressive?2:1});
+          if (open) {
+            controller.close();
+            open = false;
+          }
+        } finally {
+          releaseBackground();
         }
       }
     },
@@ -1646,8 +1757,9 @@ async function updateAttributedGroupSummary(
     ),
   ]);
   if (!data?.length) return;
-  const chronological = data.reverse(),
-    format = (message: any) =>
+  const chronological = data.reverse().filter((message: any) => message.provider_metadata?.uiHidden !== true);
+  if(!chronological.length)return;
+  const format = (message: any) =>
       message.role === "user"
         ? `USER: ${String(message.content).slice(0, 260)}`
         : `${String(message.provider_metadata?.speakerName ?? "COMPANION")} [${
@@ -1661,7 +1773,7 @@ async function updateAttributedGroupSummary(
   await db.from("together_conversations").update({
     summary: `Participant-attributed recent group state:\n${lines.join("\n")}`
       .slice(-7000),
-    summary_message_count: data.length,
+    summary_message_count: chronological.length,
     summary_through: now,
     summary_through_sequence: Math.max(...chronological.map((message: any) => Number(message.conversation_sequence ?? 0))),
     updated_at: now,

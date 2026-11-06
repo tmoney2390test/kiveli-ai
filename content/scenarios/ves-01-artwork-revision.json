@@ -1,0 +1,8 @@
+{
+  "date": "2026-11-05",
+  "asset": "apps/together/assets/scenarios/ves-01.jpg",
+  "tool": "built-in image_gen",
+  "reference": "existing ves-01 artwork; initial revision corrected the extra hand, final revision repaired the book",
+  "prompt": "Preserve Evelyn Harrow's face, clothing, two correctly connected arms and hands, seated pose, lighting, and gothic bookshop. Replace the malformed foreground book with one conventional open hardcover, exactly one central binding and two facing pages: handwriting on the left, a blank page on the right. No extra pages, folds, spines or floating hands. Photorealistic 3:2 horizontal story card, no overlay text or watermark.",
+  "review": "Visually verified final image has two connected hands and one ordinary two-page open book. Exported as 1200x800 JPEG for the existing scenario asset path."
+}

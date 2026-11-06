@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { usePathname } from 'expo-router';
 import { AppState } from 'react-native';
 import type { GeneratedMedia } from '../types';
-import { loadMediaLibrary, manageMedia } from '../lib/api';
+import { loadMediaLibrary, manageMedia } from '../lib/api/media';
 import { missingMediaIds, pendingMediaIds } from '../lib/mediaReconciliation';
 import { subscribeToWebPageResume } from '../lib/webPageLifecycle';
 import { useTogether } from '../store/useTogether';

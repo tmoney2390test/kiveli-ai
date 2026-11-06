@@ -5,8 +5,13 @@ import {
   cacheGroupDetailSummary,
   cacheInboxGroupSummary,
   clearGroupDetailCache,
+  groupDetailCacheGeneration,
+  hideCachedGroupPhotoOffer,
+  markCachedGroupRead,
+  mergeGroupStreamMessage,
   prefetchCompleteGroupDetail,
   readCachedGroupDetail,
+  restoreCachedGroupPhotoOffer,
 } from "./groupDetailCache";
 
 function detail(id: string, title: string, messages: GroupDetail["messages"] = []) {
@@ -59,6 +64,32 @@ describe("group detail cache", () => {
     expect(refreshed.conversation.title).toBe("Refreshed group");
   });
 
+  it('keeps cleared Life data out of memory and session storage after a late read', async () => {
+    let finish!: (value: GroupDetail) => void;
+    const pending = prefetchCompleteGroupDetail('user:life-a', 'group-a', () => new Promise(resolve => { finish = resolve; }));
+    cacheCompleteGroupDetail('user:life-b', detail('group-b','Other Life'));
+    clearGroupDetailCache('user:life-a');
+    finish(detail('group-a','Old private group'));
+    await pending;
+    expect(readCachedGroupDetail('user:life-a','group-a')).toBeUndefined();
+    expect(readCachedGroupDetail('user:life-b','group-b')?.complete).toBe(true);
+  });
+
+  it('preserves a new session request when the old request finishes after clearing', async () => {
+    let finishOld!: (value: GroupDetail) => void;
+    let finishNew!: (value: GroupDetail) => void;
+    const old = prefetchCompleteGroupDetail('user:life', 'group', () => new Promise(resolve => { finishOld = resolve; }));
+    clearGroupDetailCache();
+    const current = prefetchCompleteGroupDetail('user:life','group', () => new Promise(resolve => { finishNew = resolve; }));
+    finishOld(detail('group','Old result')); await old;
+    let extraCalls = 0;
+    const joined = prefetchCompleteGroupDetail('user:life','group', () => { extraCalls++; return Promise.resolve(detail('group','Unexpected')); });
+    expect(joined).toBe(current);
+    expect(extraCalls).toBe(0);
+    finishNew(detail('group','Current result')); await current;
+    expect(readCachedGroupDetail('user:life','group')?.detail.conversation.title).toBe('Current result');
+  });
+
   it("makes a rail summary available before the timeline request completes", () => {
     clearGroupDetailCache();
     cacheGroupDetailSummary("life-a", detail("group-a", "Weekend plans"));
@@ -89,6 +120,58 @@ describe("group detail cache", () => {
     cacheGroupDetailSummary("life-a", detail("group-a", "Life A"));
 
     expect(readCachedGroupDetail("life-b", "group-a")).toBeUndefined();
+  });
+
+  it('clears only the opened group and counts a later background reply', () => {
+    const initial=detail('group-a','Friends');
+    initial.conversation={...initial.conversation,kind:'group',last_message_at:'2026-10-07T12:01:00Z',
+      last_message_role:'assistant',last_assistant_message_at:'2026-10-07T12:01:00Z',
+      last_read_at:'2026-10-07T12:00:00Z',unread:true,unread_count:2};
+    cacheCompleteGroupDetail('user:life',initial);
+    cacheCompleteGroupDetail('other:life',initial);
+    markCachedGroupRead('user:life','group-a','2026-10-07T12:02:00Z');
+    expect(readCachedGroupDetail('user:life','group-a')?.detail.conversation).toMatchObject({unread:false,unread_count:0});
+    expect(readCachedGroupDetail('other:life','group-a')?.detail.conversation.unread_count).toBe(2);
+    cacheGroupDetailSummary('user:life',initial);
+    cacheCompleteGroupDetail('user:life',initial);
+    expect(readCachedGroupDetail('user:life','group-a')?.detail.conversation).toMatchObject({unread:false,unread_count:0});
+    mergeGroupStreamMessage('user:life','group-a',{
+      id:'reply-b',conversation_id:'group-a',role:'assistant',content:'I am here.',
+      delivery_status:'complete',created_at:'2026-10-07T12:03:00Z',
+    },groupDetailCacheGeneration());
+    expect(readCachedGroupDetail('user:life','group-a')?.detail.conversation).toMatchObject({unread:true,unread_count:1});
+  });
+
+  it('hides a declined offer immediately in its own warm group and restores it after a failed dismissal', () => {
+    const request = { id: 'offer-a', status: 'pending' } as GroupDetail['mediaOffers'][number];
+    cacheCompleteGroupDetail('user:life', { ...detail('group-a', 'First'), mediaOffers: [request] });
+    cacheCompleteGroupDetail('user:life', { ...detail('group-b', 'Second'), mediaOffers: [request] });
+    hideCachedGroupPhotoOffer('user:life', 'group-a', request.id);
+    expect(readCachedGroupDetail('user:life', 'group-a')?.detail.mediaOffers).toEqual([]);
+    expect(readCachedGroupDetail('user:life', 'group-b')?.detail.mediaOffers).toEqual([request]);
+    restoreCachedGroupPhotoOffer('user:life', 'group-a', request);
+    expect(readCachedGroupDetail('user:life', 'group-a')?.detail.mediaOffers).toEqual([request]);
+  });
+
+  it('keeps a background group reply when an older full read finishes afterward', async () => {
+    cacheCompleteGroupDetail('user:life',detail('group-a','Friends'));
+    let finish!: (value: GroupDetail) => void;
+    const loading=prefetchCompleteGroupDetail('user:life','group-a',()=>new Promise(resolve=>{finish=resolve;}),{maxAgeMs:-1});
+    const reply={id:'reply-a',conversation_id:'group-a',role:'assistant',content:'I made it home.',delivery_status:'complete',created_at:'2026-10-07T12:01:00Z'} as GroupDetail['messages'][number];
+    expect(mergeGroupStreamMessage('user:life','group-a',reply,groupDetailCacheGeneration())).toBe(true);
+    finish(detail('group-a','Friends'));
+    const result=await loading;
+    expect(result.messages.map((item)=>item.id)).toEqual(['reply-a']);
+    expect(readCachedGroupDetail('user:life','group-a')?.detail.conversation.last_message_preview).toBe('I made it home.');
+  });
+
+  it('keeps a finished group stream out of a cleared account cache', () => {
+    cacheCompleteGroupDetail('user:life',detail('group-a','Friends'));
+    const generation=groupDetailCacheGeneration();
+    clearGroupDetailCache();
+    const reply={id:'reply-a',conversation_id:'group-a',role:'assistant',content:'Here.',created_at:'2026-10-07T12:01:00Z'} as GroupDetail['messages'][number];
+    expect(mergeGroupStreamMessage('user:life','group-a',reply,generation)).toBe(false);
+    expect(readCachedGroupDetail('user:life','group-a')).toBeUndefined();
   });
 
   it("turns an inbox group into a renderable chat shell", () => {

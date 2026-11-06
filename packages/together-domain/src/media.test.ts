@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_PHOTO_REALISM_GUIDANCE, ONE_TAP_SELFIE_REQUEST, ONE_TAP_SPICY_SELFIE_REQUEST, PHOTO_ONLY_MESSAGE_CONTENT, PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION, PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION, adultPoseMustRebuild, classifyPhotoIntent, classifyUserAuthoredMediaSafety, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isOneTapSelfiePhotoRequest, isPhotoOnlyConversationMessage, oneTapSelfiePhotoRequest, photoRequestAllowsHiddenFace, photoRequestWantsVisibleCaptureDevice, requestImpliesRearAdultAnatomy, requestImpliesSexualPose, requestRequiresIdentityPreservingAdultRoute, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveProductionSafePhotoRequest, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement, visibleAdultAnatomyTargetLabels } from './media';
+import { CHARACTER_PHOTO_REALISM_GUIDANCE, ONE_TAP_SELFIE_REQUEST, ONE_TAP_SPICY_SELFIE_REQUEST, PHOTO_ONLY_MESSAGE_CONTENT, PRODUCTION_SAFE_ROMANTIC_PHOTO_DIRECTION, PRODUCTION_SAFE_SWIM_PHOTO_DIRECTION, adultPoseMustRebuild, classifyPhotoIntent, classifyUserAuthoredMediaSafety, extractPhotoWardrobeDescription, hasUsableCharacterIdentityReference, isOneTapSelfiePhotoRequest, isPhotoOnlyConversationMessage, oneTapSelfiePhotoRequest, photoRequestAllowsHiddenFace, requestImpliesRearAdultAnatomy, requestImpliesSexualPose, requestRequiresIdentityPreservingAdultRoute, resolveAdultNudityScope, resolveCanonicalMediaPresence, resolvePhotoComposition, resolvePhotoDirection, resolveProductionSafePhotoRequest, resolveSpecificAnatomyExposure, sanitizePhotoDeliveryAcknowledgement, visibleAdultAnatomyTargetLabels } from './media';
 
 describe('one-tap selfie requests',()=>{
   it('keeps the safe and spicy button commands canonical',()=>{
@@ -258,18 +258,39 @@ describe('requested photo composition',()=>{
     expect(composition.framing).not.toContain('generic selfie');
   });
 
+  it.each([
+    'send me a close-up picture of your private parts',
+    'send me a close-up photo of your vulva',
+    'send me a zoomed in photo of your butt',
+    'send me a nude close-up photo of your breasts',
+  ])('keeps a specific anatomy request tightly framed without requiring a face: %s',(request)=>{
+    const intent=classifyPhotoIntent(request);
+    expect(intent).toMatchObject({requested:true,shotPreference:'portrait'});
+    const composition=resolvePhotoComposition({source:'user_request',shotType:intent.shotPreference??'selfie',requestText:request});
+    expect(composition.framing).toContain('tight close-up');
+    expect(composition.framing).toContain('full body may be outside the frame');
+    expect(composition.framing).not.toContain('chest-up environmental portrait');
+    expect(photoRequestAllowsHiddenFace(request)).toBe(true);
+    expect(resolvePhotoDirection({requestText:request,shotType:composition.shotType,seed:'detail'}).faceMayBeHidden).toBe(true);
+  });
+
+  it('respects a full-body request even when it also asks for anatomy detail',()=>{
+    const request='send me a full-body photo with a close-up view of your butt';
+    expect(classifyPhotoIntent(request).shotPreference).toBe('full_body');
+    expect(photoRequestAllowsHiddenFace(request)).toBe(false);
+    expect(resolvePhotoComposition({source:'user_request',shotType:'full_body',requestText:request}).framing).toContain('full-body');
+  });
+
   it('treats selfie as framing without inventing a visible phone',()=>{
-    expect(photoRequestWantsVisibleCaptureDevice('Send me a selfie')).toBe(false);
     const composition=resolvePhotoComposition({source:'user_request',shotType:'selfie',requestText:'Send me a selfie'});
     expect(composition.framing).toContain('unseen capture device');
     expect(composition.framing).toContain('no visible phone');
   });
 
-  it('allows a capture device only when the user explicitly asks to see it',()=>{
-    expect(photoRequestWantsVisibleCaptureDevice('Send a mirror selfie holding your phone where I can see it')).toBe(true);
+  it('keeps the capture device out of frame even when the request mentions a mirror selfie',()=>{
     const composition=resolvePhotoComposition({source:'user_request',shotType:'selfie',requestText:'Send a mirror selfie holding your phone where I can see it'});
-    expect(composition.framing).toContain('specifically requested phone or camera');
-    expect(composition.framing).not.toContain('unseen capture device');
+    expect(composition.framing).toContain('unseen capture device');
+    expect(composition.framing).toContain('no visible phone');
   });
 
   it.each([
@@ -381,6 +402,14 @@ describe('character photo identity grounding',()=>{
     const direction=resolvePhotoDirection({requestText:request,shotType:'full_body',seed:'elena-nude-rear'});
     expect(direction.poseDirection).toContain('body bent forward');
     expect(direction.poseDirection).toContain('rear or rear-three-quarter camera orientation');
+  });
+
+  it('does not demand frontal anatomy in a nude rear view asking only for buttocks',()=>{
+    const request='Send a nude photo seated facing away from the camera with buttocks fully visible';
+    expect(resolveAdultNudityScope(request)).toBe('full_nude');
+    expect(photoRequestAllowsHiddenFace(request)).toBe(true);
+    expect(visibleAdultAnatomyTargetLabels(request)).toContain('buttocks and rear anatomy');
+    expect(visibleAdultAnatomyTargetLabels(request).join(' ')).not.toMatch(/genital|vulva|penis/);
   });
 
   it('keeps a wide set of nude sexual poses on the identity-preserving adult route',()=>{

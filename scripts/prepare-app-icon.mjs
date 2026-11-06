@@ -17,11 +17,14 @@ const primary = await sharp(source).resize(1024, 1024, { kernel: 'lanczos3' })
   .toColourspace('srgb').removeAlpha().png({ compressionLevel: 9 }).toBuffer();
 await sharp(primary).toFile(resolve(assets, 'icon.png'));
 
-// The colored and monochrome cutouts let iOS use the same mark over dark,
-// clear, and tinted system surfaces. Keep the standard/App Store icon opaque.
+// Keep the standard/App Store icon opaque. The dark iOS and Android foregrounds
+// use transparent cutouts, while iOS's tinted source must be opaque grayscale:
+// Expo flattens transparent tinted images onto white during prebuild.
 const { data, info } = await sharp(primary).raw().toBuffer({ resolveWithObject: true });
 const colored = Buffer.alloc(info.width * info.height * 4);
 const monochrome = Buffer.alloc(colored.length);
+const iosTinted = Buffer.alloc(info.width * info.height * 3);
+let solidMarkPixels = 0;
 for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
   const input = pixel * info.channels;
   const output = pixel * 4;
@@ -37,20 +40,29 @@ for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
   monochrome[output] = 255;
   monochrome[output + 1] = 255;
   monochrome[output + 2] = 255;
-  // A tighter mask keeps the tinted/clear appearance recognizable after the
-  // system applies its own tint and glass effects.
-  monochrome[output + 3] = Math.round(Math.max(0, Math.min(255, (Math.max(red, green, blue) - 92) * 2.8)));
+  // A tighter mask keeps the mark recognizable after system tint/glass effects.
+  const markAlpha = Math.round(Math.max(0, Math.min(255, (Math.max(red, green, blue) - 92) * 2.8)));
+  monochrome[output + 3] = markAlpha;
+  if (markAlpha > 200) solidMarkPixels += 1;
+  const shade = 255 - Math.round(markAlpha * 0.9);
+  iosTinted[pixel * 3] = shade;
+  iosTinted[pixel * 3 + 1] = shade;
+  iosTinted[pixel * 3 + 2] = shade;
+}
+if (solidMarkPixels < 10_000) {
+  throw new Error('The app icon source does not contain a legible monochrome mark.');
 }
 const rawOptions = { raw: { width: info.width, height: info.height, channels: 4 } };
 const dark = await sharp(colored, rawOptions).png({ compressionLevel: 9 }).toBuffer();
-const tinted = await sharp(monochrome, rawOptions).png({ compressionLevel: 9 }).toBuffer();
+const androidMonochrome = await sharp(monochrome, rawOptions).png({ compressionLevel: 9 }).toBuffer();
 await sharp(dark).toFile(resolve(assets, 'icon-dark.png'));
-await sharp(tinted).toFile(resolve(assets, 'icon-tinted.png'));
+await sharp(iosTinted, { raw: { width: info.width, height: info.height, channels: 3 } })
+  .png({ compressionLevel: 9 }).toFile(resolve(assets, 'icon-tinted.png'));
 
 // Android masks adaptive icons more aggressively than iOS. Center the mark
 // within its safe area, with the same mark available to themed launchers.
 const transparent = { create: { width: 1024, height: 1024, channels: 4, background: '#00000000' } };
-for (const [image, filename] of [[dark, 'icon-android-adaptive.png'], [tinted, 'icon-android-monochrome.png']]) {
+for (const [image, filename] of [[dark, 'icon-android-adaptive.png'], [androidMonochrome, 'icon-android-monochrome.png']]) {
   const foreground = await sharp(image).resize(760, 760).toBuffer();
   await sharp(transparent).composite([{ input: foreground, left: 132, top: 132 }])
     .png({ compressionLevel: 9 }).toFile(resolve(assets, filename));

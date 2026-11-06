@@ -1,3 +1,4 @@
+import { imagePreviewUrl, signImagePreviews } from '../_shared/media-image-previews.ts';
 import { withMediaProgress } from '../_shared/media-progress.ts';
 import { assertPhotoRequestAllowed } from '../_shared/photo-request-policy.ts';
 import { newVideoSettings, publishedVideoRoutes, publishedVideoCreditCost } from '../_shared/kivelle-video-prices.ts';
@@ -320,7 +321,8 @@ serve(async(request,correlationId)=>{
     if(!restricted&&media.status==='ready'&&media.storage_path){const {data,error}=await db.storage.from('together-user-media').createSignedUrl(media.storage_path,3600);if(error||!data?.signedUrl)throw new AppError('INTERNAL_ERROR','The photo is ready but could not be opened yet.',503,true);signedUrl=data.signedUrl;}
     const progressState=media.media_type==='video'?await videoProgressState(db,media):undefined;
     if(restricted&&media.status==='ready')signedUrl=await issueAdultAssetUrl({request,db,access:adultAccess,userId:user.id,generatedMediaId:String(media.id)});
-    return json({data:{media:sanitizeMediaRow((await withMediaProgress(db,user.id,[media]))[0]??media,signedUrl,adultAccess.authorized_web_adult),progressState},correlationId},200,correlationId);
+    const previews=await signImagePreviews(db,[media]);
+    return json({data:{media:sanitizeMediaRow((await withMediaProgress(db,user.id,[media]))[0]??media,signedUrl,adultAccess.authorized_web_adult,imagePreviewUrl(media,signedUrl,previews)),progressState},correlationId},200,correlationId);
   }
   if(input.action==='video_playback'){
     if(media.media_type!=='video'||media.status!=='ready')throw new AppError('CONFLICT','Only a completed video can be played.',409);
@@ -388,12 +390,12 @@ async function signMediaRows(request:Request,db:any,userId:string,access:AdultAc
   rows=rows.filter((row)=>row.metadata?.hiddenIntermediate!==true||row.metadata?.galleryPosterOnly===true);
   rows=await withMediaProgress(db,userId,rows);
   const ordinary=rows.filter((row)=>row.visibility_scope==='all'&&['safe','suggestive'].includes(String(row.content_rating??''))),paths=[...new Set(ordinary.filter((row)=>row.status==='ready'&&typeof row.storage_path==='string'&&row.storage_path).map((row)=>String(row.storage_path)))];
-  const signed=paths.length?await db.storage.from('together-user-media').createSignedUrls(paths,3600):{data:[]};
+  const [signed,previews]=await Promise.all([paths.length?db.storage.from('together-user-media').createSignedUrls(paths,3600):Promise.resolve({data:[]}),signImagePreviews(db,rows)]);
   const byPath=new Map<string,string>((signed.data??[]).flatMap((item:any)=>typeof item.path==='string'&&typeof item.signedUrl==='string'?[[item.path,item.signedUrl] as [string,string]]:[]));
-  return Promise.all(rows.map(async(row)=>{const restricted=row.visibility_scope!=='all'||!['safe','suggestive'].includes(String(row.content_rating??''));const signedUrl=restricted&&row.status==='ready'&&access.authorized_web_adult?await issueAdultAssetUrl({request,db,access,userId,generatedMediaId:String(row.id)}):row.storage_path?byPath.get(String(row.storage_path))??null:null;return sanitizeMediaRow(row,signedUrl,access.authorized_web_adult);}));
+  return Promise.all(rows.map(async(row)=>{const restricted=row.visibility_scope!=='all'||!['safe','suggestive'].includes(String(row.content_rating??''));const signedUrl=restricted&&row.status==='ready'&&access.authorized_web_adult?await issueAdultAssetUrl({request,db,access,userId,generatedMediaId:String(row.id)}):row.storage_path?byPath.get(String(row.storage_path))??null:null;return sanitizeMediaRow(row,signedUrl,access.authorized_web_adult,imagePreviewUrl(row,signedUrl,previews));}));
 }
 
-function sanitizeMediaRow(row:Record<string,any>,signedUrl:string|null,authorizedWebAdult:boolean):Record<string,any>{const safe:Record<string,any>={...row,signed_url:signedUrl};delete safe.storage_path;const restricted=row.visibility_scope!=='all'||!['safe','suggestive'].includes(String(row.content_rating??''));if(restricted&&!authorizedWebAdult){delete safe.metadata;delete safe.canonical_text;}else if(!authorizedWebAdult&&safe.metadata&&typeof safe.metadata==='object'){const metadata={...safe.metadata};for(const key of['generationIntent','editInstruction','requestHint','referenceAssets','providerPrompt','prompt'])delete metadata[key];safe.metadata=metadata;}return safe;}
+function sanitizeMediaRow(row:Record<string,any>,signedUrl:string|null,authorizedWebAdult:boolean,previewUrl:string|null=null):Record<string,any>{const safe:Record<string,any>={...row,signed_url:signedUrl,preview_url:previewUrl};delete safe.storage_path;const restricted=row.visibility_scope!=='all'||!['safe','suggestive'].includes(String(row.content_rating??''));if(restricted&&!authorizedWebAdult){delete safe.metadata;delete safe.canonical_text;}else if(!authorizedWebAdult&&safe.metadata&&typeof safe.metadata==='object'){const metadata={...safe.metadata};for(const key of['generationIntent','editInstruction','requestHint','referenceAssets','providerPrompt','prompt'])delete metadata[key];safe.metadata=metadata;}return safe;}
 
 async function requireModeratedAdultMediaInput(text:string|undefined,access:AdultAccessContext,scope:{db:any;userId:string;characterInstanceId?:string;conversationId?:string;correlationId:string},mediaKind:'photo'|'video'='photo',options:{trustedModerationApproval?:boolean}={}){
   if(mediaKind==='photo') {
@@ -451,11 +453,12 @@ async function loadVideoPosterRows(db:any,userId:string,continuityId:string,rows
 
 async function signGalleryAttachments(request:Request,db:any,userId:string,access:AdultAccessContext,rows:Array<Record<string,any>>):Promise<Array<Record<string,any>>>{
   const safeRows=rows.filter((row)=>row.visibility_scope==='all'&&['safe','suggestive'].includes(String(row.content_rating??''))),paths=[...new Set(safeRows.filter((row)=>typeof row.storage_path==='string'&&row.storage_path).map((row)=>String(row.storage_path)))];
-  const signed=paths.length?await db.storage.from('together-user-media').createSignedUrls(paths,900):{data:[]},byPath=new Map<string,string>((signed.data??[]).flatMap((item:any)=>typeof item.path==='string'&&typeof item.signedUrl==='string'?[[item.path,item.signedUrl] as [string,string]]:[]));
+  const [signed,previews]=await Promise.all([paths.length?db.storage.from('together-user-media').createSignedUrls(paths,900):Promise.resolve({data:[]}),signImagePreviews(db,rows)]);
+  const byPath=new Map<string,string>((signed.data??[]).flatMap((item:any)=>typeof item.path==='string'&&typeof item.signedUrl==='string'?[[item.path,item.signedUrl] as [string,string]]:[]));
   return Promise.all(rows.map(async(row)=>{
     const restricted=row.visibility_scope!=='all'||!['safe','suggestive'].includes(String(row.content_rating??''));
     if(restricted&&!access.authorized_web_adult)return null;
-    const signedUrl=restricted?await issueAdultAssetUrl({request,db,access,userId,attachmentId:String(row.id)}):typeof row.storage_path==='string'?byPath.get(String(row.storage_path))??null:null,safe:Record<string,any>={...row,signed_url:signedUrl};
+    const signedUrl=restricted?await issueAdultAssetUrl({request,db,access,userId,attachmentId:String(row.id)}):typeof row.storage_path==='string'?byPath.get(String(row.storage_path))??null:null,safe:Record<string,any>={...row,signed_url:signedUrl,preview_url:imagePreviewUrl(row,signedUrl,previews)};
     delete safe.storage_path;delete safe.analysis_metadata;delete safe.safe_variant_key;
     return safe;
   })).then((items)=>items.filter(Boolean) as Array<Record<string,any>>);

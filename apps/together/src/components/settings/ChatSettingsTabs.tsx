@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { colors, radius } from '../../theme';
 
 export type ChatSettingsTab = 'chat' | 'appearance' | 'ai' | 'proactive';
@@ -10,7 +10,9 @@ const tabs: ReadonlyArray<{ id: ChatSettingsTab; label: string }> = [
 ];
 
 export function ChatSettingsTabs({ value, disabled = false, includeProactive = false, onChange }: { value: ChatSettingsTab; disabled?: boolean; includeProactive?: boolean; onChange: (tab: ChatSettingsTab) => void }) {
-  return <View accessibilityRole="tablist" accessibilityLabel="Chat settings sections" style={styles.tabs}>
+  const { width } = useWindowDimensions();
+  const compact = includeProactive && width < 380;
+  return <View accessibilityRole="tablist" accessibilityLabel="Chat settings sections" style={[styles.tabs, compact && styles.tabsCompact]}>
     {(includeProactive ? [...tabs, { id: 'proactive' as const, label: 'Proactive' }] : tabs).map((tab) => {
       const selected = tab.id === value;
       return <Pressable
@@ -21,7 +23,7 @@ export function ChatSettingsTabs({ value, disabled = false, includeProactive = f
         accessibilityState={{ selected, disabled }}
         disabled={disabled}
         onPress={() => onChange(tab.id)}
-        style={({ pressed }) => [styles.tab, selected && styles.tabSelected, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.tab, compact && styles.tabCompact, selected && styles.tabSelected, pressed && styles.pressed]}
       >
         <Text style={[styles.label, selected && styles.labelSelected]}>{tab.label}</Text>
       </Pressable>;
@@ -31,7 +33,9 @@ export function ChatSettingsTabs({ value, disabled = false, includeProactive = f
 
 const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', gap: 4, marginHorizontal: 18, marginTop: 14, padding: 4, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,.04)', borderWidth: 1, borderColor: colors.border },
+  tabsCompact: { flexWrap: 'wrap' },
   tab: { minHeight: 44, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+  tabCompact: { flexGrow: 1, flexShrink: 0, flexBasis: '48%' },
   tabSelected: { backgroundColor: 'rgba(157,66,228,.24)', borderWidth: 1, borderColor: 'rgba(199,120,255,.52)' },
   label: { color: colors.muted, fontSize: 12, fontWeight: '800' },
   labelSelected: { color: colors.text },

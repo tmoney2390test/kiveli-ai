@@ -1,0 +1,1402 @@
+[
+  {
+    "homeId": "81a2cd82-5cb8-4c7c-aaea-10a252d826c7",
+    "slug": "amara-kade",
+    "world": "gilded-coast",
+    "name": "Amara's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Amara keeps a compact room above the breakwater path. A narrow table holds her gardening tools and a stack of rolled charts. A single lantern hangs near the door for late returns.",
+    "details": [
+      "A bundle of dried rosemary hangs from a hook by the window.",
+      "A worn leather tube contains tide charts marked in pencil.",
+      "A small wooden flute rests on the shelf beside a tin of salve."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Trace a route on the harbor chart",
+      "Play a short tune on the flute"
+    ],
+    "windowOutlook": "A low window looks across the stone breakwater to open water and passing fishing boats.",
+    "interiorStyle": "A single room with whitewashed walls, a narrow cot against one wall, a plank table under the window, and a wooden chest at the foot of the bed. Salt-stained floorboards hold a woven rush mat, and a brass lantern sits on a wall bracket.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Dr. Amara Kade"
+  },
+  {
+    "homeId": "af7635d7-0461-4869-b625-2f4224432728",
+    "slug": "anika-saye",
+    "world": "gilded-coast",
+    "name": "Anika's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Anika lives in a second-floor room along Admiralty Quay. A desk holds her ledger and a tray of dried herbs. A kettle rests on a small iron stove in the corner.",
+    "details": [
+      "A lacquered puzzle box with sliding panels sits open on the desk.",
+      "A row of small clay pots holds cuttings from the glass garden.",
+      "A tin canister of loose tea stands beside two earthenware cups."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Solve the next step of the puzzle box",
+      "Steep and taste two herb blends"
+    ],
+    "windowOutlook": "The front window looks down on the quay and the masts of docked merchant ships.",
+    "interiorStyle": "A modest room with deep indigo curtains, a narrow bed with a striped coverlet, a writing desk under the window, and a small iron stove near the wall. A woven mat covers part of the floor and a brass lamp sits on the desk.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Anika Saye"
+  },
+  {
+    "homeId": "8795d1ca-5baa-48c4-ac4e-50ef6486e523",
+    "slug": "bastien-crow",
+    "world": "gilded-coast",
+    "name": "Bastien's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Bastien keeps a spare room at the end of the breakwater barracks. A small table holds a chess set and a basket of net twine. A sea chest serves as both seat and storage.",
+    "details": [
+      "A wooden chessboard with carved bone pieces sits ready on the table.",
+      "A shuttle and ball of cord lie beside a section of mended net.",
+      "A brass telescope rests on the windowsill."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a game of chess",
+      "Mend a section of net together"
+    ],
+    "windowOutlook": "A high window frames the outer harbor wall and the line of signal flags on the battery.",
+    "interiorStyle": "A plain room with salt-white walls, a single bed against the back wall, a square table in the center, and a sea chest under the window. A lantern hangs from a ceiling hook and the floor shows scuffed boards from daily use.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Bastien Crow"
+  },
+  {
+    "homeId": "844a54d8-7dda-432a-8d8f-507c6faf4b58",
+    "slug": "bruna-kest",
+    "world": "gilded-coast",
+    "name": "Bruna's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Bruna's room sits in a row of yard housing near the ropewalk. A workbench along one wall holds small hull models and spare fittings. A tin tub stands in the corner for evening use.",
+    "details": [
+      "A half-finished wooden toy boat sits on the bench with a small knife beside it.",
+      "A coil of tarred rope rests on a peg near the door.",
+      "A stack of clean linen towels lies folded on a stool by the tub."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Sand the toy boat hull smooth",
+      "Measure a length of rope for a new splice"
+    ],
+    "windowOutlook": "The side window opens onto the yard's timber stacks and the sound of hammers from the drydock.",
+    "interiorStyle": "A narrow room with weathered mahogany paneling, a low bed built into the wall, a long worktable under the window, and a metal tub on a raised platform. Pegs hold tools and a single oil lamp sits on a bracket.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Bruna Kest"
+  },
+  {
+    "homeId": "c9651fd7-6590-4c8e-b5ae-c21712c67ca7",
+    "slug": "calista-fen",
+    "world": "gilded-coast",
+    "name": "Calista's Private Room",
+    "residenceType": "private coastal quarters",
+    "description": "Calista keeps a quiet room on the upper floor of a narrow terrace. A small table holds a bottle and glass. A coat hangs on a peg by the door.",
+    "details": [
+      "A dark glass bottle of red wine stands on the table.",
+      "A leather ledger with worn edges rests beside the bottle.",
+      "A pair of clean gloves lies on the washstand."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Taste a glass of wine",
+      "Make up a toast for the next ship in port"
+    ],
+    "windowOutlook": "View of tiled rooftops and distant harbor masts from the second-floor window",
+    "interiorStyle": "Compact room with mahogany floor, deep indigo wall hangings, a brass lantern on the table, and a narrow bed with salt-white linen",
+    "draftModel": "grok-4.3",
+    "ownerName": "Calista Fen"
+  },
+  {
+    "homeId": "48878942-2007-4dbd-a4ba-59d6f3251721",
+    "slug": "cassia-bloom",
+    "world": "gilded-coast",
+    "name": "Cassia's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Cassia keeps a second-floor room above the market lanes. A narrow table holds a teapot and a deck of cards. Old chairs with patched seats stand near the window.",
+    "details": [
+      "A brass teapot with a dented lid sits on the side table.",
+      "A worn deck of cards rests in a wooden box beside the bed.",
+      "A low cabinet with cracked varnish holds folded linens."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a hand of cards at the table",
+      "Brew a pot of tea from the tin"
+    ],
+    "windowOutlook": "Narrow view of lantern-lit market stalls and passing carts below",
+    "interiorStyle": "Small room with salt-worn mahogany floorboards, indigo curtains, a single brass lantern on the wall, and a bed with patched sailcloth coverlet",
+    "draftModel": "grok-4.3",
+    "ownerName": "Cassia Bloom"
+  },
+  {
+    "homeId": "ee3340ba-9365-4c80-8afe-60fc4dd84edc",
+    "slug": "celia-mar",
+    "world": "gilded-coast",
+    "name": "Celia's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Celia keeps a small room behind the Ropewalk workshops. A wooden crate holds seed packets and a trowel. A narrow table stands under the window.",
+    "details": [
+      "A canvas pouch of rice sits on the shelf above the table.",
+      "A stack of folded notes rests beside a quill on the table.",
+      "A clay pot with a young herb cutting sits on the windowsill."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Review notes from the latest meeting",
+      "Taste a spoonful from the rice pot"
+    ],
+    "windowOutlook": "View of the ropewalk yard and stacked timber through a square window",
+    "interiorStyle": "Modest room with salt-stained stone walls, a low bed with checked cotton cover, a pine table with two stools, and a single brass lantern",
+    "draftModel": "grok-4.3",
+    "ownerName": "Celia Mar"
+  },
+  {
+    "homeId": "56f7f165-8599-40d2-9696-a8e8aedd67fb",
+    "slug": "cormac-bray",
+    "world": "gilded-coast",
+    "name": "Cormac's Private Room",
+    "residenceType": "private coastal quarters",
+    "description": "Cormac keeps a ground-floor room near the harbor wall. A wooden chair holds a folded coat. A small shelf above the washbasin stores a few cigars.",
+    "details": [
+      "A leather cigar case sits on the shelf by the basin.",
+      "A folded betting slip lies under a tin plate on the table.",
+      "A pair of worn boots rests against the foot of the bed."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Share a cigar by the open window",
+      "Pick a winner from the morning odds"
+    ],
+    "windowOutlook": "Low view of stone breakwater and incoming tide through salt-streaked glass",
+    "interiorStyle": "Narrow room with weathered planks, a single lantern on a hook, faded tobacco-brown blanket on the bed, and a simple pine table with one chair",
+    "draftModel": "grok-4.3",
+    "ownerName": "Cormac Bray"
+  },
+  {
+    "homeId": "23b46f8a-74ff-4f01-8f27-03c03c2b70d8",
+    "slug": "dax-marin",
+    "world": "gilded-coast",
+    "name": "Dax's room at the Blue Lantern",
+    "residenceType": "private coastal quarters",
+    "description": "Dax keeps a compact room above the Blue Lantern Inn in the Outer Cays. A narrow bed sits against one wall beside a sturdy travel chest. Salt air drifts through the shutters above a small table.",
+    "details": [
+      "A worn deck of cards rests on the table beside a half-empty bottle of grog.",
+      "A coiled length of boarding rope hangs from a peg near the door.",
+      "A damp towel draped over the chair still smells of salt from the previous night's swim."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a hand of cards",
+      "Compare stories over grog"
+    ],
+    "windowOutlook": "narrow view of the cove and moored boats through salt-streaked shutters",
+    "interiorStyle": "small room with weathered mahogany floorboards, whitewashed walls showing salt stains, a single lantern on a hook, and a simple wooden chair pulled up to the table",
+    "draftModel": "grok-4.3",
+    "ownerName": "Dax Marin"
+  },
+  {
+    "homeId": "8b335a35-0ecd-489a-919e-498e136330d7",
+    "slug": "dorian-pike",
+    "world": "gilded-coast",
+    "name": "Dorian's room near the yard",
+    "residenceType": "private residence",
+    "description": "Dorian lives in a single room behind the shipwright yard in the Ropewalk. A workbench along one wall holds carving tools and a half-finished block of wood. The bed and a small stove occupy the remaining space.",
+    "details": [
+      "A small wooden whale figure sits unfinished on the workbench beside a sharp chisel.",
+      "A battered tin bowl and spoon rest on the stove after the last stew.",
+      "A folded sheet of old sailcloth covers a stack of spare clothes in the corner."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Carve a piece of wood",
+      "Hum an old sea song"
+    ],
+    "windowOutlook": "view across the yard to stacked timber and the harbor edge",
+    "interiorStyle": "low-ceilinged room with rough plank walls, a heavy workbench under the single window, worn floorboards, and a small iron stove in the corner",
+    "draftModel": "grok-4.3",
+    "ownerName": "Dorian Pike"
+  },
+  {
+    "homeId": "4bf6aa9d-6938-484c-90b5-ecbe7eae8191",
+    "slug": "elara-voss",
+    "world": "gilded-coast",
+    "name": "Elara's quarters above the quay",
+    "residenceType": "private residence",
+    "description": "Elara's private quarters occupy the upper floor of a narrow building on Admiralty Quay. A broad table holds rolled charts and a sharpening stone. The bed is pushed against the far wall under a row of hooks.",
+    "details": [
+      "A set of navigation charts lies spread across the table with brass dividers holding one open.",
+      "A whetstone and three knives sit on a low bench near the window.",
+      "A covered plate from a late breakfast rests on the sideboard."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Trace a course on the sea charts",
+      "Guess the harbor from the shape of its coastline"
+    ],
+    "windowOutlook": "direct sight of the waterfront steps and arriving vessels",
+    "interiorStyle": "narrow room with salt-white walls, dark mahogany beams, a scarred work table under the front window, and a single lantern hanging over the chart table",
+    "draftModel": "grok-4.3",
+    "ownerName": "Captain Elara Voss"
+  },
+  {
+    "homeId": "a5a5dbc7-d5a5-4872-8a40-1ac6360272f9",
+    "slug": "elias-reed",
+    "world": "gilded-coast",
+    "name": "Elias's room in Windward Village",
+    "residenceType": "private residence",
+    "description": "Elias keeps a modest room behind the village meeting hall in the Outer Cays. A shelf holds lesson slates and a tide chart. The bed stands near a small table with a fiddle case.",
+    "details": [
+      "A tide chart marked with hand-drawn notes lies open on the table.",
+      "A well-used fiddle rests in its case beside the bed.",
+      "A collection of small shells from the tidepools sits in a wooden bowl on the shelf."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play the fiddle",
+      "Compare tide notes on the chart"
+    ],
+    "windowOutlook": "open view of the village path and distant tidepools",
+    "interiorStyle": "simple room with pale salt-white walls, a low wooden shelf along one side, a narrow bed with a woven coverlet, and a small table under the front window",
+    "draftModel": "grok-4.3",
+    "ownerName": "Elias Reed"
+  },
+  {
+    "homeId": "986b359b-fc22-4516-be5f-e1231f3f47aa",
+    "slug": "fen-moreno",
+    "world": "gilded-coast",
+    "name": "Fen's Quarters",
+    "residenceType": "private residence",
+    "description": "Fen keeps a compact room above a side lane in Lantern Market. A narrow bed sits under a low beam, and a sturdy table holds sheets of music and small pots of paint. The floorboards show scuffs from boots and the occasional dropped brush.",
+    "details": [
+      "A wooden chessboard with worn pieces rests on a low stool near the bed.",
+      "Rolled sheets of music lie beside an open pot of black ink and a quill.",
+      "A set of paintbrushes in a tin cup stands on the table next to a stack of small wooden blocks."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a game of chess on the board",
+      "Sketch a quick melody across fresh paper"
+    ],
+    "windowOutlook": "A narrow view down the lane toward the glow of evening stalls and passing lanterns.",
+    "interiorStyle": "Small square room with whitewashed plaster walls, one salt-stained window, a low wooden bed with indigo blanket, a single mahogany table, two stools, and a wall peg for coats.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Fen Moreno"
+  },
+  {
+    "homeId": "9890de6c-bdbc-4d98-bdd5-99139a3f33e2",
+    "slug": "gideon-holt",
+    "world": "gilded-coast",
+    "name": "Gideon's Room",
+    "residenceType": "private coastal quarters",
+    "description": "Gideon keeps a narrow room at the Blue Lantern Inn facing Admiralty Quay. A travel chest sits at the foot of the bed, and a small table holds a bottle and glass. The single window lets in salt air and the sound of water against pilings.",
+    "details": [
+      "A pair of well-used boxing wraps hangs from a peg beside the door.",
+      "A leather-bound ledger and inkwell rest on the table next to the whiskey bottle.",
+      "A brass flask sits in a dish with a few coins and a folded handkerchief."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Share a measure of whiskey from the bottle",
+      "Wrap hands and practice light footwork"
+    ],
+    "windowOutlook": "A low view across the quay to the dark water and the masts of tied-up boats.",
+    "interiorStyle": "Rectangular room with weathered mahogany paneling, one shuttered window, a narrow bed with salt-white linens, a single chair, a travel chest, and a small table holding the whiskey bottle.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Gideon Holt"
+  },
+  {
+    "homeId": "e3c88d2a-2adf-4925-95aa-6d7d5f24ba84",
+    "slug": "harlan-vex",
+    "world": "gilded-coast",
+    "name": "Harlan's Room",
+    "residenceType": "private coastal quarters",
+    "description": "Harlan keeps a compact room above Gilt Row. A travel chest stands against the wall, and a small table holds a teapot and cup. The room stays orderly, with space cleared for movement practice.",
+    "details": [
+      "A wooden chessboard with bone pieces sits on the low table.",
+      "A polished teapot and two cups rest on a tray beside a tin of loose tea.",
+      "A pair of fencing foils in a leather case leans in the corner."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a game of chess on the board",
+      "Brew tea and practice a short exchange with the foils"
+    ],
+    "windowOutlook": "A high view over the terrace roofs toward the harbor and distant cays.",
+    "interiorStyle": "Square room with warm mahogany paneling, one tall window, a narrow bed with tobacco-brown blanket, a single table, two chairs, and a wall peg holding a coat.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Harlan Vex"
+  },
+  {
+    "homeId": "d012a997-edd0-42cc-9f6a-ffd82d974992",
+    "slug": "helene-dusk",
+    "world": "gilded-coast",
+    "name": "Helene's Room",
+    "residenceType": "private coastal quarters",
+    "description": "Helene keeps a private room at the Blue Lantern Inn in Lantern Market. A small table holds a few perfume vials and a glass, while a narrow bed takes up most of the far wall. The space stays neat between late returns and early departures.",
+    "details": [
+      "A set of small glass perfume vials stands in a wooden tray on the table.",
+      "A folded silk shawl lies across the back of the single chair.",
+      "A bottle of champagne rests in a bucket beside the bed with two clean glasses."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Compare two perfume vials on the wrist",
+      "Open the champagne and share a glass"
+    ],
+    "windowOutlook": "A side view over the market rooftops toward the harbor lights.",
+    "interiorStyle": "Small room with pale salt-white walls, one narrow window, a low bed with deep-indigo coverlet, a mahogany table, one chair, and a wall hook holding a light coat.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Helene Dusk"
+  },
+  {
+    "homeId": "4e78316c-93d7-4a96-8187-7e542ab1a1d9",
+    "slug": "hugo-fen",
+    "world": "gilded-coast",
+    "name": "Hugo Fen's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Hugo occupies a ground-floor room behind the main house on Gilt Row. A small desk holds his personal ledger and a few reference books. The space reflects steady habits and careful maintenance.",
+    "details": [
+      "A wooden seed box with labeled compartments sits on the desk.",
+      "A bound notebook of handwritten recipes rests beside a brass inkwell.",
+      "A collection of dried herbs hangs from a beam above the window."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Choose a recipe for the next guest supper",
+      "Plan a windowsill herb box from the seeds"
+    ],
+    "windowOutlook": "Side window frames a view of the kitchen garden and the stone wall that separates it from the neighboring property.",
+    "interiorStyle": "Square room with pale stone walls and a single wide window, a narrow bed along one wall, a compact desk under the window, and a chest at the foot of the bed.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Hugo Fen"
+  },
+  {
+    "homeId": "31afbf3e-64df-4557-81b8-993c067f3dcc",
+    "slug": "idris-vale",
+    "world": "gilded-coast",
+    "name": "Idris Vale's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Idris keeps a compact room above a storage shed on the outer cay. A low table holds a lantern and a few tools for boat repairs. The space stays practical for quick departures and late returns.",
+    "details": [
+      "A worn concertina rests on a shelf beside coils of line.",
+      "A small wooden model of his boat sits on the windowsill with its sails furled.",
+      "A deck of cards in a leather pouch lies on the table next to an oilskin pouch."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a tune on the concertina",
+      "Deal a hand of cards"
+    ],
+    "windowOutlook": "Low window looks across a narrow channel toward the next cay and the open water beyond the reef.",
+    "interiorStyle": "Single room with plank walls and a slanted ceiling, weathered mahogany table, two canvas-backed chairs, salt-stained floorboards, and a hammock hung from the rafters.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Idris Vale"
+  },
+  {
+    "homeId": "5a144578-3a63-4bc0-b14a-4a446dbdd462",
+    "slug": "inez-sol",
+    "world": "gilded-coast",
+    "name": "Inez Sol's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Inez keeps a small room above a shop in Lantern Market. A low trunk holds fabric and thread for costume work. The space allows room to move when she practices steps.",
+    "details": [
+      "A length of deep indigo fabric with pinned seams lies across the trunk lid.",
+      "A shallow bowl of tidepool stones sits on the floor near the window.",
+      "A pair of worn dance slippers rests beside the trunk."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Try two hems on the indigo fabric",
+      "Make a mosaic pattern with the tidepool stones"
+    ],
+    "windowOutlook": "Upper window looks down on the crowded market lane and the lantern-lit stalls across the way.",
+    "interiorStyle": "Narrow room with salt-white walls and a low ceiling, a single bed against the far wall, a trunk serving as both seat and table, and a small wall hook holding a lantern.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Inez Sol"
+  },
+  {
+    "homeId": "3de4b2a6-a332-4cf9-b5ea-b37a7dc9444f",
+    "slug": "iria-montrose",
+    "world": "gilded-coast",
+    "name": "Iria Montrose's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Iria rents the upper floor of a narrow stone house on Gilt Row. A workbench along one wall holds her personal tools and stones. The room stays tidy but shows signs of frequent use.",
+    "details": [
+      "A set of small gem-cutting files hangs from a peg above the bench.",
+      "A shallow tray of tidepool shells and pebbles sits on the side table.",
+      "Two sealed jars of preserved fruit rest on a shelf near the door."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Examine a new shell from the tray",
+      "Taste two batches of fruit preserves"
+    ],
+    "windowOutlook": "Narrow window overlooks the terrace roofs and the harbor edge below the row of houses.",
+    "interiorStyle": "Rectangular room with whitewashed walls and dark wood trim, a low bed against the back wall, a sturdy bench under the window, and a single lantern hung from a ceiling hook.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Iria Montrose"
+  },
+  {
+    "homeId": "fb6a49f1-f4fa-42e6-9259-c213dd65ddf3",
+    "slug": "isolde-wren",
+    "world": "gilded-coast",
+    "name": "Isolde Wren's Private Room",
+    "residenceType": "private coastal quarters",
+    "description": "Isolde keeps a compact room at the Blue Lantern Inn. A small table stands near the window with a chair, and a narrow bed occupies the far corner. A chest and a washstand complete the space.",
+    "details": [
+      "A leather folio of case notes rests on the table.",
+      "A small bottle of champagne and two glasses sit on the washstand.",
+      "A folded length of running cloth lies on the chest."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Review a harbor-court note together",
+      "Share a glass from the washstand"
+    ],
+    "windowOutlook": "A direct view of the quay and the masts of arriving vessels.",
+    "interiorStyle": "Small inn room with whitewashed walls, a single plank table, one chair, a narrow bed with a checked cotton cover, and a brass lantern on the wall.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Isolde Wren"
+  },
+  {
+    "homeId": "5d968e85-7dea-4cea-aa55-19998e5beeb5",
+    "slug": "javier-ro",
+    "world": "gilded-coast",
+    "name": "Javier Ro's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Javier keeps a single room above a narrow lane in Lantern Market. A sturdy table takes most of the space, with a small bed against the back wall and a chest for clothes. The air holds the scent of salt and cooked fish from the day's work.",
+    "details": [
+      "A dented brass pot sits on a low shelf beside a stack of wooden bowls.",
+      "A well-used fishing knife rests on the table next to a coil of line.",
+      "A small concertina hangs from a peg near the door."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Try a new stew recipe at the table",
+      "Play a tune on the concertina"
+    ],
+    "windowOutlook": "A narrow view down the lantern-lit lane toward the market stalls and passing carts.",
+    "interiorStyle": "One compact room with whitewashed walls, a scarred mahogany table, two mismatched chairs, a rope-strung bed with a faded indigo blanket, and a single lantern on a hook.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Javier Ro"
+  },
+  {
+    "homeId": "f0801cac-e112-40c5-9156-0612a4ef9b55",
+    "slug": "julian-mercer",
+    "world": "gilded-coast",
+    "name": "Julian Mercer's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Julian keeps a modest room on the upper floor of a Gilt Row terrace. A writing desk faces the window, with a narrow bed and a wardrobe against the side wall. A small side table holds a loaf tin and a water jug.",
+    "details": [
+      "A stack of old harbor maps lies open on the desk.",
+      "A wooden breadboard and knife rest on the side table.",
+      "A simple wooden flute sits beside the maps."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Compare two old harbor maps",
+      "Share fresh bread from the side table"
+    ],
+    "windowOutlook": "A slice of the harbor and the masts of moored ships beyond the terrace roofs.",
+    "interiorStyle": "Narrow room with pale salt-white walls, a dark mahogany desk, one straight chair, a low bed with a plain wool blanket, and a single lantern.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Julian Mercer"
+  },
+  {
+    "homeId": "d4b0a295-4a39-4939-831c-02c38a01acd1",
+    "slug": "keon-flint",
+    "world": "gilded-coast",
+    "name": "Keon Flint's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Keon keeps a small room on the outer cay, built against a low stone wall. A chart table stands under the window with rolled maps and a lamp. A narrow bunk and a sea chest fill the remaining space.",
+    "details": [
+      "A leather case of rolled reef charts rests on the table.",
+      "A carved wooden fid and spare line sit in a shallow tray.",
+      "A small wooden flute lies on the bunk."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Trace a reef route on the charts",
+      "Learn a simple tune on the flute"
+    ],
+    "windowOutlook": "Open water and scattered reefs visible past the low wall and scattered palms.",
+    "interiorStyle": "Small stone-walled room with a heavy plank table, one stool, a rope hammock, salt-stained canvas curtains, and a single brass lantern.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Keon Flint"
+  },
+  {
+    "homeId": "a7d03d87-3637-4eab-9507-5ef85161ce42",
+    "slug": "levi-ash",
+    "world": "gilded-coast",
+    "name": "Levi Ash's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Levi rents a corner room on the second floor of a long building that smells of tar and hemp. A wide plank table stands in the center with two stools. Coiled lengths of finished rope hang from pegs along one wall.",
+    "details": [
+      "A wooden chessboard with carved bone pieces sits ready on the table.",
+      "A leather case of marlinspikes and fids lies open beside the rope coils.",
+      "A small hand mirror and a tin of pomade rest on a shelf above the washstand."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a game of chess",
+      "Practice a new knot together"
+    ],
+    "windowOutlook": "view across the ropewalk yard toward stacked timber and the river",
+    "interiorStyle": "rectangular room with exposed beam ceiling, rough plank walls stained by smoke, a narrow bed along the back wall, two oil lamps, and a faded red wool blanket on the bed",
+    "draftModel": "grok-4.3",
+    "ownerName": "Levi Ash"
+  },
+  {
+    "homeId": "c8cb16a7-1ae2-4d0a-b8ba-442e50fc852b",
+    "slug": "liora-quell",
+    "world": "gilded-coast",
+    "name": "Liora Quell's Private Room",
+    "residenceType": "private coastal quarters",
+    "description": "Liora keeps a compact room at the Blue Lantern Inn. A bed with a striped cover stands against the inside wall. A small table and chair sit near the door with a basin on a stand.",
+    "details": [
+      "A dark glass bottle of amaro and two small cups rest on the table.",
+      "A folded length of deep green silk lies on the chair seat.",
+      "A stack of old song broadsides sits under the basin."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Try a new amaro pairing",
+      "Dance a slow step to an old tune"
+    ],
+    "windowOutlook": "view over the inn's rear courtyard and the backs of neighboring roofs",
+    "interiorStyle": "square room with salt-stained plaster walls, one small square window with a wooden shutter, worn floorboards, a single oil lamp, and a tobacco-brown wool throw across the bed",
+    "draftModel": "grok-4.3",
+    "ownerName": "Liora Quell"
+  },
+  {
+    "homeId": "51e3694e-168a-4533-bc92-a35085b5af81",
+    "slug": "luca-vane",
+    "world": "gilded-coast",
+    "name": "Luca Vane's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Luca keeps a single room reached by a narrow stair behind the fruit stalls. A narrow bed sits against the far wall with a trunk at its foot. A small table holds a washbasin and a stack of folded shirts.",
+    "details": [
+      "A battered concertina rests on a low stool near the window.",
+      "Loose sheets of handwritten poetry lie weighted by a brass inkwell on the table.",
+      "A woven basket of mangoes and guavas sits on the floor beside the trunk."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Sing through a new verse together",
+      "Taste two different mangoes"
+    ],
+    "windowOutlook": "narrow view down a lantern-lit alley toward the harbor masts",
+    "interiorStyle": "small square room with whitewashed plaster walls, one shuttered window, worn floorboards, a single oil lantern on a hook, and a faded indigo curtain over the bed alcove",
+    "draftModel": "grok-4.3",
+    "ownerName": "Luca Vane"
+  },
+  {
+    "homeId": "c0ebba66-b281-4240-82ec-c078d23d226a",
+    "slug": "lucien-damar",
+    "world": "gilded-coast",
+    "name": "Lucien Damar's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Lucien keeps a room above a quiet shop on Gilt Row. A music stand stands near the window with a violin case on a chair beside it. A narrow bed and a tall wardrobe fill the remaining space.",
+    "details": [
+      "A set of small tools for bridge and peg repair lies on a folded cloth on the stand.",
+      "A stack of printed street-song sheets sits tied with twine on the wardrobe top.",
+      "A pair of well-worn walking boots rests under the bed."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Tune and play a short piece together",
+      "Look through new sheet music"
+    ],
+    "windowOutlook": "angled view of the harbor terrace roofs and a line of masts at dusk",
+    "interiorStyle": "compact room with pale lime-washed walls, one tall narrow window with wooden shutters, dark mahogany wardrobe, a single brass lantern, and a woven rush mat on the floor",
+    "draftModel": "grok-4.3",
+    "ownerName": "Lucien Damar"
+  },
+  {
+    "homeId": "842172a8-e2ce-493c-a57b-b3e549e88d26",
+    "slug": "maia-bel",
+    "world": "gilded-coast",
+    "name": "Maia's room near the theater",
+    "residenceType": "private residence",
+    "description": "Maia keeps a compact room above a shop in Lantern Market. A narrow bed and a small table take up most of the space. A practice target board leans against one wall.",
+    "details": [
+      "A set of balanced wooden practice knives lies in a cloth wrap on the table.",
+      "A wooden puzzle box with sliding panels sits on the windowsill.",
+      "A folded towel and a small jar of salve rest on a low stool."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Solve the next layer of the wood puzzle",
+      "Throw a few practice knives at the target board"
+    ],
+    "windowOutlook": "A narrow window looks down on the market stalls and the evening crowd below.",
+    "interiorStyle": "A small square room with yellow walls, a single bed with a blue cover, a plain table, and a wooden target board propped in the corner.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Maia Bel"
+  },
+  {
+    "homeId": "28cf2608-e752-4382-9a05-ecba4dc9aa33",
+    "slug": "mara-blackfin",
+    "world": "gilded-coast",
+    "name": "Mara's quarters above the anchorage",
+    "residenceType": "private residence",
+    "description": "Mara keeps a private set of rooms above Blackfin Anchorage. A wide table holds mending work and a hammock hangs in the corner. The space stays simple and practical with few extra furnishings.",
+    "details": [
+      "A coil of netting and a bone needle lie on the table beside a jar of twine.",
+      "A faded canvas bag holds a change of clothes and a length of rope.",
+      "A small wooden flute rests on a shelf near the hammock."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Mend a section of net together",
+      "Hum an old song while checking the lines"
+    ],
+    "windowOutlook": "A single high window looks across the anchorage toward the reef line and open water.",
+    "interiorStyle": "A low-ceilinged room with dark plank walls, a scarred work table, a hammock slung between posts, and a single lantern on a hook.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Captain Mara Blackfin"
+  },
+  {
+    "homeId": "0d05c2bc-5ded-4e2d-9521-2b3ba04baec3",
+    "slug": "maren-hooke",
+    "world": "gilded-coast",
+    "name": "Maren's room at the Blue Lantern",
+    "residenceType": "private coastal quarters",
+    "description": "Maren keeps a small private room above the Blue Lantern in the Outer Cays. A narrow bed sits against one wall with a travel chest at its foot. Work clothes hang from a peg near the door and a single lantern hangs from a beam overhead.",
+    "details": [
+      "A dented brass powder flask rests on the table beside a stack of folded cloth.",
+      "A small wooden box with a latch holds coins and a few folded papers.",
+      "A tin plate with the remains of fried fish sits on the windowsill."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Weigh out a fresh measure of powder",
+      "Count the coins from the last prize"
+    ],
+    "windowOutlook": "Salt-worn shutters open onto the dark water and scattered lights of neighboring cays.",
+    "interiorStyle": "One narrow room with whitewashed walls, a low plank ceiling, a rope-strung bed, one wooden chair, and a rough floor scattered with sand.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Maren Hooke"
+  },
+  {
+    "homeId": "828fd921-750c-4230-8f89-10aa88644df6",
+    "slug": "mateo-salt",
+    "world": "gilded-coast",
+    "name": "Mateo's room in the Ropewalk",
+    "residenceType": "private residence",
+    "description": "Mateo rents a modest room near the sail lofts. A long table holds pattern sheets and tools while a narrow bed stands against the far wall. The space smells of canvas and salt.",
+    "details": [
+      "A roll of sailcloth and a set of wooden pattern weights sit on the work table.",
+      "A pair of worn dancing shoes rests beside the door on a low bench.",
+      "A covered bowl holds the remains of spiced fish from the market."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Trace a new sail pattern on the table",
+      "Practice a few dance steps across the floor"
+    ],
+    "windowOutlook": "A small square window frames the ropewalk yard and stacked timber beyond.",
+    "interiorStyle": "A single room with pale walls, a long work table under the window, a rope bed with a striped cover, and a shelf of folded canvas.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Mateo Salt"
+  },
+  {
+    "homeId": "18b6559d-f758-4973-95ab-7bb4a9c1ed0b",
+    "slug": "mira-cael",
+    "world": "gilded-coast",
+    "name": "Mira Cael's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Mira keeps a modest room above a narrow lane in Admiralty Quay. A narrow bed sits under one window while a low table holds her tools near the door. Lantern light falls across the floorboards at night.",
+    "details": [
+      "A set of tiny carved wooden ships rests on a shelf above the bed.",
+      "A stack of signal flag swatches lies folded on the table.",
+      "A small notebook with cloud sketches sits beside the carvings."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Carve a small ship from scrap wood",
+      "Match flag swatches to cloud sketches"
+    ],
+    "windowOutlook": "A narrow view of the harbor channel and passing masts between two stone buildings.",
+    "interiorStyle": "A single low-ceiling room with salt-stained mahogany planks, deep indigo curtains, a simple rope bed, one lantern on a hook, and a worn canvas mat under the table.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Mira Cael"
+  },
+  {
+    "homeId": "c5ff3805-bf4e-4a2f-9699-59edcf677aeb",
+    "slug": "nadia-storm",
+    "world": "gilded-coast",
+    "name": "Nadia Storm's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Nadia keeps a small room in a house on the Outer Cays. A desk with charts and drawings stands under the window and a hammock is slung across the far corner. The floor holds a few rolled maps.",
+    "details": [
+      "A set of hand-drawn reef charts lies open on the desk.",
+      "A small wooden case of drawing charcoal sits beside the charts.",
+      "A damp swimming towel hangs from a peg near the door."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Compare new depth marks on the charts",
+      "Add sketches to the reef drawings together"
+    ],
+    "windowOutlook": "A high view over the cays and the line of reefs visible in daylight.",
+    "interiorStyle": "A compact room with sunlit gold walls, sea turquoise hammock, weathered mahogany desk, one lantern on a hook, and a salt-stained canvas curtain pulled back from the window.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Nadia Storm"
+  },
+  {
+    "homeId": "a9162a20-577f-488c-84a0-dd143f0df343",
+    "slug": "nera-tide",
+    "world": "gilded-coast",
+    "name": "Nera Tide's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Nera's room sits at the back of a shared house near Breakwater Point. A sturdy chest holds her gear against one wall and a wide basin stands ready by the window. The floor shows salt marks from wet boots.",
+    "details": [
+      "A half-finished shell carving sits on the chest lid.",
+      "A coil of salvage rope hangs from a peg by the door.",
+      "A clean set of linen towels rests on a stool near the basin."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Finish a carving on a shell",
+      "Guess where each beach find washed ashore"
+    ],
+    "windowOutlook": "A low view across the stone breakwater and open water beyond the point.",
+    "interiorStyle": "A compact room with weathered mahogany walls, sea turquoise cloth on the bed, a brass basin on a stand, one lantern, and a patched canvas curtain over the single window.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Nera Tide"
+  },
+  {
+    "homeId": "c075edc5-1043-4cb2-8010-178895202050",
+    "slug": "nico-solari",
+    "world": "gilded-coast",
+    "name": "Nico Solari's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Nico keeps a small room above a warehouse in Admiralty Quay. A low table with a chessboard takes the center of the floor and a hammock hangs along one wall. Knot samples lie in a basket by the door.",
+    "details": [
+      "A wooden chess set with worn pieces rests on the low table.",
+      "A collection of neatly tied boat knots hangs on a string across the wall.",
+      "A folded map of harbor routes sits under the chessboard."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a game of chess on the low table",
+      "Practice tying new boat knots from the basket"
+    ],
+    "windowOutlook": "A street-level view of carts and crates moving along the quay edge.",
+    "interiorStyle": "A narrow room with salt white walls, deep indigo hammock, weathered mahogany table, one brass lantern, and a simple woven mat covering part of the plank floor.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Nico Solari"
+  },
+  {
+    "homeId": "23dde65f-9801-4cd5-98db-417f43967ada",
+    "slug": "nyxa-marin",
+    "world": "gilded-coast",
+    "name": "Nyxa's Room",
+    "residenceType": "private coastal quarters",
+    "description": "Nyxa keeps a compact room above the Blue Lantern Inn in Admiralty Quay. A travel chest sits at the end of the bed and a small lamp lights the corner. The space holds her things away from the tavern floor.",
+    "details": [
+      "Three knives with carved handles lie wrapped in a cloth on the chest.",
+      "A bundle of folded theatre bills rests on a narrow shelf.",
+      "A string of thrift jewelry hangs from a nail above the wash basin."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Compare two theatre bills",
+      "Practice a quick knife balance"
+    ],
+    "windowOutlook": "Side view down a narrow alley toward the harbor edge.",
+    "interiorStyle": "Rectangular room with dark wood paneling on the lower walls, a striped woven blanket on the bed, a single stool, and a peg rail holding a jacket and scarf.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Nyxa Marin"
+  },
+  {
+    "homeId": "1fd14e38-5f2f-496e-bc46-1f4821977095",
+    "slug": "odile-vane",
+    "world": "gilded-coast",
+    "name": "Odile's Room",
+    "residenceType": "private coastal quarters",
+    "description": "Odile keeps a compact room above the Blue Lantern Inn in Admiralty Quay. A narrow bed takes one wall and a small table holds her papers and a bottle. The space stays simple and functional after her shifts at the Customs House.",
+    "details": [
+      "A stack of bound ledgers sits on the table with a quill and ink pot beside them.",
+      "A cracked brass horn rests on a low shelf next to a folded cloth.",
+      "A pair of worn running shoes hangs from a peg by the door."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Learn a tune on the horn",
+      "Trade a harbor story over a drink"
+    ],
+    "windowOutlook": "Narrow view of the quay street and passing carts below the inn shutters.",
+    "interiorStyle": "Small square room with whitewashed walls, a single lantern on a hook, a wooden chair with a salt-stained coat draped over it, and a low trunk at the foot of the bed.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Odile Vane"
+  },
+  {
+    "homeId": "7d6656cf-e02d-424f-83c7-028ca0f2a709",
+    "slug": "oren-gale",
+    "world": "gilded-coast",
+    "name": "Oren's Quarters",
+    "residenceType": "private residence",
+    "description": "Oren keeps a modest house in Breakwater Point near the tide observatory. A desk by the window holds his journals and charts. The room stays practical for his work recording weather and sea conditions.",
+    "details": [
+      "A row of weather journals stands upright on the desk with a ruler on top.",
+      "A wooden chess set sits on a low bench against the wall.",
+      "A coiled length of rope used for boat lines rests in a basket by the door."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a game of chess",
+      "Read a favorite passage from the journal"
+    ],
+    "windowOutlook": "Open view of the breakwater rocks and open water beyond.",
+    "interiorStyle": "Rectangular room with gray stone walls, a heavy plank desk, two simple wooden chairs, a bed with a gray blanket, and a wall rack holding rolled charts.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Oren Gale"
+  },
+  {
+    "homeId": "32275264-688d-4a47-a40d-3d241d42208a",
+    "slug": "osric-kane",
+    "world": "gilded-coast",
+    "name": "Osric's Room",
+    "residenceType": "private coastal quarters",
+    "description": "Osric keeps a compact room above the Blue Lantern Inn in Admiralty Quay. A small table near the window holds a kettle and cup. The space stays orderly after his days at the Sailors' Exchange.",
+    "details": [
+      "A thick ledger with a leather cover lies open on the table.",
+      "A wooden tea caddy and two tin cups sit on a corner shelf.",
+      "A pair of boxing gloves hangs from a hook on the back of the door."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Brew a pot of tea",
+      "Turn a page of old figures into a number game"
+    ],
+    "windowOutlook": "Direct view across the quay rooftops to the water.",
+    "interiorStyle": "Square room with pale blue walls, a sturdy oak table, a straight-backed chair, a narrow bed with a brown wool blanket, and a small trunk under the window.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Osric Kane"
+  },
+  {
+    "homeId": "7c6386ff-170a-401c-a626-8bc99d48febc",
+    "slug": "petra-cinder",
+    "world": "gilded-coast",
+    "name": "Petra's Quarters",
+    "residenceType": "private coastal quarters",
+    "description": "Petra keeps a spare room near the Ropewalk shipyard. A sturdy bed stands against the back wall, and a heavy table holds a few iron samples and a sharpening stone. A single chair faces the door.",
+    "details": [
+      "A short iron bar rests on the table, its surface polished to show the grain of the pour.",
+      "A black coffee pot sits on a small stand near the window, ready for the next use.",
+      "A leather range case leans against the wall, containing measuring tools for metalwork."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Sketch a maker’s mark in the lantern light",
+      "Design a small iron keepsake for the forge"
+    ],
+    "windowOutlook": "A direct look at the ropewalk yard where timber stacks and pulley lines shift in the wind.",
+    "interiorStyle": "Rectangular room with weathered mahogany beams and salt-white plaster. The bed has a plain tobacco-brown blanket, the table is thick and scarred, and a single brass lantern provides the only light.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Petra Cinder"
+  },
+  {
+    "homeId": "73311f18-c1ca-4975-9d17-56d3f3335749",
+    "slug": "quinnie-salt",
+    "world": "gilded-coast",
+    "name": "Quinnie's Room",
+    "residenceType": "private coastal quarters",
+    "description": "Quinnie's room sits at the back of a narrow building in Lantern Market. A low bed occupies one side, with a work table holding small glass vials and a wooden mortar. A shuttered window faces the alley behind the spice stalls.",
+    "details": [
+      "A row of corked perfume vials lines the table, each labeled with tiny handwritten symbols.",
+      "A folded swimming towel hangs from a peg, still carrying traces of salt from night swims.",
+      "A small brass scale sits beside the mortar for measuring precise portions."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Compare two perfume samples",
+      "Review new market finds on the table"
+    ],
+    "windowOutlook": "A tight view down a lantern-lit alley where market carts pass and shutters creak in the breeze.",
+    "interiorStyle": "Small square room with salt-stained stone walls and a single lantern on a hook. The bed has a deep indigo coverlet, the table is plain mahogany with brass fittings, and a chest of folded linen sits at the foot.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Quinnie Salt"
+  },
+  {
+    "homeId": "2e9f11c3-5cfe-47b0-b589-0aac58603638",
+    "slug": "rafiq-nadir",
+    "world": "gilded-coast",
+    "name": "Rafiq's Quarters",
+    "residenceType": "private residence",
+    "description": "Rafiq keeps a compact room above a rope loft near Admiralty Quay. A narrow bed sits under a slanted ceiling, with a small table for meals and a bench along one wall. A shelf holds folded charts and a few carved wooden figures from the cays.",
+    "details": [
+      "A dented brass tankard rests on the table, used for morning coffee or evening rum.",
+      "A rolled fishing net leans in the corner, its mesh patched with thick twine from past repairs.",
+      "A stack of folded sailcloth cushions serves as extra seating when friends drop by after a crossing."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Swap fishing stories over a tankard",
+      "Plot a voyage with the wooden cay figures"
+    ],
+    "windowOutlook": "A narrow view across the quay rooftops toward the ferry dock and shifting channel buoys.",
+    "interiorStyle": "Low-ceilinged room with weathered mahogany planks, salt-white walls, and a single lantern hung from a hook. The bed has a striped indigo blanket, the table is scarred from knife marks, and a chest holds spare clothes under the bench.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Rafiq Nadir"
+  },
+  {
+    "homeId": "f94bd21d-b847-47f8-aa96-9fff8d147080",
+    "slug": "roxana-brine",
+    "world": "gilded-coast",
+    "name": "Roxana's Room",
+    "residenceType": "private coastal quarters",
+    "description": "Roxana's room stands on the upper floor of a small building in the Outer Cays. A bed with a travel chest at its foot takes up most of the space, and a low table holds a rum bottle and tide charts. Shutters open toward the reef line.",
+    "details": [
+      "A brass tide gauge sits on the table beside the charts, its markings worn from frequent use.",
+      "A coiled salvage line hangs from a peg, ready for quick repairs or measurements.",
+      "A wooden rum cup rests near the chest, marked with a small carved reef pattern."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Pick a calm crossing from the tide charts",
+      "Teach each other a salvage knot"
+    ],
+    "windowOutlook": "An angled view over low rooftops to the outer reef where breakers show white in the distance.",
+    "interiorStyle": "Compact room with patched sailcloth curtains and salt-worn mahogany boards. The bed has a sea-turquoise blanket, the table is low and simple, and a single lantern hangs above the chest.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Roxana Brine"
+  },
+  {
+    "homeId": "8933f308-677d-4c46-ab2f-513f54f5a835",
+    "slug": "rune-calder",
+    "world": "gilded-coast",
+    "name": "Rune’s blue Lantern Room",
+    "residenceType": "private coastal quarters",
+    "description": "Rune's room at the inn holds a travel chest and a low stool. A length of rope hangs from a hook for knot practice. A small bottle of grog stands on the windowsill.",
+    "details": [
+      "A coil of tarred rope lies ready on the stool for tying practice.",
+      "A worn deck of cards rests in a tin box on the chest lid.",
+      "A clay bottle of grog sits beside a tin cup."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Practice a new knot pattern",
+      "Play a round of cards"
+    ],
+    "windowOutlook": "Salt-streaked shutters open toward the dark reef line and the lantern glow of distant cays.",
+    "interiorStyle": "Compact corner room with weathered plank walls, a single lantern on a bracket, a narrow bed with patched canvas cover, and a sea chest at the foot.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Rune Calder"
+  },
+  {
+    "homeId": "d898b9ff-2427-419b-8e9a-a81f8362d8be",
+    "slug": "sabine-quill",
+    "world": "gilded-coast",
+    "name": "Sabine’s gilt Row Quarters",
+    "residenceType": "private residence",
+    "description": "Sabine keeps a private room behind the salon terrace. A small table holds her tea blending jars and a wooden flute. A lacquered box of perfume vials stands on a shelf.",
+    "details": [
+      "A row of small glass jars on the table contains dried herbs and petals for tea.",
+      "A simple wooden flute rests on a folded cloth beside the jars.",
+      "A lacquered box holds several stoppered perfume vials."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Blend a new tea mixture",
+      "Play a short tune on the flute"
+    ],
+    "windowOutlook": "Tall shutters overlook the terraced roofs and the lantern-lit harbor beyond the salon district.",
+    "interiorStyle": "Rectangular room with pale gold walls, a low table with two cushions, a carved shelf for the flute and vials, and a narrow bed with indigo linen.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Sabine Quill"
+  },
+  {
+    "homeId": "c985caf4-0083-490a-ab5f-18c02b017bc6",
+    "slug": "sable-rourke",
+    "world": "gilded-coast",
+    "name": "Sable’s blue Lantern Room",
+    "residenceType": "private coastal quarters",
+    "description": "Sable keeps a small room at the same inn with a washstand and a folded hammock. A tide table hangs on the wall beside a deck of cards. An empty rum bottle serves as a candle holder.",
+    "details": [
+      "A folded tide chart lies on the washstand with pencil marks.",
+      "A deck of cards sits in a cloth pouch on the hammock edge.",
+      "A dark rum bottle holds a stub of candle."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Mark the next tide window on the chart",
+      "Play a hand of cards"
+    ],
+    "windowOutlook": "The single window faces the shallow reef channel and the low shapes of moored boats at dusk.",
+    "interiorStyle": "Small square room with dark wood walls, a washstand with basin, a hammock slung between beams, and a single stool.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Sable Rourke"
+  },
+  {
+    "homeId": "491a915b-9695-4708-b9e3-9c5baa79a337",
+    "slug": "sami-haddad",
+    "world": "gilded-coast",
+    "name": "Sami’s battery Quarters",
+    "residenceType": "private residence",
+    "description": "Sami keeps a modest room above the breakwater stores. A narrow table holds his current ledgers beside a basket of dried fruit from the night market. A coil of fishing line rests on a peg near the door.",
+    "details": [
+      "A bound ledger with ink-stained pages sits open on the table for evening tallies.",
+      "A woven market basket holds wrapped parcels of smoked fish and bread.",
+      "A short fishing rod leans against the wall with hooks threaded on a cord."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Challenge each other to a market-price guessing game",
+      "Plan a fish supper from the day’s catch"
+    ],
+    "windowOutlook": "Narrow panes look across the stone breakwater toward the open harbor mouth and passing sailboats.",
+    "interiorStyle": "Small rectangular room with whitewashed walls, a single mahogany table, two straight chairs, and a low rope bed under a salt-stained wool blanket.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Sami Haddad"
+  },
+  {
+    "homeId": "b5093844-863d-4f86-b3cc-e54b74d36560",
+    "slug": "seraphine-vale",
+    "world": "gilded-coast",
+    "name": "Seraphine Vale's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Seraphine Vale keeps a second-floor room on Gilt Row. The space includes a desk for ledgers and a corner table for personal projects away from the bank. It offers a place to unwind after daytime meetings.",
+    "details": [
+      "A half-finished ship model sits on the desk beside a set of carving tools.",
+      "A potted orchid in a brass holder stands near the window for daily care.",
+      "A folded theater program rests on the shelf with notes from recent plays."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Work on the ship model together",
+      "Water and inspect the orchid"
+    ],
+    "windowOutlook": "Harbor terraces and docked merchant vessels below the row of stone buildings.",
+    "interiorStyle": "Medium square room with deep indigo walls, polished mahogany desk and chair, a narrow bed with gold-trimmed coverlet, and a side table holding the orchid under lantern light.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Seraphine Vale"
+  },
+  {
+    "homeId": "9e56e9f7-cb04-4f33-b2e1-a95adfcf4a62",
+    "slug": "sora-bay",
+    "world": "gilded-coast",
+    "name": "Sora Bay's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Sora Bay keeps a modest house on Windward Cay. The main room contains a table for meals and a bench for mending gear after fishing runs. It stays ready for council talks or simple rest.",
+    "details": [
+      "A mending needle and coiled line rest on the bench for net repairs.",
+      "A heavy iron pot hangs near the hearth for cooking fresh catch.",
+      "A small wooden box of dried feathers sits on the shelf from sea-bird sightings."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Mend fishing line at the bench",
+      "Cook a simple meal in the iron pot"
+    ],
+    "windowOutlook": "Rocky shoreline and the reef line visible through salt-streaked panes.",
+    "interiorStyle": "Rectangular room with whitewashed stone walls, a central plank table, two benches, a brick hearth, and open shelves holding clay jars and coiled rope.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Sora Bay"
+  },
+  {
+    "homeId": "4f9c70bc-2136-424d-8009-6ff2559ef04e",
+    "slug": "stellan-rook",
+    "world": "gilded-coast",
+    "name": "Stellan Rook's Private Room",
+    "residenceType": "private coastal quarters",
+    "description": "Stellan Rook keeps a room at the Blue Lantern Inn in Lantern Market. The space holds a bed, a washstand, and a chair that doubles for storage after long nights at the door. It serves as a quiet place once the harbor quiets.",
+    "details": [
+      "A set of iron weights sits under the bed for morning training.",
+      "A deck of worn cards lies on the table for late games with visitors.",
+      "A shallow dish holds gold chains and spare coins beside the washbasin."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Lift the iron weights together",
+      "Play a round of cards"
+    ],
+    "windowOutlook": "Narrow alley between two stone buildings with laundry lines overhead.",
+    "interiorStyle": "Small square room with faded turquoise plaster, scarred floorboards, a low rope bed with salt-white linen, one three-legged table, and a wall hook for a coat.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Stellan Rook"
+  },
+  {
+    "homeId": "215cde43-6087-4ed0-a73d-a45a3b5d36cd",
+    "slug": "talia-wren",
+    "world": "gilded-coast",
+    "name": "Talia Wren's Private Quarters",
+    "residenceType": "private residence",
+    "description": "Talia Wren keeps a compact room above the breakwater in Tidemark. A narrow bed sits against one wall beside a sturdy table that holds her tools and a small oil lamp. The space stays practical for long watches and quick rests between shifts.",
+    "details": [
+      "A brass lighthouse lens rests on the table for polishing between shifts.",
+      "A wooden flute leans against the chair for evening music practice.",
+      "A pair of birding glasses hangs near the window for spotting seabirds at dawn."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a tune on the wooden flute",
+      "Watch seabirds through the glasses"
+    ],
+    "windowOutlook": "Open harbor water and the distant line of outer cays under shifting clouds.",
+    "interiorStyle": "A single low-ceiling room with salt-stained plank walls, a worn mahogany table, one straight chair, a narrow rope bed with indigo canvas cover, and a wall peg for oilskins.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Talia Wren"
+  },
+  {
+    "homeId": "f3da46a5-ca1c-4607-bf8d-3a33b0234dc6",
+    "slug": "tessera-pike",
+    "world": "gilded-coast",
+    "name": "Tessera Pike's Room",
+    "residenceType": "private coastal quarters",
+    "description": "Tessera keeps a plain room at the Blue Lantern Inn in Breakwater Point. A wooden stool holds a wrapped bundle and a tin cup sits on the floor beside the bed. Worn floorboards show the path to the door.",
+    "details": [
+      "A pair of wrapped hand straps for fighting lies on the stool.",
+      "A folded sheet of fight odds rests under the tin cup.",
+      "A dark bottle of grog stands half-full beside the bed."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Wrap the hand straps for practice",
+      "Compare the latest fight odds on the sheet"
+    ],
+    "windowOutlook": "A stretch of open water beyond the breakwater with a few anchored boats visible.",
+    "interiorStyle": "Rectangular room with weathered plank walls, one brass lantern, a low bed with gray blanket, and a single stool near the door.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Tessera Pike"
+  },
+  {
+    "homeId": "1caeb681-5882-4fe9-8516-fbb32511a897",
+    "slug": "tomas-renn",
+    "world": "gilded-coast",
+    "name": "Tomas Renn's Quarters",
+    "residenceType": "private residence",
+    "description": "Tomas keeps a compact room above a narrow quay building in Admiralty Quay. A low table holds his flute and a stack of harbor papers near a narrow bed with a wool blanket. A small iron stove sits ready for stew in the corner.",
+    "details": [
+      "A simple wooden flute with worn finger holes lies on the table beside a stack of folded charts.",
+      "A leather-bound ledger of past ferry schedules rests on a shelf above the bed.",
+      "A heavy iron pot with a wooden ladle stands on the small stove near the window."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Play a melody on the wooden flute",
+      "Trace routes on the harbor chart"
+    ],
+    "windowOutlook": "A narrow slice of the working quay with docked ferries and stacked cargo crates below.",
+    "interiorStyle": "Small rectangular room with salt-stained plank walls, a single lantern on a hook, a low wooden bed against the back wall, and a scarred table under the front window.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Tomas Renn"
+  },
+  {
+    "homeId": "2e5a0bff-5774-4e20-8638-5f9b1ebe6859",
+    "slug": "vesperine-crowe",
+    "world": "gilded-coast",
+    "name": "Vesperine Crowe's Room",
+    "residenceType": "private coastal quarters",
+    "description": "Vesperine keeps a small room at the Blue Lantern Inn in Gilt Row. A travel chest sits at the foot of the bed and a narrow shelf holds a few glass bottles. Salt-worn shutters open onto the terrace roofs.",
+    "details": [
+      "A short practice blade with a wrapped grip leans against the wall beside the chest.",
+      "A small glass perfume bottle with a brass stopper stands on the shelf.",
+      "An empty champagne flute rests upside down on the windowsill."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Compare two scents from the perfume shelf",
+      "Invent a name for a new perfume blend"
+    ],
+    "windowOutlook": "Slanted roofs of neighboring terraces and a slice of the harbor beyond the inn courtyard.",
+    "interiorStyle": "Narrow room with whitewashed walls, a single brass lantern, a low bed with striped cotton cover, and a pine travel chest under the window.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Vesperine Crowe"
+  },
+  {
+    "homeId": "2e742e22-1957-481c-9966-ef2a8127bb6d",
+    "slug": "yara-nouri",
+    "world": "gilded-coast",
+    "name": "Yara Nouri's Quarters",
+    "residenceType": "private residence",
+    "description": "Yara keeps a modest room in a Ropewalk boarding house. A coil of rope and a small wooden box sit on the floor near the bed. A faded towel hangs from a peg by the door.",
+    "details": [
+      "A length of hemp rope tied into three different knots hangs from a wall hook.",
+      "A small tin box of citrus sweets rests on the windowsill.",
+      "A wooden peg puzzle with carved pieces lies on the low table."
+    ],
+    "activities": [
+      "Have a drink",
+      "Share a snack",
+      "Catch up for a while",
+      "Spend a quiet evening",
+      "Untie and retie the knotted rope",
+      "Solve the wooden peg puzzle together"
+    ],
+    "windowOutlook": "A cluttered yard with stacked lumber and a partial view of the ropewalk sheds.",
+    "interiorStyle": "Small square room with dark-stained wood walls, a single oil lamp, a narrow bed with canvas cover, and a low bench against the side wall.",
+    "draftModel": "grok-4.3",
+    "ownerName": "Yara Nouri"
+  }
+]

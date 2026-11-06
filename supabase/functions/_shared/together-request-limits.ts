@@ -16,6 +16,8 @@ export function conversationActionRateLimit(action: string): RequestRateLimit {
     case 'inbox_v2':
       return { limit: 600, windowSeconds: ONE_HOUR };
     case 'history':
+    case 'management':
+    case 'branch_paths':
     case 'archived':
     case 'search':
     case 'reset_preview':

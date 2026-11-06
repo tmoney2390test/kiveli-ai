@@ -1,6 +1,6 @@
 import type { ChatDialogueExperiment } from './chat-model-test.ts';
 import type { AdultRoutingEvidence } from './dialogue-routing-continuity.ts';
-import { analyzeAdultLanguage, hasExplicitAdultLanguage } from './adult-language.ts';
+import { analyzeAdultLanguage } from './adult-language.ts';
 
 export type DialogueProviderName = 'openai' | 'xai' | 'gemini' | 'venice' | 'wavespeed' | 'deterministic';
 export type DialogueContentMode = 'standard' | 'romance' | 'mature' | 'explicit';
@@ -59,10 +59,13 @@ export const dialogueProviderCapabilities: Record<DialogueProviderName, { romanc
   deterministic: { romance: true, matureThemes: false, explicitSexualText: false },
 };
 
-const explicitActPattern = /\b(?:strip(?:ping)?|horny|orgasm|masturbat(?:e|ing|ion)|fuck(?:ing|ed)?|sex(?:ual|ually)?|oral sex|anal sex|blowjob|handjob|go down on|eat (?:me|you|her|him|them) out|ride (?:me|you|her|him|them)|finger(?:ing|ed)?|cum|penetrat(?:e|ion|ing)|bdsm|bondage|spank(?:ing|ed)?|dominant|submissive|safe\s*word|cnc|consensual non[- ]?consent|sixty[- ]?nine|rape(?:s|d|ing)?)\b/i;
+const explicitActPattern = /\b(?:strip(?:ping)?|horny|orgasm|masturbat(?:e|ing|ion)|sex(?:ual|ually)?|oral sex|anal sex|blowjob|handjob|go down on|eat (?:me|you|her|him|them) out|ride (?:me|you|her|him|them)|finger(?:ing|ed)?|cum|penetrat(?:e|ion|ing)|bdsm|bondage|spank(?:ing|ed)?|dominant|submissive|safe\s*word|cnc|consensual non[- ]?consent|sixty[- ]?nine|rape(?:s|d|ing)?)\b/i;
+const sexualFuckPattern = /\b(?:fuck(?:s|ed|ing)?\s+(?:me|her|him|them|us)|(?:want|wanna|going|gonna|let's|lets|please|need|trying)\s+(?:to\s+)?fuck(?:\s+(?:me|you|her|him|them|us))?|(?:down|ready)\s+to\s+fuck(?:\s+(?:me|you|her|him|them|us))?)\b/i;
+const bareAdultVocabulary = /^(?:fuck(?:ing|ed)?|cock(?:s|head)?|dicks?|pussy|cunt|ass|sex(?:ual)?|nude|naked|penis|vagina|breasts?|boobs?|tits?|nipples?)[!?.,]*$/i;
+function isBareAdultVocabulary(text:string):boolean{return bareAdultVocabulary.test(analyzeAdultLanguage(text).normalized.replace(/[!?.,\s]+$/g,'').trim());}
 const adultIntimacyIntentPattern = /(?:\b(?:have sex|sex with (?:me|you)|sleep (?:with|together)|make love|hook up|come to bed|go to bed with|spend the night|be intimate|take me to bed|tener sexo|acostarnos juntos|hacer el amor|coucher (?:ensemble|avec (?:moi|toi))|faire l['’]amour|andare a letto insieme|fare (?:l['’]amore|sesso)|miteinander schlafen|liebe machen|sex mit (?:mir|dir)|fazer sexo|dormir juntos|fazer amor)\b|セックスしたい|一緒に寝たい|愛し合いたい|섹스하고 싶|같이 자고 싶|사랑을 나누|想做爱|想和你睡|一起过夜)/iu;
 const explicitAdvancePattern = /^(?:i (?:really )?(?:want|need) you(?: right now| so badly| so bad| tonight)?)\s*[.!?]*$|(?:\b(?:take off (?:your|my) clothes|undress (?:me|yourself)|touch me|let me touch you|put your hands on me|get on top of me|come under the covers|quítate la ropa|desvísteme|tócame|déjame tocarte|déshabille-toi|déshabille-moi|touche-moi|spogliati|spogliami|toccami|zieh dich aus|fass mich an|tire a roupa|me despe|me toca)\b|脱いで|触って|옷 벗어|만져 줘|脱掉衣服|摸我)/iu;
-export const hasSexualDialogueLanguage=(text:string)=>explicitActPattern.test(text)||adultIntimacyIntentPattern.test(text)||explicitAdvancePattern.test(text)||hasExplicitAdultLanguage(text);
+export const hasSexualDialogueLanguage=(text:string)=>!isBareAdultVocabulary(text)&&(explicitActPattern.test(text)||sexualFuckPattern.test(text)||adultIntimacyIntentPattern.test(text)||explicitAdvancePattern.test(text)||analyzeAdultLanguage(text).explicit);
 
 // This is intentionally narrower than the input router above. Generated
 // fantasy dialogue can naturally contain profanity and words such as
@@ -150,7 +153,7 @@ export function classifyDialogueContent(input: {
 }): DialogueContentClass {
   const message = input.message.trim();
   const recent = (input.recentTurns ?? []).slice(-4).map((turn) => turn.content).join('\n');
-  const sexual = hasSexualDialogueLanguage(message) || Boolean(input.moderation?.categories.some((category) => category === 'sexual' || category === 'sexual/adult'));
+  const sexual = hasSexualDialogueLanguage(message) || (!isBareAdultVocabulary(message) && Boolean(input.moderation?.categories.some((category) => category === 'sexual' || category === 'sexual/adult')));
   const adultIntimacyIntent=adultIntimacyIntentPattern.test(message)||(input.requestedMode==='explicit'&&explicitAdvancePattern.test(message));
   const contextualExplicit = input.requestedMode === 'explicit' && hasSexualDialogueLanguage(recent) && (continuationPattern.test(message) || explicitContextContinuationPattern.test(message));
   if (isDialogueHardBlocked({message,...(input.moderation?{moderation:input.moderation}:{})})) return 'hard_block';
