@@ -87,14 +87,14 @@ export function homeMemoryEvidence(
   let rememberedWelcome = false, rememberedBoundary = false;
   for (const memory of memories) {
     const text = String(memory.canonical_text ?? "").replace(/[’‘]/g, "'");
-    const boundary = memory.metadata?.homeVisitPermission === "denied" ||
+    const boundary = memory.metadata?.["homeVisitPermission"] === "denied" ||
       /\b(?:not (?:always )?welcome|not allowed|do not (?:come|visit)|don't (?:come|visit)|does not want (?:me|the user)|doesn't want (?:me|the user))\b.{0,80}\b(?:home|house|apartment|place)\b/i
         .test(text) ||
       /\b(?:home|house|apartment)\b.{0,50}\b(?:off limits|private for now)\b/i
         .test(text);
     if (boundary) rememberedBoundary = true;
     else if (
-      memory.metadata?.homeVisitPermission === "welcome" || (
+      memory.metadata?.["homeVisitPermission"] === "welcome" || (
         !/\b(?:not|never|don't|doesn't|no longer|used to|want to|wish|hope|if|might|maybe)\b/i
           .test(text) && (
             /\b(?:always welcome|welcome (?:at|in)|come over (?:anytime|whenever)|has (?:a |the )?key to)\b.{0,70}\b(?:home|house|apartment|flat|your place|her place|his place|their place)\b/i
