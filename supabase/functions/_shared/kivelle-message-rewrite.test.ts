@@ -84,14 +84,20 @@ function ownedFixture(){
     const query={select(value:string){columns=value;return query;},eq(key:string,value:unknown){rows=rows.filter(row=>row[key]===value);return query;},lt(key:string,value:number){rows=rows.filter(row=>row[key]<value);return query;},is(){return query;},order(key:string,options?:{ascending?:boolean}){rows.sort((a,b)=>(Number(a[key])-Number(b[key]))*(options?.ascending===false?-1:1));return query;},limit(n:number){rows=rows.slice(0,n);return query;},single:async()=>({...result(),data:result().data[0]??null}),maybeSingle:async()=>({...result(),data:result().data[0]??null}),then(resolve:any,reject:any){return Promise.resolve(result()).then(resolve,reject);}};
     return query;
   }} as unknown as SupabaseClient;
-  const access:AdultAccessContext={premium_access:false,adult_eligible:true,adult_mode_enabled:false,client_surface:'native_or_unknown',adult_generation_enabled:false,authorized_web_adult:false,adult_eligibility:{allowed:true,reason:'verified_adult'},private_adult_text_mode:'on',private_text_preference:'explicit',private_text_preference_recorded:true,web_session_id:null};
+  const access:AdultAccessContext={premium_access:false,adult_eligible:true,adult_mode_enabled:false,client_surface:'web',adult_generation_enabled:false,authorized_web_adult:false,adult_eligibility:{allowed:true,reason:'verified_adult'},private_adult_text_mode:'on',private_text_preference:'explicit',private_text_preference_recorded:true,web_session_id:null};
   const input={conversationId:user,anchorMessageId:target.id,expectedRevision:0};
   return {fake,access,input,profile,instance,target,tables};
 }
-Deno.test('owned native text rewrite resolves the original turn without authorizing visuals',async()=>{
+Deno.test('owned web text rewrite resolves the original turn without authorizing visuals',async()=>{
   const f=ownedFixture(),prepared=await loadMessageRewrite(f.fake,user,f.access,f.input);
   assertEquals(prepared.source.role,'user');assertEquals(prepared.speakerId,user);
   assertEquals(prepared.policy.rollout.generationAllowed,true);assertEquals(f.access.authorized_web_adult,false);
+});
+Deno.test('iOS and unknown native surfaces reject explicit rewrites even for an eligible adult',async()=>{
+  const f=ownedFixture();
+  for(const client_surface of ['ios','native_or_unknown'] as const){
+    await assertRejects(()=>loadMessageRewrite(f.fake,user,{...f.access,client_surface},f.input),Error,'Spice is unavailable');
+  }
 });
 Deno.test('rewrite preparation rejects foreign ownership, age uncertainty, stale targets and later turns',async()=>{
   const f=ownedFixture();

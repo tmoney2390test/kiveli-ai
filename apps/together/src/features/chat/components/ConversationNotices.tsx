@@ -66,13 +66,28 @@ export function RelationshipMomentCard({ milestone, busy, onChoose, onDismiss }:
 }) {
   return (
     <View style={[styles.milestoneCard, milestone.kind === 'repair' && styles.milestoneTense]}>
-      {milestone.kind === 'keep_in_touch' && onDismiss ? <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Dismiss Keep in touch prompt"
-        disabled={busy}
-        onPress={onDismiss}
-        style={{ position: 'absolute', top: 12, right: 12, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', zIndex: 1 }}
-      ><X size={20} color={colors.text} /></Pressable> : null}
+      {milestone.kind === 'keep_in_touch' && onDismiss
+        ? (
+          <Pressable
+            accessibilityRole='button'
+            accessibilityLabel='Dismiss Keep in touch prompt'
+            disabled={busy}
+            onPress={onDismiss}
+            style={{
+              position: 'absolute',
+              top: 12,
+              right: 12,
+              width: 36,
+              height: 36,
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1,
+            }}
+          >
+            <X size={20} color={colors.text} />
+          </Pressable>
+        )
+        : null}
       <View style={styles.milestoneIcon}>
         <Heart
           size={18}
@@ -87,7 +102,9 @@ export function RelationshipMomentCard({ milestone, busy, onChoose, onDismiss }:
       <Text style={styles.milestoneBody}>{milestone.body}</Text>
       <Text style={styles.milestonePrompt}>{milestone.prompt}</Text>
       <View style={styles.milestoneChoices}>
-        {milestone.choices.filter((choice) => !(milestone.kind === 'keep_in_touch' && onDismiss && choice.id === 'dismiss')).map((choice) => (
+        {milestone.choices.filter((choice) =>
+          !(milestone.kind === 'keep_in_touch' && onDismiss && choice.id === 'dismiss')
+        ).map((choice) => (
           <Pressable
             key={choice.id}
             disabled={busy}

@@ -31,16 +31,24 @@ const initialHistory = {
 };
 
 /** State is separate from subscriptions so the screen can wire scroll callbacks without owning IO. */
-export function useDirectHistoryState(scope: ChatRequestScope, userId?: string, conversationId?: string) {
+export function useDirectHistoryState(
+  scope: ChatRequestScope,
+  userId?: string,
+  conversationId?: string,
+) {
   const firstFrame = useMemo(() => {
-    const cached = userId && conversationId ? readConversationMessagePage(userId, conversationId) : null;
-    return cached && conversationId ? {
-      ...initialHistory,
-      messages: cached.messages,
-      hasMore: cached.hasMore,
-      loadedConversationId: conversationId,
-      loading: false,
-    } : initialHistory;
+    const cached = userId && conversationId
+      ? readConversationMessagePage(userId, conversationId)
+      : null;
+    return cached && conversationId
+      ? {
+        ...initialHistory,
+        messages: cached.messages,
+        hasMore: cached.hasMore,
+        loadedConversationId: conversationId,
+        loading: false,
+      }
+      : initialHistory;
   }, [scope, userId, conversationId]);
   const [state, setState] = useScopedChatState(scope, firstFrame);
   const [attempt, setAttempt] = useScopedChatState(scope, 0);

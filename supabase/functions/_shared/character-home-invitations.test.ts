@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { homeTestDb } from "../../../scripts/fixtures/home-test-db";
+import { homeTestDb } from "./test-support/home-test-db";
 const mocks = vi.hoisted(() => ({
   load: vi.fn(),
   prepare: vi.fn(),

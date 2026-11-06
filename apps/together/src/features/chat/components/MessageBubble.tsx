@@ -15,7 +15,6 @@ import { type ImageSource } from 'expo-image';
 import {
   Brain,
   CalendarDays,
-  Sparkles,
   Camera,
   Copy,
   FastForward,
@@ -24,6 +23,7 @@ import {
   Heart,
   LockKeyhole,
   MapPin,
+  Sparkles,
   Trash2,
   Undo2,
   Volume2,
@@ -62,7 +62,10 @@ import {
   photoMediaForOffer,
   visibleChatPhotoMedia,
 } from '../../../lib/photoRequestPresentation';
-import { privateStoredImageSource, privateStoredPreviewSource } from '../../../lib/mediaImageSource';
+import {
+  privateStoredImageSource,
+  privateStoredPreviewSource,
+} from '../../../lib/mediaImageSource';
 import { subscriptionHref } from '../../../lib/subscriptionPresentation';
 import { type VoiceNoteRequestResult } from '../types';
 import { navigateChatSurface } from '../navigation';
@@ -182,8 +185,10 @@ export function MessageBubble({
     [voiceStatusError, setVoiceStatusError] = useState<string | null>(null),
     [voicePollRetry, setVoicePollRetry] = useState(0),
     [voiceReadyHint, setVoiceReadyHint] = useState(false);
-  const opacity = useRef(new Animated.Value(seamlessCompletion || message.role === 'user' ? 1 : 0)).current;
-  const translate = useRef(new Animated.Value(seamlessCompletion || message.role === 'user' ? 0 : 8)).current;
+  const opacity =
+    useRef(new Animated.Value(seamlessCompletion || message.role === 'user' ? 1 : 0)).current;
+  const translate =
+    useRef(new Animated.Value(seamlessCompletion || message.role === 'user' ? 0 : 8)).current;
   const completionControlsOpacity = useRef(new Animated.Value(seamlessCompletion ? 0 : 1)).current;
   useEffect(() => {
     // Sent messages are already visible optimistically. A canonical refresh
@@ -237,13 +242,21 @@ export function MessageBubble({
         setLocalVoice(result.media);
         if (result.media.status === 'ready' && Platform.OS === 'web') setVoiceReadyHint(true);
         if (result.media.status === 'ready' || result.media.status === 'failed') {
-          if (result.media.status === 'failed') setVoiceStatusError(result.media.failure_reason_safe ?? 'Voice generation failed. Tap to retry.');
+          if (result.media.status === 'failed') {
+            setVoiceStatusError(
+              result.media.failure_reason_safe ?? 'Voice generation failed. Tap to retry.',
+            );
+          }
           return;
         }
       } catch (caught) {
         if (cancelled) return;
         if (attempts >= 2) {
-          setVoiceStatusError(caught instanceof Error ? caught.message : 'Voice status could not be checked. Tap to retry.');
+          setVoiceStatusError(
+            caught instanceof Error
+              ? caught.message
+              : 'Voice status could not be checked. Tap to retry.',
+          );
           return;
         }
       }
@@ -255,7 +268,10 @@ export function MessageBubble({
       timer = setTimeout(() => void poll(), 2000);
     };
     timer = setTimeout(() => void poll(), 1600);
-    return () => { cancelled = true; clearTimeout(timer); };
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [voice?.id, voice?.status, voicePollRetry]);
   // The active offer owns its pending and failed presentation. Excluding its
   // linked media here prevents the legacy MediaTile loader from appearing
@@ -313,13 +329,19 @@ export function MessageBubble({
       if (result.media) {
         setLocalVoice(result.media);
         if (result.media.status === 'ready' && Platform.OS === 'web') setVoiceReadyHint(true);
-        if (result.media.status === 'failed') setVoiceStatusError(result.media.failure_reason_safe ?? 'Voice generation failed. Tap to retry.');
+        if (result.media.status === 'failed') {
+          setVoiceStatusError(
+            result.media.failure_reason_safe ?? 'Voice generation failed. Tap to retry.',
+          );
+        }
         if (result.media.status === 'ready' && Platform.OS !== 'web') {
           onVoiceActivate(result.media.id);
         }
       }
     } catch (caught) {
-      setVoiceStatusError(caught instanceof Error ? caught.message : 'The voice note could not be generated.');
+      setVoiceStatusError(
+        caught instanceof Error ? caught.message : 'The voice note could not be generated.',
+      );
       Alert.alert(
         'Voice note',
         caught instanceof Error ? caught.message : 'The voice note could not be generated.',
@@ -335,13 +357,24 @@ export function MessageBubble({
     try {
       const result = await refreshVoiceNote(voice.id);
       setLocalVoice(result.media);
-      setVoiceStatusError(result.media.status === 'ready' && !result.media.signed_url ? 'Audio could not be loaded. Tap to try again.' : null);
-      if (result.media.status === 'ready' && result.media.signed_url && Platform.OS === 'web') setVoiceReadyHint(true);
+      setVoiceStatusError(
+        result.media.status === 'ready' && !result.media.signed_url
+          ? 'Audio could not be loaded. Tap to try again.'
+          : null,
+      );
+      if (result.media.status === 'ready' && result.media.signed_url && Platform.OS === 'web') {
+        setVoiceReadyHint(true);
+      }
     } catch (caught) {
-      setVoiceStatusError(caught instanceof Error ? caught.message : 'Audio could not be loaded. Tap to try again.');
+      setVoiceStatusError(
+        caught instanceof Error ? caught.message : 'Audio could not be loaded. Tap to try again.',
+      );
     }
   };
-  const retryVoiceStatus = () => { setVoiceStatusError(null); setVoicePollRetry((current) => current + 1); };
+  const retryVoiceStatus = () => {
+    setVoiceStatusError(null);
+    setVoicePollRetry((current) => current + 1);
+  };
   const voiceAction = () => {
     if (!voiceEnabled) {
       navigateChatSurface(subscriptionHref({ intent: 'voice' }));
@@ -354,15 +387,17 @@ export function MessageBubble({
     return onVoice();
   };
   const actionItems: MessageActionDefinition[] = [
-    ...(assistant ? [{
-      key: 'location',
-      label: 'Location',
-      icon: <MapPin size={23} color={colors.warm} />,
-      onPress: () => {
-        setActionsOpen(false);
-        onLocation();
-      },
-    }] : []),
+    ...(assistant
+      ? [{
+        key: 'location',
+        label: 'Location',
+        icon: <MapPin size={23} color={colors.warm} />,
+        onPress: () => {
+          setActionsOpen(false);
+          onLocation();
+        },
+      }]
+      : []),
     ...(canBranch
       ? [{
         key: 'branch',
@@ -383,7 +418,10 @@ export function MessageBubble({
         key: 'copy',
         label: 'Copy',
         icon: <Copy size={23} color={colors.textSecondary} />,
-        onPress: async () => { await Clipboard.setStringAsync(message.content); onCopied(); },
+        onPress: async () => {
+          await Clipboard.setStringAsync(message.content);
+          onCopied();
+        },
       }]
       : [
         ...(canSpice
@@ -412,11 +450,19 @@ export function MessageBubble({
             onPress: onContinue,
           }]
           : []),
-        ...(memoryManualControl && !message.id.startsWith('local-') && !message.provider_metadata?.branchPrefix && message.delivery_status !== 'failed' && message.delivery_status !== 'pending'
+        ...(memoryManualControl && !message.id.startsWith('local-') &&
+            !message.provider_metadata?.branchPrefix && message.delivery_status !== 'failed' &&
+            message.delivery_status !== 'pending'
           ? [{
             key: 'memory',
             label: remembered ? 'Saved' : 'Memory',
-            icon: <Brain size={23} color={remembered ? colors.violet : colors.textSecondary} fill={remembered ? 'rgba(155,99,215,.28)' : 'transparent'} />,
+            icon: (
+              <Brain
+                size={23}
+                color={remembered ? colors.violet : colors.textSecondary}
+                fill={remembered ? 'rgba(155,99,215,.28)' : 'transparent'}
+              />
+            ),
             selected: remembered,
             onPress: () => onRemember(message.id),
           }]
@@ -425,7 +471,10 @@ export function MessageBubble({
           key: 'copy',
           label: 'Copy',
           icon: <Copy size={23} color={colors.textSecondary} />,
-          onPress: async () => { await Clipboard.setStringAsync(message.content); onCopied(); },
+          onPress: async () => {
+            await Clipboard.setStringAsync(message.content);
+            onCopied();
+          },
         },
         ...(!message.id.startsWith('local-')
           ? [{
@@ -551,7 +600,10 @@ export function MessageBubble({
               >
                 <Image
                   source={privateStoredImageSource(attachment.signed_url, attachment.storage_path)}
-                  previewSource={privateStoredPreviewSource(attachment.preview_url, attachment.storage_path)}
+                  previewSource={privateStoredPreviewSource(
+                    attachment.preview_url,
+                    attachment.storage_path,
+                  )}
                   style={styles.userAttachment}
                   contentFit='cover'
                   cachePolicy='memory-disk'
@@ -569,17 +621,24 @@ export function MessageBubble({
                 onRetry={() => void onMediaRetry(item.id)}
               />
             ))}
-            {assistant && !photoOnly && voice ? <VoiceNoteInline
-              showReadyHint={voiceReadyHint}
-              media={voice}
-              active={activeVoiceNoteId === voice.id}
-              onActivate={() => { setVoiceReadyHint(false); onVoiceActivate(voice.id); }}
-              onDeactivate={() => onVoiceActivate(null)}
-              onRetry={() => void onVoice()}
-              onRefresh={() => void refreshVoice()}
-              pendingError={voiceStatusError}
-              onPendingRetry={retryVoiceStatus}
-            /> : null}
+            {assistant && !photoOnly && voice
+              ? (
+                <VoiceNoteInline
+                  showReadyHint={voiceReadyHint}
+                  media={voice}
+                  active={activeVoiceNoteId === voice.id}
+                  onActivate={() => {
+                    setVoiceReadyHint(false);
+                    onVoiceActivate(voice.id);
+                  }}
+                  onDeactivate={() => onVoiceActivate(null)}
+                  onRetry={() => void onVoice()}
+                  onRefresh={() => void refreshVoice()}
+                  pendingError={voiceStatusError}
+                  onPendingRetry={retryVoiceStatus}
+                />
+              )
+              : null}
             <View style={styles.messageMeta}>
               <Text
                 style={[styles.timestamp, desktop && styles.timestampDesktop, {
@@ -594,7 +653,67 @@ export function MessageBubble({
               </Text>
             </View>
           </Pressable>
-          {assistant && !photoOnly ? <Animated.View style={{ opacity: completionControlsOpacity }}><MessageQuickActions kind='direct' selected={quickActions} ready={quickActionsReady} onChange={onQuickActionsChange} actions={actionItems} voice={voice ? null : <Pressable accessibilityRole='button' accessibilityLabel={`Make voice note for ${speakerName}`} onPress={() => void voiceAction()} disabled={voiceBusy} style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(216,62,234,.38)', backgroundColor: 'rgba(216,62,234,.14)', alignItems: 'center', justifyContent: 'center' }}>{voiceBusy ? <ActivityIndicator size='small' color={colors.rose}/> : <Volume2 size={15} color={voiceEnabled ? colors.rose : colors.muted}/>}</Pressable>}/>{voiceBusy && !voice ? <Text accessibilityLiveRegion='polite' style={{ color: colors.textSecondary, fontSize: 11, marginTop: 4 }}>Making voice…</Text> : null}{voiceStatusError && !voice ? <Pressable accessibilityRole='button' accessibilityLabel='Retry voice note' onPress={() => void voiceAction()}><Text accessibilityLiveRegion='polite' style={{ color: colors.rose, fontSize: 11, marginTop: 4 }}>Voice unavailable · Retry</Text></Pressable> : null}</Animated.View> : null}
+          {assistant && !photoOnly
+            ? (
+              <Animated.View style={{ opacity: completionControlsOpacity }}>
+                <MessageQuickActions
+                  kind='direct'
+                  selected={quickActions}
+                  ready={quickActionsReady}
+                  onChange={onQuickActionsChange}
+                  actions={actionItems}
+                  voice={voice ? null : (
+                    <Pressable
+                      accessibilityRole='button'
+                      accessibilityLabel={`Make voice note for ${speakerName}`}
+                      onPress={() => void voiceAction()}
+                      disabled={voiceBusy}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        borderWidth: 1,
+                        borderColor: 'rgba(216,62,234,.38)',
+                        backgroundColor: 'rgba(216,62,234,.14)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {voiceBusy
+                        ? <ActivityIndicator size='small' color={colors.rose} />
+                        : <Volume2 size={15} color={voiceEnabled ? colors.rose : colors.muted} />}
+                    </Pressable>
+                  )}
+                />
+                {voiceBusy && !voice
+                  ? (
+                    <Text
+                      accessibilityLiveRegion='polite'
+                      style={{ color: colors.textSecondary, fontSize: 11, marginTop: 4 }}
+                    >
+                      Making voice…
+                    </Text>
+                  )
+                  : null}
+                {voiceStatusError && !voice
+                  ? (
+                    <Pressable
+                      accessibilityRole='button'
+                      accessibilityLabel='Retry voice note'
+                      onPress={() => void voiceAction()}
+                    >
+                      <Text
+                        accessibilityLiveRegion='polite'
+                        style={{ color: colors.rose, fontSize: 11, marginTop: 4 }}
+                      >
+                        Voice unavailable · Retry
+                      </Text>
+                    </Pressable>
+                  )
+                  : null}
+              </Animated.View>
+            )
+            : null}
           {message.together_message_reactions?.length
             ? (
               <View style={styles.messageReactions}>

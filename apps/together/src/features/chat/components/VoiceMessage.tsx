@@ -7,18 +7,31 @@ import type { GeneratedMedia } from '../../../types';
 import { formatVoiceProgress } from '../../../lib/voiceTime';
 import { useVoiceNotePlayback } from '../../../hooks/useVoiceNotePlayback';
 import { type VoiceCallTimelineValue } from '../types';
-export function VoiceNoteInline({ media, active, onActivate, onDeactivate, onRetry, onRefresh, pendingError, onPendingRetry, compact = false, showReadyHint = false }: {
-  media: GeneratedMedia;
-  active: boolean;
-  onActivate: () => void;
-  onDeactivate: () => void;
-  onRetry: () => void;
-  onRefresh: () => void;
-  pendingError?: string | null;
-  onPendingRetry?: () => void;
-  compact?: boolean;
-  showReadyHint?: boolean;
-}) {
+export function VoiceNoteInline(
+  {
+    media,
+    active,
+    onActivate,
+    onDeactivate,
+    onRetry,
+    onRefresh,
+    pendingError,
+    onPendingRetry,
+    compact = false,
+    showReadyHint = false,
+  }: {
+    media: GeneratedMedia;
+    active: boolean;
+    onActivate: () => void;
+    onDeactivate: () => void;
+    onRetry: () => void;
+    onRefresh: () => void;
+    pendingError?: string | null;
+    onPendingRetry?: () => void;
+    compact?: boolean;
+    showReadyHint?: boolean;
+  },
+) {
   const source = media.status === 'ready' && media.signed_url ? media.signed_url : null;
   const { status, play, pause, seekTo } = useVoiceNotePlayback(source);
   const [progressWidth, setProgressWidth] = useState(180);
@@ -36,7 +49,18 @@ export function VoiceNoteInline({ media, active, onActivate, onDeactivate, onRet
     }
   }, [active, pause, play, source, status.didJustFinish, status.isLoaded]);
   if (media.status === 'failed') {
-    if (compact) return <Pressable accessibilityRole='button' accessibilityLabel='Retry companion voice note' onPress={onRetry} style={compactVoiceStyle}><Volume2 size={15} color={colors.rose}/></Pressable>;
+    if (compact) {
+      return (
+        <Pressable
+          accessibilityRole='button'
+          accessibilityLabel='Retry companion voice note'
+          onPress={onRetry}
+          style={compactVoiceStyle}
+        >
+          <Volume2 size={15} color={colors.rose} />
+        </Pressable>
+      );
+    }
     return (
       <View style={styles.voiceNote}>
         <Volume2 size={15} color={colors.muted} />
@@ -44,7 +68,14 @@ export function VoiceNoteInline({ media, active, onActivate, onDeactivate, onRet
           <Text style={styles.voiceNoteText}>
             {media.failure_reason_safe ?? 'Voice note unavailable.'}
           </Text>
-          <Pressable accessibilityRole='button' accessibilityLabel='Retry companion voice note' onPress={(event) => { event.stopPropagation(); onRetry(); }}>
+          <Pressable
+            accessibilityRole='button'
+            accessibilityLabel='Retry companion voice note'
+            onPress={(event) => {
+              event.stopPropagation();
+              onRetry();
+            }}
+          >
             <Text style={styles.listenText}>Retry</Text>
           </Pressable>
         </View>
@@ -53,16 +84,48 @@ export function VoiceNoteInline({ media, active, onActivate, onDeactivate, onRet
   }
   if (!source) {
     if (compact) {
-      if (pendingError || media.status === 'ready') return <Pressable accessibilityRole='button' accessibilityLabel={pendingError ? 'Check voice note again' : 'Reload voice note audio'} onPress={pendingError ? onPendingRetry ?? onRefresh : onRefresh} style={compactVoiceStyle}><Volume2 size={15} color={colors.rose}/></Pressable>;
-      return <View accessibilityLabel='Generating voice note' style={compactVoiceStyle}><ActivityIndicator size='small' color={colors.rose}/></View>;
+      if (pendingError || media.status === 'ready') {
+        return (
+          <Pressable
+            accessibilityRole='button'
+            accessibilityLabel={pendingError ? 'Check voice note again' : 'Reload voice note audio'}
+            onPress={pendingError ? onPendingRetry ?? onRefresh : onRefresh}
+            style={compactVoiceStyle}
+          >
+            <Volume2 size={15} color={colors.rose} />
+          </Pressable>
+        );
+      }
+      return (
+        <View accessibilityLabel='Generating voice note' style={compactVoiceStyle}>
+          <ActivityIndicator size='small' color={colors.rose} />
+        </View>
+      );
     }
-    if (pendingError || media.status === 'ready') return <Pressable
-      accessibilityRole='button'
-      accessibilityLabel={pendingError ? 'Check voice note again' : 'Reload voice note audio'}
-      onPress={(event) => { event.stopPropagation(); (pendingError ? onPendingRetry ?? onRefresh : onRefresh)(); }}
-      style={styles.voiceNote}
-    ><Volume2 size={15} color={colors.rose}/><Text style={styles.voiceNoteText}>{pendingError ?? 'Audio unavailable · tap to reload'}</Text></Pressable>;
-    return <View style={styles.voiceNote}><ActivityIndicator size='small' color={colors.rose}/><Text accessibilityLiveRegion='polite' style={styles.voiceNoteText}>Generating voice…</Text></View>;
+    if (pendingError || media.status === 'ready') {
+      return (
+        <Pressable
+          accessibilityRole='button'
+          accessibilityLabel={pendingError ? 'Check voice note again' : 'Reload voice note audio'}
+          onPress={(event) => {
+            event.stopPropagation();
+            (pendingError ? onPendingRetry ?? onRefresh : onRefresh)();
+          }}
+          style={styles.voiceNote}
+        >
+          <Volume2 size={15} color={colors.rose} />
+          <Text style={styles.voiceNoteText}>
+            {pendingError ?? 'Audio unavailable · tap to reload'}
+          </Text>
+        </Pressable>
+      );
+    }
+    return (
+      <View style={styles.voiceNote}>
+        <ActivityIndicator size='small' color={colors.rose} />
+        <Text accessibilityLiveRegion='polite' style={styles.voiceNoteText}>Generating voice…</Text>
+      </View>
+    );
   }
   const duration = status.duration || Number(media.duration_ms ?? 0) / 1000;
   const current = Math.min(status.currentTime || 0, duration || 0);
@@ -81,13 +144,63 @@ export function VoiceNoteInline({ media, active, onActivate, onDeactivate, onRet
     // gesture. Starting it later from a React effect is rejected by web
     // autoplay policy and expo-audio does not surface that rejected promise.
     onActivate();
-    void play().then((started) => { if (!started) onDeactivate(); });
+    void play().then((started) => {
+      if (!started) onDeactivate();
+    });
   };
-  if (compact) return <View style={compactVoiceRowStyle}>
-    <Pressable accessibilityRole='button' accessibilityLabel={status.error ? 'Reload companion voice note' : status.playing ? 'Pause companion voice note' : 'Play companion voice note'} onPress={toggle} hitSlop={8} style={compactVoiceStyle}>{status.error ? <Volume2 size={15} color={colors.rose}/> : status.playing ? <Pause size={15} color={colors.rose}/> : <Play size={15} color={colors.rose}/>}</Pressable>
-    {duration > 0 ? <Text style={compactVoiceTimeStyle}>{formatVoiceProgress(current, duration)}</Text> : null}
-    {status.error ? <Pressable accessibilityRole='button' accessibilityLabel='Refresh companion voice note' onPress={onRefresh} hitSlop={8}><Text accessibilityLiveRegion='polite' style={compactVoiceTimeStyle}>Voice unavailable · tap to retry</Text></Pressable> : showReadyHint && !status.playing ? <Pressable accessibilityRole='button' accessibilityLabel='Play companion voice note' onPress={toggle} hitSlop={8}><Text accessibilityLiveRegion='polite' style={compactVoiceTimeStyle}>Ready · tap to play</Text></Pressable> : null}
-  </View>;
+  if (compact) {
+    return (
+      <View style={compactVoiceRowStyle}>
+        <Pressable
+          accessibilityRole='button'
+          accessibilityLabel={status.error
+            ? 'Reload companion voice note'
+            : status.playing
+            ? 'Pause companion voice note'
+            : 'Play companion voice note'}
+          onPress={toggle}
+          hitSlop={8}
+          style={compactVoiceStyle}
+        >
+          {status.error
+            ? <Volume2 size={15} color={colors.rose} />
+            : status.playing
+            ? <Pause size={15} color={colors.rose} />
+            : <Play size={15} color={colors.rose} />}
+        </Pressable>
+        {duration > 0
+          ? <Text style={compactVoiceTimeStyle}>{formatVoiceProgress(current, duration)}</Text>
+          : null}
+        {status.error
+          ? (
+            <Pressable
+              accessibilityRole='button'
+              accessibilityLabel='Refresh companion voice note'
+              onPress={onRefresh}
+              hitSlop={8}
+            >
+              <Text accessibilityLiveRegion='polite' style={compactVoiceTimeStyle}>
+                Voice unavailable · tap to retry
+              </Text>
+            </Pressable>
+          )
+          : showReadyHint && !status.playing
+          ? (
+            <Pressable
+              accessibilityRole='button'
+              accessibilityLabel='Play companion voice note'
+              onPress={toggle}
+              hitSlop={8}
+            >
+              <Text accessibilityLiveRegion='polite' style={compactVoiceTimeStyle}>
+                Ready · tap to play
+              </Text>
+            </Pressable>
+          )
+          : null}
+      </View>
+    );
+  }
   return (
     <View style={styles.voiceNote}>
       <Pressable
@@ -95,7 +208,10 @@ export function VoiceNoteInline({ media, active, onActivate, onDeactivate, onRet
           ? 'Pause companion voice note'
           : 'Play companion voice note'}
         accessibilityRole='button'
-        onPress={(event) => { event.stopPropagation(); toggle(); }}
+        onPress={(event) => {
+          event.stopPropagation();
+          toggle();
+        }}
         style={styles.voicePlayButton}
       >
         {status.playing
@@ -113,7 +229,9 @@ export function VoiceNoteInline({ media, active, onActivate, onDeactivate, onRet
               return;
             }
             const width = event.nativeEvent.locationX;
-            void seekTo(Math.max(0, Math.min(duration, (width / Math.max(1, progressWidth)) * duration)));
+            void seekTo(
+              Math.max(0, Math.min(duration, (width / Math.max(1, progressWidth)) * duration)),
+            );
           }}
           style={styles.voiceProgress}
         >
@@ -132,9 +250,26 @@ export function VoiceNoteInline({ media, active, onActivate, onDeactivate, onRet
     </View>
   );
 }
-const compactVoiceStyle = { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(216,62,234,.38)', backgroundColor: 'rgba(216,62,234,.14)', alignItems: 'center' as const, justifyContent: 'center' as const };
-const compactVoiceRowStyle = { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 };
-const compactVoiceTimeStyle = { color: colors.textSecondary, fontSize: 11, fontVariant: ['tabular-nums'] as ['tabular-nums'] };
+const compactVoiceStyle = {
+  width: 32,
+  height: 32,
+  borderRadius: 16,
+  borderWidth: 1,
+  borderColor: 'rgba(216,62,234,.38)',
+  backgroundColor: 'rgba(216,62,234,.14)',
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+};
+const compactVoiceRowStyle = {
+  flexDirection: 'row' as const,
+  alignItems: 'center' as const,
+  gap: 6,
+};
+const compactVoiceTimeStyle = {
+  color: colors.textSecondary,
+  fontSize: 11,
+  fontVariant: ['tabular-nums'] as ['tabular-nums'],
+};
 export function VoiceCallEventRow({ value }: {
   value: VoiceCallTimelineValue;
 }) {

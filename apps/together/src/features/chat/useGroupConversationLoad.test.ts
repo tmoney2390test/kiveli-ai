@@ -92,8 +92,8 @@ it('settles the initial loading state with the matching conversation', async () 
 });
 
 it('keeps a complete warm group visible during its initial verification', async () => {
-  cacheCompleteGroupDetail('user:life',detail);
-  const state=mount();
+  cacheCompleteGroupDetail('user:life', detail);
+  const state = mount();
   expect(state.setLoading).toHaveBeenCalledWith(false);
   await vi.waitFor(() => expect(state.loadedConversation.current).toBe('group'));
 });

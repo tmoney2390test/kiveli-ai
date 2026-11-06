@@ -38,7 +38,9 @@ export function useGroupConversationLoad(options: {
     const controller = new AbortController();
     activeRead.current = controller;
     if (!fresh) {
-      current.current.setLoading(readCachedGroupDetail(cacheScope, conversationId)?.complete !== true);
+      current.current.setLoading(
+        readCachedGroupDetail(cacheScope, conversationId)?.complete !== true,
+      );
       current.current.setError('');
       current.current.prepareScroll(conversationId);
     }

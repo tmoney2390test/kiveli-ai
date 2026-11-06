@@ -18,19 +18,21 @@ vi.mock(
   'expo-crypto',
   () => ({
     CryptoDigestAlgorithm: { SHA256: 'sha256' },
-    digestStringAsync: async (_: string, value: string) => value,
+    digestStringAsync: (_: string, value: string) => Promise.resolve(value),
   }),
 );
 vi.mock(
   '@react-native-async-storage/async-storage',
   () => ({
     default: {
-      getItem: async (key: string) => mock.storage.get(key) ?? null,
-      setItem: async (key: string, value: string) => {
+      getItem: (key: string) => Promise.resolve(mock.storage.get(key) ?? null),
+      setItem: (key: string, value: string) => {
         mock.storage.set(key, value);
+        return Promise.resolve();
       },
-      removeItem: async (key: string) => {
+      removeItem: (key: string) => {
         mock.storage.delete(key);
+        return Promise.resolve();
       },
     },
   }),
@@ -49,13 +51,11 @@ beforeEach(() => {
 });
 describe('support request recovery', () => {
   it('reuses the persisted request ID after an interrupted response and a remount', async () => {
-    const first = vi.fn(async () => {
-      throw new Error('offline');
-    });
+    const first = vi.fn(() => Promise.reject(new Error('offline')));
     await expect(render()({ message: 'Need help' }, first)).rejects.toThrow('offline');
     const id = (first.mock.calls[0] as unknown as [{ requestId: string }])[0].requestId;
     mock.refs = [];
-    const next = vi.fn(async (payload: object) => payload);
+    const next = vi.fn((payload: object) => Promise.resolve(payload));
     await render()({ message: 'Need help' }, next);
     expect(next).toHaveBeenCalledWith({
       message: 'Need help',
@@ -84,7 +84,7 @@ describe('support request recovery', () => {
       new Promise<string>((resolve) => {
         finish = resolve;
       }));
-    await expect(send({ message: 'Need help' }, async () => '')).rejects.toThrow('already sending');
+    await expect(send({ message: 'Need help' }, () => Promise.resolve(''))).rejects.toThrow('already sending');
     await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
     finish('saved');
     await pending;

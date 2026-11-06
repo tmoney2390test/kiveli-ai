@@ -1,3 +1,5 @@
+import type { CallCaption } from './captions';
+
 export type RealtimeCallState =
   | 'idle'
   | 'creating_session'
@@ -48,7 +50,7 @@ export type RealtimeVoiceUsage = {
 };
 
 export type RealtimeVoiceCallbacks = {
-  onCaption?(caption: import('./captions').CallCaption | null): void;
+  onCaption?(caption: CallCaption | null): void;
   onConnected(providerConversationId?: string): void;
   onClosed(): void;
   onTranscript(event: FinalVoiceTranscript): void;

@@ -1,8 +1,25 @@
-import type { Location, PlaceContext, CharacterHome } from '../../types';
+import type { CharacterHome, Location, PlaceContext } from '../../types';
 import { invoke } from './transport';
-export type CharacterHomeDetail={home:CharacterHome;characterName:string;districtName:string|null;availability:{atHome:boolean;available:boolean;activity:string;state:string|null;source:string|null;validUntil:string|null}};
-export const loadCharacterHome=(characterInstanceId:string)=>invoke<CharacterHomeDetail>('together-place',{action:'home_detail',characterInstanceId});
-export const prepareCharacterHomePlan=(characterInstanceId:string)=>invoke<CharacterHomeDetail & {place:Location}>('together-place',{action:'home_planning',characterInstanceId});
+export type CharacterHomeDetail = {
+  home: CharacterHome;
+  characterName: string;
+  districtName: string | null;
+  availability: {
+    atHome: boolean;
+    available: boolean;
+    activity: string;
+    state: string | null;
+    source: string | null;
+    validUntil: string | null;
+  };
+};
+export const loadCharacterHome = (characterInstanceId: string) =>
+  invoke<CharacterHomeDetail>('together-place', { action: 'home_detail', characterInstanceId });
+export const prepareCharacterHomePlan = (characterInstanceId: string) =>
+  invoke<CharacterHomeDetail & { place: Location }>('together-place', {
+    action: 'home_planning',
+    characterInstanceId,
+  });
 export const loadPlaceDetail = (locationId: string) =>
   invoke<{
     place: PlaceContext;

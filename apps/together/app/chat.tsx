@@ -26,7 +26,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { ActivityIndicator, Alert, Animated, AppState, type FlatList, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { type ImageSource } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Brain, CalendarDays, ChevronRight, LockKeyhole, MapPin, MessageCircle, Mic, Play, Send, Sparkles, Square, Trash2, Wand2, X } from 'lucide-react-native';
+import { Brain, CalendarDays, ChevronRight, LockKeyhole, MapPin, MessageCircle, Mic, Play, Send, Sparkles, Square, Trash2, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -234,7 +234,7 @@ function ChatSession() {
   const [showActivities,setShowActivities]=useScopedChatState(chatScope,false);
   const activityRequestRef=useRef<{activity:string;requestId:string}|null>(null);
   const [interactionCandidates, setInteractionCandidates] = useState<InteractionCandidate[]>([]);
-  const [movementCandidates, setMovementCandidates] = useState<InteractionCandidate[]>([]);
+  const [, setMovementCandidates] = useState<InteractionCandidate[]>([]);
   const [interactionScene, setInteractionScene] = useState<SceneSession|null>(null);
   const hydratedInteractionSceneKey=useRef<string|null>(null);
   const markInteractionSceneHydrated=(scene?:SceneSession|null)=>{if(scene?.id)hydratedInteractionSceneKey.current=`${scene.id}:${scene.location_id}`;};
@@ -1451,11 +1451,6 @@ function ChatSession() {
       setInteractionScene(result.scene?.id?result.scene:null);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);
     }catch(caught){if(proposalScopeActive.current){setError(caught instanceof Error?caught.message:'That suggestion could not be dismissed.');setCharacterProposal((current)=>current??proposal);}}
     finally{proposalDecisions.finish(proposal.actionId,saved);if(proposalScopeActive.current)setInteractionLoading(false);}
-  };
-  const moveScene = async (candidate:InteractionCandidate) => {
-    const destinationId=typeof candidate.effects.destinationLocationId==='string'?candidate.effects.destinationLocationId:null;if(!destinationId)return;
-    if(interactionLoading)return;setInteractionLoading(true);setError('');
-    try{const result=await manageInteraction<{scene:SceneSession;interactions:InteractionCandidate[];destinations:InteractionCandidate[]}>({action:'move',characterInstanceId:character.id,conversationId:conversation.id,sceneId:interactionScene?.id,destinationLocationId:destinationId,requestId:createClientRequestId()});markInteractionSceneHydrated(result.scene);setInteractionScene(result.scene?.id?result.scene:null);applySceneDelta(result.scene);setInteractionCandidates(result.interactions??[]);setMovementCandidates(result.destinations??[]);setCharacterProposal(null);if(Platform.OS!=='web')void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);}catch(caught){setError(caught instanceof Error?caught.message:'That place is no longer available right now.');}finally{setInteractionLoading(false);}
   };
   const addSceneParticipant=async(person:SharedSceneCharacter)=>{
     const sceneId=sharedSceneRoster?.scene?.id;if(!sceneId)return;

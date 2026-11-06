@@ -6,7 +6,7 @@ import {
   Linking,
   Platform,
   Pressable,
-  ScrollView,
+  type ScrollView,
   Text,
   TextInput,
   View,

@@ -37,7 +37,12 @@ export async function loadGroupDetail(conversationId: string, options: {
     await ensureWebAdultSession(await token()).catch(() => undefined);
     return await invoke<GroupDetail>(
       'together-group',
-      { action: 'detail', conversationId, messageLimit: options.messageLimit ?? 30, markRead: false },
+      {
+        action: 'detail',
+        conversationId,
+        messageLimit: options.messageLimit ?? 30,
+        markRead: false,
+      },
       'POST',
       { signal: controller.signal },
     );

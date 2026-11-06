@@ -32,7 +32,9 @@ export const rememberMessage = (messageId: string, characterInstanceId: string) 
   });
 
 export const getRememberedMessageStatus = (conversationId: string, messageIds: string[]) =>
-  invoke<{ remembered: Array<{ memoryId: string; messageId: string; characterInstanceId: string }> }>('together-memory', {
+  invoke<
+    { remembered: Array<{ memoryId: string; messageId: string; characterInstanceId: string }> }
+  >('together-memory', {
     action: 'message_status',
     conversationId,
     messageIds,

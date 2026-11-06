@@ -1,4 +1,4 @@
-/** Small in-memory PostgREST test double: filters execute before mutations. */
+/** In-memory PostgREST test double. Apply filters before mutations. */
 export function homeTestDb(
   tables: Record<string, any[]>,
   errors: Record<string, string> = {},

@@ -28,7 +28,8 @@ try {
   for (const [id, kind, title] of [[main,'main','Main Life'],[otherLife,'alternate','Another Life'],[branch,'branch','Alternate path']]) await db.query('insert into together_continuities values($1,$2,$3,$4)', [id,user,kind,title]);
   const photo = 'private/preserved.jpg';
   const chat = async (life=main, who=person, archived=false, owner=user) => (await db.query(`insert into together_conversations(user_id,continuity_id,character_instance_id,kind,archived_at) values($1,$2,$3,'direct',${archived?'now()':'null'}) returning id`, [owner,life,who])).rows[0].id;
-  const a=await chat(), b=await chat(otherLife,crypto.randomUUID()), c=await chat(main,crypto.randomUUID()), d=await chat(main,crypto.randomUUID()), e=await chat(main,crypto.randomUUID());
+  const a=await chat(), b=await chat(otherLife,crypto.randomUUID());
+  for(let i=0;i<3;i++)await chat(main,crypto.randomUUID());
   await assert.rejects(()=>chat(),/ACTIVE_CONVERSATION_LIMIT_REACHED:5/);
   const branchChat=await chat(branch,crypto.randomUUID());
   const saved=await chat(main,person,true), outsider=await chat(null,null,false,foreign);

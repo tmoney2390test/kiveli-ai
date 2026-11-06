@@ -37,7 +37,13 @@ describe('conversation timeline', () => {
     const newerEnd = event('end', 4, { event_type: 'plan_completed', entity_type: 'shared_plan' });
     expect(eventsInLoadedHistory([olderStart, newerEnd], [message('recent', 3)], true))
       .toEqual([newerEnd]);
-    expect(eventsInLoadedHistory([olderStart, newerEnd], [message('older', 0), message('recent', 3)], true))
+    expect(
+      eventsInLoadedHistory(
+        [olderStart, newerEnd],
+        [message('older', 0), message('recent', 3)],
+        true,
+      ),
+    )
       .toEqual([olderStart, newerEnd]);
     expect(eventsInLoadedHistory([olderStart, newerEnd], [message('recent', 3)], false))
       .toEqual([olderStart, newerEnd]);

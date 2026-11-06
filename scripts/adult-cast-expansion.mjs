@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
+import { readFile, writeFile, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CAST_A } from './adult-cast-expansion-data-a.mjs';
@@ -39,10 +39,6 @@ const CLIENT_COUNTS = {
 
 function slugify(name) {
   return String(name).toLowerCase().normalize('NFKD').replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-}
-
-function quote(value) {
-  return `'${String(value).replaceAll("'", "''")}'`;
 }
 
 function pad(text, min) {
@@ -659,19 +655,6 @@ async function patchAssets(characters) {
   }
   text = text.replace(anchor, `${anchor}\n${lines.join('\n')}`);
   await writeFile(assetsPath, text);
-}
-
-function replaceCount(text, key, value) {
-  const jsonKey = `"${key}":`;
-  const bareKey = `${key}:`;
-  if (typeof value === 'object') {
-    return text.replace(new RegExp(`${jsonKey}\\{"women":\\d+,"men":\\d+\\}`), `${jsonKey}${JSON.stringify(value)}`)
-      .replace(new RegExp(`${bareKey}\\{women:\\d+,men:\\d+\\}`), `${bareKey}${JSON.stringify(value).replaceAll('"', '')}`.replace('women:', 'women:').replace('men:', 'men:'));
-  }
-  return text
-    .replace(new RegExp(`${jsonKey}${typeof value === 'number' ? '\\d+' : '[^,}]+'}`), `${jsonKey}${JSON.stringify(value)}`.replace(/^"([^"]+)":/, `"$1":`))
-    .replace(new RegExp(`${jsonKey}\\d+`), `${jsonKey}${value}`)
-    .replace(new RegExp(`${bareKey}\\d+`), `${bareKey}${value}`);
 }
 
 async function patchWorldFile(world, extra) {

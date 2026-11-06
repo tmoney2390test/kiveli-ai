@@ -14,7 +14,10 @@ import { Images, Play, X } from 'lucide-react-native';
 import { FrostedBackdrop, FrostedSurface } from '../../../components/FrostedGlass';
 import { colors } from '../../../theme';
 import type { GeneratedMedia } from '../../../types';
-import { privateStoredImageSource, privateStoredPreviewSource } from '../../../lib/mediaImageSource';
+import {
+  privateStoredImageSource,
+  privateStoredPreviewSource,
+} from '../../../lib/mediaImageSource';
 import { type ChatMediaGalleryItem, chatMediaVideoPreview } from '../../../lib/chatMediaGallery';
 import { VideoMomentThumbnail } from '../../../components/VideoMomentThumbnail';
 import { mediaViewerHref } from '../../../lib/conversationNavigation';

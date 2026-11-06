@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 const native = vi.hoisted(() => {
-  const events = new Map<string, (e:any)=>void>();
-  return {events,Pipeline:{connect:vi.fn(async()=>{}),disconnect:vi.fn(async()=>{}),onError:vi.fn(()=>({remove:vi.fn()})),onAudioFocus:vi.fn(()=>({remove:vi.fn()})),subscribe:vi.fn((name:string,cb:any)=>{events.set(name,cb);return{remove:()=>events.delete(name)};}),getTelemetry:vi.fn(()=>({turnId:'a',totalWritten:24000,totalRead:12000})),getOutputLatencyMs:vi.fn(()=>80),pushAudioSync:vi.fn(),invalidateTurn:vi.fn(async()=>{})},PlaybackModes:{CONVERSATION:'conversation'},ExpoPlayAudioStream:{startMicrophone:vi.fn(async()=>({subscription:{remove:vi.fn()}})),stopMicrophone:vi.fn(async()=>null)}};
+  const events = new Map<string, (event: {turnId: string})=>void>();
+  return {events,Pipeline:{connect:vi.fn(()=>Promise.resolve()),disconnect:vi.fn(()=>Promise.resolve()),onError:vi.fn(()=>({remove:vi.fn()})),onAudioFocus:vi.fn(()=>({remove:vi.fn()})),subscribe:vi.fn((name:string,cb:(event: {turnId: string})=>void)=>{events.set(name,cb);return{remove:()=>events.delete(name)};}),getTelemetry:vi.fn(()=>({turnId:'a',totalWritten:24000,totalRead:12000})),getOutputLatencyMs:vi.fn(()=>80),pushAudioSync:vi.fn(),invalidateTurn:vi.fn(()=>Promise.resolve())},PlaybackModes:{CONVERSATION:'conversation'},ExpoPlayAudioStream:{startMicrophone:vi.fn(()=>Promise.resolve({subscription:{remove:vi.fn()}})),stopMicrophone:vi.fn(()=>Promise.resolve(null))}};
 });
 vi.mock('@edkimmel/expo-audio-stream',()=>native);
-vi.mock('expo-audio',()=>({setAudioModeAsync:vi.fn(async()=>{})}));
+vi.mock('expo-audio',()=>({setAudioModeAsync:vi.fn(()=>Promise.resolve())}));
 vi.mock('expo-file-system',()=>({File:class{}}));
 import { PlatformRealtimeAudioEngine } from './engine';
 afterEach(()=>{vi.useRealTimers();vi.clearAllMocks();native.events.clear();});

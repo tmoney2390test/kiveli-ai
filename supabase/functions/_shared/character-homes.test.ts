@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { homeTestDb } from "../../../scripts/fixtures/home-test-db";
+import { homeTestDb } from "./test-support/home-test-db";
 vi.mock(
   "./together-continuity.ts",
   () => ({

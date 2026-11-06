@@ -18,7 +18,9 @@ for(const m of manifest){if(!files.has(basename(m.file))||!m.thumbnailUrl)throw 
  const bytes=await readFile(m.file),meta=await sharp(bytes).metadata(),sha256=createHash('sha256').update(bytes).digest('hex');
  if(hashes.has(sha256))throw Error(`Duplicate image: ${m.slug}`);hashes.add(sha256);
  if(meta.width!==m.width||meta.height!==m.height||meta.width<1024||meta.width<=meta.height)throw Error(`Invalid image dimensions: ${m.slug}`);
- const {file,...entry}=m;reviewed.push({...entry,sha256,approved:true});
+ const entry={...m,sha256,approved:true};
+ delete entry.file;
+ reviewed.push(entry);
 }
 reviewed.sort((a,b)=>a.slug.localeCompare(b.slug));await writeFile(resolve(out,`${world}.json`),JSON.stringify(reviewed,null,2)+'\n');
 console.log(`Recorded ${reviewed.length} individually verified original images and thumbnails for ${world}.`);
