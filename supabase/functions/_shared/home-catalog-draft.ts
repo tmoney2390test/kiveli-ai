@@ -1,4 +1,4 @@
-import { homeWorldEraGuidance } from "../../../content/homes/world-era-guidance.ts";
+import { homeWorldEraGuidance } from "../../../content/homes/world-era-guidance.mjs";
 import { z } from 'zod';
 import { AppError } from './types.ts';
 import { extractResponsesText } from '../../../packages/together-domain/src/ai-provider.ts';
