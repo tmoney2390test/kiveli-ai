@@ -9,7 +9,7 @@ import { conversationResponseLength, conversationResponseTokenBudget, conversati
 import { chatLanguagePromptInstruction, normalizeChatLanguage } from '../../../packages/together-domain/src/chat-language.ts';
 import { budgetContextSections, collectStandingMemoryTexts, contextInputTokenCeiling, formatRollingConversationState, intimateLifeEligible, isContradictoryAcceptedIntimacyRefusal, isCoreRuleMemory, isNonAuthoritativeIntimacyDecline, publicCharacterBible, rankContextRecords, standingRelationshipCoreRule, type ContextBudgetResult, type ContextIntent, type ContextRecordCategory, type ContextSectionInput } from '../../../packages/together-domain/src/index.ts';
 import { selectLocationLore, type LocationLoreIntent } from '../../../packages/together-domain/src/location-depth.ts';
-import { dialogueSafeContext, KIVELLE_CLOSED_WORLD_RULES } from './kivelle-closed-world.ts';
+import { dialogueSafeContext, KIVELLE_CLOSED_WORLD_RULES, worldTechnologyGuidance } from './kivelle-closed-world.ts';
 import { renderPersonaPromptBlock } from './kivelle-persona.ts';
 import { chatDynamismPrompt } from '../../../packages/together-domain/src/chat-generation.ts';
 import { evaluateNarrativeConsequenceGate, isPersonalFictionalViolenceRequest, narrativeConsequenceRequestWindow } from '../../../packages/together-domain/src/narrative-consequences.ts';
@@ -28,7 +28,7 @@ export const providerCapabilities:Record<DialogueRoute['provider'],ContentCapabi
   deterministic:{romance:false,matureThemes:false,sexualText:false,explicitSexualText:false,suggestiveImages:false,nudityImages:false,explicitSexualImages:false},
 };
 export const KIVELLE_STORY_IMPROVISATION_RULES=`Kivelle is a shared fictional world, so natural story progression is not dishonesty. When the user invites the companion to continue an ordinary situation, improvise low-stakes, reversible in-world details and off-screen actions that fit the character, elapsed time, current place, schedule, and established canon.
-A companion may make a routine call, speak with an unnamed coworker, check something at work, pick something up, or return with a plausible in-world answer. When the user follows up after enough time has plausibly passed, advance that thread instead of repeatedly saying nothing happened. Keep the result consistent in later dialogue.
+A companion may contact someone using the current world's established means, speak with an unnamed coworker, check something at work, pick something up, or return with a plausible in-world answer. Do not introduce modern communications into a historical setting. When the user follows up after enough time has plausibly passed, advance that thread instead of repeatedly saying nothing happened. Keep the result consistent in later dialogue.
 Improvised story beats never mutate structured Kivelle state. Do not use them to create or complete a plan, date, trip, scheduled event, purchase, payment, account action, relationship milestone, memory record, location change, or action by the user. Never invent the user's words, decisions, attendance, consent, or physical actions.
 Do not present improvised details as verified information about real people, real businesses, real insurers, banking, law, medicine, emergency services, or the user's actual accounts. A request about a Kivelle character or establishment stays inside the story; use invented in-world names and ordinary operational detail where needed, without requesting sensitive identifiers. If a missing detail is low-stakes, choose a plausible one and keep moving. If it would be consequential or contradict canon, be honest about that specific uncertainty without turning the whole reply into a refusal.`;
 export const KIVELLE_HIGH_STAKES_STORY_RULES=`High-stakes choices are possible inside a Kivelle world. A ruler may march an army, a governor may evacuate a city, or a faction leader may begin an uprising when that decision fits their actual authority, motives, relationship with the user, available evidence, and established canon.
@@ -192,6 +192,7 @@ ${standingCoreRule}
 </CORE_RULES>
 <WORLD_KNOWLEDGE>
 ${KIVELLE_CLOSED_WORLD_RULES}
+${worldTechnologyGuidance(context)}
 </WORLD_KNOWLEDGE>
 <CONVERSATION_STYLE>
 Selected expression style: ${style}.

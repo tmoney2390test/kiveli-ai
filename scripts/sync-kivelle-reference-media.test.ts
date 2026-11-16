@@ -1,7 +1,23 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import test from 'node:test';
-import {CHARACTER_REFERENCE_BUCKET,DIRECT_LOCATION_ARTWORK_WORLDS,defaultStorageTarget,discoverAssets,parseCharacterAssetName} from './sync-kivelle-reference-media.ts';
+import {CHARACTER_REFERENCE_BUCKET,DIRECT_LOCATION_ARTWORK_WORLDS,defaultStorageTarget,discoverAssets,parseCharacterAssetName,referenceContextRows} from './sync-kivelle-reference-media.ts';
+
+test('reference sync loads catalog rows beyond the API page limit',async()=>{
+  const records=Array.from({length:1100},(_,id)=>({id}));
+  assert.deepEqual(await referenceContextRows(async(start,end)=>({data:records.slice(start,end+1),error:null})),records);
+  await assert.rejects(referenceContextRows(async()=>({data:null,error:{message:'query failed'}})));
+});
+
+test('Eos venues and Calder locations keep their own artwork in reference syncs',async()=>{
+  const assets=await discoverAssets();
+  for(const [world,count] of [['eos-meridian',54],['calders-run',53]] as const){
+    const locations=assets.filter(asset=>asset.role==='location_canonical'&&asset.worldSlug===world);
+    assert.equal(locations.length,count);
+    for(const asset of locations)assert.ok(asset.path.replaceAll('\\','/').endsWith(`/${asset.locationSlug}.jpg`),asset.sourceKey);
+    assert.equal(new Set(locations.map(asset=>asset.path)).size,count);
+  }
+});
 
 test('discovers canonical NorthVale location artwork used for media grounding',async()=>{
   assert.ok(DIRECT_LOCATION_ARTWORK_WORLDS.includes('northvale'));
