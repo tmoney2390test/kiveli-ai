@@ -7,23 +7,27 @@ import { colors, radius } from '../theme';
 import { FrostedBackdrop, FrostedSurface } from './FrostedGlass';
 
 /** Mount only while open and key by conversation + plan to discard stale drafts. */
-export function PlanActivityPicker({ currentActivity, locationName, options, disabled, onSave, onClose }: {
+export function PlanActivityPicker({ currentActivity, locationName, options, disabled, mode = 'change', presentation = 'modal', onSave, onClose }: {
   currentActivity: string;
   locationName: string;
   options: string[];
   disabled?: boolean;
-  onSave: (activity: string) => Promise<void>;
+  mode?: 'change' | 'select';
+  presentation?: 'modal' | 'embedded';
+  onSave: (activity: string) => void | Promise<void>;
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [selected, setSelected] = useState('');
-  const [custom, setCustom] = useState('');
+  const choices = planActivityOptions(options, mode === 'change' ? currentActivity : '');
+  const currentLabel = cleanPlanActivity(currentActivity.replace(/_/g, ' '));
+  const initialChoice = mode === 'select' ? choices.find(label => label.toLowerCase() === currentLabel.toLowerCase()) : undefined;
+  const [selected, setSelected] = useState(initialChoice ?? '');
+  const [custom, setCustom] = useState(mode === 'select' && !initialChoice ? currentLabel : '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const saving = useRef(false);
-  const choices = planActivityOptions(options, currentActivity);
   const activity = cleanPlanActivity(custom || selected);
-  const unchanged = activity.toLowerCase() === cleanPlanActivity(currentActivity.replace(/_/g, ' ')).toLowerCase();
+  const unchanged = mode === 'change' && activity.toLowerCase() === currentLabel.toLowerCase();
   const save = async () => {
     if (saving.current || disabled || !activity || unchanged || activity.length > PLAN_ACTIVITY_MAX_LENGTH) return;
     saving.current = true; setBusy(true); setError('');
@@ -31,24 +35,24 @@ export function PlanActivityPicker({ currentActivity, locationName, options, dis
     catch (caught) { setError(caught instanceof Error ? caught.message : 'The activity could not be changed. Try again.'); }
     finally { saving.current = false; setBusy(false); }
   };
-  return <Modal visible transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={busy ? undefined : onClose}>
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.layer, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
+  const content = <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.layer, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
       <FrostedBackdrop intensity={34}/>
       <Pressable style={StyleSheet.absoluteFill} accessibilityLabel="Close activity picker" disabled={busy} onPress={onClose}/>
       <FrostedSurface intensity={88} style={styles.panel}>
-        <View style={styles.header}><View style={styles.titleCopy}><Text style={styles.title}>Do an Activity</Text><Text numberOfLines={2} style={styles.subtitle}>{locationName}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close activity picker" disabled={busy} onPress={onClose} style={styles.close}><X size={20} color={colors.textSecondary}/></Pressable></View>
-        <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.content}>
+        <View style={styles.header}><View style={styles.titleCopy}><Text style={styles.title}>{mode === 'select' ? 'Choose an activity' : 'Do an Activity'}</Text><Text numberOfLines={2} style={styles.subtitle}>{locationName}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close activity picker" disabled={busy} onPress={onClose} style={styles.close}><X size={20} color={colors.textSecondary}/></Pressable></View>
+        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.scroll} contentContainerStyle={styles.content}>
           <Text style={styles.hint}>Pick something to do together, or add your own.</Text>
-          <View style={styles.grid}>{choices.map((label) => <Pressable key={label} accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{ checked: selected === label && !custom, disabled: busy }} disabled={busy} onPress={() => { setSelected(label); setCustom(''); setError(''); }} style={[styles.option, selected === label && !custom && styles.chosen]}><Sparkles size={18} color={colors.violet}/><Text style={styles.optionText}>{label}</Text>{selected === label && !custom ? <Check size={16} color={colors.rose}/> : null}</Pressable>)}</View>
-          <Text style={styles.fieldLabel}>Something else?</Text>
+          <Text style={styles.fieldLabel}>Your own activity</Text>
           <TextInput accessibilityLabel="Your own activity" placeholder="Make pancakes, play a card game…" placeholderTextColor={colors.dimmed} value={custom} onChangeText={(value) => { setCustom(value); setSelected(''); setError(''); }} editable={!busy} maxLength={PLAN_ACTIVITY_MAX_LENGTH} multiline style={styles.input}/>
+          {choices.length ? <Text style={styles.fieldLabel}>Suggestions</Text> : null}
+          <View style={styles.grid}>{choices.map((label) => <Pressable key={label} accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{ checked: selected === label && !custom, disabled: busy }} disabled={busy} onPress={() => { setSelected(label); setCustom(''); setError(''); }} style={[styles.option, selected === label && !custom && styles.chosen]}><Sparkles size={18} color={colors.violet}/><Text style={styles.optionText}>{label}</Text>{selected === label && !custom ? <Check size={16} color={colors.rose}/> : null}</Pressable>)}</View>
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           {disabled ? <Text style={styles.hint}>Available when the current reply finishes.</Text> : null}
         </ScrollView>
-        <Pressable accessibilityRole="button" disabled={busy || disabled || !activity || unchanged} onPress={() => void save()} style={[styles.submit, (busy || disabled || !activity || unchanged) && styles.disabled]}>{busy ? <ActivityIndicator color="#fff"/> : <Sparkles size={18} color="#fff"/>}<Text style={styles.submitText}>{busy ? 'Updating…' : 'Do this activity'}</Text></Pressable>
+        <Pressable accessibilityRole="button" disabled={busy || disabled || !activity || unchanged} onPress={() => void save()} style={[styles.submit, (busy || disabled || !activity || unchanged) && styles.disabled]}>{busy ? <ActivityIndicator color="#fff"/> : <Sparkles size={18} color="#fff"/>}<Text style={styles.submitText}>{busy ? 'Saving…' : mode === 'select' ? 'Use this activity' : 'Do this activity'}</Text></Pressable>
       </FrostedSurface>
-    </KeyboardAvoidingView>
-  </Modal>;
+    </KeyboardAvoidingView>;
+  return presentation === 'embedded' ? content : <Modal visible transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={busy ? undefined : onClose}>{content}</Modal>;
 }
 
 const styles = StyleSheet.create({

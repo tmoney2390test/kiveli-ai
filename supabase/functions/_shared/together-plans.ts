@@ -8,6 +8,7 @@ import { localToUtc, planStartSatisfiesLeadTime } from '../../../packages/togeth
 import { closedLocationPlanMessage, locationClosingWindow, planFitsLocationHours } from './together-plan-hours.ts';
 import { planParticipantIds, recordGroupPlanCommitment, resolveSharedPlanRoster } from './together-group-plans.ts';
 import { assertHomePlanWelcome } from './character-homes.ts';
+import { parsePlanActivity } from '../../../packages/together-domain/src/plan-activity-input.ts';
 
 export type PlanSource = 'chat'|'manual_planner'|'location'|'discover'|'date'|'story';
 
@@ -184,17 +185,18 @@ export async function writeConversationEvent(db:any,input:{userId:string;charact
 
 export async function focusConversationOnPlan(db:any,userId:string,conversationId:string,planId:string){const{data}=await db.from('together_conversations').select('metadata').eq('id',conversationId).eq('user_id',userId).maybeSingle();if(data)await db.from('together_conversations').update({metadata:{...(data.metadata??{}),focus:{type:'plan',planId,updatedAt:new Date().toISOString()}}}).eq('id',conversationId).eq('user_id',userId);}
 
-async function resolvePlanOption(db:any,userId:string,locationId:string,activityValue:string,titleValue?:string,durationValue?:number){
+export async function resolvePlanOption(db:any,userId:string,locationId:string,activityValue:string,titleValue?:string,durationValue?:number){
   const{data:location}=await db.from('together_locations').select('*').eq('id',locationId).maybeSingle();
   if(!location)throw new AppError('VALIDATION_FAILED','Choose a real location in an available world.',400);
   if(location.owner_user_id&&(location.owner_user_id!==userId||location.archived_at))throw new AppError('NOT_FOUND','That private place is unavailable.',404);
-  const possible=(location.possible_activities??[]).map((value:string)=>normalize(value));
+  const possible=(location.possible_activities??[]).map(String);
   const metadata=location.metadata??{};
-  const dateTypes=(Array.isArray(metadata.date_types)?metadata.date_types:[]).map((value:unknown)=>normalize(String(value)));
-  const activityKey=normalize(activityValue).replace(/\s+/g,'_');
-  const activityLabel=activityKey.replace(/_/g,' ');
-  if(!possible.includes(normalize(activityLabel))&&!dateTypes.includes(normalize(activityLabel)))throw new AppError('VALIDATION_FAILED',`${location.name} does not offer that activity.`,400);
-  const program=venuePrograms(metadata).find((item)=>normalize(item.activityKey)===normalize(activityKey));
+  const dateTypes=(Array.isArray(metadata.date_types)?metadata.date_types:[]).map(String);
+  const programs=venuePrograms(metadata);
+  const activity=parsePlanActivity(activityValue,[...possible,...dateTypes,...programs.map(item=>item.activityKey)]);
+  if(!activity)throw new AppError('VALIDATION_FAILED','Enter an activity of up to 120 characters.',400);
+  const activityKey=activity.key,activityLabel=activity.label;
+  const program=activity.custom?undefined:programs.find((item)=>normalize(item.activityKey)===normalize(activityKey));
   const durationMinutes=Math.max(30,Math.min(360,program?.durationMinutes??durationValue??durationFor(activityLabel)));
   return{location,activityKey,title:titleValue?.trim().slice(0,160)||defaultTitle(activityLabel,location.name),durationMinutes,significance:significanceFor(activityLabel,metadata)};
 }

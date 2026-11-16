@@ -15,6 +15,8 @@ import { useWorldPulse } from '../hooks/useWorldPulse';
 import { useAuth } from '../hooks/useAuth';
 import { navigateLocalRouteOnWeb } from '../lib/conversationNavigation';
 import { PersonalPlacePicker } from './PersonalPlacePicker';
+import { PlanActivityPicker } from './PlanActivityPicker';
+import { planningActivityOption, planningActivitySuggestions } from '../lib/planActivitySelection';
 import { prepareCharacterHomePlan } from '../lib/api/places';
 import {useTogether} from '../store/useTogether';
 import type { Location } from '../types';
@@ -57,7 +59,8 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
   const [timeValue, setTimeValue] = useState(defaultPlanTimeFields().time);
   const [validation, setValidation] = useState('');
   const [personalPickerOpen,setPersonalPickerOpen]=useState(false);
-  const [homePlace,setHomePlace]=useState<Location|null>(null);
+  const [activityPlace,setActivityPlace]=useState<Location|null>(null);
+  const [customPlanOption,setCustomPlanOption]=useState<PlanOption|null>(null);
   const [homeLoading,setHomeLoading]=useState(false);
   const [homeError,setHomeError]=useState('');
   const homeRequest=useRef(0);
@@ -68,7 +71,7 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
   const viewerTimezone=userExperienceTimezone(snapshot);
   const switchNow=useMemo(()=>new Date(),[currentPlan?.id,mode]);
   const { session } = useAuth();
-  useEffect(()=>{homeRequest.current++;setHomePlace(null);setHomeLoading(false);setHomeError('');setPersonalPlaces(snapshot.locations.filter(item=>item.owner_user_id===session?.user.id&&!item.archived_at));return()=>{homeRequest.current++;};},[character.id,plannerConversationId,session?.user.id,snapshot.activeContinuity?.id]);
+  useEffect(()=>{homeRequest.current++;setActivityPlace(null);setCustomPlanOption(null);setHomeLoading(false);setHomeError('');setPersonalPlaces(snapshot.locations.filter(item=>item.owner_user_id===session?.user.id&&!item.archived_at));return()=>{homeRequest.current++;};},[character.id,plannerConversationId,session?.user.id,snapshot.activeContinuity?.id]);
 
   const residentWorld = snapshot.worlds.find((world)=>world.id===plannerWorldId) ?? characterResidentWorld(snapshot, character);
   const pulseScope = session?.user.id ? `${session.user.id}:${snapshot.activeContinuity?.id??'default'}` : null;
@@ -104,6 +107,9 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
     // Historical V2 incidents are not live venue schedules or plan invitations.
     worldPulse:worldPulse?.version===2?[]:worldPulse?.events??[],
   };
+  const repeatPlan = (snapshot.sharedPlans ?? []).find((item) => item.id === repeatPlanId);
+  const proposalActivity = typeof proposal?.payload.activityKey === 'string' ? proposal.payload.activityKey : null;
+  const proposalLocation = typeof proposal?.payload.locationId === 'string' ? proposal.payload.locationId : null;
   const options = useMemo(() => {
     const recommended=recommendPlanOptions(planContext);
     const custom:PlanOption[]=planLocations.filter((location)=>Boolean(location.owner_user_id)).flatMap((location)=>location.possible_activities.map((activity)=>({
@@ -111,7 +117,23 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
       title:location.category==='home'?activity:`${activity} at ${location.name}`,description:location.description,locationId:location.id,locationName:location.name,
       activityKey:activity.toLowerCase().replace(/[^a-z0-9]+/g,'_'),source:'location_activity' as const,tags:[],durationMinutes:90,reason:location.character_home_id?'Their home':'Your private place',hours:location.hours,
     })));
-    const combined=[...recommended,...custom];
+    const extra=customPlanOption&&planLocations.some(location=>location.id===customPlanOption.locationId)?customPlanOption:null;
+    const combined=[...recommended,...custom].filter(option=>option.id!==extra?.id);
+    // Repeating a custom plan or accepting an invitation must keep its activity.
+    const requestedActivities=[
+      {locationId:repeatPlan?.location_id,activity:repeatPlan?.activity_key},
+      {locationId:proposalLocation,activity:proposalActivity},
+      {locationId:scoped?.id,activity:initialActivityKey},
+    ];
+    for(const request of requestedActivities){
+      const place=planLocations.find(location=>location.id===request.locationId);
+      if(!place||!request.activity)continue;
+      try{
+        const option=planningActivityOption(place,request.activity,combined);
+        if(option.id!==extra?.id&&!combined.some(item=>item.id===option.id))combined.push(option);
+      }catch{/* Invalid or stale activity data falls back to the available choices. */}
+    }
+    if(extra)combined.push(extra);
     return mode==='switch'?combined.filter((option)=>
       planOptionCanStartNow(option,switchNow,viewerTimezone)
       && !(option.locationId===currentPlan?.location_id&&option.activityKey===currentPlan.activity_key)
@@ -136,10 +158,13 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
     currentPlan?.location_id,
     currentPlan?.activity_key,
     worldPulse?.generatedAt,
+    customPlanOption,
+    repeatPlan?.location_id,
+    repeatPlan?.activity_key,
+    proposalLocation,
+    proposalActivity,
+    initialActivityKey,
   ]);
-  const repeatPlan = (snapshot.sharedPlans ?? []).find((item) => item.id === repeatPlanId);
-  const proposalActivity = typeof proposal?.payload.activityKey === 'string' ? proposal.payload.activityKey : null;
-  const proposalLocation = typeof proposal?.payload.locationId === 'string' ? proposal.payload.locationId : null;
   const proposalOption = proposal && !proposal.payload.needsCompanionPick
     ? options.find((option) => option.locationId === proposalLocation && option.activityKey === proposalActivity)
       ?? options.find((option) => option.locationId === proposalLocation)
@@ -192,12 +217,18 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
   const selectPersonalPlace=(place:Location,activity:string)=>{
     if(!activity)return;
     setPersonalPlaces((rows)=>[place,...rows.filter((item)=>item.id!==place.id)]);
-    selectOption(`personal:${place.id}:${activity.toLowerCase().replace(/[^a-z0-9]+/g,'_')}`);
-    setHomePlace(null);
+    selectActivity(place,activity);
+  };
+  const selectActivity=(place:Location,activity:string)=>{
+    const option=planningActivityOption(place,activity,options);
+    if(mode==='switch'&&!planOptionCanStartNow(option,switchNow,viewerTimezone))throw new Error('This activity is not available right now. Choose another activity.');
+    if(mode==='switch'&&option.locationId===currentPlan?.location_id&&option.activityKey===currentPlan.activity_key)throw new Error('Choose a different activity or place before switching.');
+    setCustomPlanOption(option);
+    selectOption(option.id);
   };
   const chooseTheirHome=async(instanceId:string,fromInvitation=false)=>{
     const request=++homeRequest.current;setHomeLoading(true);setHomeError('');
-    try{const {place}=await prepareCharacterHomePlan(instanceId);if(request!==homeRequest.current)return;setHomePlace(fromInvitation?null:place);
+    try{const {place}=await prepareCharacterHomePlan(instanceId);if(request!==homeRequest.current)return;setActivityPlace(fromInvitation?null:place);
       setPersonalPlaces(rows=>[place,...rows.filter(item=>item.id!==place.id)]);
       const current=useTogether.getState().snapshot;if(current)useTogether.getState().setSnapshot({...current,locations:[...current.locations.filter(item=>item.id!==place.id),place]});
     }catch(error){if(request===homeRequest.current)setHomeError(error instanceof Error?error.message:'Their home could not be loaded. Try again.');}
@@ -289,15 +320,15 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
     </View>
     {homeLoading?<Text accessibilityLiveRegion="polite" style={styles.subtitle}>Opening their home…</Text>:null}
     {homeError?<Text accessibilityRole="alert" style={styles.validation}>{homeError}</Text>:null}
-    {homePlace?<View style={styles.options}><Text style={styles.sectionTitle}>{homePlace.name}</Text>{homePlace.possible_activities.map(activity=><Pressable key={activity} accessibilityRole="button" onPress={()=>selectPersonalPlace(homePlace,activity)} style={styles.option}><Text style={styles.optionTitle}>{activity}</Text><ChevronRight size={17} color={colors.rose}/></Pressable>)}<Pressable accessibilityRole="button" onPress={()=>setHomePlace(null)} style={styles.secondary}><Text style={styles.secondaryText}>Back to other ideas</Text></Pressable></View>:chooserOpen || !choice ? <>
+    {chooserOpen || !choice ? <>
       {!scoped || elsewhere ? <View style={styles.intentRow}>{((mode==='switch'?[
         ['companion_pick', pluralCompanions?'Group pick':`${companionName} picks`], ['casual', 'Something casual'], ['different', 'Something different'], ['liked', 'Places you liked'],
       ]:[
         ['companion_pick', pluralCompanions?'Group pick':`${companionName} picks`], ['tonight', 'For tonight'], ['date_night', 'Date night'], ['casual', 'Something casual'], ['different', 'Something different'], ['liked', 'Places you liked'],
       ]) as Array<[PlanDiscoveryIntent, string]>).map(([value, label]) => <Pressable key={value} onPress={() => chooseIntent(value)} style={[styles.intent, intent === value && styles.intentActive]}><Text style={styles.intentText}>{label}</Text></Pressable>)}</View> : null}
-      {intent || (scoped && !elsewhere) ? <View style={styles.options}>{(intent === 'companion_pick' ? [pick].filter(Boolean) as PlanOption[] : options.slice(0, scoped && !elsewhere ? 8 : 4)).map((option) => {
-        const hours=placeHoursStatus(option.hours);
-        return <Pressable key={option.id} accessibilityRole="button" accessibilityLabel={`${option.title}. ${hours.statusLabel}. ${hours.scheduleLabel}.`} onPress={() => selectOption(option.id)} style={styles.option}><View style={{ flex: 1, minWidth: 0 }}><Text style={styles.optionTitle}>{option.title}</Text><Text style={styles.optionCopy} numberOfLines={2}>{option.description}</Text><PlaceHoursLine status={hours}/><Text style={styles.optionReason}>{option.reason}</Text></View><ChevronRight size={17} color={colors.rose} /></Pressable>;
+      {intent || (scoped && !elsewhere) ? <View style={styles.options}>{(scoped&&!elsewhere?[scoped]:[...new Set((intent==='companion_pick'&&pick?[pick]:options).map(option=>option.locationId))].map(id=>allLocations.find(place=>place.id===id)).filter((place):place is Location=>Boolean(place)).slice(0,4)).map((place) => {
+        const hours=placeHoursStatus(place.hours);
+        return <Pressable key={place.id} accessibilityRole="button" accessibilityLabel={`Choose an activity at ${place.name}`} disabled={busy} onPress={() => setActivityPlace(place)} style={styles.option}><View style={{ flex: 1, minWidth: 0 }}><Text style={styles.optionTitle}>{place.name}</Text><Text style={styles.optionCopy} numberOfLines={2}>{place.description}</Text><PlaceHoursLine status={hours}/><Text style={styles.optionReason}>Choose an activity or add your own</Text></View><ChevronRight size={17} color={colors.rose} /></Pressable>;
       })}</View> : null}
       {!options.length&&mode==='switch'?<View style={styles.noOpenPlaces}><Clock3 size={16} color={colors.muted}/><Text style={styles.noOpenPlacesText}>No other place can fit a plan right now. Try again when more places are open.</Text></View>:null}
       {scopedWorld?<Pressable onPress={()=>setPersonalPickerOpen(true)} style={styles.secondary}><MapPin size={15} color={colors.rose}/><Text style={styles.secondaryText}>Your places · choose or create</Text><Plus size={15} color={colors.rose}/></Pressable>:null}
@@ -318,12 +349,13 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
                 {index === 0 && intent === 'companion_pick' ? <Text style={styles.quote}>{companionPickQuote(companionName, option, character.together_character_versions.personality_config)}</Text> : null}
               </View>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Change activity or place" onPress={resetSelection} style={styles.change}><Edit3 size={13} color="#FFD1E0" /><Text style={styles.changeText}>Change activity or place</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Change place" disabled={busy} onPress={resetSelection} style={styles.change}><Edit3 size={13} color="#FFD1E0" /><Text style={styles.changeText}>Change place</Text></Pressable>
           </View>; })}
         </ScrollView>
         {heroOptions.length > 1 && Platform.OS === 'web' ? <><Pressable accessibilityLabel="Previous place" disabled={activeHeroIndex === 0} onPress={() => moveHero(-1)} style={[styles.carouselArrow, styles.carouselArrowLeft, activeHeroIndex === 0 && styles.arrowDisabled]}><ChevronLeft size={20} color="#fff" /></Pressable><Pressable accessibilityLabel="Next place" disabled={activeHeroIndex >= heroOptions.length - 1} onPress={() => moveHero(1)} style={[styles.carouselArrow, styles.carouselArrowRight, activeHeroIndex >= heroOptions.length - 1 && styles.arrowDisabled]}><ChevronRight size={20} color="#fff" /></Pressable></> : null}
         <View style={styles.carouselFooter}><Text style={styles.carouselCount}>{activeHeroIndex + 1} of {heroOptions.length}</Text><Pressable accessibilityRole="button" onPress={()=>setPersonalPickerOpen(true)} style={styles.viewAll}><MapPin size={14} color={colors.rose}/><Text style={styles.viewAllText}>Your places</Text></Pressable>{!hideViewAllPlaces?<Pressable accessibilityRole="link" onPress={viewAllPlaces} style={styles.viewAll}><Text style={styles.viewAllText}>View all places</Text><ChevronRight size={14} color={colors.rose} /></Pressable>:null}</View>
       </View>
+      {selectedLocation?<Pressable accessibilityRole="button" accessibilityLabel={`Choose activity: ${choice.activityKey.replace(/_/g,' ')}`} accessibilityHint="Opens suggestions and a custom activity field" disabled={busy} onPress={()=>setActivityPlace(selectedLocation)} style={styles.activityField}><View style={{flex:1,minWidth:0}}><Text style={styles.activityFieldLabel}>ACTIVITY</Text><Text style={styles.activityFieldValue}>{choice.activityKey.replace(/_/g,' ')}</Text><Text style={styles.sectionHint}>Choose a suggestion or write your own</Text></View><ChevronDown size={20} color={colors.rose}/></Pressable>:null}
       {mode==='switch'?<View style={styles.switchNotice}><RefreshCw size={15} color={colors.rose}/><View style={{flex:1}}><Text style={styles.switchNoticeTitle}>Switch together now</Text><Text style={styles.switchNoticeCopy}>Any place open now can start immediately. If it closes soon, the plan ends at closing time.</Text></View></View>:<><View style={styles.whenHeader}><Text style={styles.sectionTitle}>When works?</Text><Text style={styles.sectionHint}>Choose the moment that feels right.</Text></View>
       <View style={styles.timingRow}>
         <TimingOption label="NOW" detail="Start together immediately" selected={timingChoice==='now'} disabled={busy} onPress={()=>selectTiming('now')}/>
@@ -335,6 +367,7 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
       <View style={styles.confirmation}><Text style={styles.confirmationTitle} numberOfLines={2}>{choice.title}</Text><Text style={styles.confirmationWhen}>{mode==='switch'?'Starts now':timingPreview}</Text>{error?<Text accessibilityRole="alert" style={styles.validation}>{error}</Text>:null}<Pressable accessibilityRole="button" accessibilityLabel={mode==='switch'?'Switch plan now':'Confirm plan'} accessibilityHint={mode==='switch'?'Ends the current plan and starts this one':timingChoice==='custom'?'Custom time selected':timingChoice?`${timingChoice.replace(/_/g,' ')} selected`:'Choose a time first'} disabled={busy || !canConfirm} onPress={confirm} style={[styles.confirm, (busy || !canConfirm) && styles.disabled]}><Text style={styles.confirmText}>{busy ? mode==='switch'?'Switching…':'Saving…' : mode==='switch'?'Switch Now':timingChoice==='now'?'Start Now':'Confirm Plan'}</Text></Pressable></View>
     </>}
     {scopedWorld?<PersonalPlacePicker visible={personalPickerOpen} worldId={scopedWorld.id} snapshot={snapshot} onClose={()=>setPersonalPickerOpen(false)} onSelect={selectPersonalPlace} onPlacesChange={places=>setPersonalPlaces(current=>[...current.filter(place=>Boolean(place.character_home_id)),...places])}/>:null}
+    {activityPlace?<PlanActivityPicker key={activityPlace.id} mode="select" currentActivity={choice?.locationId===activityPlace.id?choice.activityKey:''} locationName={activityPlace.name} options={planningActivitySuggestions(activityPlace)} disabled={busy} onSave={activity=>selectActivity(activityPlace,activity)} onClose={()=>setActivityPlace(null)}/>:null}
   </View>;
 }
 
@@ -356,6 +389,7 @@ function PlaceHoursLine({status,hero=false}:{status:ReturnType<typeof placeHours
 function TimingOption({label,detail,selected,disabled,expanded,onPress}:{label:string;detail:string;selected:boolean;disabled:boolean;expanded?:boolean;onPress:()=>void}){return <Pressable accessibilityRole="button" accessibilityState={{selected,expanded}} disabled={disabled} onPress={onPress} style={[styles.timingOption,selected&&styles.timingOptionSelected]}><View style={styles.timingTop}><Text style={styles.timingLabel}>{label}</Text>{selected?<Check size={16} color={colors.rose}/>:label==='PICK ANOTHER TIME'?<ChevronDown size={16} color={colors.rose} style={expanded?{transform:[{rotate:'180deg'}]}:undefined}/>:null}</View><Text style={styles.timingDetail}>{detail}</Text></Pressable>;}
 
 const styles = StyleSheet.create({
+  activityField:{minHeight:78,flexDirection:'row',alignItems:'center',gap:12,padding:14,borderRadius:radius.lg,backgroundColor:colors.surface,borderWidth:1,borderColor:'rgba(216,62,234,.28)'},activityFieldLabel:{color:colors.rose,fontSize:10,fontWeight:'900',letterSpacing:1,marginBottom:5},activityFieldValue:{color:colors.text,fontSize:16,fontWeight:'700',lineHeight:22,marginBottom:4},
   homeRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
   homeBubble: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44, maxWidth: '100%', paddingHorizontal: 20, paddingVertical: 10, borderRadius: radius.pill, backgroundColor: 'rgba(216,62,234,.12)', borderWidth: 1, borderColor: 'rgba(216,62,234,.38)' },
   homeBubblePressed: { backgroundColor: 'rgba(216,62,234,.24)', borderColor: colors.rose },

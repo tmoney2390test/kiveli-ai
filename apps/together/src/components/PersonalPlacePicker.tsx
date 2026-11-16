@@ -19,6 +19,8 @@ import { isComingSoonWorld, withComingSoonWorlds } from '../lib/comingSoonWorlds
 import { compareWorldSelectorOrder } from '../lib/worldSelectorOrder';
 import { isWorldCatalogVisible } from '@together/domain/src/world-access';
 import { colors } from '../theme';
+import { PlanActivityPicker } from './PlanActivityPicker';
+import { planningActivitySuggestions } from '../lib/planActivitySelection';
 
 type Props={visible:boolean;worldId:string;snapshot:Snapshot;onClose:()=>void;onSelect?:(place:Location,activity:string)=>void;onPlacesChange?:(places:Location[])=>void;startInCreateMode?:boolean};
 type Selector='world'|'district'|'kind'|null;
@@ -47,6 +49,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
   const [places,setPlaces]=useState<Location[]>([]);
   const [quota,setQuota]=useState<{used:number;limit:number}|null>(null);
   const [editing,setEditing]=useState<Location|null>(null);
+  const [activityPlace,setActivityPlace]=useState<Location|null>(null);
   const [formOpen,setFormOpen]=useState(startInCreateMode);
   const [selector,setSelector]=useState<Selector>(null);
   const [name,setName]=useState('');
@@ -84,6 +87,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
     setDistrictId(undefined);setPhoto(null);setHours(defaultPlaceHoursDraft());pendingImage.current=null;setError('');setAttemptedSave(false);setNotice('');setArchiveConfirm(false);setFormOpen(true);
   };
   useEffect(()=>{
+    setActivityPlace(null);
     if(!visible)return;
     let alive=true;
     setSelectedWorldId(worldId);setFormOpen(false);setSelector(null);setError('');setAttemptedSave(false);setNotice('');setQuota(null);
@@ -150,7 +154,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
       setPlaces(updated);onPlacesChange?.(updated);setFormOpen(false);
       if(!editing)setQuota((current)=>current?{...current,used:current.used+1}:current);
       if(!onSelect)onClose();
-      else if(saved.world_id===worldId){onSelect(saved,saved.possible_activities[0]??'Talking');onClose();}
+      else if(saved.world_id===worldId)setActivityPlace(saved);
       else setNotice(`${saved.name} is ready in ${selectedWorld?.name??'its world'}. Choose a companion there to plan a visit.`);
     }catch(cause){
       setError(cause instanceof Error?cause.message:'Your place could not be saved.');
@@ -166,8 +170,8 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
   };
   const openSelector=(value:Selector)=>{Keyboard.dismiss();setSelector(value);};
 
-  return <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={selector?()=>setSelector(null):onClose}>
-    <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':undefined} style={[styles.backdrop,!compact&&styles.backdropWide]}>
+  return <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={activityPlace?()=>setActivityPlace(null):selector?()=>setSelector(null):onClose}>
+    {activityPlace?<PlanActivityPicker key={activityPlace.id} mode="select" presentation="embedded" currentActivity="" locationName={activityPlace.name} options={planningActivitySuggestions(activityPlace)} onClose={()=>setActivityPlace(null)} onSave={activity=>{onSelect?.(activityPlace,activity);onClose();}}/>:<KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':undefined} style={[styles.backdrop,!compact&&styles.backdropWide]}>
       <View style={[styles.panel,compact?{height,maxHeight:height,paddingTop:insets.top,paddingBottom:Math.max(insets.bottom,12)}:{maxHeight:Math.min(height-40,900),borderBottomLeftRadius:25,borderBottomRightRadius:25}]}>
         <View style={styles.header}>
           <Pressable accessibilityRole="button" accessibilityLabel={formOpen?(startInCreateMode?'Close create a place':'Back to your places'):'Close your places'} onPress={formOpen&&!startInCreateMode?()=>{setFormOpen(false);setError('');}:onClose} style={styles.headerButton}><ArrowLeft size={22} color={colors.text}/></Pressable>
@@ -204,7 +208,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
             {quota?<Text style={styles.fieldHint}>{quota.used} of {quota.limit} personal places across all worlds</Text>:null}
             <Pressable accessibilityRole="button" disabled={limitReached} onPress={()=>startCreate()} style={[styles.create,limitReached&&styles.disabled]}><Plus size={20} color="#fff"/><Text style={styles.createText}>Create a place</Text></Pressable>
             {limitReached?<Text style={styles.fieldHint}>Archive a place or upgrade your plan to add another.</Text>:null}
-            {visiblePlaces.map((place)=><View key={place.id} style={styles.placeCard}><View style={styles.placeMain}><Image source={locationImageSource(selectedWorld?.slug,place)} contentFit="cover" style={styles.thumb}/><View style={styles.placeCopy}><Text style={styles.placeName}>{place.name}</Text><Text style={styles.placeDescription} numberOfLines={2}>{place.description}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Edit ${place.name}`} onPress={()=>startEdit(place)} style={styles.edit}><Text style={styles.editText}>Edit</Text></Pressable></View><View style={styles.activityList}>{place.possible_activities.map((activity)=><Pressable key={activity} accessibilityRole="button" disabled={!onSelect||place.world_id!==worldId} onPress={()=>{onSelect?.(place,activity);onClose();}} style={[styles.activityRow,(!onSelect||place.world_id!==worldId)&&styles.selectDisabled]}><Text style={styles.activityText}>{activity}</Text><ChevronRight size={16} color={colors.muted}/></Pressable>)}</View>{place.world_id!==worldId?<Text style={styles.fieldHint}>Open a plan with someone in {selectedWorld?.name??'this world'} to visit here.</Text>:null}</View>)}
+            {visiblePlaces.map((place)=><View key={place.id} style={styles.placeCard}><View style={styles.placeMain}><Image source={locationImageSource(selectedWorld?.slug,place)} contentFit="cover" style={styles.thumb}/><View style={styles.placeCopy}><Text style={styles.placeName}>{place.name}</Text><Text style={styles.placeDescription} numberOfLines={2}>{place.description}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Edit ${place.name}`} onPress={()=>startEdit(place)} style={styles.edit}><Text style={styles.editText}>Edit</Text></Pressable></View>{onSelect?<Pressable accessibilityRole="button" accessibilityLabel={`Choose an activity at ${place.name}`} disabled={place.world_id!==worldId} onPress={()=>setActivityPlace(place)} style={[styles.activityRow,place.world_id!==worldId&&styles.selectDisabled]}><View style={{flex:1}}><Text style={styles.activityText}>Choose an activity</Text><Text style={styles.fieldHint}>Pick a suggestion or write your own</Text></View><ChevronDown size={18} color={colors.violet}/></Pressable>:null}{place.world_id!==worldId?<Text style={styles.fieldHint}>Open a plan with someone in {selectedWorld?.name??'this world'} to visit here.</Text>:null}</View>)}
             {!visiblePlaces.length?<View style={styles.empty}><MapPin size={24} color={colors.violet}/><Text style={styles.emptyTitle}>No places here yet</Text><Text style={styles.emptyText}>Add a photo, set the hours, and invite companions to your own private place.</Text></View>:null}
             {error?<Text accessibilityRole="alert" style={styles.error}>{error}</Text>:null}
           </>}
@@ -226,7 +230,7 @@ export function PersonalPlacePicker({visible,worldId,snapshot,onClose,onSelect,o
           </View>
         </View>:null}
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardAvoidingView>}
   </Modal>;
 }
 

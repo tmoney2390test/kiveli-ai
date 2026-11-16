@@ -13,5 +13,5 @@ export function planActivityOptions(values: string[], current: string): string[]
     if (!label || label.length > PLAN_ACTIVITY_MAX_LENGTH || seen.has(key(label))) return [];
     seen.add(key(label));
     return [label.charAt(0).toUpperCase() + label.slice(1)];
-  }).slice(0, 12);
+  });
 }

@@ -1,4 +1,5 @@
 import {assertHomePlanWelcome} from './character-homes.ts';
+import { parsePlanActivity } from '../../../packages/together-domain/src/plan-activity-input.ts';
 import type{SupabaseClient}from'@supabase/supabase-js';
 import{classifyMissExplanation,deriveCommitmentTemporalState,missedCommitmentRepairImpact}from'../../../packages/together-domain/src/index.ts';
 import{AppError}from'./types.ts';
@@ -82,7 +83,9 @@ export async function createWindowedCommitment(db:SupabaseClient,input:{userId:s
   const world=(location as Row).together_worlds as Row|undefined;
   const access=await resolveWorldAccess({db,userId:input.userId,worldId:String(location.world_id)});
   if(access==='locked'||access==='available')throw new AppError('WORLD_LOCKED',`${world?.name??'That world'} is not available on this account yet.`,403);
-  const activity=input.activityKey.trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');if(!activity)throw new AppError('VALIDATION_FAILED','Choose something to do together.',400);
+  const parsedActivity=parsePlanActivity(input.activityKey,[...(location.possible_activities??[]),...(Array.isArray(location.metadata?.date_types)?location.metadata.date_types.map(String):[])]);
+  if(!parsedActivity)throw new AppError('VALIDATION_FAILED','Enter an activity of up to 120 characters.',400);
+  const activity=parsedActivity.key;
   const title=(input.title?.trim()||`${titleCase(activity)} at ${location.name}`).slice(0,160);
   const worldTimezone=safeTimezone(world?.timezone);
   const userTimezone=input.userTimezone?safeTimezone(input.userTimezone):await resolveUserExperienceTimezone(db,input.userId,worldTimezone);
