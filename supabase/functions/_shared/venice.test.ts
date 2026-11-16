@@ -334,7 +334,7 @@ Deno.test('Venice prompt keeps canonical identity and scene inside the provider 
   const request=adultRequest(),prompt=buildVeniceImagePrompt(request);
   assert(prompt.length<=2_000);
   assert(prompt.includes('Brooke')&&prompt.includes('Glassline Gallery')&&prompt.includes('viewing the exhibition'));
-  assert(prompt.includes('input image only to preserve the exact same adult face'));
+  assert(prompt.includes('first identity image only to preserve the exact same adult face'));
   assert(prompt.includes('No phone, camera, or selfie stick in hand or frame'));
   assert(prompt.includes('five distinct naturally arranged fingers')&&prompt.includes('No fused or duplicated body parts'));
 });

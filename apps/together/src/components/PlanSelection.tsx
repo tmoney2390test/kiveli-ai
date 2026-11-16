@@ -1,7 +1,7 @@
 import { CatalogImage as Image } from './CatalogImage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Edit3, MapPin, Plus, RefreshCw, X } from 'lucide-react-native';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Edit3, Home, MapPin, Plus, RefreshCw, X } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { DateTimeFields } from './DateTimeFields';
 import { locationImageSource } from '../lib/locationImageSource';
@@ -272,8 +272,20 @@ export function PlanSelection({ snapshot, character, scopedLocationId, currentLo
       </View>
       <Pressable accessibilityLabel="Close planner" disabled={busy} onPress={onClose} style={styles.close}><X size={18} color={colors.muted} /></Pressable>
     </View>
-    <View style={styles.intentRow}>
-      {(participants?.length?participants:[character]).filter(person=>snapshot.characterHomes?.some(home=>home.character_version_id===person.character_version_id&&home.visits_enabled)).map(person=><Pressable key={person.id} accessibilityRole="button" disabled={busy||homeLoading} onPress={()=>void chooseTheirHome(person.id)} style={styles.intent}><Text style={styles.intentText}>{pluralCompanions?`${person.together_character_templates.name}’s home`:'Their home'}</Text></Pressable>)}
+    <View style={styles.homeRow}>
+      {(participants?.length?participants:[character]).filter(person=>snapshot.characterHomes?.some(home=>home.character_version_id===person.character_version_id&&home.visits_enabled)).map(person=>(
+        <Pressable
+          key={person.id}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: busy || homeLoading }}
+          disabled={busy || homeLoading}
+          onPress={()=>void chooseTheirHome(person.id)}
+          style={({ pressed }) => [styles.homeBubble, pressed && styles.homeBubblePressed, (busy || homeLoading) && styles.disabled]}
+        >
+          <Home size={16} color={colors.rose} />
+          <Text style={styles.homeBubbleText}>{pluralCompanions?`${person.together_character_templates.name}’s home`:'Their home'}</Text>
+        </Pressable>
+      ))}
     </View>
     {homeLoading?<Text accessibilityLiveRegion="polite" style={styles.subtitle}>Opening their home…</Text>:null}
     {homeError?<Text accessibilityRole="alert" style={styles.validation}>{homeError}</Text>:null}
@@ -344,6 +356,10 @@ function PlaceHoursLine({status,hero=false}:{status:ReturnType<typeof placeHours
 function TimingOption({label,detail,selected,disabled,expanded,onPress}:{label:string;detail:string;selected:boolean;disabled:boolean;expanded?:boolean;onPress:()=>void}){return <Pressable accessibilityRole="button" accessibilityState={{selected,expanded}} disabled={disabled} onPress={onPress} style={[styles.timingOption,selected&&styles.timingOptionSelected]}><View style={styles.timingTop}><Text style={styles.timingLabel}>{label}</Text>{selected?<Check size={16} color={colors.rose}/>:label==='PICK ANOTHER TIME'?<ChevronDown size={16} color={colors.rose} style={expanded?{transform:[{rotate:'180deg'}]}:undefined}/>:null}</View><Text style={styles.timingDetail}>{detail}</Text></Pressable>;}
 
 const styles = StyleSheet.create({
+  homeRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
+  homeBubble: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44, maxWidth: '100%', paddingHorizontal: 20, paddingVertical: 10, borderRadius: radius.pill, backgroundColor: 'rgba(216,62,234,.12)', borderWidth: 1, borderColor: 'rgba(216,62,234,.38)' },
+  homeBubblePressed: { backgroundColor: 'rgba(216,62,234,.24)', borderColor: colors.rose },
+  homeBubbleText: { flexShrink: 1, color: colors.text, fontSize: 13, fontWeight: '800', textAlign: 'center' },
   surface: { gap: 14, padding: 16, backgroundColor: '#15101D', borderBottomWidth: 1, borderBottomColor: colors.border, shadowColor: '#000', shadowOpacity: .3, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 }, heading: { color: colors.text, fontFamily: 'Georgia', fontSize: 28 }, subtitle: { color: colors.muted, fontSize: 13, marginTop: 4 }, close: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   intentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, intent: { minHeight: 42, justifyContent: 'center', paddingHorizontal: 13, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, intentActive: { backgroundColor: 'rgba(216,62,234,.12)', borderColor: colors.rose }, intentText: { color: colors.text, fontWeight: '800', fontSize: 11 }, options: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 }, option: { width: '48%', minWidth: 220, flexGrow: 1, flexDirection: 'row', alignItems: 'center', gap: 9, padding: 13, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, optionTitle: { color: colors.text, fontFamily: 'Georgia', fontSize: 18 }, optionCopy: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 4 }, optionReason: { color: colors.rose, fontSize: 10, fontWeight: '800', marginTop: 6 }, hoursLine:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:4,marginTop:7},hoursDot:{width:6,height:6,borderRadius:3},hoursDotOpen:{backgroundColor:'#65D6A0'},hoursDotClosed:{backgroundColor:'#F08A9B'},hoursDotUnknown:{backgroundColor:colors.dimmed},hoursStatus:{fontSize:10,fontWeight:'900'},hoursOpen:{color:'#78E3B1'},hoursClosed:{color:'#F5A0AE'},hoursUnknown:{color:colors.muted},hoursSchedule:{color:colors.muted,fontSize:10,fontWeight:'700'},secondary: { minHeight: 42, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border }, secondaryText: { color: colors.text, fontSize: 11, fontWeight: '800' },

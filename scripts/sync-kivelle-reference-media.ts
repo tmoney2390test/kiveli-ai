@@ -3,12 +3,11 @@ import{createHash}from'node:crypto';
 import{readFile,readdir}from'node:fs/promises';
 import{extname,join,parse}from'node:path';
 import{pathToFileURL}from'node:url';
-import{locations as eosMeridianLocations}from'./eos-meridian-content.mjs';
 import{gildedCoastLocations}from'../apps/together/src/worlds/gilded-coast.ts';
 
 const root=process.cwd(),apply=process.argv.includes('--apply'),charactersOnly=process.argv.includes('--characters-only'),locationsOnly=process.argv.includes('--locations-only'),worldSlugFilter=process.argv.find((argument)=>argument.startsWith('--world='))?.slice('--world='.length),bucket='kivelle-reference-media';
 export const CHARACTER_REFERENCE_BUCKET='kivelle-character-reference';
-export const DIRECT_LOCATION_ARTWORK_WORLDS=['juniper-city','port-vervelle','neon-kyo','northvale','vespormoor','vharadren'] as const;
+export const DIRECT_LOCATION_ARTWORK_WORLDS=['juniper-city','port-vervelle','neon-kyo','northvale','vespormoor','vharadren','eos-meridian','calders-run'] as const;
 
 type Asset={sourceKey:string;role:'character_identity'|'location_canonical'|'world_canonical';path:string;worldSlug?:string;locationSlug?:string;characterSlug?:string;variant?:'primary'|`secondary-${number}`};
 
@@ -52,8 +51,7 @@ async function main(){
 export async function discoverAssets():Promise<Asset[]>{
   const output:Asset[]=[];
   // Worlds with one authored image per canonical location can be discovered
-  // directly from their asset directories. Eos Meridian remains below because
-  // its district artwork is intentionally shared by several child locations.
+  // directly from their asset directories, including Eos venue interiors.
   for(const worldSlug of DIRECT_LOCATION_ARTWORK_WORLDS){
     const directory=join(root,'apps','together','assets','locations',worldSlug),files=await readdir(directory);
     for(const name of files.filter((item)=>/\.(jpe?g|png|webp)$/i.test(item))){
@@ -63,8 +61,6 @@ export async function discoverAssets():Promise<Asset[]>{
       output.push({sourceKey:`location:${worldSlug}:${slug}:canonical`,role:'location_canonical',path:join(directory,name),worldSlug,locationSlug:slug});
     }
   }
-  const eosDirectory=join(root,'apps','together','assets','locations','eos-meridian'),eosDistrictByIndex=new Map(eosMeridianLocations.filter((location)=>!location.parentIndex).map((location)=>[location.index,location.slug]));
-  for(const location of eosMeridianLocations){const districtSlug=location.parentIndex?eosDistrictByIndex.get(location.parentIndex):location.slug;if(!districtSlug)throw new Error(`Missing Eos district artwork mapping for ${location.slug}.`);output.push({sourceKey:`location:eos-meridian:${location.slug}:canonical`,role:'location_canonical',path:join(eosDirectory,`${districtSlug}.jpg`),worldSlug:'eos-meridian',locationSlug:location.slug});}
   const gildedDirectory=join(root,'apps','together','assets','locations','gilded-coast');
   const gildedArt=new Set((await readdir(gildedDirectory)).filter((name)=>/\.(?:jpe?g|png|webp)$/i.test(name)));
   for(const location of gildedCoastLocations){
@@ -92,7 +88,18 @@ export function defaultStorageTarget(asset:Asset,sha256:string,extension:string)
   return{bucket,path:`${asset.role}/${asset.sourceKey}/${sha256.slice(0,20)}.${extension}`};
 }
 
-async function loadContext(client:SupabaseClient){const[{data:worlds,error:worldError},{data:locations,error:locationError},{data:templates,error:templateError}]=await Promise.all([client.from('together_worlds').select('id,slug'),client.from('together_locations').select('id,slug,world_id'),client.from('together_character_templates').select('id,slug,current_published_version,together_character_versions(id,version,published_at)')]);if(worldError)throw worldError;if(locationError)throw locationError;if(templateError)throw templateError;return{worlds:new Map((worlds??[]).map((item)=>[item.slug,item.id])),locations:locations??[],templates:templates??[]};}
+export async function referenceContextRows<Row>(query:(start:number,end:number)=>PromiseLike<{data:Row[]|null;error:{message:string}|null}>):Promise<Row[]>{
+  const rows:Row[]=[];
+  for(let start=0;;start+=500){const{data,error}=await query(start,start+499);if(error)throw error;rows.push(...(data??[]));if((data??[]).length<500)return rows;}
+}
+async function loadContext(client:SupabaseClient){
+  const[worlds,locations,templates]=await Promise.all([
+    referenceContextRows((start,end)=>client.from('together_worlds').select('id,slug').order('id').range(start,end)),
+    referenceContextRows((start,end)=>client.from('together_locations').select('id,slug,world_id').is('owner_user_id',null).is('archived_at',null).order('id').range(start,end)),
+    referenceContextRows((start,end)=>client.from('together_character_templates').select('id,slug,current_published_version,together_character_versions(id,version,published_at)').order('id').range(start,end)),
+  ]);
+  return{worlds:new Map(worlds.map((item)=>[item.slug,item.id])),locations,templates};
+}
 function resolveScope(asset:Asset,context:Awaited<ReturnType<typeof loadContext>>){if(asset.characterSlug){const template=context.templates.find((item)=>item.slug===asset.characterSlug);const versions=(template?.together_character_versions??[]) as Array<{id:string;version:number;published_at?:string}>;const version=[...versions].sort((a,b)=>Number(b.version)-Number(a.version))[0];return version?{character_version_id:version.id}:null;}if(asset.worldSlug&&!asset.locationSlug){const id=context.worlds.get(asset.worldSlug);return id?{world_id:id}:null;}if(asset.worldSlug&&asset.locationSlug){const worldId=context.worlds.get(asset.worldSlug),location=context.locations.find((item)=>item.world_id===worldId&&item.slug===asset.locationSlug);return location?{location_id:location.id}:null;}return null;}
 function imageDimensions(bytes:Buffer,contentType:string):{width?:number;height?:number}{if(contentType==='image/png'&&bytes.length>=24)return{width:bytes.readUInt32BE(16),height:bytes.readUInt32BE(20)};if(contentType==='image/jpeg'){let offset=2;while(offset+9<bytes.length){if(bytes[offset]!==0xff){offset+=1;continue;}const marker=bytes[offset+1]!,length=bytes.readUInt16BE(offset+2);if([0xc0,0xc1,0xc2,0xc3,0xc5,0xc6,0xc7,0xc9,0xca,0xcb,0xcd,0xce,0xcf].includes(marker))return{height:bytes.readUInt16BE(offset+5),width:bytes.readUInt16BE(offset+7)};offset+=2+length;}}return{};}
 

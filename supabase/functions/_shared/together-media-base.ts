@@ -124,6 +124,7 @@ export class OpenAIImageProvider implements ImageGenerationProvider {
         503,
       );
     }
+    request = { ...request, referenceImages: providerImageReferences(request, 2, 'bytes') };
     const prompt = buildImagePrompt(request);
     const size = request.composition.aspectRatio === "16:9"
       ? "1536x1024"
@@ -254,6 +255,7 @@ export class GeminiImageProvider implements ImageGenerationProvider {
         503,
       );
     }
+    request = { ...request, referenceImages: providerImageReferences(request, 2, 'bytes') };
     const parts: Array<Record<string, unknown>> = [{
       text: buildImagePrompt(request),
     }];
@@ -2350,6 +2352,34 @@ async function resolveCharacterMediaProfile(
       : undefined,
     revision: Number(data.source_revision ?? 1),
   };
+}
+
+/** Select the actual inputs before building a prompt that numbers them. */
+export function providerImageReferences(
+  request: CanonicalImageGenerationRequest,
+  limit: number,
+  transport: 'bytes' | 'url' | 'either' = 'either',
+): MediaReferenceImage[] {
+  const usable = (item: MediaReferenceImage) => transport === 'bytes'
+    ? Boolean(item.bytes?.byteLength)
+    : transport === 'url' ? Boolean(item.signedUrl) : Boolean(item.signedUrl || item.bytes?.byteLength);
+  const references = request.referenceImages.filter(usable);
+  let ordered = sortReferences(references).filter((item) => item.role !== 'previous_media');
+  if (request.generationKind === 'photo_edit') {
+    const source = request.sourceImage ?? references.find((item) => item.role === 'previous_media');
+    if (!source || !usable(source)) throw new AppError('PROVIDER_REQUEST_INVALID', 'The source photo for this edit was unavailable.', 422, true);
+    // A single-person edit already has identity in its source. Keep the place
+    // alongside it rather than spending that slot on the original portrait.
+    if ((request.subjects?.length ?? 1) === 1) ordered = ordered.filter((item) => ['location_environment', 'world_environment'].includes(item.role));
+    ordered.unshift({ ...source, role: 'previous_media' });
+  }
+  const seen = new Set<string>();
+  return ordered.filter((item) => {
+    const key = referenceKey(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, limit);
 }
 
 function sortReferences(

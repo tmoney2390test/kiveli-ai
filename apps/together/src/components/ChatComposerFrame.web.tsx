@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useGlobalSearchParams, usePathname } from 'expo-router';
+import { useGlobalSearchParams, useIsFocused, usePathname } from 'expo-router';
 import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 import { FrostedSurface } from './FrostedGlass';
 import { chatComposerTopForVisibleViewport } from '../lib/mobileChatKeyboard';
@@ -16,7 +16,11 @@ export function ChatComposerFrame({ owner, floating, bottomInset, onLayout, styl
 }) {
   const pathname = usePathname();
   const params = useGlobalSearchParams<{ group?: string }>();
-  const routeActive = isChatComposerRouteActive(owner, pathname, params.group);
+  const focused = useIsFocused();
+  // A stack can retain several /chat screens (including a planner launch).
+  // Body portals escape the navigator's hidden-screen container, so matching
+  // the global URL alone lets an old composer cover the current Send button.
+  const routeActive = isChatComposerRouteActive(owner, pathname, params.group, focused);
   const [host, setHost] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -105,8 +109,8 @@ export function ChatComposerFrame({ owner, floating, bottomInset, onLayout, styl
     };
   }, [floating, owner, routeActive]);
 
-  if (!floating) return <View onLayout={onLayout} style={[style, { paddingBottom: Math.max(8, bottomInset) }]}>{children}</View>;
   if (!routeActive) return null;
+  if (!floating) return <View onLayout={onLayout} style={[style, { paddingBottom: Math.max(8, bottomInset) }]}>{children}</View>;
 
   const card = <View nativeID="chat-composer-frame" onLayout={onLayout} style={[styles.slot, { paddingBottom: Math.max(10, bottomInset) }]}>
     <FrostedSurface intensity={78} style={styles.glass}>{children}</FrostedSurface>

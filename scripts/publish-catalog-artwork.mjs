@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { bucket, outputPath, sha256, verifyManifest } from './catalog-artwork.mjs';
 import { auditPublishedCharacterPortraits } from './audit-published-character-portraits.mjs';
+import { auditLocationReferenceMedia } from './audit-location-reference-media.mjs';
 
 // No key is accepted from app configuration or written to output. Invoke with
 // existing authenticated release credentials in the process environment.
@@ -54,4 +55,5 @@ await Promise.all(Array.from({length:6},async()=>{
   }
 }));
 console.log(JSON.stringify(await auditPublishedCharacterPortraits(db,{verifyDelivery:true,baseUrl:url})));
+console.log(JSON.stringify(await auditLocationReferenceMedia(db)));
 console.log(JSON.stringify({bucket,uploaded,reused,verified,originalsChanged:false,privateBucketsChanged:false}));

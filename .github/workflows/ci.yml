@@ -55,6 +55,10 @@ jobs:
         run: deno test --no-lock --allow-env --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/fresh-chat.test.ts
       - name: Photo authorization and charging regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/photo-request-policy.test.ts supabase/functions/_shared/together-media-world.test.ts
+      - name: Location reference transport regressions
+        run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/together-media-location-reference.test.ts supabase/functions/_shared/venice.test.ts
+      - name: World technology continuity regressions
+        run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/world-technology.test.ts
       - name: Group photo detail and quality regressions
         run: deno test --allow-env --no-lock --unstable-sloppy-imports --config supabase/functions/deno.json supabase/functions/_shared/together-media-group-detail.test.ts supabase/functions/_shared/together-group-media.test.ts supabase/functions/_shared/together-media-quality.test.ts
       - name: Chat speed regressions

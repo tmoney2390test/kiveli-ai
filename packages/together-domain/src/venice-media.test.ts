@@ -12,6 +12,22 @@ import {
 } from './venice-media.ts';
 
 describe('Venice media contracts', () => {
+  it.each([true, false])('retains location references despite a compact preference (safeMode=%s)', (safeMode) => {
+    const request = buildVeniceEditRequest({ model: VENICE_STANDARD_EDIT_MODEL, prompt: 'A portrait at the selected place.', images: ['identity', 'location'], referenceRoles: ['character_identity', 'location_environment'], aspectRatio: '4:5', safeMode, compactSingleEdit: true });
+    expect(request.endpoint).toBe('/image/multi-edit');
+    expect(request.body).toMatchObject({ modelId: VENICE_STANDARD_EDIT_MODEL, images: ['identity', 'location'], safe_mode: safeMode });
+    expect(request.body['prompt']).toContain('Image 2: target location and background');
+    expect(request.body).not.toHaveProperty('image');
+  });
+
+  it('keeps reference labels aligned after removing empty images and enforcing the reference limit', () => {
+    const request = buildVeniceEditRequest({ model: VENICE_STANDARD_EDIT_MODEL, prompt: 'A portrait.', images: ['', 'identity', 'location', 'outfit', 'world'], referenceRoles: ['previous_media', 'character_identity', 'location_environment', 'outfit_continuity', 'world_environment'], aspectRatio: '4:5', safeMode: true });
+    expect(request.body['images']).toEqual(['identity', 'location', 'outfit']);
+    expect(request.body['prompt']).toContain('Image 1: character identity only');
+    expect(request.body['prompt']).toContain('Image 2: target location and background');
+    expect(request.body['prompt']).not.toContain('Image 4');
+  });
+
   it('uses the documented multi-edit wire contract for the SFW model with one canonical reference', () => {
     const request = buildVeniceEditRequest({ model: VENICE_STANDARD_EDIT_MODEL, prompt: 'Preserve her identity.', images: ['https://signed.test/character.jpg'], aspectRatio: '4:5', safeMode: true });
     expect(request.endpoint).toBe('/image/multi-edit');

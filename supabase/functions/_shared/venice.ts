@@ -3,6 +3,7 @@ import {
   parseVeniceSafetyHeaders,
   VENICE_IMAGE_API_BASE,
   veniceModelCostUsd,
+  type VeniceReferenceRole,
 } from '../../../packages/together-domain/src/venice-media.ts';
 import { AppError } from './types.ts';
 
@@ -10,6 +11,7 @@ export type VeniceEditInput = {
   model: string;
   prompt: string;
   images: string[];
+  referenceRoles?: VeniceReferenceRole[];
   aspectRatio: string;
   safeMode: boolean;
   forceMultiEdit?: boolean;
@@ -27,6 +29,7 @@ export type VeniceEditResult = {
   providerRequestId: string;
   estimatedCost: number;
   generationMs: number;
+  referenceCount?: number;
   safety: { blurred: boolean; contentViolation: boolean; adultModelContentViolation: boolean };
 };
 
@@ -81,6 +84,7 @@ export class VeniceImageClient {
         providerRequestId: safety.requestId ?? crypto.randomUUID(),
         estimatedCost: veniceModelCostUsd(input.model),
         generationMs: Math.max(0, Math.round(performance.now() - started)),
+        referenceCount: Array.isArray(request.body.images) ? request.body.images.length : 1,
         safety: {
           blurred: safety.blurred,
           contentViolation: safety.contentViolation,

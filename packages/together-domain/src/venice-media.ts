@@ -38,6 +38,22 @@ export type VeniceEditRequest = {
   body: Record<string, unknown>;
 };
 
+export type VeniceReferenceRole = 'character_identity' | 'character_training' | 'location_environment' | 'world_environment' | 'outfit_continuity' | 'previous_media';
+
+function referenceGuidance(roles: Array<VeniceReferenceRole | undefined>): string {
+  if (roles.length < 2 || !roles.some(Boolean)) return '';
+  const editingSource = roles[0] === 'previous_media';
+  const descriptions: Record<VeniceReferenceRole, string> = {
+    character_identity: 'character identity only, not its background',
+    character_training: 'character appearance only',
+    location_environment: editingSource ? 'location details; preserve the source setting unless relocation is requested' : 'target location and background',
+    world_environment: 'world architecture and environment, subordinate to the target location',
+    outfit_continuity: 'clothing only, not its background',
+    previous_media: 'source photograph to edit',
+  };
+  return 'REFERENCE ROLES: ' + roles.flatMap((role, index) => role ? [`Image ${index + 1}: ${descriptions[role]}.`] : []).join(' ') + ' Follow the written time and lighting.\n';
+}
+
 export type VeniceSafetyHeaders = {
   blurred: boolean;
   contentViolation: boolean;
@@ -62,6 +78,7 @@ export function buildVeniceEditRequest(input: {
   model: string;
   prompt: string;
   images: string[];
+  referenceRoles?: VeniceReferenceRole[];
   aspectRatio: string;
   safeMode: boolean;
   forceMultiEdit?: boolean;
@@ -70,13 +87,15 @@ export function buildVeniceEditRequest(input: {
   resolution?: string;
   outputFormat?: 'png' | 'jpeg' | 'webp';
 }): VeniceEditRequest {
-  const images = input.images.filter(Boolean).slice(0, 3);
+  const references = input.images.map((image, index) => ({ image, role: input.referenceRoles?.[index] })).filter((reference) => Boolean(reference.image)).slice(0, 3);
+  const images = references.map((reference) => reference.image);
   if (!images.length) throw new Error('venice_reference_required');
   const common = {
-    prompt: input.prompt,
+    prompt: referenceGuidance(references.map((reference) => reference.role)) + input.prompt,
     ...(input.includeAspectRatio ? { aspect_ratio: normalizeVeniceAspectRatio(input.aspectRatio) } : {}),
   };
-  if (input.compactSingleEdit || (images.length === 1 && !input.forceMultiEdit && !VENICE_MULTI_EDIT_ONLY_MODELS.has(input.model.toLowerCase()))) {
+  // A compact preference must never discard another supplied reference.
+  if (images.length === 1 && (input.compactSingleEdit || (!input.forceMultiEdit && !VENICE_MULTI_EDIT_ONLY_MODELS.has(input.model.toLowerCase())))) {
     // Uncensored adult identity edits must use /image/edit with an explicit
     // safe_mode=false. Extra multi-edit fields (resolution, output_format)
     // 400 on qwen-edit-uncensored in production.

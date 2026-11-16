@@ -27,7 +27,7 @@ Design six connected districts and roughly 36–42 named places before writing s
 | Breakwater Point | Fort, clinic, lighthouse, and storm shelter | Weather calls, rescue work, lookout shifts, quiet views |
 | The Outer Cays | Fishing villages, reefs, coves, and short boat routes | Day sails, shoreline walks, local stewardship, lost cargo |
 
-Establish a believable travel graph: walking within the main port, short ferries to nearby cays, and scheduled voyages beyond the playable map. Time of day, tide, weather, opening hours, and a character's work shift must constrain physical meetings. A character away on a ship can text or be discussed, but should not suddenly appear in a tavern. Voyages can be bounded plans or scenarios; they do not need a real-time moving-ship map for the first release.
+Establish a believable travel graph: walking within the main port, short ferries to nearby cays, and scheduled voyages beyond the playable map. Time of day, tide, weather, opening hours, and a character's work shift must constrain physical meetings. A character away on a ship can remain in a remote conversation through the app or be discussed, but should not suddenly appear in a tavern. The interface does not introduce phones into the setting; in-world messages travel by letter, courier, or signal. Voyages can be bounded plans or scenarios; they do not need a real-time moving-ship map for the first release.
 
 Give the coast domestic texture: mended sails and clothes, dockside breakfast, fresh water deliveries, shared kitchens, shipping notices, children waiting for a returning relative, cheap seats at an expensive performance, and arguments about noise or berth priority. Avoid making every venue a pirate den or every resident a treasure hunter.
 
